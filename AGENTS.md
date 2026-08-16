@@ -10,8 +10,9 @@ eight files" says what it costs that the design documents no longer sit beside i
 
 This file holds the **verdicts**: one line per conclusion that has been paid for, plus the rules
 that keep the next measurement honest. The evidence behind each conclusion is not in this
-repository, so a verdict here cannot be re-checked from a checkout. `stats/snapshots/` still
-holds banked cells and `FINDINGS.md` for the runs that have them.
+repository, so a verdict here cannot be re-checked from a checkout. Three things in the tree are the
+exception: `stats/findings/` holds a narrative and a pre-registration per run, `stats/cells/` holds
+the banked cells two R screens read as input, and `stats/snapshots/` holds the accuracy series.
 
 ## Build and test
 

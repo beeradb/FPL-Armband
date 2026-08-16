@@ -221,28 +221,22 @@ var allowedDanglingCitations = []danglingCitationExemption{
 	// property of the file's DEPTH, not of its content, so moving a file can repair
 	// or break one without any edit. Re-run this guard after any move.
 
-	{
-		"reviews/2026-08-14-1e283b7/review.md", 59, "3d0f1443",
-		"the motivating instance, and the reason this guard exists: a dated record " +
-			"resting a GATE DECISION on a document that is not in this repository and " +
-			"never was, so a reader cannot check what the gate was decided on. It is " +
-			"left as written because the record attests to a review that really " +
-			"happened; the lesson is that a claim sourced this way may not be made in " +
-			"the first place, which is a rule for the next record rather than a repair " +
-			"to this one",
-	},
-	{
-		"reviews/2026-08-15-guards-keyed-on-content/review.md", 250, "40efd0a3",
-		"a dated record reporting an internal inconsistency it found in an index held " +
-			"outside this repository. The finding is about a file this checkout has " +
-			"never contained, so there is nothing to repoint it at",
-	},
-	{
-		"reviews/2026-08-15-retire-todo-md/review.md", 92, "d3b8e9da",
-		"a citation whose POINT is that it does not resolve: the record states that " +
-			"this path never existed at any commit, and shows the git query that " +
-			"establishes it. Repairing this one would delete the finding",
-	},
+	// ⚠️ Three exemptions for `reviews/` files were REMOVED here on 2026-08-16,
+	// and none of them was repaired — the scope moved out from under them.
+	//
+	// This guard now skips `reviews/` entirely, on the doctrine the other two
+	// guards already applied: a review record is a dated attestation, and a
+	// citation inside one is a claim about what was true then. So an exemption
+	// naming a review record describes nothing, and the guard says so rather than
+	// letting a grant sit there reading as though it still covers this tree.
+	//
+	// Their reasoning is not lost, because it was never about the paths. One
+	// recorded that a dated record rested a gate decision on a document outside
+	// this repository, so a reader cannot check what the gate was decided on —
+	// and that a claim sourced that way may not be made in the first place, which
+	// is a rule for the next record rather than a repair to that one. Another
+	// covered a citation whose POINT was that it does not resolve, where repairing
+	// it would have deleted the finding.
 }
 
 // TestNoTrackedMarkdownCitesAMissingFile fails when tracked Markdown cites a `.md`
@@ -425,6 +419,48 @@ func TestNoTrackedMarkdownCitesAMissingFile(t *testing.T) {
 	usedExemption := make([]bool, len(allowedDanglingCitations))
 	for _, rel := range strings.Split(out, "\x00") {
 		if rel = strings.TrimSpace(rel); rel == "" {
+			continue
+		}
+		// ⚠️ `reviews/` is out of scope, and this is the project's own doctrine
+		// applied here rather than an exemption invented for convenience.
+		//
+		// `TestNoLivePointerCitesTheRecordByPath` and
+		// `TestRetractedFiguresAreNotQuotedAsCurrent` both already exclude it, for
+		// the reason notes_test.go states at length: a review record is a DATED
+		// ATTESTATION about a named commit. A citation inside one is a claim about
+		// what was true then, not a pointer a reader should follow now, and
+		// "rewriting the path inside it would make it attest to a location that did
+		// not exist".
+		//
+		// This guard did not exclude it and appeared not to need to, because
+		// `resolvesInHistory` accepts anything ever tracked — which covered every
+		// review record's citations for free.
+		//
+		// ⚠️ The v1 history reset removed that cover. With a single root commit
+		// "ever tracked" collapses to "tracked now", and 225 citations inside
+		// `reviews/` became offenders in one step without a character of any of them
+		// changing. That is the clearest possible demonstration that they were never
+		// being checked on their merits — only shielded by the length of the history.
+		//
+		// Excluding it is therefore not a weakening. It restores the scope the other
+		// two guards already have, and the alternative — editing 225 dated
+		// attestations so they point at files that exist today — is exactly what the
+		// doctrine forbids.
+		// The same argument reaches `stats/findings/` and `stats/snapshots/`, and it
+		// is the same argument rather than a second one. A findings file is a dated
+		// record of a run; a pre-registration is a dated commitment made before one;
+		// a banked snapshot is a dated measurement. Each cites the tree as it stood
+		// on its own day, and each was likewise covered for free by the history
+		// escape hatch until the reset removed it.
+		//
+		// ⚠️ What is NOT excluded is every live surface: `AGENTS.md`, `README.md`,
+		// `docs/`, `.claude/` and the Go sources. Those are read forward, a stale
+		// pointer in one is a premise rather than a dated claim, and five of them
+		// were repaired rather than exempted when this scope was drawn — they cited
+		// a bare `FINDINGS.md` that the findings relocation had already moved.
+		if strings.HasPrefix(rel, "reviews/") ||
+			strings.HasPrefix(rel, "stats/findings/") ||
+			strings.HasPrefix(rel, "stats/snapshots/") {
 			continue
 		}
 		body, err := os.ReadFile(filepath.Join(root, rel))

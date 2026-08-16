@@ -46,9 +46,10 @@ statistics that turn a replay into a verdict live in [`stats/README.md`](../stat
 verdict in AGENTS.md. Both were removed on 2026-08-14. Neither is available from a checkout.
 
 ⚠️ **The evidence layer is not empty, and reading this as "nothing is checkable" is the wrong
-conclusion.** `stats/snapshots/` still holds dozens of banked runs, their `FINDINGS.md` and their
-`cells/` directories, and several verdicts in AGENTS.md cite one by name. That is where to look
-before deciding a number cannot be checked at all.
+conclusion.** `stats/snapshots/` still holds dozens of banked runs; `stats/findings/` holds the
+narrative and the pre-registration for each; and `stats/cells/` holds the cells two R screens read
+as input. Several verdicts in AGENTS.md cite one by name. That is where to look before deciding a
+number cannot be checked at all.
 
 This is recorded here permanently, and as a decision rather than as history, because the
 alternative is that the next person to look at a thin `docs/` proposes rebuilding one of them.

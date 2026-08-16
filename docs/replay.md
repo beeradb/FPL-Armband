@@ -333,7 +333,7 @@ need the prefix removed rather than the command swapped.
 A sweep cell is about **4.5 seconds**, so an arm on the shipped 36-cell grid is **two and a half
 to three minutes** — measured 2026-08-14: `BLEND` ran 4 arms × 36 cells in 10m49s and `BLENDLO`
 6 × 36 in 15m07s, which is 4.5 and 4.2 seconds a cell (`stats/snapshots/2026-08-14-blend/` and
-`-blendlo/`). ⚠️ **Those two timings are transcribed PROSE in each directory's `FINDINGS.md`, not
+`-blendlo/`). ⚠️ **Those two timings are transcribed PROSE in each run's file under `stats/findings/`, not
 committed `elapsed=` lines** — `grep -rn 'elapsed=' ` over both returns nothing, so do not go
 looking for a wrapper log there. Committed `elapsed=` lines do exist in other snapshot
 directories, which is exactly what makes this citation look checkable when it is not. **Budget from the per-cell
@@ -737,10 +737,10 @@ grid sweep. Against 89-142 the soft cap sits **14 to 23 times** above and the ha
 is what "set above the measured peak" is worth in practice.
 
 ⚠️ **Read a banked figure from the wrapper's own line, and mind that three of these are not.**
-`-blend`, `-blendlo` and `-blend-datastate` record theirs as prose in `FINDINGS.md` rather than as
+`-blend`, `-blendlo` and `-blend-datastate` record theirs as prose in `stats/findings/` rather than as
 a `peak_rss=` line, so a grep for the wrapper's output format finds a different set of runs than
 the write-ups do. And `2026-08-16-anti-residual-gate/` **disagrees with itself** — one run, 117 in
-`console.txt` and 130 in `FINDINGS.md`. Unadjudicated, and nothing downstream depends on it.
+`console.txt` and 130 in its `stats/findings/` file. Unadjudicated, and nothing downstream depends on it.
 
 The rest is guard rails:
 
