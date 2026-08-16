@@ -1,0 +1,410 @@
+replay: slot 1/3, MemoryHigh=2G MemoryMax=4G, started 01:04:45
+=== RUN   TestDiagGateOracleOnXPoints
+
+=== does a gate perfect on UNDERLYING recover a gate perfect on POINTS?
+SIX arms, all scored on realised POLICY points. Only the gate's own
+criterion changes.
+The 50% recovery bar this banner used to announce as PRE-REGISTERED
+is RETIRED as a decision rule: it failed to resolve twice, and the
+interval got wider rather than narrower the second time. It is kept
+in the file comment as what was pre-registered, and it decides
+nothing here. The recovered fraction is still reported.
+The RESIDUAL arm is a POSITIVE CONTROL on realised points: points =
+xPoints + residual identically, so an oracle on the residual's sign
+raises realised points BY CONSTRUCTION. A gain there is evidence of
+nothing; a small one is a wiring fault.
+The ANTI-RESIDUAL arm is the same construction NEGATED, so on
+realised points it is a NEGATIVE control and liveness only. Its
+purpose is the CONTRAST against the residual arm on policy_xpoints,
+which cancels the veto cost the two share and leaves the
+antisymmetric term.
+*** That contrast's null is NOT zero. *** The two accept sets
+partition the free-transfer stream, so accept-mass asymmetry enters
+additively as mu*(1-2p). ACCEPTALL identifies it: C = (ANTI + RES) -
+ACCEPTALL, T = ACCEPTALL - C, p = moves(RES)/moves(ACCEPTALL), and
+the contrast is tested against T*(1-2p). ACCEPTALL is also the
+NO-GATE policy, which nothing in this project has measured.
+PRIMARY metric: realised POLICY points. SECONDARY: policy_xpoints.
+
+
+*** ORACLE SWEEP — these arms are given hindsight ***
+  decision:transfergate        decision  bounds the WHOLE transfer-gate constant family at once: acceptance of the model's own proposals, not the search that made them
+                               must not move: hold_points, hold_fixedcap_points, hold_nocap_points, hold_xpoints
+  decision:transfergatexp      decision  bounds NOT a capability but a CRITERION: what a gate that has only ever seen underlying — xG, xA, xGC, never a goal — is worth against one that knows the realised points. Read it as a fraction of the transfergate arm on the same cells, never on its own
+                               must not move: hold_points, hold_fixedcap_points, hold_nocap_points, hold_xpoints
+  decision:transfergateres     decision  bounds NOTHING on realised points: it is a POSITIVE CONTROL. Points = xPoints + residual identically, so an oracle on the residual's sign raises the scored metric by construction and a gain there is expected whatever is true. Read policy_xpoints instead, as a ratio against the transfergatexp arm — and never as a share of the transfergate arm's gain, which is not what a decomposition of the CRITERIA licenses about the GAINS
+                               must not move: hold_points, hold_fixedcap_points, hold_nocap_points, hold_xpoints
+  decision:transfergateanti    decision  bounds NOTHING on realised points either, and this one is a NEGATIVE control: it accepts on the sign of MINUS the residual, so points = xPoints + residual makes its realised level negative by construction and a level that is not clearly negative means the arm did not wire. Its purpose is the CONTRAST against transfergateres on policy_xpoints, whose null is NOT zero — the two accept sets partition the free-transfer stream, so accept-mass asymmetry enters additively and transfergateall is what identifies it
+                               must not move: hold_points, hold_fixedcap_points, hold_nocap_points, hold_xpoints
+                               must move (liveness): moves
+  decision:transfergateall     decision  is NOT an oracle: it accepts every package the search proposes and reads no hindsight at all. Two uses — it is the NO-GATE policy, bounding the gate-constant family from below where a perfect gate bounds it from above, and it identifies the accept-mass offset in the transfergateanti-minus-transfergateres contrast, whose null is T*(1-2p) rather than zero. The week's allowance and the one-hit limit still bind: this removes the VALUE bar, not the transfer budget
+                               must not move: hold_points, hold_fixedcap_points, hold_nocap_points, hold_xpoints
+                               must move (liveness): moves
+Every oracled figure is an **upper bound** on what a capability could be
+worth, never a score. The totals below are NOT comparable with any figure
+in CLAUDE.md, all of which were measured with no hindsight at all — and
+no oracle may become the default, or the whole record stops being
+comparable with itself at a stroke.
+
+variant                     gw1      gw6     gw11     gw16     gw21     gw26    POLICY |      HOLD   moves
+real (ships)              13068    11340     9703     8185     6516     4600     53412 |     47105     891
+ORACLE[decision:transfergate] perfect on POINTS    13982    11939    10569     8480     6933     4811     56714 |     47105    1104
+ORACLE[decision:transfergatexp] perfect on UNDERLYING    13644    11656    10280     8481     6863     4636     55560 |     47105    1146
+ORACLE[decision:transfergateres] perfect on the RESIDUAL    13699    11933    10205     8500     6586     4744     55667 |     47105     795
+ORACLE[decision:transfergateanti] ANTI-residual    12145    10457     9266     7499     6113     4224     49704 |     47105     878
+ORACLE[decision:transfergateall] NO GATE (accepts all)    12549    10668     9546     7928     6326     4383     51400 |     47105    1739
+
+--- POLICY (the weekly transfer decision) ---
+Paired against "real (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+ORACLE[decision:transfergate] perfect on POINTS   +3.482       36
+    early (prior-led)    +3.517       12
+    middle               +3.646       12
+    late (season-led)    +3.283       12
+ORACLE[decision:transfergatexp] perfect on UNDERLYING   +2.229       36
+    early (prior-led)    +2.061       12
+    middle               +2.790       12
+    late (season-led)    +1.837       12
+ORACLE[decision:transfergateres] perfect on the RESIDUAL   +2.255       36
+    early (prior-led)    +2.881       12
+    middle               +2.635       12
+    late (season-led)    +1.247       12
+ORACLE[decision:transfergateanti] ANTI-residual   -4.105       36
+    early (prior-led)    -4.254       12
+    middle               -3.786       12
+    late (season-led)    -4.276       12
+ORACLE[decision:transfergateall] NO GATE (accepts all)   -2.168       36
+    early (prior-led)    -2.835       12
+    middle               -1.398       12
+    late (season-led)    -2.271       12
+
+  contrasts between oracled arms (mean only; the SE is outstanding,
+  not unavailable — these are paired differences on shared cells)
+    decision:transfergatexp minus decision:transfergate   -1.253       36
+    decision:transfergateres minus decision:transfergate   -1.228       36
+    decision:transfergateanti minus decision:transfergate   -7.587       36
+    decision:transfergateall minus decision:transfergate   -5.650       36
+    decision:transfergateres minus decision:transfergatexp   +0.025       36
+    decision:transfergateanti minus decision:transfergatexp   -6.335       36
+    decision:transfergateall minus decision:transfergatexp   -4.397       36
+    decision:transfergateanti minus decision:transfergateres   -6.360       36
+    decision:transfergateall minus decision:transfergateres   -4.423       36
+    decision:transfergateall minus decision:transfergateanti   +1.937       36
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- POLICY on accumulated xPoints (instrument; read beside POLICY) ---
+Paired against "real (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+ORACLE[decision:transfergate] perfect on POINTS   +2.204       36
+    early (prior-led)    +1.884       12
+    middle               +2.086       12
+    late (season-led)    +2.641       12
+ORACLE[decision:transfergatexp] perfect on UNDERLYING   +1.942       36
+    early (prior-led)    +1.755       12
+    middle               +1.856       12
+    late (season-led)    +2.215       12
+ORACLE[decision:transfergateres] perfect on the RESIDUAL   -0.828       36
+    early (prior-led)    -0.844       12
+    middle               -0.790       12
+    late (season-led)    -0.850       12
+ORACLE[decision:transfergateanti] ANTI-residual   -1.057       36
+    early (prior-led)    -1.417       12
+    middle               -0.960       12
+    late (season-led)    -0.794       12
+ORACLE[decision:transfergateall] NO GATE (accepts all)   -1.976       36
+    early (prior-led)    -2.623       12
+    middle               -1.603       12
+    late (season-led)    -1.700       12
+
+  contrasts between oracled arms (mean only; the SE is outstanding,
+  not unavailable — these are paired differences on shared cells)
+    decision:transfergatexp minus decision:transfergate   -0.262       36
+    decision:transfergateres minus decision:transfergate   -3.032       36
+    decision:transfergateanti minus decision:transfergate   -3.261       36
+    decision:transfergateall minus decision:transfergate   -4.179       36
+    decision:transfergateres minus decision:transfergatexp   -2.770       36
+    decision:transfergateanti minus decision:transfergatexp   -2.999       36
+    decision:transfergateall minus decision:transfergatexp   -3.917       36
+    decision:transfergateanti minus decision:transfergateres   -0.229       36
+    decision:transfergateall minus decision:transfergateres   -1.148       36
+    decision:transfergateall minus decision:transfergateanti   -0.919       36
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD (the opening fifteen; use this for scoring constants) ---
+Paired against "real (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+ORACLE[decision:transfergate] perfect on POINTS   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergatexp] perfect on UNDERLYING   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateres] perfect on the RESIDUAL   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateanti] ANTI-residual   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateall] NO GATE (accepts all)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+  contrasts between oracled arms (mean only; the SE is outstanding,
+  not unavailable — these are paired differences on shared cells)
+    decision:transfergatexp minus decision:transfergate   +0.000       36
+    decision:transfergateres minus decision:transfergate   +0.000       36
+    decision:transfergateanti minus decision:transfergate   +0.000       36
+    decision:transfergateall minus decision:transfergate   +0.000       36
+    decision:transfergateres minus decision:transfergatexp   +0.000       36
+    decision:transfergateanti minus decision:transfergatexp   +0.000       36
+    decision:transfergateall minus decision:transfergatexp   +0.000       36
+    decision:transfergateanti minus decision:transfergateres   +0.000       36
+    decision:transfergateall minus decision:transfergateres   +0.000       36
+    decision:transfergateall minus decision:transfergateanti   +0.000       36
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD on accumulated xPoints (instrument; read beside HOLD) ---
+Paired against "real (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+ORACLE[decision:transfergate] perfect on POINTS   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergatexp] perfect on UNDERLYING   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateres] perfect on the RESIDUAL   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateanti] ANTI-residual   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateall] NO GATE (accepts all)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+  contrasts between oracled arms (mean only; the SE is outstanding,
+  not unavailable — these are paired differences on shared cells)
+    decision:transfergatexp minus decision:transfergate   +0.000       36
+    decision:transfergateres minus decision:transfergate   +0.000       36
+    decision:transfergateanti minus decision:transfergate   +0.000       36
+    decision:transfergateall minus decision:transfergate   +0.000       36
+    decision:transfergateres minus decision:transfergatexp   +0.000       36
+    decision:transfergateanti minus decision:transfergatexp   +0.000       36
+    decision:transfergateall minus decision:transfergatexp   +0.000       36
+    decision:transfergateanti minus decision:transfergateres   +0.000       36
+    decision:transfergateall minus decision:transfergateres   +0.000       36
+    decision:transfergateall minus decision:transfergateanti   +0.000       36
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with the armband pinned to the day-one pick (diagnostic instrument) ---
+Paired against "real (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+ORACLE[decision:transfergate] perfect on POINTS   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergatexp] perfect on UNDERLYING   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateres] perfect on the RESIDUAL   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateanti] ANTI-residual   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateall] NO GATE (accepts all)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+  contrasts between oracled arms (mean only; the SE is outstanding,
+  not unavailable — these are paired differences on shared cells)
+    decision:transfergatexp minus decision:transfergate   +0.000       36
+    decision:transfergateres minus decision:transfergate   +0.000       36
+    decision:transfergateanti minus decision:transfergate   +0.000       36
+    decision:transfergateall minus decision:transfergate   +0.000       36
+    decision:transfergateres minus decision:transfergatexp   +0.000       36
+    decision:transfergateanti minus decision:transfergatexp   +0.000       36
+    decision:transfergateall minus decision:transfergatexp   +0.000       36
+    decision:transfergateanti minus decision:transfergateres   +0.000       36
+    decision:transfergateall minus decision:transfergateres   +0.000       36
+    decision:transfergateall minus decision:transfergateanti   +0.000       36
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with nobody doubled (diagnostic instrument; not what FPL pays) ---
+Paired against "real (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+ORACLE[decision:transfergate] perfect on POINTS   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergatexp] perfect on UNDERLYING   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateres] perfect on the RESIDUAL   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateanti] ANTI-residual   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:transfergateall] NO GATE (accepts all)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+  contrasts between oracled arms (mean only; the SE is outstanding,
+  not unavailable — these are paired differences on shared cells)
+    decision:transfergatexp minus decision:transfergate   +0.000       36
+    decision:transfergateres minus decision:transfergate   +0.000       36
+    decision:transfergateanti minus decision:transfergate   +0.000       36
+    decision:transfergateall minus decision:transfergate   +0.000       36
+    decision:transfergateres minus decision:transfergatexp   +0.000       36
+    decision:transfergateanti minus decision:transfergatexp   +0.000       36
+    decision:transfergateall minus decision:transfergatexp   +0.000       36
+    decision:transfergateanti minus decision:transfergateres   +0.000       36
+    decision:transfergateall minus decision:transfergateres   +0.000       36
+    decision:transfergateall minus decision:transfergateanti   +0.000       36
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+Cells written. Now: Rscript stats/sweep_inference.R <the FPL_CELLS path>
+
+MEDIATOR — transfers accepted under each criterion.
+season     start   shipped    on pts     on xP  on resid      anti   no gate
+2020-21        1        39        46        50        34        38        73
+2020-21       11        24        38        40        30        22        50
+2020-21       16        23        30        30        22        20        40
+2020-21       21        17        20        21        19        20        35
+2020-21       26        11        13        18        14         9        24
+2020-21        6        36        43        38        32        23        64
+2021-22        1        42        47        50        37        42        75
+2021-22       11        32        32        34        23        27        55
+2021-22       16        24        28        36         9        29        44
+2021-22       21        19        22        22        10        18        35
+2021-22       26        15        22        18        10        14        25
+2021-22        6        36        44        44        30        40        64
+2022-23        1        38        43        44        33        36        74
+2022-23       11        30        37        40        21        30        50
+2022-23       16        23        27        31        19        23        44
+2022-23       21        14        20        22        10        20        33
+2022-23       26        11        19        17         5        19        24
+2022-23        6        31        37        38        22        39        64
+2023-24        1        37        53        52        32        38        75
+2023-24       11        27        35        41        21        27        53
+2023-24       16        22        36        30        15        18        45
+2023-24       21        17        28        29        15        16        34
+2023-24       26        11        16        18        11        10        24
+2023-24        6        33        33        42        24        35        64
+2024-25        1        35        44        47        42        44        75
+2024-25       11        26        24        37        29        18        52
+2024-25       16        23        29        27        24        11        39
+2024-25       21        15        15        15        17        14        34
+2024-25       26         9        12        14         8         8        25
+2024-25        6        33        43        38        26        30        60
+2025-26        1        36        47        40        40        29        71
+2025-26       11        24        28        31        24        25        50
+2025-26       16        23        22        20        23        26        44
+2025-26       21        15        18        25        19        12        32
+2025-26       26         9        16        15        12        16        25
+2025-26        6        31        37        32        33        32        64
+                       891      1104      1146       795       878      1739   <- totals
+
+p-hat, PACKAGE mass on the residual arm's own stream: 0.2911
+       the same on the shipped stream (the reference):  0.3636
+       MOVE-weighted proxy, moves(RESID)/moves(NOGATE): 795 / 1739 = 0.4572
+The contrast ANTI - RESID on policy_xpoints is tested against
+T*(1-2p) = +0.4178 * T, NOT against zero, taking p as the package mass.
+T comes from the sweep's own means: C = (ANTI + RESID) - NOGATE and
+T = NOGATE - C, all three read as paired differences against shipped.
+*** CORRECT T FOR THE NO-GATE ARM'S OWN HIT CHARGE BEFORE USING IT.
+*** moveLimit bounds a week at free+1 moves, so an arm that refuses
+nothing exhausts the week every week and takes a -4 nearly every week
+— a charge no gated arm pays. The hit channel is 4*hits/weeks and the
+hits column above gives it: shipped 73, resid 59, anti 96, no gate 821.
+
+PER-PACKAGE LOG — the offered proposal stream, per arm.
+Every package handed to the gate, whatever the gate then said.
+`p` is P(dR > 4h) on THIS arm's own stream; `anti` is P(dR < -4h).
+They sum to 1 exactly where h = 0 and leave the dead band elsewhere,
+so READ THE `free` COLUMN BEFORE ANYTHING ELSE: the partition the
+whole decomposition rests on holds only where h = 0. *** The no-gate
+arm's `free` is LOW BY CONSTRUCTION *** — moveLimit bounds a week at
+free+1 moves and an arm that refuses nothing exhausts it every week,
+so it takes a -4 almost every week and its level carries a hit charge
+no gated arm pays. Correct T for it with the hit channel, 4*hits/wks.
+
+arm          offered    took    free       p    anti    mu(dX)   mean dR |        -cov    mu(1-2p)    ratio
+shipped         1928   0.345   0.550  0.3636  0.4590   +7.9212   -0.6063 |     -0.6984     +2.1611    -0.32
+on pts          1562   0.440   0.635  0.3278  0.5403   +2.6465   -2.0024 |     -0.8576     +0.9115    -0.94
+on xP           1519   0.474   0.604  0.4042  0.4398   +1.3801   -0.4308 |     -0.9026     +0.2644    -3.41
+on resid        1807   0.291   0.841  0.2911  0.6397   +7.7375   -3.4326 |     -0.8494     +3.2329    -0.26
+anti            1797   0.331   0.800  0.5826  0.3306   +8.4773   +2.5405 |     -0.5388     -1.4011     0.38
+accept all       905   1.000   0.093  0.3116  0.3624   +8.1126   -0.4562 |     -0.7476     +3.0568    -0.24
+
+HOW TO READ THE LAST THREE COLUMNS.
+  ANTI - RES = -cov(dX, sign dR) + mu*(1-2p), per offered package.
+  The first term is what the run is for; the second is the nuisance
+  the accept-all arm exists to identify. `ratio` is the first over
+  the second: near zero means the contrast is almost entirely the
+  offset and cannot discriminate, and large means the offset is
+  negligible and the contrast may be read against ~zero.
+  *** STOP AND REPORT, do not read the contrast, if p is far from
+  0.5 AND mu is materially positive AND the ratio is near 1 or
+  below. *** That is the configuration in which mass asymmetry
+  alone manufactures the signature that is supposed to mean dR
+  carries information about dX.
+  These are PER PACKAGE. The sweep's means are per gameweek played,
+  so do not add them together; what transports is the ratio.
+  The arms do not share a stream — paths diverge from week one — so
+  read the shipped row as the reference and the spread across rows
+  as how much the divergence moves the quantities themselves.
+  *** `p` HERE IS THE PACKAGE MASS AND IS THE ONE TO QUOTE. *** The
+  mediator's moves(RESID)/moves(NOGATE) is a MOVE-weighted proxy for
+  it — a funded pair is one package and two to five moves, and the
+  singles loop ends a week on its first rejection, so a refusing arm
+  loses the rest of the week's moves for reasons unrelated to its
+  accept mass. Report both; the null is built from this one.
+
+If `on xP` equals `on pts` in every cell the two criteria agree on
+every package the model proposed, and the arms are the same arm.
+If `on xP` equals `shipped`, the oracle changed nothing and the
+comparison is a byte-identical null rather than a result.
+The same two readings apply to `on resid`, and its counts say
+nothing about its VALUE: equal counts are not the same packages.
+
+The points figures are in the sweep table above; take the recovered
+fraction from the POLICY per-gameweek means, not from these counts.
+Report policy_xpoints_per_gw beside policy_per_gw — the POLICY-side
+The xPoints instrument goes BESIDE realised points, never instead of
+them. Its SE-cut figures are pre-scale and superseded: take them from
+a re-run, not from here.
+--- PASS: TestDiagGateOracleOnXPoints (916.25s)
+PASS
+replay: exit=0 peak_rss=117 MB elapsed=15:16.17

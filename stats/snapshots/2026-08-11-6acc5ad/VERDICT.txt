@@ -1,0 +1,163 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+
+------------------------------------------------------------------------------
+GRID WIDTH: four seasons against six
+------------------------------------------------------------------------------
+positive control : vice on (ships)   (baseline: vice off (pre-fix))
+negative controls: identical (control), minutes_weight +2%, minutes_weight -2%, fixture_weight +1.5%, bonus_weight +0.7%
+start gameweeks  : 1, 6, 11, 16, 21, 26
+
+------------------------------------------------------------------------------
+POS4 -- 4 seasons (shipped) -- HOLD
+------------------------------------------------------------------------------
+arm                               n seas   mean/gw   SE CR2     df       t   p Holm sig/season
+vice on (ships)                  24    4    0.4102   0.1027    3.0    4.00    0.028       12.4
+
+------------------------------------------------------------------------------
+POS6 -- 6 seasons (extended) -- HOLD
+------------------------------------------------------------------------------
+arm                               n seas   mean/gw   SE CR2     df       t   p Holm sig/season
+vice on (ships)                  36    6    0.4590   0.0860    5.0    5.34    0.003        8.4
+
+------------------------------------------------------------------------------
+NEG4 -- 4 seasons (shipped) -- HOLD
+------------------------------------------------------------------------------
+arm                               n seas   mean/gw   SE CR2     df       t   p Holm sig/season
+identical (control)              24    4    0.0000       NA     NA      NA       NA         NA
+minutes_weight +2%               24    4   -0.0941   0.1015    3.0   -0.93    0.782       12.3
+minutes_weight -2%               24    4   -0.0502   0.0502    3.0   -1.00    0.782        6.1
+fixture_weight +1.5%             24    4    0.0000       NA     NA      NA       NA         NA
+bonus_weight +0.7%               24    4    0.0000       NA     NA      NA       NA         NA
+
+------------------------------------------------------------------------------
+NEG6 -- 6 seasons (extended) -- HOLD
+------------------------------------------------------------------------------
+arm                               n seas   mean/gw   SE CR2     df       t   p Holm sig/season
+identical (control)              36    6    0.0000       NA     NA      NA       NA         NA
+minutes_weight +2%               36    6   -0.1147   0.0704    5.0   -1.63    0.493        6.9
+minutes_weight -2%               36    6   -0.0261   0.0355    5.0   -0.73    0.726        3.5
+fixture_weight +1.5%             36    6   -0.0093   0.0093    5.0   -1.00    0.726        0.9
+bonus_weight +0.7%               36    6    0.0000       NA     NA      NA       NA         NA
+
+------------------------------------------------------------------------------
+POS4 -- 4 seasons (shipped) -- POLICY
+------------------------------------------------------------------------------
+arm                               n seas   mean/gw   SE CR2     df       t   p Holm sig/season
+vice on (ships)                  24    4    0.2967   0.1189    3.0    2.50    0.088       14.4
+
+------------------------------------------------------------------------------
+POS6 -- 6 seasons (extended) -- POLICY
+------------------------------------------------------------------------------
+arm                               n seas   mean/gw   SE CR2     df       t   p Holm sig/season
+vice on (ships)                  36    6    0.4313   0.1649    5.0    2.62    0.047       16.1
+
+------------------------------------------------------------------------------
+NEG4 -- 4 seasons (shipped) -- POLICY
+------------------------------------------------------------------------------
+arm                               n seas   mean/gw   SE CR2     df       t   p Holm sig/season
+identical (control)              24    4    0.0000       NA     NA      NA       NA         NA
+minutes_weight +2%               24    4    0.1345   0.0873    3.0    1.54    0.728       10.6
+minutes_weight -2%               24    4   -0.0055   0.0750    3.0   -0.07    0.946        9.1
+fixture_weight +1.5%             24    4   -0.0839   0.0839    3.0   -1.00    0.782       10.1
+bonus_weight +0.7%               24    4   -0.0948   0.0548    3.0   -1.73    0.728        6.6
+
+------------------------------------------------------------------------------
+NEG6 -- 6 seasons (extended) -- POLICY
+------------------------------------------------------------------------------
+arm                               n seas   mean/gw   SE CR2     df       t   p Holm sig/season
+identical (control)              36    6    0.0000       NA     NA      NA       NA         NA
+minutes_weight +2%               36    6    0.0945   0.0646    5.0    1.46    0.594        6.3
+minutes_weight -2%               36    6   -0.1088   0.0860    5.0   -1.26    0.594        8.4
+fixture_weight +1.5%             36    6   -0.0982   0.0630    5.0   -1.56    0.594        6.2
+bonus_weight +0.7%               36    6   -0.0666   0.0390    5.0   -1.71    0.594        3.8
+
+------------------------------------------------------------------------------
+THE PRE-REGISTERED CONDITIONS
+------------------------------------------------------------------------------
+
+  P1 on HOLD:
+    4 seasons:  0.4102/gw =  15.6 a season   95% CI [ 0.0834,  0.7369]
+    6 seasons:  0.4590/gw =  17.4 a season   -> inside the 4-season interval, sign kept
+
+  P1 on POLICY:
+    4 seasons:  0.2967/gw =  11.3 a season   95% CI [-0.0817,  0.6751]
+    6 seasons:  0.4313/gw =  16.4 a season   -> inside the 4-season interval, sign kept
+
+  P1: PASS -- judged on HOLD, the metric a scoring correction belongs on.
+
+  P2: PASS
+    no near-null arm resolves on six seasons; smallest Holm p =  0.493
+    determinism control is exactly zero in every cell.
+
+  P3: realised detection threshold, points a season
+    arm                              4 seasons   6 seasons    ratio
+    vice on (ships)                       12.4         8.4    0.677
+    minutes_weight +2%                    12.3         6.9    0.561
+    minutes_weight -2%                     6.1         3.5    0.571
+    theory says  0.660 (assumes the added cells are as quiet as the shipped ones)
+    median realised ratio  0.571
+  P3: PASS -- threshold improves; at or better than theory.
+
+  P4: the positive control split by whether the season's xG is observed or reconstructed
+    cells                                   n    mean/gw    a season
+    native xG (the shipped four)           24     0.4102        15.6
+    backfilled, borrowed offset (added)    12     0.5567        21.2
+    ratio backfilled/native:  1.357  (pre-declared: below 0.50 is material)
+
+    season           n    mean/gw    a season      sd/gw
+    2020-21 *        6     0.3739        14.2     0.4220
+    2021-22 *        6     0.7395        28.1     0.5999
+    2022-23          6     0.2238         8.5     0.1093
+    2023-24          6     0.5203        19.8     0.2334
+    2024-25          6     0.2524         9.6     0.2867
+    2025-26          6     0.6442        24.5     0.4759
+    * backfilled on a borrowed provider offset
+  P4: PASS
+
+  P5: realised Satterthwaite df (nominal S-1 would be 3 then 5)
+    arm                               4 seasons    6 seasons
+    vice on (ships)                        3.00         5.00
+    minutes_weight +2%                     3.00         5.00
+    minutes_weight -2%                     3.00         5.00
+  P5: PASS
+
+------------------------------------------------------------------------------
+THE ADOPTION RULE, as committed before the run
+------------------------------------------------------------------------------
+VERDICT: ADOPT SIX AS DEFAULT -- and say in the same breath what happens to
+  the four-season record.
+
+------------------------------------------------------------------------------
+NESTING CHECK: the six-season run restricted to the shipped four, against
+the independently-run four-season sweep
+------------------------------------------------------------------------------
+  pos6 vs pos4: 48 cells compared, 0 disagree -- byte-identical.
+  neg6 vs neg4: 144 cells compared, 0 disagree -- byte-identical.
+
+------------------------------------------------------------------------------
+SUPPLEMENTARY (descriptive; no condition rides on it)
+------------------------------------------------------------------------------
+
+Baseline scoring level by season -- is this the same football?
+  season            n    HOLD/gw   POLICY/gw     moves
+  2020-21 *         6     49.447      57.740      23.7
+  2021-22 *         6     52.009      54.779      27.8
+  2022-23           6     55.738      58.811      27.8
+  2023-24           6     48.454      62.787      24.5
+  2024-25           6     55.368      59.838      23.5
+  2025-26           6     51.274      56.538      23.3
+  * backfilled xG on a borrowed offset
+
+Between-season spread of the positive control (what CR2 clusters on)
+  grid                     seas    sd between     sd within
+  4 seasons                   4        0.2053        0.2763
+  6 seasons                   6        0.2107        0.3545
+  'sd between' is the spread of the per-season means -- the quantity a
+  season-clustered SE divides by sqrt(S). If it grows faster than sqrt(S)
+  grows, adding seasons makes the threshold WORSE rather than better.
+
+Reading this: mean/gw is points per gameweek played; multiply by 38 for the
+season-scale figures the record quotes. sig/season is the effect that would
+land exactly at p = 0.05 -- the bar, not the finding.

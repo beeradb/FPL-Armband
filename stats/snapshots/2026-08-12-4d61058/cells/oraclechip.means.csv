@@ -1,0 +1,5 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+ORACLECHIP#1,1786397214-54288,policy,ORACLE[decision:chipweek] perfect chip week,1,real (ships),0,24,decision:chipweek
+ORACLECHIP#1,1786397214-54288,hold,ORACLE[decision:chipweek] perfect chip week,1,real (ships),0,24,decision:chipweek
+ORACLECHIP#1,1786397214-54288,hold_fixedcap,ORACLE[decision:chipweek] perfect chip week,1,real (ships),0,24,decision:chipweek
+ORACLECHIP#1,1786397214-54288,hold_nocap,ORACLE[decision:chipweek] perfect chip week,1,real (ships),0,24,decision:chipweek

@@ -1,0 +1,13 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+FIXW#1,1786594833-505435,policy,fixture weight 0.00,1,fixture weight 0.65 (ships),-1.3702706946414052,24,-
+FIXW#1,1786594833-505435,policy,fixture weight 0.35,2,fixture weight 0.65 (ships),-0.33666250056410263,24,-
+FIXW#1,1786594833-505435,policy,fixture weight 1.00,3,fixture weight 0.65 (ships),0.1353154351581125,24,-
+FIXW#1,1786594833-505435,hold,fixture weight 0.00,1,fixture weight 0.65 (ships),-0.12259946649248772,24,-
+FIXW#1,1786594833-505435,hold,fixture weight 0.35,2,fixture weight 0.65 (ships),0.20512857290603273,24,-
+FIXW#1,1786594833-505435,hold,fixture weight 1.00,3,fixture weight 0.65 (ships),-0.4369349318577009,24,-
+FIXW#1,1786594833-505435,hold_fixedcap,fixture weight 0.00,1,fixture weight 0.65 (ships),-0.014574913602373544,24,-
+FIXW#1,1786594833-505435,hold_fixedcap,fixture weight 0.35,2,fixture weight 0.65 (ships),0.1517689208621702,24,-
+FIXW#1,1786594833-505435,hold_fixedcap,fixture weight 1.00,3,fixture weight 0.65 (ships),-0.4225327230189926,24,-
+FIXW#1,1786594833-505435,hold_nocap,fixture weight 0.00,1,fixture weight 0.65 (ships),0.05675793240152446,24,-
+FIXW#1,1786594833-505435,hold_nocap,fixture weight 0.35,2,fixture weight 0.65 (ships),0.21268510019940182,24,-
+FIXW#1,1786594833-505435,hold_nocap,fixture weight 1.00,3,fixture weight 0.65 (ships),-0.4660109838885577,24,-

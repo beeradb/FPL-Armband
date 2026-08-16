@@ -1,0 +1,13 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+J#1,1786680796-744362,policy,no floor,1,floor=55 (ships),-0.011904761904761764,36,-
+J#1,1786680796-744362,policy,floor=45,2,floor=55 (ships),0.027777777777777776,36,-
+J#1,1786680796-744362,policy,floor=65,3,floor=55 (ships),0.009991840941497385,36,-
+J#1,1786680796-744362,hold,no floor,1,floor=55 (ships),-0.1246947496947496,36,-
+J#1,1786680796-744362,hold,floor=45,2,floor=55 (ships),-0.023504273504273518,36,-
+J#1,1786680796-744362,hold,floor=65,3,floor=55 (ships),0.43038888958034666,36,-
+J#1,1786680796-744362,hold_fixedcap,no floor,1,floor=55 (ships),-0.14552808302808293,36,-
+J#1,1786680796-744362,hold_fixedcap,floor=45,2,floor=55 (ships),-0.023504273504273518,36,-
+J#1,1786680796-744362,hold_fixedcap,floor=65,3,floor=55 (ships),0.3142610560612085,36,-
+J#1,1786680796-744362,hold_nocap,no floor,1,floor=55 (ships),-0.14552808302808293,36,-
+J#1,1786680796-744362,hold_nocap,floor=45,2,floor=55 (ships),-0.023504273504273518,36,-
+J#1,1786680796-744362,hold_nocap,floor=65,3,floor=55 (ships),0.2864832782834312,36,-

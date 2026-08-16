@@ -1,0 +1,22 @@
+{
+  "captured_at": "2026-01-06T00:00:22Z",
+  "files": [
+    {
+      "endpoint": "/bootstrap-static/",
+      "name": "bootstrap-static.json.gz",
+      "bytes": 1818658,
+      "stored_bytes": 193427,
+      "sha256": "52101d396cdd0ceb1baa4a2a92d466f128d3e5aad5ab2739e2da4c2c70b6496c"
+    }
+  ],
+  "event": 21,
+  "event_deadline": "2026-01-06T18:30:00Z",
+  "hours_to_deadline": 18.49388888888889,
+  "fplagent_version": "3e05205d5394",
+  "backfill": {
+    "season": "2025-26",
+    "source": "https://web.archive.org/web/20260106000022id_/https://fantasy.premierleague.com/api/bootstrap-static/",
+    "wayback_timestamp": "20260106000022",
+    "digest": "W3PZNMS22WYP7ERIDOATOFHTXG4G6BNU"
+  }
+}

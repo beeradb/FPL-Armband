@@ -1,0 +1,13 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+benchshape#1,1786645791-625124,policy,fixed 2.4/1.0/0.4/0.2 (the shipped tuple),1,flat 1/1/1/1 (baseline),0.12298868567937997,36,-
+benchshape#1,1786645791-625124,policy,fixed 1.9/1.2/0.6/0.3 (its predecessor),2,flat 1/1/1/1 (baseline),-0.037140267069710395,36,-
+benchshape#1,1786645791-625124,policy,derived from the eleven (ships),3,flat 1/1/1/1 (baseline),0.13683550149034454,36,-
+benchshape#1,1786645791-625124,hold,fixed 2.4/1.0/0.4/0.2 (the shipped tuple),1,flat 1/1/1/1 (baseline),0.13258835903763433,36,-
+benchshape#1,1786645791-625124,hold,fixed 1.9/1.2/0.6/0.3 (its predecessor),2,flat 1/1/1/1 (baseline),0.057707886655255315,36,-
+benchshape#1,1786645791-625124,hold,derived from the eleven (ships),3,flat 1/1/1/1 (baseline),-0.17999561778165823,36,-
+benchshape#1,1786645791-625124,hold_fixedcap,fixed 2.4/1.0/0.4/0.2 (the shipped tuple),1,flat 1/1/1/1 (baseline),0.11287362417225033,36,-
+benchshape#1,1786645791-625124,hold_fixedcap,fixed 1.9/1.2/0.6/0.3 (its predecessor),2,flat 1/1/1/1 (baseline),0.04999743243450302,36,-
+benchshape#1,1786645791-625124,hold_fixedcap,derived from the eleven (ships),3,flat 1/1/1/1 (baseline),-0.10943482563429205,36,-
+benchshape#1,1786645791-625124,hold_nocap,fixed 2.4/1.0/0.4/0.2 (the shipped tuple),1,flat 1/1/1/1 (baseline),0.14000763729024593,36,-
+benchshape#1,1786645791-625124,hold_nocap,fixed 1.9/1.2/0.6/0.3 (its predecessor),2,flat 1/1/1/1 (baseline),0.06026636618741913,36,-
+benchshape#1,1786645791-625124,hold_nocap,derived from the eleven (ships),3,flat 1/1/1/1 (baseline),-0.08337434982171842,36,-

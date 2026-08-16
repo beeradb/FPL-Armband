@@ -1,0 +1,209 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+
+------------------------------------------------------------------------------
+blank-run de-levelling, cut by position
+------------------------------------------------------------------------------
+rows          : /tmp/blankrun_four.csv
+population    : unflagged, established players, 7196 player-cutoffs
+seasons       : 4 (2022-23, 2023-24, 2024-25, 2025-26)
+cutoffs       : 5, 9, 13, 17, 21, 25, 29, 33
+clustering    : season, df = 3, t_crit = 3.182
+
+DATA STATE. The dump must have been written with FPL_NO_BLANK_RUN=1 —
+ExpectedMinutes carries blankRunFactor, so at shipped config this is a fit
+to the term's own output. The Go diagnostic refuses to run without it, so
+a file that exists was written with it. The xG/xGC backfills are NOT
+switched off here: FPL_NO_XG_REPAIR and FPL_NO_XGC_REPAIR govern the
+attacking and conceding rates, which no quantity below reads — minutes are
+FPL's own and are not backfilled. FPL_NO_STARTS_REPAIR is the one that
+could reach this, through StartShare; it is byte-identical at shipped
+config per CLAUDE.md, which makes it untested here rather than inert.
+
+------------------------------------------------------------------------------
+1. THE DIVISOR. actual/expected at zero trailing blanks, by position.
+------------------------------------------------------------------------------
+This is the quantity the comment calls position-wide. `ratio` is the
+recorded estimator (ratio of means); `bias` is the same discrepancy in
+the additive parameterisation the site reports it in.
+
+pos          n players    ratio   se(seas)  95% ci(seas)  se(clus)     bias  se(bias)    sgn
+GKP        573      53   1.0038     0.0145   0.958-1.050    0.0142     0.30      1.14     4/4
+DEF       2342     257   0.9641     0.0023   0.957-0.972    0.0023    -2.46      0.14     4/4
+MID       2379     247   0.9659     0.0045   0.951-0.980    0.0043    -2.31      0.30     4/4
+FWD        507      71   0.9473     0.0064   0.927-0.967    0.0061    -3.50      0.47     4/4
+POOLED    5801     617   0.9679     0.0008   0.966-0.970    0.0008    -2.22      0.06     4/4
+
+⚠️ `n` counts player-cutoffs and `players` counts FOOTBALLERS. Read every t
+below against the second: a position's rows are one cohort seen up to 4 x 8 times over,
+not n independent draws. 98 forwards carry 826 rows.
+
+`ratio` and `bias` are pooled over all rows; `se(seas)` and the interval are
+the season-means estimator, so the interval is around the SEASON MEAN and
+not around the pooled point. `se(clus)` is the linearised ratio variance
+with the influence terms summed by season (CR1 correction) — the weighted
+counterpart, printed beside rather than instead of, because an estimator
+swap reads as a data change. `sgn` counts seasons above 1, out of 4.
+
+------------------------------------------------------------------------------
+2. THE OMNIBUS. Is the run-0 ratio common to all four positions?
+------------------------------------------------------------------------------
+The season x position matrix of run-0 ratios, then a test of position with
+season blocked. This tests the actual question and chooses no pair.
+
+season           GKP       DEF       MID       FWD   highest / lowest
+2022-23       1.0067    0.9601    0.9656    0.9529   GKP / FWD
+2023-24       0.9628    0.9627    0.9766    0.9569   MID / FWD
+2024-25       1.0289    0.9629    0.9669    0.9497   GKP / FWD
+2025-26       1.0183    0.9709    0.9544    0.9284   GKP / FWD
+
+two-way F on position, season blocked : F(3,9) = 7.01, p = 0.00993
+Friedman (its rank sibling)           : chi2 = 9.90, df = 3, p = 0.0194
+
+⚠️ Both treat the 4 x 4 cells as one observation each, so they INHERIT
+the player-overlap caveat and neither has a player-clustered form. What
+makes the omnibus safe to lead on is that the pairs carrying it survive one.
+
+THE ORDERING, which no clustering argument touches. Within-season ranks,
+so a footballer recurring across seasons cannot inflate it.
+
+pos       highest     p(binom)     lowest     p(binom)
+GKP         3/4         0.0508      0/4         1.0000
+DEF         0/4         1.0000      0/4         1.0000
+MID         1/4         0.6836      0/4         1.0000
+FWD         0/4         1.0000      4/4         0.0039
+
+These are one-sided tails on Binomial(4, 1/4), uncorrected — they are
+descriptive of a shape, not eight more tests to Holm over. The floor at S = 4 is 0.0039, and Bonferroni over the eight printed
+here would multiply by 8.
+
+⚠️ Within-season ranking removes WITHIN-season dependence and nothing else.
+Binomial(4, 1/4) still assumes 4 independent season draws, which a
+recurring cohort is exactly what violates — 53 keepers carry the GKP
+column at a mean of 1.35 seasons each. A player-resampled version is unrun.
+
+------------------------------------------------------------------------------
+3. THE PAIRS. Contrasts on the run-0 RATIO, Holm over 6.
+   SUPPORTING, not the headline: any pair clearing Holm also rejects
+   the global null, but WHICH pair carries it is not stable and must
+   never be read as a finding of its own.
+------------------------------------------------------------------------------
+`n(a)`/`n(b)` count ROWS; `pl` counts distinct footballers, which is the
+number the t is really built on. For the de-levelled contrasts both
+include the run-0 rows the divisor needs.
+
+pair           n(a)   n(b)    pl      diff       se      t     holm      mde   bootSE   bootT  bootHolm   floor    sgn+
+GKP - DEF       573   2342   310    0.0400   0.0140   2.85   0.2754   0.0584   0.0137    2.93    0.0196  0.0155     4/4
+GKP - MID       573   2379   300    0.0383   0.0181   2.12   0.3741   0.0754   0.0132    2.90    0.0196  0.0153     3/4
+GKP - FWD       573    507   124    0.0572   0.0187   3.06   0.2754   0.0778   0.0194    2.94    0.0196  0.0211     4/4
+DEF - MID      2342   2379   501   -0.0017   0.0064  -0.27   0.8075   0.0268   0.0104   -0.17    0.8689  0.0104     1/4
+DEF - FWD      2342    507   328    0.0171   0.0086   1.99   0.3741   0.0358   0.0176    0.98    0.8301  0.0179     4/4
+MID - FWD      2379    507   310    0.0189   0.0028   6.75   0.0399   0.0116   0.0173    1.09    0.8301  0.0176     4/4
+
+`bootSE`/`bootT`/`bootHolm` resample 631 player codes,
+B = 2000, seed 20260816 — the estimator that sees a
+footballer recurring across seasons. `bootHolm` is a NORMAL reference
+Holm-corrected over the same 6 pairs, so the two Holm
+columns are held to one bar; the normal reference is right for 600+
+player clusters and wrong for the S-1 df beside it.
+
+`floor` is the within-season player-sampling SE of the season mean. An
+`se` below its own floor cannot happen under independent seasons except
+through luck in the sd estimate (about 2% per pair at df 5) — so read it
+across the table, not at one row. ⚠️ Neither estimator dominates: `se`
+generalises over FOOTBALL, `bootSE` over FOOTBALLERS. Their AGREEMENT is
+what the verdict rests on, not either column alone.
+
+`mde` is the difference this comparison would find 80% of the time. A
+`diff` below it was never measurable, so a large p there is silence and
+not agreement.
+
+------------------------------------------------------------------------------
+4. THE SAME CONTRASTS IN THE ADDITIVE PARAMETERISATION (minutes/gw).
+   xgcrepair.go's rule: the shared-bias precedent is about an ADDITIVE
+   bias, and the site measures additively and removes multiplicatively.
+   The question is whether the falsification SURVIVES here — not which
+   table clears more pairs, which orders nothing.
+------------------------------------------------------------------------------
+`n(a)`/`n(b)` count ROWS; `pl` counts distinct footballers, which is the
+number the t is really built on. For the de-levelled contrasts both
+include the run-0 rows the divisor needs.
+
+pair           n(a)   n(b)    pl      diff       se      t     holm      mde   bootSE   bootT  bootHolm   floor    sgn+
+GKP - DEF       573   2342   310      2.77     1.11   2.49   0.4024     4.64     1.03    2.69    0.0360    1.18     3/4
+GKP - MID       573   2379   300      2.63     1.37   1.92   0.4525     5.70     1.00    2.63    0.0360    1.17     3/4
+GKP - FWD       573    507   124      3.85     1.48   2.60   0.4024     6.17     1.37    2.80    0.0304    1.49     3/4
+DEF - MID      2342   2379   501     -0.14     0.42  -0.34   0.7559     1.74     0.70   -0.20    0.8641    0.71     1/4
+DEF - FWD      2342    507   328      1.08     0.59   1.82   0.4525     2.48     1.17    0.93    0.8641    1.17     4/4
+MID - FWD      2379    507   310      1.22     0.21   5.85   0.0598     0.87     1.15    1.06    0.8641    1.15     4/4
+
+`bootSE`/`bootT`/`bootHolm` resample 631 player codes,
+B = 2000, seed 20260816 — the estimator that sees a
+footballer recurring across seasons. `bootHolm` is a NORMAL reference
+Holm-corrected over the same 6 pairs, so the two Holm
+columns are held to one bar; the normal reference is right for 600+
+player clusters and wrong for the S-1 df beside it.
+
+`floor` is the within-season player-sampling SE of the season mean. An
+`se` below its own floor cannot happen under independent seasons except
+through luck in the sd estimate (about 2% per pair at df 5) — so read it
+across the table, not at one row. ⚠️ Neither estimator dominates: `se`
+generalises over FOOTBALL, `bootSE` over FOOTBALLERS. Their AGREEMENT is
+what the verdict rests on, not either column alone.
+
+------------------------------------------------------------------------------
+5. WHAT THE DE-LEVELLING DOES, by position. Plateau = runs 1-3 pooled.
+------------------------------------------------------------------------------
+raw = plateau ratio; delevelled = raw / run-0 ratio. The shipped constant
+is one number for all four, so the spread here is what a pooled divisor
+costs whichever positions are unlike it.
+
+pos     n(1-3)       raw     run-0   delevelled  se(delev)       95% ci
+GKP         85    0.5142    1.0038       0.5122     0.0746  0.271-0.745
+DEF        479    0.7586    0.9641       0.7868     0.0290  0.692-0.876
+MID        283    0.7629    0.9659       0.7898     0.0535  0.623-0.963
+FWD         62    0.6763    0.9473       0.7139     0.0369  0.583-0.818
+POOLED     909    0.7296    0.9679       0.7538     0.0363  0.635-0.866
+
+------------------------------------------------------------------------------
+6. Pairwise position contrasts on the DE-LEVELLED plateau.
+   Reported for completeness. It is not the falsifier: the claim is
+   about the divisor, and a plateau that differs by position is a
+   separate question this design is much worse powered for.
+------------------------------------------------------------------------------
+`n(a)`/`n(b)` count ROWS; `pl` counts distinct footballers, which is the
+number the t is really built on. For the de-levelled contrasts both
+include the run-0 rows the divisor needs.
+
+pair           n(a)   n(b)    pl      diff       se      t     holm      mde   bootSE   bootT  bootHolm   floor    sgn+
+GKP - DEF       658   2821   320   -0.2761   0.0846  -3.26   0.2351   0.3521        -       -         -       -     0/4
+GKP - MID       658   2662   310   -0.2849   0.0807  -3.53   0.2314   0.3356        -       -         -       -     0/4
+GKP - FWD       658    569   131   -0.1924   0.0706  -2.73   0.2888   0.2937        -       -         -       -     0/4
+DEF - MID      2821   2662   509   -0.0088   0.0330  -0.27   0.8070   0.1375        -       -         -       -     2/4
+DEF - FWD      2821    569   333    0.0837   0.0388   2.16   0.2888   0.1614        -       -         -       -     4/4
+MID - FWD      2662    569   314    0.0926   0.0352   2.63   0.2888   0.1465        -       -         -       -     4/4
+
+------------------------------------------------------------------------------
+VERDICT on 'position-wide', by the rule stated at the top
+------------------------------------------------------------------------------
+FALSIFIED, on the omnibus: F(3,9) = 7.01, p = 0.00993; Friedman p = 0.0194.
+The over-prediction the de-levelling removes is not common to all four
+positions, so CLAUDE.md's shared-bias exemption does not cover it and
+the argument written at the site does not hold. What the constant should
+then be is a separate question and is NOT answered here.
+
+Pairs clearing Holm, season-means SE : MID - FWD
+Pairs clearing Holm, PLAYER-boot SE  : GKP - DEF, GKP - MID, GKP - FWD
+BOTH (this is what to quote)         : none
+
+Same bar on both columns, Holm over 6. A pair on ONE list
+only is not a finding: the season-means column can read one cohort of
+footballers 4 times over, and the bootstrap column holds the 4 seasons
+fixed and so cannot speak to season-to-season disagreement at all.
+
+The falsification also holds in the ADDITIVE parameterisation the
+shared-bias precedent is actually about (table 4). Do NOT read an ordering
+into the two tables' Holm counts — 1 and 0 of 6 — that is two sides of
+an arbitrary line on the same rows, and orders nothing.
+

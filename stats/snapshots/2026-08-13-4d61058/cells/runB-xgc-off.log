@@ -1,0 +1,14 @@
+replay: slot 2/3, MemoryHigh=2G MemoryMax=4G, started 23:53:42
+=== RUN   TestDiagBaseline
+
+variant                     gw1      gw6     gw11     gw16     gw21     gw26    POLICY |      HOLD   moves
+shipped (baseline)        12784    11226     9820     8202     6652     4786     53470 |     47401     902
+
+--- POLICY (the weekly transfer decision) ---
+--- HOLD (the opening fifteen; use this for scoring constants) ---
+--- HOLD with the armband pinned to the day-one pick (diagnostic instrument) ---
+--- HOLD with nobody doubled (diagnostic instrument; not what FPL pays) ---
+Cells written. Now: Rscript stats/sweep_inference.R <the FPL_CELLS path>
+--- PASS: TestDiagBaseline (199.36s)
+PASS
+replay: exit=0 peak_rss=135 MB elapsed=3:18.41

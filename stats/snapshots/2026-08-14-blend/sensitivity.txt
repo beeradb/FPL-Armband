@@ -1,0 +1,66 @@
+------------------------------------------------------------------------------
+The schedule statistic, and what carries it
+all 6 seasons, all 6 entries       mean +0.00758   t +1.28   p 0.257
+
+per-season contrast:
+ 2020-21  2021-22  2022-23  2023-24  2024-25  2025-26 
+ 0.00231  0.02772 -0.00246  0.02364 -0.00742  0.00170 
+------------------------------------------------------------------------------
+Leave one season out
+drop 2020-21                       mean +0.00863   t +1.21   p 0.293
+drop 2021-22                       mean +0.00355   t +0.67   p 0.540
+drop 2022-23                       mean +0.00959   t +1.41   p 0.233
+drop 2023-24                       mean +0.00437   t +0.72   p 0.513
+drop 2024-25                       mean +0.01058   t +1.69   p 0.166
+drop 2025-26                       mean +0.00876   t +1.23   p 0.285
+------------------------------------------------------------------------------
+The two carrier seasons, dropped together — the sign reverses
+drop 2021-22 AND 2023-24           mean -0.00147   t -0.65   p 0.560
+------------------------------------------------------------------------------
+Leave one entry column out
+drop GW 1                          mean +0.01207   t +1.31   p 0.247
+drop GW 6                          mean +0.00798   t +1.38   p 0.227
+drop GW 11                         mean +0.00690   t +1.20   p 0.284
+drop GW 16                         mean +0.00806   t +1.22   p 0.275
+drop GW 21                         mean +0.00784   t +1.70   p 0.150
+drop GW 26                         mean +0.00246   t +0.42   p 0.691
+------------------------------------------------------------------------------
+Leave one arm out — is the statistic the k=24 arm alone?
+drop BlendRateK=12                 mean +0.00805   t +1.36   p 0.232
+drop BlendRateK=16                 mean +0.00751   t +1.30   p 0.250
+drop BlendRateK=24                 mean +0.01038   t +1.11   p 0.319
+------------------------------------------------------------------------------
+Degeneracy and tails
+arm-cells 108, exactly zero 18 (17%)
+zeros by entry gameweek:
+ 1  6 11 16 21 26 
+ 7  3  3  0  1  4 
+per-entry SD of the paired differences:
+    1     6    11    16    21    26 
+0.138 2.458 3.384 2.727 3.215 4.470 
+  BlendRateK=12    max|d| 9.31 = 21% of sum|d|
+  BlendRateK=16    max|d| 9.62 = 13% of sum|d|
+  BlendRateK=24    max|d| 11.31 = 11% of sum|d|
+------------------------------------------------------------------------------
+The baseline-free ladder slope, per entry column
+This is the estimand the post-hoc calendar-vs-evidence paragraph rests on:
+the common baseline is an additive shift and cancels from a slope, so this
+cannot be an artifact of the k=8 column's own draw — which the per-arm
+differences CAN be, since all three share it.
+  GW1   slope +0.0101   t +2.22
+  GW6   slope -0.0105   t -0.11
+  GW11  slope -0.0859   t -1.04
+  GW16  slope -0.0197   t -0.21
+  GW21  slope +0.0763   t +0.54
+  GW26  slope +0.2101   t +1.65
+------------------------------------------------------------------------------
+The calendar reading's own prediction, for the same columns
+share of the scored window [g,38] falling in the GW16-28 band:
+   GW1 0.342   GW6 0.394   GW11 0.464   GW16 0.565   GW21 0.444   GW26 0.231 
+It peaks at GW16 and is LOWEST at GW26 — so 'GW11 contains all of the band'
+is not the criterion, and the calendar reading predicts GW26 smallest.
+------------------------------------------------------------------------------
+Restricted to the four seasons of the recorded 24-cell table
+  BlendRateK=12    mean -0.445  t -0.63  (recorded table: -0.632 / -0.740 / -1.509)
+  BlendRateK=16    mean +0.302  t +0.48  (recorded table: -0.632 / -0.740 / -1.509)
+  BlendRateK=24    mean +0.124  t +0.16  (recorded table: -0.632 / -0.740 / -1.509)

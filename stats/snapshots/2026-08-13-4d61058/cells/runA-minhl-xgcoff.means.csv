@@ -1,0 +1,21 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+MINHL#2,1786593782-502272,policy,flat (no recency),1,half-life 4 (ships),-2.4402165313921613,24,-
+MINHL#2,1786593782-502272,policy,half-life 2,2,half-life 4 (ships),-1.8604807663732164,24,-
+MINHL#2,1786593782-502272,policy,half-life 8,3,half-life 4 (ships),-0.3094207391261179,24,-
+MINHL#2,1786593782-502272,policy,half-life 20,4,half-life 4 (ships),-0.03139557651857464,24,-
+MINHL#2,1786593782-502272,hold,flat (no recency),1,half-life 4 (ships),-0.43730758340312165,24,-
+MINHL#2,1786593782-502272,hold,half-life 2,2,half-life 4 (ships),-0.6730255955799436,24,-
+MINHL#2,1786593782-502272,hold,half-life 8,3,half-life 4 (ships),0.4748721990569802,24,-
+MINHL#2,1786593782-502272,hold,half-life 20,4,half-life 4 (ships),0.0736229244524426,24,-
+MINHL#2,1786593782-502272,hold_fixedcap,flat (no recency),1,half-life 4 (ships),-0.25289007490094456,24,-
+MINHL#2,1786593782-502272,hold_fixedcap,half-life 2,2,half-life 4 (ships),-0.294901359975731,24,-
+MINHL#2,1786593782-502272,hold_fixedcap,half-life 8,3,half-life 4 (ships),0.3968301223736012,24,-
+MINHL#2,1786593782-502272,hold_fixedcap,half-life 20,4,half-life 4 (ships),0.000993973820061574,24,-
+MINHL#2,1786593782-502272,hold_nocap,flat (no recency),1,half-life 4 (ships),-0.32043283809588213,24,-
+MINHL#2,1786593782-502272,hold_nocap,half-life 2,2,half-life 4 (ships),-0.45489439632746187,24,-
+MINHL#2,1786593782-502272,hold_nocap,half-life 8,3,half-life 4 (ships),0.3937206111119149,24,-
+MINHL#2,1786593782-502272,hold_nocap,half-life 20,4,half-life 4 (ships),-0.0028023506284373667,24,-
+MINHL#3,1786593782-502272,policy,vice on (ships),1,vice off (pre-fix),0.29670174621547574,24,-
+MINHL#3,1786593782-502272,hold,vice on (ships),1,vice off (pre-fix),0.4101660744967391,24,-
+MINHL#3,1786593782-502272,hold_fixedcap,vice on (ships),1,vice off (pre-fix),1.1645042679796684,24,-
+MINHL#3,1786593782-502272,hold_nocap,vice on (ships),1,vice off (pre-fix),0,24,-

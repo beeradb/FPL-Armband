@@ -1,0 +1,99 @@
+=== the decoded map, checked on every archived fixture-side ===
+  2020-21: 760/760 difficulties reproduced exactly
+  2021-22: 760/760 difficulties reproduced exactly
+  2022-23: 760/760 difficulties reproduced exactly
+  2023-24: 760/760 difficulties reproduced exactly
+  2024-25: 760/760 difficulties reproduced exactly
+  2025-26: 760/760 difficulties reproduced exactly
+  pooled: 4560/4560
+  ⚠️ DENOMINATOR: those 4560 fixture-sides are 93 distinct (field, strength, difficulty)
+     constraints over 120 club-seasons — a club-season's 38 sides repeat one
+     constraint. 4560 is the row count; 93 is the evidence.
+
+=== end-stamped, or frozen at season start? ===
+  archive difficulty == step(END-of-season strength):   4560/4560
+  archive difficulty == step(FIRST capture's strength): 2755/4560
+  The archive's column is the END-of-season one, and a column frozen at
+  season start is REFUTED here rather than inferred — it would have to
+  reproduce every side and reproduces 60%. ⚠️ What is still ASSUMED is
+  whether FPL PUBLISHED the intermediate values. If it froze them, the
+  correct point-in-time column is the season-start one, a third column
+  this arm does not fit.
+
+=== which strength field can carry a map at all ===
+  strength                 H: deterministic=False monotone=False A: deterministic=False monotone=False
+  strength_overall_home    H: deterministic=True  monotone=True  A: deterministic=False monotone=False
+  strength_overall_away    H: deterministic=False monotone=False A: deterministic=True  monotone=True 
+  strength_attack_home     H: deterministic=False monotone=False A: deterministic=False monotone=False
+  strength_attack_away     H: deterministic=False monotone=False A: deterministic=False monotone=False
+  strength_defence_home    H: deterministic=False monotone=False A: deterministic=False monotone=False
+  strength_defence_away    H: deterministic=False monotone=False A: deterministic=False monotone=False
+  -> only strength_overall_home (at home) and strength_overall_away (away) qualify.
+     The coarse 1-5 `strength` does NOT.
+
+=== the venue pairing, on a LIVE payload carrying fixtures ===
+  2026-08-10T0528Z: 760 fixture-sides, venue-matched identity 760, venue-swapped 456
+    ⚠️ only 304 of those 760 sides can discriminate at all — the rest face a club
+       whose home and away ratings are equal. 8 of 20 clubs carry the check.
+  2026-08-13T1911Z: 760 fixture-sides, venue-matched identity 760, venue-swapped 456
+    ⚠️ only 304 of those 760 sides can discriminate at all — the rest face a club
+       whose home and away ratings are equal. 8 of 20 clubs carry the check.
+  ⚠️ The two rows above are ONE observation printed twice: no team field
+     differs between the two captures.
+  ⚠️ structure only — 2026/27 publishes strength_overall_* already on the 1-5
+     scale, so the decoded THRESHOLDS do not transport. And the archive-side
+     field screen below forces the same pairing independently, which is the
+     cheaper and stronger support.
+
+=== capture timing: every capture must predate its gameweek's first kickoff ===
+  2020-21: 0 captures postdate a kickoff; 3 are more than 8 days stale [3, 5, 7]
+  2021-22: 0 captures postdate a kickoff; 0 are more than 8 days stale 
+  2022-23: 0 captures postdate a kickoff; 0 are more than 8 days stale 
+  2023-24: 0 captures postdate a kickoff; 0 are more than 8 days stale 
+  2024-25: 0 captures postdate a kickoff; 3 are more than 8 days stale [8, 9, 10]
+  2025-26: 0 captures postdate a kickoff; 0 are more than 8 days stale 
+
+=== the terminal anchor: GW38 capture vs the archive's teams.csv ===
+  2020-21: GW38 capture disagrees for 0/20 clubs
+  2021-22: GW38 capture disagrees for 0/20 clubs
+  2022-23: GW38 capture disagrees for 0/20 clubs
+  2023-24: GW38 capture disagrees for 0/20 clubs
+  2024-25: GW38 capture disagrees for 0/20 clubs
+  2025-26: GW38 capture disagrees for 0/20 clubs
+
+`def` re-derived from the archive's difficulty column: 2974/2974 agree
+
+=== liveness: native (three seasons, carries the verdict), n = 1566 ===
+  def_pit != def_end on 454/1566 = 0.2899
+  def_end: [('0.7', 79), ('0.85', 410), ('1', 675), ('1.2', 263), ('1.4', 139)]
+  def_pit: [(0.7, 14), (0.85, 567), (1.0, 606), (1.2, 275), (1.4, 104)]
+  difficulty_pit - difficulty_end: [(-2, 7), (-1, 262), (0, 1112), (1, 179), (2, 6)]
+  rows whose cutoff strength lands in a decoded GAP: 0
+    2023-24  moved 88/513 = 0.1715
+    2024-25  moved 227/527 = 0.4307
+    2025-26  moved 139/526 = 0.2643
+  def_pit | def_moved = 0: [(0.7, 14), (0.85, 358), (1.0, 483), (1.2, 166), (1.4, 91)]
+  def_pit | def_moved = 1: [(0.85, 209), (1.0, 123), (1.2, 109), (1.4, 13)]
+  share of sum w2_end^2 carried by moved rows = 0.3709
+  club-venue-season cells with more than one def_end: 0/120
+  club-venue-season cells with more than one def_pit: 59/120
+
+=== liveness: pooled (six seasons, context only), n = 2974 ===
+  def_pit != def_end on 782/2974 = 0.2629
+  def_end: [('0.7', 79), ('0.85', 1059), ('1', 1040), ('1.2', 593), ('1.4', 203)]
+  def_pit: [(0.7, 14), (0.85, 1152), (1.0, 1048), (1.2, 574), (1.4, 186)]
+  difficulty_pit - difficulty_end: [(-2, 7), (-1, 398), (0, 2192), (1, 358), (2, 19)]
+  rows whose cutoff strength lands in a decoded GAP: 0
+    2020-21  moved 143/490 = 0.2918
+    2021-22  moved 142/447 = 0.3177
+    2022-23  moved 43/471 = 0.0913
+    2023-24  moved 88/513 = 0.1715
+    2024-25  moved 227/527 = 0.4307
+    2025-26  moved 139/526 = 0.2643
+  def_pit | def_moved = 0: [(0.7, 14), (0.85, 877), (1.0, 738), (1.2, 416), (1.4, 147)]
+  def_pit | def_moved = 1: [(0.85, 275), (1.0, 310), (1.2, 158), (1.4, 39)]
+  share of sum w2_end^2 carried by moved rows = 0.2988
+  club-venue-season cells with more than one def_end: 0/240
+  club-venue-season cells with more than one def_pit: 107/240
+
+wrote 2974 rows to stats/defensive_fixture_pointintime/joined_rows_lag1.csv

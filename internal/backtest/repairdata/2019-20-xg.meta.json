@@ -1,0 +1,17 @@
+{
+ "crosswalk": "code",
+ "first_gw": 1,
+ "join_goal_cells": 10083,
+ "join_goal_mismatch": 2,
+ "join_goals_ratio": 1.0,
+ "join_minutes_ratio": 1.002903,
+ "last_gw": 38,
+ "offset_source": "borrowed",
+ "offset_xa": 1.223429,
+ "offset_xg": 1.088472,
+ "renumbered": true,
+ "rows": 6531,
+ "season": "2019-20",
+ "sum_xa": 640.1147,
+ "sum_xg": 1009.0275
+}

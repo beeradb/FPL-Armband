@@ -1,0 +1,57 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+------------------------------------------------------------------
+CANARY SIZING for the point-in-time refit -- native stratum
+------------------------------------------------------------------
+n = 1566   seasons: 2023-24, 2024-25, 2025-26
+
+DESIGN (no outcome enters):
+  rows the reconstruction moves            438 / 1566 = 0.2797
+  rows informing w2_rev (w2_rev != 0)      438
+  rows where w2_pit == 0 (def_pit == 1)    613
+  cor(w2_pit, w2_rev) = -0.145   cor(w1, w2_rev) = +0.041
+  cor(w2_end, w2_pit) = +0.845
+  share of sum(w2_end^2) on moved rows = 0.3638
+
+CONTROL (the banked model, refit here on real outcomes):
+  a = +0.024263   b1 = +1.047624   b2_end = +1.568809
+  CONTROL PASSES: reproduces the banked b2 = 1.5688 and b1 = 1.0476.
+
+POLE N -- no artefact; the banked model IS the truth
+  Model P -> b2_pit = 1.434919      Model E -> b2_end = 1.568809
+  Model D -> b_pit = 1.568809  b_rev = 1.568809  contrast = -0.000000
+  self-consistency: Model E returns the banked b2 and the Model D contrast
+  is exactly 0, both by construction.
+
+POLE H -- full artefact, CONSTRAINED to reproduce the banked fit
+  solved c_pit = 1.238857   c_rev = 2.441619   residual 2.30e-12
+  Model P -> b2_pit = 1.000000      Model E -> b2_end = 1.568809
+  Model D -> b_pit = 1.238857  b_rev = 2.441619  contrast = 1.202761
+  For the whole excess to be hindsight, the REVISION component has to carry
+  a slope of 2.442 against the point-in-time component's 1.239.
+
+DIAGNOSTIC: an UNCONSTRAINED 'truth = 1 * w2_pit' DGP returns
+  Model E b2_end = 0.739052, not 1.5688 -- so mismeasurement alone cannot
+  manufacture the banked coefficient, and that is why pole H is constrained.
+
+------------------------------------------------------------------
+SEPARATIONS -- what the instrument has to resolve
+------------------------------------------------------------------
+  on b2_pit (Model P level):      |1.434919 - 1.000000| = 0.434919
+  on the Model D contrast:        |1.202761 - -0.000000| = 1.202761
+  the NAIVE sizing, which is WRONG: 0.568809 -- it over-states the
+  separation by 30.8%, in the direction that flatters the instrument.
+
+CANARY, declared before any standard error exists:
+  H2 (b2_pit level) is UNMEASURABLE if 4.303 * SE(b2_pit) > 0.434919,
+     i.e. unless SE(b2_pit) < 0.101073
+  H1 (Model D contrast) is UNMEASURABLE if 4.303 * SE > 1.202761,
+     i.e. unless SE(contrast) < 0.279517
+
+SENSITIVITY of pole N to the DGP intercept (it is nearly flat):
+  a -0.10 -> pole N b2_pit = 1.436137
+  a -0.05 -> pole N b2_pit = 1.435488
+  a +0.00 -> pole N b2_pit = 1.434919
+  a +0.05 -> pole N b2_pit = 1.434414
+  a +0.10 -> pole N b2_pit = 1.433964

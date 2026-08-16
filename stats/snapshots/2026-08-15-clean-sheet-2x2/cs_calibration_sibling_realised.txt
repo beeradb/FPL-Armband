@@ -1,0 +1,39 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+Clean-sheet calibration: which family?
+-ln P(clean sheet) = a + b * xGC, binomial GLM with a log link.
+A pure SCALE is a = 0 (this is what FPL_CS_XGC_FACTOR can express).
+A pure OFFSET is b = 1 (a flat rescale of every clean-sheet probability).
+
+rows: 2870   seasons: 2022-23, 2023-24, 2024-25, 2025-26
+⚠️  Name the DATA STATE beside any figure from this run: an unswitched dump
+    carries reconstructed 2022-23 xGC, which is a noisier regressor and
+    biases the fit toward the offset. FPL_NO_XGC_REPAIR=1 gives native only.
+
+all rows in file       n = 2870, clusters (season x team) = 80
+  free fit     a = +0.1438 (naive 0.0486, clustered 0.0489)
+               b = +1.1200 (naive 0.0534, clustered 0.0510)
+  restriction Wald, clustered:  t(a = 0) = 2.94    t(b = 1) = 2.35
+  pure SCALE   a = 0 forced,  f = 1.2556     LRT p = 0.0007457
+  pure OFFSET  b = 1 forced,  a = +0.2375    LRT p = 0.02418
+  ⚠️  BOTH one-parameter families are rejected. The free fit is the only
+      unrejected model, so neither is adequate and the less-rejected one
+      (OFFSET) is NOT thereby established.
+  → 2x2 arms from the JOINT fit: f = 1.120, flat P(CS) x 0.866
+
+Jensen scale implied by THIS dump's regressor: c = 1.2830
+  (solves mean(exp(-c*x)) = observed rate 0.2383 over n = 2870)
+  ~1.28 means the regressor is realised match xGC; ~1.00 means it is
+  the model's smoothed XGC90. Independently, shot distributions give 1.27.
+
+per season, free fit:
+  season            n        a        b
+  2022-23         676  +0.1596  +1.0129
+  2023-24         714  +0.2159  +1.1470
+  2024-25         740  +0.1108  +1.1941
+  2025-26         740  +0.1052  +1.1211
+
+the Go diagnostic's bucket-mean estimator, on these same rows:
+  bucket-mean fit   a = +0.1991   b = +1.0702   (6 of 6 buckets used)
+  (the per-observation MLE above is the one that carries a verdict)

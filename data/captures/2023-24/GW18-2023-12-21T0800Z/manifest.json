@@ -1,0 +1,22 @@
+{
+  "captured_at": "2023-12-21T08:00:06Z",
+  "files": [
+    {
+      "endpoint": "/bootstrap-static/",
+      "name": "bootstrap-static.json.gz",
+      "bytes": 1504088,
+      "stored_bytes": 160630,
+      "sha256": "a243b8ed1c394291687b50a5fbdcffd62d3c11d5c043ffa413d37654a449ba58"
+    }
+  ],
+  "event": 18,
+  "event_deadline": "2023-12-21T18:30:00Z",
+  "hours_to_deadline": 10.498333333333333,
+  "fplagent_version": "3e05205d5394",
+  "backfill": {
+    "season": "2023-24",
+    "source": "https://web.archive.org/web/20231221080006id_/https://fantasy.premierleague.com/api/bootstrap-static/",
+    "wayback_timestamp": "20231221080006",
+    "digest": "2R3URWNRIDDO5LR3JFFOO2WJDKVX3PHR"
+  }
+}

@@ -1,0 +1,5 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+ORACLEARMBAND#1,1786398442-58420,policy,ORACLE[decision:armband] perfect armband,1,real (ships),5.923430489863557,24,decision:armband
+ORACLEARMBAND#1,1786398442-58420,hold,ORACLE[decision:armband] perfect armband,1,real (ships),5.5235500816879535,24,decision:armband
+ORACLEARMBAND#1,1786398442-58420,hold_fixedcap,ORACLE[decision:armband] perfect armband,1,real (ships),0,24,decision:armband
+ORACLEARMBAND#1,1786398442-58420,hold_nocap,ORACLE[decision:armband] perfect armband,1,real (ships),0,24,decision:armband

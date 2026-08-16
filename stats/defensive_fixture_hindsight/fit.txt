@@ -1,0 +1,258 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+------------------------------------------------------------------------------
+DEFENSIVE FIXTURE HINDSIGHT GATE
+------------------------------------------------------------------------------
+Pre-registration: stats/defensive_fixture_hindsight_PREREGISTRATION.md
+⚠️ `revised_opp` is measured on TEAM STRENGTH. The captures carry no fixtures
+   payload, so no capture can show a difficulty moving. See the CORRECTIONS
+   block below: the archive itself narrows this more than the pre-registration
+   allowed for.
+⚠️ `revised_opp == 0` is NOT a clean row: the fine strength_* fields moved
+   for 20/20 clubs in every season.
+------------------------------------------------------------------------------
+CORRECTIONS TO THE PRE-REGISTRATION (2026-08-16, POST-FIT)
+------------------------------------------------------------------------------
+A pre-registration edited after its fit is no longer one, so nothing below was
+applied in place. These are the review findings this run verified independently.
+
+1. SECTION 7's SIZING WAS AN APPROXIMATION AND IT DECIDED THE VERDICT.
+   `(b2-1)/q_w` is an OLS omitted-variable formula, applied to a log-link GLM
+   without partialling w1 or using IWLS weights. It reads 1.977; the quantity
+   that sentence names is 1.685. The threshold is 1.702. So the canary FIRES
+   and the verdict is C, where the approximation gave D. The error ran in the
+   direction that flatters the instrument.
+
+2. THE MECHANISM ARGUMENT IS NARROWER THAN 'UNVERIFIABLE'. The archive's own
+   difficulty column is END-STAMPED, and that is measurable from the committed
+   join -- see the join's liveness output. What stays unverifiable is whether
+   FPL's LIVE difficulty moved in-season, which needs a fixtures payload.
+
+3. SECTION 9's 'nothing here reaches the scored path' IS WRONG AS MECHANISM.
+   `FPL_DEF_FIXTURE_SCALE` runs through defenceMultiplier -> fixtureMultipliersFor
+   -> fixtureSensitiveAt and is live on the scored path. What the record holds
+   is that MOVING it does not resolve on points, which is a tie and not a
+   refutation. Read section 9 as 'nothing here licenses moving a scored constant'.
+
+4. TWO ALTERNATIVES SECTION 2 DOES NOT NAME.
+   (a) TIMING. Revisions land in 2-4 discrete gameweeks a season, so revised_opp
+       is partly 'early in the season': mean gw 18.08 revised against 22.76
+       unrevised on the native stratum. XGC90's reliability rises through the
+       season, so the w2 slope can differ by calendar position with no hindsight
+       involved. Unsigned: it can mask a leak as easily as manufacture one.
+   (b) OUTCOME CONDITIONING. revised_opp is a function of END-of-season strength,
+       which FPL sets from results including this row's own match, so b3 = 0 is
+       not a clean null. Bounded at ~1 match in 38 and blunted by a 5-level scale.
+
+5. THE ONLY DIRECT OBSERVATION OF DIFFICULTY MOVEMENT IN THIS PROJECT RUNS
+   AGAINST THE HYPOTHESIS, and the pre-registration quoted the other half of
+   its paragraph without it: the banked cs_calibration output records 'two live
+   captures three days apart show 0 of 380 difficulties changing'. That window
+   is pre-season and reaches no archived season, so it is weak -- but it was
+   known beforehand and omitting it was selective.
+
+6. SECTION 6's STATED LIVENESS BAR CANNOT FIRE. The join copies `def` unchanged
+   and fails on any unmatched row, so conditional on the row count the `def`
+   distribution is bit-identical BY CONSTRUCTION. The check that can fire, and
+   does pass, is the independent re-derivation in the join's liveness output.
+------------------------------------------------------------------------------
+NATIVE stratum -- CARRIES THE VERDICT
+------------------------------------------------------------------------------
+
+CONTROL: the banked model refitted here. On the native stratum this must
+reproduce b2 = 1.5688 with season-clustered t = 4.14 and a season x team
+SE of 0.2253, or nothing from this run may be quoted.
+
+banked 2-channel model   n = 1566, season clusters = 3, df = 2, t_crit = 4.303, SE type CR2
+  rank(vcov) = 3 of 3 parameters
+  Satterthwaite df per coefficient (context; the verdict uses G-1): (Intercept) 1.98  w1 1.93  w2 1.91 
+  term     estimate SE(season)  t vs H0       H0    threshold SE(sxteam)
+  w1        +1.0476     0.1008    +0.47      1.0       0.4338     0.1612
+  w2        +1.5688     0.1375    +4.14      1.0       0.5917     0.2253
+  CONTROL PASSES: b2 1.5688 and season x team SE 0.2253 match the banked figures.
+
+H1 (PRIMARY): b3 = 0.  b2 here is the fixture channel on rows whose
+opponent's coarse strength did NOT move; b3 is the extra on rows whose did.
+⚠️ Only 221 of 1566 rows inform b3 at all -- 675 have def == 1, where w2 = w3 = 0.
+   cor(w2, w3) = 0.532, cor(w1, w3) = 0.082 -- w2 and w3 are moderately
+   collinear by construction, since w3 is w2 on a subset of the same rows.
+
+augmented: + revised_opp*w2   n = 1566, season clusters = 3, df = 2, t_crit = 4.303, SE type CR2
+  rank(vcov) = 3 of 4 parameters  ⚠️ RANK-DEFICIENT: G clusters cannot span p parameters
+  Satterthwaite df per coefficient (context; the verdict uses G-1): (Intercept) 1.99  w1 1.95  w2 1.93  w3 1.72 
+  term     estimate SE(season)  t vs H0       H0    threshold SE(sxteam)
+  w1        +1.0200     0.0843    +0.24      1.0       0.3626     0.1555
+  w2        +1.2854     0.2267    +1.26      1.0       0.9755     0.2775
+  w3        +0.8457     0.3956    +2.14      0.0       1.7023     0.4202
+
+H2 (ROBUSTNESS): b2 = 1 where NEITHER club's coarse strength moved
+all season.  n = 502 of 1566.  This costs power exactly where power is
+shortest, and the subsample is NOT clean -- the fine fields still moved.
+
+never-revised subsample   n = 502, season clusters = 3, df = 2, t_crit = 4.303, SE type CR2
+  rank(vcov) = 3 of 3 parameters
+  Satterthwaite df per coefficient (context; the verdict uses G-1): (Intercept) 1.41  w1 1.29  w2 1.75 
+  term     estimate SE(season)  t vs H0       H0    threshold SE(sxteam)
+  w1        +0.7240     0.2205    -1.25      1.0       0.9487     0.5026
+  w2        +1.4931     0.3839    +1.28      1.0       1.6516     0.4291
+
+  ⚠️ H2 IS UNMEASURABLE, NOT NULL. Its threshold on b2 is 1.6516 against
+     the 0.5688 excess being tested -- it could only ever have seen an
+     effect 2.9x the one in question. Quote no p from it in either
+     direction. Its point estimate is the most direct reading against the
+     leak story in this run and it is still NOT evidence, because the arm
+     cannot separate 1 from 1.5688. It keeps its Holm slot because it was
+     declared, and the cost that imposes on H1 stands.
+
+SENSITIVITY (outside the Holm family, uncorrected t): the SIGNED
+specification, revised_delta*w2 in place of revised_opp*w2.
+⚠️ READ IT AS UNINFORMATIVE, NOT AS COUNTER-EVIDENCE. It carries w3s INSTEAD
+   of w3, so it constrains the up-revised and down-revised excesses to be
+   EQUAL AND OPPOSITE -- a shape that cannot express the unsigned model's own
+   point estimate of both groups elevated. The leak mechanism is
+   direction-agnostic: revised either way, the end-stamped `def` describes
+   realised strength better than the cutoff value did, so both directions
+   steepen the channel. A negative w3s says the elevation is not monotone in
+   the direction of revision; it does NOT say the leak runs the other way.
+   The two models are also fitted separately and cannot be composed.
+
+augmented: + revised_delta*w2   n = 1566, season clusters = 3, df = 2, t_crit = 4.303, SE type CR2
+  rank(vcov) = 3 of 4 parameters  ⚠️ RANK-DEFICIENT: G clusters cannot span p parameters
+  Satterthwaite df per coefficient (context; the verdict uses G-1): (Intercept) 1.98  w1 1.93  w2 1.90  w3s 1.75 
+  term     estimate SE(season)  t vs H0       H0    threshold SE(sxteam)
+  w1        +1.0483     0.0911    +0.53      1.0       0.3919     0.1588
+  w2        +1.5420     0.1303    +4.16      1.0       0.5608     0.2303
+  w3s       -0.3093     0.1907    -1.62      0.0       0.8205     0.3985
+------------------------------------------------------------------------------
+THE CANARY -- sized before the fit, evaluated now
+------------------------------------------------------------------------------
+  q_w (share of sum w2^2 on revised rows) = 0.2876
+  section 7's APPROXIMATION, (b2 - 1)/q_w        = 1.977
+  the EXACT b3 that same sentence asks for      = 1.685
+     (self-consistency: b3 = 0 returns b2 = 1.000000 exactly)
+  detection threshold on b3 = t_crit(2) x SE(b3) = 4.303 x 0.3956 = 1.702
+  canary FIRES: threshold EXCEEDS the leak a full artefact would require
+  ⚠️ THE APPROXIMATION AND THE EXACT ANSWER DISAGREE ON THE VERDICT.
+     Taking section 7's `≈` literally gives 'does not fire' and outcome D;
+     evaluating the quantity that sentence NAMES gives 'fires' and
+     outcome C. C is reported, for two reasons. It is the same estimand,
+     computed without an approximation the pre-registration never
+     defended -- not a new rule. And it moves the verdict toward quoting
+     LESS, which is the direction a post-hoc correction is allowed to run;
+     the pre-registration's own bar is that no verdict may be UPGRADED
+     after the fact.
+  ⚠️ The margin is small either way, and a second, independent route reaches
+     the same place: at clubSandwich's Satterthwaite df for b3 the threshold
+     is larger still, so the canary fires there without needing this
+     correction at all. See the df line printed with each fit above.
+------------------------------------------------------------------------------
+DECISION (pre-registration section 8)
+------------------------------------------------------------------------------
+  raw p:  H1 0.1660   H2 0.3276
+  Holm changed nothing here: H1's RAW p is 0.1660 and fails at m = 1 too.
+  Holm (m = 2, as pre-registered -- an unestimable arm does NOT
+  shrink the family, because it was declared):
+    H1  0.3320
+    H2  0.3320
+  Holm thresholds at df 2: |t| > 6.205 for the smaller p, 4.303 for the larger
+
+  augmented b2 (unrevised rows) = +1.2854 against the banked +1.5688
+  moved-to-1 test: |b2 - 1| = 0.2854 vs its own SE 0.2267 -> FALSE
+  held-at-banked test: |b2 - banked| = 0.2834 vs 0.10 -> FALSE
+
+  VERDICT: C -- UNMEASURABLE
+  ⚠️ UNDER C, SECTION 8 FORBIDS QUOTING ANY READING OF b3 IN EITHER
+     DIRECTION. The three lines above are the decision rule's own branch
+     conditions, printed so the verdict can be audited -- they are NOT
+     results. In particular the drop from 1.5688 to 1.2854 must not be
+     reported as 'the leak absorbs about half the excess': that share's
+     own interval is not even bounded inside [0, 1], and dropping any one
+     of the three seasons moves it a long way.
+  ⚠️ C is a fact about this INSTRUMENT, not about the constant. It does not
+     say b2 = 1.5688 is sound and it does not say it is an artefact.
+  ⚠️ The verdict is taken on the NATIVE stratum, season-clustered, df 2,
+     exactly as pre-registered. The pooled block below carries no verdict
+     in either direction, per the record's own rule against leaning on a
+     stratum for a rejection while disowning it for a null.
+------------------------------------------------------------------------------
+POOLED stratum -- CONTEXT ONLY, no verdict either way
+------------------------------------------------------------------------------
+
+CONTROL, pooled: this must reproduce the banked POOLED figures,
+b2 = 1.5654 with a season x team SE of 0.1712. The native control text
+does not apply here -- it used to print in this position and read like a
+failure.
+
+banked 2-channel model   n = 2974, season clusters = 6, df = 5, t_crit = 2.571, SE type CR2
+  rank(vcov) = 3 of 3 parameters
+  Satterthwaite df per coefficient (context; the verdict uses G-1): (Intercept) 4.53  w1 4.50  w2 4.59 
+  term     estimate SE(season)  t vs H0       H0    threshold SE(sxteam)
+  w1        +0.9568     0.1311    -0.33      1.0       0.3370     0.1097
+  w2        +1.5654     0.1184    +4.77      1.0       0.3045     0.1712
+  CONTROL PASSES: b2 1.5654 and season x team SE 0.1712 match the banked figures.
+
+H1 (PRIMARY): b3 = 0.  b2 here is the fixture channel on rows whose
+opponent's coarse strength did NOT move; b3 is the extra on rows whose did.
+⚠️ Only 431 of 2974 rows inform b3 at all -- 1040 have def == 1, where w2 = w3 = 0.
+   cor(w2, w3) = 0.486, cor(w1, w3) = 0.076 -- w2 and w3 are moderately
+   collinear by construction, since w3 is w2 on a subset of the same rows.
+
+augmented: + revised_opp*w2   n = 2974, season clusters = 6, df = 5, t_crit = 2.571, SE type CR2
+  rank(vcov) = 4 of 4 parameters
+  Satterthwaite df per coefficient (context; the verdict uses G-1): (Intercept) 4.57  w1 4.55  w2 4.84  w3 3.73 
+  term     estimate SE(season)  t vs H0       H0    threshold SE(sxteam)
+  w1        +0.9485     0.1248    -0.41      1.0       0.3207     0.1066
+  w2        +1.3614     0.1602    +2.26      1.0       0.4117     0.1903
+  w3        +0.7532     0.2583    +2.92      0.0       0.6639     0.3086
+
+H2 (ROBUSTNESS): b2 = 1 where NEITHER club's coarse strength moved
+all season.  n = 841 of 2974.  This costs power exactly where power is
+shortest, and the subsample is NOT clean -- the fine fields still moved.
+
+never-revised subsample   n = 841, season clusters = 6, df = 5, t_crit = 2.571, SE type CR2
+  rank(vcov) = 3 of 3 parameters
+  Satterthwaite df per coefficient (context; the verdict uses G-1): (Intercept) 3.25  w1 3.33  w2 4.58 
+  term     estimate SE(season)  t vs H0       H0    threshold SE(sxteam)
+  w1        +0.8264     0.1559    -1.11      1.0       0.4009     0.1894
+  w2        +1.5461     0.1831    +2.98      1.0       0.4707     0.3480
+
+SENSITIVITY (outside the Holm family, uncorrected t): the SIGNED
+specification, revised_delta*w2 in place of revised_opp*w2.
+⚠️ READ IT AS UNINFORMATIVE, NOT AS COUNTER-EVIDENCE. It carries w3s INSTEAD
+   of w3, so it constrains the up-revised and down-revised excesses to be
+   EQUAL AND OPPOSITE -- a shape that cannot express the unsigned model's own
+   point estimate of both groups elevated. The leak mechanism is
+   direction-agnostic: revised either way, the end-stamped `def` describes
+   realised strength better than the cutoff value did, so both directions
+   steepen the channel. A negative w3s says the elevation is not monotone in
+   the direction of revision; it does NOT say the leak runs the other way.
+   The two models are also fitted separately and cannot be composed.
+
+augmented: + revised_delta*w2   n = 2974, season clusters = 6, df = 5, t_crit = 2.571, SE type CR2
+  rank(vcov) = 4 of 4 parameters
+  Satterthwaite df per coefficient (context; the verdict uses G-1): (Intercept) 4.54  w1 4.50  w2 4.57  w3s 3.80 
+  term     estimate SE(season)  t vs H0       H0    threshold SE(sxteam)
+  w1        +0.9598     0.1290    -0.31      1.0       0.3315     0.1090
+  w2        +1.5411     0.1134    +4.77      1.0       0.2916     0.1722
+  w3s       -0.2906     0.1340    -2.17      0.0       0.3445     0.3025
+
+⚠️ THE POOLED BLOCK SAYS TWO THINGS AND THEY MUST BE QUOTED TOGETHER.
+   b3 clears its own threshold here, so a NONZERO leak resolves at df 5.
+   Its interval also sits well below the leak a FULL artefact would need,
+   so a full artefact is excluded here. Neither is a verdict: the verdict
+   stratum was fixed before the fit, and three of these six seasons carry
+   reconstructed xGC, which makes w1 a different construct rather than
+   more of the same.
+------------------------------------------------------------------------------
+PER-SEASON, native stratum -- shape, not a test
+------------------------------------------------------------------------------
+The record's standard for a shape is that it holds in every season. ⚠️ This
+table carries NO standard errors, so a sign flip in one of three seasons is
+not a result: 'a gap between two point estimates is not a result until it is
+divided by something'. It is printed because a 3-cluster arm where one cluster
+carries the effect is a pattern this record has been bitten by before.
+  season          n  n_rev        b1        b2        b3
+  2023-24       513     90   +0.9598   +1.1332   +2.2302
+  2024-25       527    125   +0.9139   +1.1223   +0.8755
+  2025-26       526     93   +1.1663   +1.9407   -0.1189

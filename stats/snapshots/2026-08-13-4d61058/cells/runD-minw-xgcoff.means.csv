@@ -1,0 +1,17 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+MINW#1,1786598696-519177,policy,exponent 1.00,1,exponent 1.25 (ships),0.18428290710899345,24,-
+MINW#1,1786598696-519177,policy,exponent 1.15,2,exponent 1.25 (ships),-0.025545480136442162,24,-
+MINW#1,1786598696-519177,policy,exponent 1.50,3,exponent 1.25 (ships),-0.0056335043463198176,24,-
+MINW#1,1786598696-519177,policy,exponent 1.75,4,exponent 1.25 (ships),-0.32026723488394077,24,-
+MINW#1,1786598696-519177,hold,exponent 1.00,1,exponent 1.25 (ships),-0.30459086108399686,24,-
+MINW#1,1786598696-519177,hold,exponent 1.15,2,exponent 1.25 (ships),-0.043207840976720924,24,-
+MINW#1,1786598696-519177,hold,exponent 1.50,3,exponent 1.25 (ships),-0.05776635539221372,24,-
+MINW#1,1786598696-519177,hold,exponent 1.75,4,exponent 1.25 (ships),-0.22169318836939075,24,-
+MINW#1,1786598696-519177,hold_fixedcap,exponent 1.00,1,exponent 1.25 (ships),-0.24495791679716175,24,-
+MINW#1,1786598696-519177,hold_fixedcap,exponent 1.15,2,exponent 1.25 (ships),0.037986374799876245,24,-
+MINW#1,1786598696-519177,hold_fixedcap,exponent 1.50,3,exponent 1.25 (ships),0.04124529117378195,24,-
+MINW#1,1786598696-519177,hold_fixedcap,exponent 1.75,4,exponent 1.25 (ships),-0.19098177121632412,24,-
+MINW#1,1786598696-519177,hold_nocap,exponent 1.00,1,exponent 1.25 (ships),-0.28080552329694264,24,-
+MINW#1,1786598696-519177,hold_nocap,exponent 1.15,2,exponent 1.25 (ships),-0.015455654185630921,24,-
+MINW#1,1786598696-519177,hold_nocap,exponent 1.50,3,exponent 1.25 (ships),-0.17452851835002856,24,-
+MINW#1,1786598696-519177,hold_nocap,exponent 1.75,4,exponent 1.25 (ships),-0.44544801753039714,24,-

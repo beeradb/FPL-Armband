@@ -1,0 +1,404 @@
+
+Variance components per comparison (points per gameweek, squared)
+-----------------------------------------------------------------
+Method of moments on the 6 x 6 season-by-start table; REML from lme4 in brackets.
+MoM may be negative — that is a component saying it is indistinguishable from zero,
+which REML's 0.000 hides.
+
+metric         variant                 s2_season   s2_start   s2_resid
+policy         band_strength 1 — the      -0.501     -0.976      7.213
+                 REML                      0.000      0.000      5.947
+policy         band_strength 2 — CANA     -0.782     -0.380      7.115
+                 REML                      0.000      0.000      6.119
+hold           band_strength 1 — the      -0.100     +0.468      1.817
+                 REML                      0.000      0.484      1.717
+hold           band_strength 2 — CANA     -0.120     -0.382      3.389
+                 REML                      0.000      0.000      2.959
+hold_fixedcap  band_strength 1 — the      -0.106     +0.466      1.811
+                 REML                      0.000      0.484      1.705
+hold_fixedcap  band_strength 2 — CANA     -0.217     -0.242      3.309
+                 REML                      0.000      0.000      2.915
+hold_nocap     band_strength 1 — the      -0.126     +0.489      1.782
+                 REML                      0.000      0.510      1.656
+hold_nocap     band_strength 2 — CANA     -0.236     -0.268      3.356
+                 REML                      0.000      0.000      2.924
+
+Is the season component real? F tests and a bound
+-------------------------------------------------
+F_season tests sigma2_season = 0 on (5, 25) df; F_start tests sigma2_start = 0 on (5, 25).
+The bound is a one-sided 95% interval on sd_season, in points per gameweek.
+
+metric         variant                 F_seas        p  F_strt        p sd_season 95% CI
+policy         band_strength 1 — the     0.58    0.713    0.19    0.964     [0.00, 1.36]
+policy         band_strength 2 — CANA    0.34    0.883    0.68    0.643     [0.00, 0.76]
+hold           band_strength 1 — the     0.67    0.650    2.54    0.054     [0.00, 0.76]
+hold           band_strength 2 — CANA    0.79    0.568    0.32    0.893     [0.00, 1.17]
+hold_fixedcap  band_strength 1 — the     0.65    0.664    2.55    0.054     [0.00, 0.74]
+hold_fixedcap  band_strength 2 — CANA    0.61    0.696    0.56    0.729     [0.00, 0.95]
+hold_nocap     band_strength 1 — the     0.58    0.718    2.65    0.047     [0.00, 0.67]
+hold_nocap     band_strength 2 — CANA    0.58    0.716    0.52    0.758     [0.00, 0.92]
+
+An upper bound of this width is the four-season sample speaking, not the
+harness: with 3 df on the season mean, a component estimated at zero and a
+component as large as the total are not distinguishable.
+
+Cross-check: does the decomposition reproduce CR2?
+--------------------------------------------------
+metric         variant                se_cluster     se_CR2  rel.diff
+policy         band_strength 1 — the      0.3418     0.3418   1.6e-16
+policy         band_strength 2 — CANA     0.2594     0.2594   2.1e-16
+hold           band_strength 1 — the      0.1840     0.1840   1.5e-16
+hold           band_strength 2 — CANA     0.2724     0.2724   0.0e+00
+hold_fixedcap  band_strength 1 — the      0.1808     0.1808   1.5e-16
+hold_fixedcap  band_strength 2 — CANA     0.2361     0.2361   1.2e-16
+hold_nocap     band_strength 1 — the      0.1689     0.1689   0.0e+00
+hold_nocap     band_strength 2 — CANA     0.2321     0.2321   2.4e-16
+
+worst relative difference: 2.4e-16
+  ok  the season-clustered SE in sweep_inference.R is exactly
+      sqrt(MS_season / (G*S)), so the components above take it apart
+      rather than re-deriving it a second way.
+
+Pooled over the sweep's alternatives, and what the 1.50 really is
+-----------------------------------------------------------------
+Var(season mean) = sigma2_season + sigma2_resid / G_starts, and the
+season-clustered SE reports its square root over sqrt(S). Splitting it:
+
+metric   sd_season  sd_start  sd_resid sd(smean)  from (a)  from (b)
+policy       0.000     0.000     2.677     1.093      0.0%    100.0%
+hold         0.000     0.207     1.613     0.659      0.0%    100.0%
+hold_fixedcap     0.000     0.335     1.600     0.653      0.0%    100.0%
+hold_nocap     0.000     0.333     1.603     0.654      0.0%    100.0%
+
+sd(smean) is the measured season-to-season spread of the effect that the
+clustered SE implies. (a) is genuine season heterogeneity; (b) is within-season
+path noise leaking into the four season means.
+
+Does residual noise scale as 1 / weeks played?
+----------------------------------------------
+Residuals are the season-by-start interaction terms, pooled over arms and
+metrics. The null the design projections assume is a slope of -1 on
+log(variance) against log(weeks), i.e. SE proportional to 1/sqrt(weeks).
+
+ start_gw   weeks     n       rms
+        1      38    48     1.234
+        6      33    48     1.475
+       11      28    48     1.700
+       16      23    48     1.434
+       21      18    48     1.876
+       26      13    48     1.831
+
+fitted slope on log(variance) ~ log(weeks): -0.65   (assumed -1)
+
+Read that slope as an upper bound on the length effect, not a measurement of
+it. Window length and information regime are the same variable in this
+design — a 13-gameweek window is also a GW26 entry — and CLAUDE.md already
+records the middle regime as noisier than its length explains. The rms
+column is not monotone in weeks either (33 gameweeks reads above 38), so
+treat p = 1 as the defensible assumption and 0.65 as the pessimistic one.
+
+Unequal cell lengths: equal weighting against inverse-variance weighting
+------------------------------------------------------------------------
+Weights proportional to gameweeks played, which is the efficient weight if
+residual variance goes as 1/weeks. Both are season-clustered at 5 df.
+
+metric         variant               mean_eq    SE_eq    p_eq |  mean_iv    SE_iv    p_iv
+policy         band_strength 1 — th   +0.158    0.342   0.663 |   +0.149    0.293   0.632
+policy         band_strength 2 — CA   -0.473    0.259   0.127 |   -0.301    0.318   0.388
+hold           band_strength 1 — th   +0.357    0.184   0.110 |   +0.255    0.157   0.166
+hold           band_strength 2 — CA   -0.279    0.272   0.353 |   -0.272    0.272   0.363
+hold_fixedcap  band_strength 1 — th   +0.315    0.181   0.142 |   +0.220    0.151   0.205
+hold_fixedcap  band_strength 2 — CA   -0.209    0.236   0.416 |   -0.243    0.251   0.378
+hold_nocap     band_strength 1 — th   +0.293    0.169   0.143 |   +0.202    0.145   0.223
+hold_nocap     band_strength 2 — CA   -0.237    0.232   0.355 |   -0.267    0.252   0.339
+
+  Holm-adjusted, POLICY: equal 0.663 0.255 | inverse-variance 0.776 0.776
+  verdicts at 0.05 change: 0 of 2
+
+  Holm-adjusted, HOLD: equal 0.220 0.353 | inverse-variance 0.332 0.363
+  verdicts at 0.05 change: 0 of 2
+
+  Holm-adjusted, HOLD_FIXEDCAP: equal 0.283 0.416 | inverse-variance 0.409 0.409
+  verdicts at 0.05 change: 0 of 2
+
+  Holm-adjusted, HOLD_NOCAP: equal 0.286 0.355 | inverse-variance 0.445 0.445
+  verdicts at 0.05 change: 0 of 2
+
+Mean SE ratio, inverse-variance over equal: 0.973
+Mean |mean| ratio:                          0.868
+
+Read those two lines together. The SE falls by 3%, which looks like a free
+efficiency gain, and the point estimate moves by nearly as much — so the
+two weightings are not two estimates of one quantity. The effect itself
+varies with the entry point, and re-weighting changes which entry points
+the answer is about:
+
+  POLICY mean difference by entry gameweek:
+    variant                   GW1     GW6    GW11    GW16    GW21    GW26
+    band_strength 1 — th    +0.29   -0.06   +0.68   -0.52   -0.11   +0.67
+    band_strength 2 — CA    +0.14   -0.14   +0.80   -1.63   -1.10   -0.91
+
+  HOLD mean difference by entry gameweek:
+    variant                   GW1     GW6    GW11    GW16    GW21    GW26
+    band_strength 1 — th    -0.01   +0.56   +0.14   +0.14   -0.65   +1.96
+    band_strength 2 — CA    -0.01   -0.45   -0.58   +0.24   -0.89   +0.01
+
+  HOLD_FIXEDCAP mean difference by entry gameweek:
+    variant                   GW1     GW6    GW11    GW16    GW21    GW26
+    band_strength 1 — th    +0.00   +0.55   +0.07   +0.07   -0.69   +1.91
+    band_strength 2 — CA    +0.00   -0.50   -0.77   +0.46   -0.80   +0.35
+
+  HOLD_NOCAP mean difference by entry gameweek:
+    variant                   GW1     GW6    GW11    GW16    GW21    GW26
+    band_strength 1 — th    +0.00   +0.54   +0.11   -0.11   -0.69   +1.91
+    band_strength 2 — CA    +0.00   -0.50   -0.78   +0.35   -0.83   +0.35
+
+So inverse-variance weighting is the efficient estimator of *the effect over
+a full season from GW1*, which is arguably the estimand that matters, since
+that is the season a manager plays. It is not a free improvement on the
+estimand already in use, and its effect on the verdicts is mixed rather than
+uniformly better — read the p columns above, where two HOLD arms get worse.
+
+Crossed REML with the same weights, to check sigma2_resid was not just an
+average over cells of different precision:
+
+  metric         variant              s2_season  s2_start s2_resid0
+  policy         band_strength 1 — th     0.000     0.000   128.450
+  policy         band_strength 2 — CA     0.000     0.000   148.406
+  hold           band_strength 1 — th     0.000     0.242    32.829
+  hold           band_strength 2 — CA     0.000     0.000    74.134
+  hold_fixedcap  band_strength 1 — th     0.000     0.251    32.203
+  hold_fixedcap  band_strength 2 — CA     0.000     0.000    76.683
+  hold_nocap     band_strength 1 — th     0.000     0.294    30.828
+  hold_nocap     band_strength 2 — CA     0.000     0.000    76.435
+
+s2_resid0 is on the weighted scale: divide by a cell's gameweeks for that
+cell's residual variance. At the mean window of 25.5 gameweeks it is
+comparable with the unweighted s2_resid above. The season and start
+components are unaffected in substance, which is the point of checking.
+
+Why CR2 and the mixed model disagree
+------------------------------------
+metric         variant                 se_naive  se_clust  s2_start     share
+policy         band_strength 1 — the      0.406     0.342    -0.976      0.0%
+policy         band_strength 2 — CANA     0.412     0.259    -0.380      0.0%
+hold           band_strength 1 — the      0.243     0.184    +0.468     20.5%
+hold           band_strength 2 — CANA     0.287     0.272    -0.382      0.0%
+hold_fixedcap  band_strength 1 — the      0.243     0.181    +0.466     20.5%
+hold_fixedcap  band_strength 2 — CANA     0.285     0.236    -0.242      0.0%
+hold_nocap     band_strength 1 — the      0.241     0.169    +0.489     21.5%
+hold_nocap     band_strength 2 — CANA     0.285     0.232    -0.268      0.0%
+
+'share' is the start-point main effect as a share of total cell variance.
+The naive SE pays for it and the season-clustered SE does not, so a large
+share is exactly when clustering makes the SE *smaller*.
+
+What each comparison can detect, per arm
+----------------------------------------
+'significant' is the effect that would land exactly at p = 0.05; 'MDE' is the effect
+this design would detect 80% of the time. Points per season is x38 on the per_gw scale.
+
+Two estimators per comparison, and the answer is the range between them:
+  clustered  Var = (s2_season + s2_resid/G)/S on 5 df — correct if the effect
+             genuinely differs by season. Conservative.
+  start-fix  Var = s2_resid/(S*G) on 25 df — the same six entry gameweeks
+             are replayed every season on purpose, so an offset between
+             them cancels from the contrast. Valid only if s2_season = 0.
+
+metric         variant                  clu sig   clu MDE   fix sig   fix MDE  F_seas  p_seas
+policy         band_strength 1 — the         33        45        35        50    0.58   0.713
+policy         band_strength 2 — CANA        25        34        35        49    0.34   0.883
+hold           band_strength 1 — the         18        24        18        25    0.67   0.650
+hold           band_strength 2 — CANA        27        36        24        34    0.79   0.568
+hold_fixedcap  band_strength 1 — the         18        24        18        25    0.65   0.664
+hold_fixedcap  band_strength 2 — CANA        23        31        24        34    0.61   0.696
+hold_nocap     band_strength 1 — the         16        22        17        25    0.58   0.718
+hold_nocap     band_strength 2 — CANA        23        31        24        34    0.58   0.716
+
+F_seas tests whether the season component exists at all, so a small p is
+the licence to read the left-hand pair and a large one is *not* licence to
+read the right-hand pair: at 6 seasons and 6 start points that test has only
+30% power against a season component large enough to double the clustered
+variance. So it fails to reject four times in five when the thing it looks
+for is there. Report the range and the evidence; do not pick an end.
+
+metric          arms         clustered sig/season       start-fixed sig/season
+policy             2         29  [    25,     33]         35  [    35,     35]
+hold               2         22  [    18,     27]         21  [    18,     24]
+hold_fixedcap      2         20  [    18,     23]         21  [    18,     24]
+hold_nocap         2         20  [    16,     23]         21  [    17,     24]
+
+median [min, max] over the sweep's arms. A wide range is the finding: the
+threshold belongs to the comparison, not to the harness, and quoting one
+arm's figure as the harness's resolution is what this section was changed
+to stop.
+
+The same thing pooled over the sweep's arms, for continuity
+-----------------------------------------------------------
+Every threshold recorded in CLAUDE.md was computed this way — variance
+components averaged over the arms, then one row per metric. Kept so that
+record stays interpretable, and *not* the figure to quote for a single
+comparison: the average is dominated by whichever arm disagrees most
+between seasons, so it can describe no arm in the sweep.
+
+POLICY pooled over 2 arms:
+  estimator                           SE   df  t_crit    sig/gw sig/season    MDE/gw MDE/season
+  season-clustered (primary)       0.446    5    2.57     1.147        44     1.557        59
+  start fixed, no season effect    0.446   25    2.06     0.919        35     1.301        49
+  naive, all cells independent     0.446   35    2.03     0.906        34     1.286        49
+
+HOLD pooled over 2 arms:
+  estimator                           SE   df  t_crit    sig/gw sig/season    MDE/gw MDE/season
+  season-clustered (primary)       0.269    5    2.57     0.691        26     0.939        36
+  start fixed, no season effect    0.269   25    2.06     0.554        21     0.784        30
+  naive, all cells independent     0.271   35    2.03     0.550        21     0.781        30
+
+HOLD_FIXEDCAP pooled over 2 arms:
+  estimator                           SE   df  t_crit    sig/gw sig/season    MDE/gw MDE/season
+  season-clustered (primary)       0.267    5    2.57     0.685        26     0.931        35
+  start fixed, no season effect    0.267   25    2.06     0.549        21     0.778        30
+  naive, all cells independent     0.272   35    2.03     0.553        21     0.785        30
+
+HOLD_NOCAP pooled over 2 arms:
+  estimator                           SE   df  t_crit    sig/gw sig/season    MDE/gw MDE/season
+  season-clustered (primary)       0.267    5    2.57     0.687        26     0.932        35
+  start fixed, no season effect    0.267   25    2.06     0.550        21     0.779        30
+  naive, all cells independent     0.273   35    2.03     0.554        21     0.786        30
+
+What disjoint evaluation windows would buy
+------------------------------------------
+Residual variance taken as proportional to weeks^-p, calibrated at the
+current design's mean window of 25.5 gameweeks. Two values
+of p: the 1/weeks the length argument predicts, and the 0.65 measured above.
+
+The key arithmetic: a disjoint design evaluates each season's football
+exactly once, where the current nested design evaluates 4.0 seasons' worth
+per season by overlapping. At p = 1 the number of disjoint windows drops
+out entirely — averaging W windows of 38/W gameweeks is averaging the same
+season either way — so W only ever changes the cluster count.
+
+How much overlap there is, in shared gameweeks between entry points:
+               1    6   11   16   21   26
+  GW1         38   33   28   23   18   13
+  GW6         33   33   28   23   18   13
+  GW11        28   28   28   23   18   13
+  GW16        23   23   23   23   18   13
+  GW21        18   18   18   18   18   13
+  GW26        13   13   13   13   13   13
+
+Every window is a suffix of the season, so they are strictly nested: the
+GW1 and GW6 entries share 33 of 38 gameweeks and the GW26 window sits
+inside all five others. Building disjoint windows needs an `EndGW` that
+`SimConfig` does not have — it carries `StartGW` only, and every path runs
+to GW38.
+
+POLICY:
+  design                                                   SE   df   sig/gw sig/season
+  current: 6 nested starts                              0.446    5    1.147         44
+  disjoint 2 x 19gw, clustered by season, p=1.00        0.895    5    2.301         87
+  disjoint 2 x 19gw as 12 clusters, p=1.00              0.895   11    1.970         75
+  disjoint 3 x 13gw, clustered by season, p=1.00        0.895    5    2.301         87
+  disjoint 3 x 13gw as 18 clusters, p=1.00              0.895   17    1.889         72
+  disjoint 2 x 19gw, clustered by season, p=0.65        0.851    5    2.186         83
+  disjoint 2 x 19gw as 12 clusters, p=0.65              0.851   11    1.872         71
+  disjoint 3 x 13gw, clustered by season, p=0.65        0.793    5    2.038         77
+  disjoint 3 x 13gw as 18 clusters, p=0.65              0.793   17    1.672         64
+
+HOLD:
+  design                                                   SE   df   sig/gw sig/season
+  current: 6 nested starts                              0.269    5    0.691         26
+  disjoint 2 x 19gw, clustered by season, p=1.00        0.540    5    1.387         53
+  disjoint 2 x 19gw as 12 clusters, p=1.00              0.540   11    1.188         45
+  disjoint 3 x 13gw, clustered by season, p=1.00        0.540    5    1.387         53
+  disjoint 3 x 13gw as 18 clusters, p=1.00              0.540   17    1.138         43
+  disjoint 2 x 19gw, clustered by season, p=0.65        0.513    5    1.318         50
+  disjoint 2 x 19gw as 12 clusters, p=0.65              0.513   11    1.128         43
+  disjoint 3 x 13gw, clustered by season, p=0.65        0.478    5    1.228         47
+  disjoint 3 x 13gw as 18 clusters, p=0.65              0.478   17    1.008         38
+
+HOLD_FIXEDCAP:
+  design                                                   SE   df   sig/gw sig/season
+  current: 6 nested starts                              0.267    5    0.685         26
+  disjoint 2 x 19gw, clustered by season, p=1.00        0.535    5    1.375         52
+  disjoint 2 x 19gw as 12 clusters, p=1.00              0.535   11    1.178         45
+  disjoint 3 x 13gw, clustered by season, p=1.00        0.535    5    1.375         52
+  disjoint 3 x 13gw as 18 clusters, p=1.00              0.535   17    1.129         43
+  disjoint 2 x 19gw, clustered by season, p=0.65        0.508    5    1.307         50
+  disjoint 2 x 19gw as 12 clusters, p=0.65              0.508   11    1.119         43
+  disjoint 3 x 13gw, clustered by season, p=0.65        0.474    5    1.218         46
+  disjoint 3 x 13gw as 18 clusters, p=0.65              0.474   17    1.000         38
+
+HOLD_NOCAP:
+  design                                                   SE   df   sig/gw sig/season
+  current: 6 nested starts                              0.267    5    0.687         26
+  disjoint 2 x 19gw, clustered by season, p=1.00        0.536    5    1.378         52
+  disjoint 2 x 19gw as 12 clusters, p=1.00              0.536   11    1.180         45
+  disjoint 3 x 13gw, clustered by season, p=1.00        0.536    5    1.378         52
+  disjoint 3 x 13gw as 18 clusters, p=1.00              0.536   17    1.131         43
+  disjoint 2 x 19gw, clustered by season, p=0.65        0.509    5    1.309         50
+  disjoint 2 x 19gw as 12 clusters, p=0.65              0.509   11    1.121         43
+  disjoint 3 x 13gw, clustered by season, p=0.65        0.475    5    1.220         46
+  disjoint 3 x 13gw as 18 clusters, p=0.65              0.475   17    1.002         38
+
+The segment-clustered rows are only valid where sigma2_season is zero.
+Where it is not, segments inside a season remain correlated and the honest
+cluster count stays at 6.
+
+Seasons needed to resolve an effect, at 80% power
+-------------------------------------------------
+Solved for the smallest S with (t_crit + t_power) * SE(S) <= the target.
+Two axes: seasons at the current six start points, and — where the season
+component is zero — start points at four seasons.
+
+metric    target/season seasons needed start points (*)
+policy               11            114              113
+policy               20             36               35
+policy               34             14               13
+policy               57              7                5
+hold                 11             43               42
+hold                 20             15               13
+hold                 34              7                5
+hold                 57              4                3
+hold_fixedcap             11             42               41
+hold_fixedcap             20             15               13
+hold_fixedcap             34              7                5
+hold_fixedcap             57              4                3
+hold_nocap             11             43               41
+hold_nocap             20             15               13
+hold_nocap             34              7                5
+hold_nocap             57              4                3
+
+(*) start points is only a legitimate axis where sigma2_season is zero, and
+it saturates the moment it is not: no number of paths beats sqrt(sigma2_s/S).
+Read it against the upper bound on sd_season reported above, not against the
+point estimate. Adding start points also widens the estimand, since each new
+entry gameweek is a different information regime — see the by-entry-gameweek
+table above, where one column carries most of HOLD's effect.
+
+Is the start-point axis exhausted?
+----------------------------------
+Season-clustered SE against the number of start points, at 6 seasons. The floor
+is sqrt(sigma2_season / S) and is reached only asymptotically.
+
+metric        G=6     G=12     G=24     G=48    floor % of floor
+policy      0.446    0.315    0.223    0.158    0.000         0%
+hold        0.269    0.190    0.134    0.095    0.000         0%
+hold_fixedcap    0.267    0.189    0.133    0.094    0.000         0%
+hold_nocap    0.267    0.189    0.134    0.094    0.000         0%
+
+A '% of floor' near 100 says the paths already bought everything paths can
+buy and only seasons remain. Near 0 says the axis is wide open.
+
+Wild cluster bootstrap: the Rademacher floor at four clusters
+-------------------------------------------------------------
+With 6 clusters there are 2^6 = 64 Rademacher sign vectors, and the
+statistic is symmetric under a global flip, so the bootstrap distribution
+has at most 32 distinct absolute values. The original sample is one of them,
+so the smallest attainable two-sided p is 2/64 = 0.031.
+
+That is above 0.05, so a Rademacher wild cluster bootstrap at 6 clusters can
+never reject at the 5% level however large the effect. It must not arbitrate anything here.
+
+wrote /tmp/bs3-vc/variance_components.csv, variance_pooled.csv, design_projection.csv and mde.csv
+mde.csv carries one row per (scope, metric, variant, estimator); read the
+`scope` column first — `arm` is a comparison, `pooled` is the whole sweep.

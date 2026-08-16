@@ -1,0 +1,22 @@
+{
+  "captured_at": "2022-01-21T10:39:37Z",
+  "files": [
+    {
+      "endpoint": "/bootstrap-static/",
+      "name": "bootstrap-static.json.gz",
+      "bytes": 992051,
+      "stored_bytes": 105539,
+      "sha256": "45b5779bdb4ff85bc45eb7cd1bd843cbd8daad1a4a50e540fef1895d62dc8acd"
+    }
+  ],
+  "event": 23,
+  "event_deadline": "2022-01-21T18:30:00Z",
+  "hours_to_deadline": 7.839722222222222,
+  "fplagent_version": "3e05205d5394",
+  "backfill": {
+    "season": "2021-22",
+    "source": "https://web.archive.org/web/20220121103937id_/https://fantasy.premierleague.com/api/bootstrap-static/",
+    "wayback_timestamp": "20220121103937",
+    "digest": "2BCDRFPZKDKNEJK73VTDMPXIJO26KNQZ"
+  }
+}

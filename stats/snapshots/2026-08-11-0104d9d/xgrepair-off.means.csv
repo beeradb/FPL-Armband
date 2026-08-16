@@ -1,0 +1,5 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+VICEXGOFF#1,1786485794-302631,policy,vice on (ships),1,vice off (pre-fix),0.30801936007885633,24,-
+VICEXGOFF#1,1786485794-302631,hold,vice on (ships),1,vice off (pre-fix),0.4210112287915499,24,-
+VICEXGOFF#1,1786485794-302631,hold_fixedcap,vice on (ships),1,vice off (pre-fix),1.2226268783763066,24,-
+VICEXGOFF#1,1786485794-302631,hold_nocap,vice on (ships),1,vice off (pre-fix),0,24,-

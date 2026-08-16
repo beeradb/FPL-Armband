@@ -1,0 +1,41 @@
+flagfit — the flag against the model's own ExpectedMinutes
+engine wired as the replay wires it; minutes per match
+
+observations: 51953 over 6 seasons (floor: ExpectedMinutes >= 30)
+skipped: 86427 below floor, 0 no capture row, 1932 no gameweek row (blanks), 28 gameweeks dropped as stale captures
+double gameweeks: 4.14% of rows, divided out
+
+reference — the two halves DISAGREE, so the choice is printed not hidden:
+  no flag        1.025   (n=18263)
+  explicit 100%  1.113   (n=27283)
+  pooled         1.076
+
+flag          n    raw r/e   norm(none)   norm(pool)     flag^2   flag^1.5
+0%         3642      0.016        0.016        0.015          -          -
+25%         438      0.135        0.132        0.125      0.062      0.125
+50%         551      0.367        0.358        0.341      0.250      0.354
+75%        1776      0.715        0.697        0.664      0.562      0.650
+100%      27283      1.113        1.085        1.034      1.000      1.000
+none      18263      1.025        1.000        0.953          -          -
+
+exponent p in realised = flag^p, by reference choice:
+  no flag        1.46
+  pooled         1.51
+  explicit 100%  1.54
+
+rung weights in that fit — it is mostly ONE rung:
+  25%    n=438    77.3% of the fit
+  50%    n=551    19.3% of the fit
+  75%    n=1776   3.3% of the fit
+
+per season — the pooled exponent averages over a trend:
+season         25%      50%      75%        p
+2020-21     0.176   0.307   0.722    1.34
+2021-22     0.057   0.342   0.651    1.94
+2022-23     0.228   0.425   0.713    1.10
+2023-24     0.163   0.376   0.691    1.33
+2024-25     0.069   0.301   0.747    1.86
+2025-26     0.079   0.354   0.656    1.76
+
+the no-flag rung split by status, since it pools two populations:
+  status a  n=18263  r/e 1.025

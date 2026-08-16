@@ -1,0 +1,25 @@
+Leave-one-season-out, HOLD, points a season (x38)
+arm                 all    -20-21    -21-22    -22-23    -23-24    -24-25    -25-26   sign flips
+BlendRateK=3       -4.1     -10.7      -8.2      -9.3     -11.4       5.2      10.0   2 of 6
+BlendRateK=5        1.8      -3.4      -4.4       5.2      -1.3       4.2      10.7   3 of 6
+BlendRateK=12     -11.6     -15.5     -12.0      -9.5     -23.9     -11.1       2.2   1 of 6
+BlendRateK=16      11.6      12.7      10.4      10.2       0.7      11.6      24.1   0 of 6
+BlendRateK=24      12.6      15.4       3.5      29.1       2.9       6.9      17.9   0 of 6
+
+The one contrast with |t CR2| above t_crit: k=16 minus k=12
+  overall 0.612 pts/gw = 23.3 a season, positive in 17 of 36 cells
+    2020-21    -0.041 pts/gw   positive in 3 of 6
+    2021-22     0.728 pts/gw   positive in 2 of 6
+    2022-23     1.074 pts/gw   positive in 2 of 6
+    2023-24     0.430 pts/gw   positive in 4 of 6
+    2024-25     0.689 pts/gw   positive in 2 of 6
+    2025-26     0.794 pts/gw   positive in 4 of 6
+  leave-one-season-out:
+    drop 2020-21      28.2 a season
+    drop 2021-22      22.4 a season
+    drop 2022-23      19.8 a season
+    drop 2023-24      24.7 a season
+    drop 2024-25      22.7 a season
+    drop 2025-26      21.9 a season
+  three largest |cell| contributions: 2021-22@26 9.69; 2022-23@16 7.83; 2024-25@6 4.39
+  dropping just those three: 0.2 a season (from 23.3)

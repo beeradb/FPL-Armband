@@ -1,0 +1,315 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+------------------------------------------------------------------------------ 
+DEFENSIVE FIXTURE COEFFICIENT, REFIT AT THE CUTOFF
+------------------------------------------------------------------------------ 
+Pre-registration: stats/defensive_fixture_pointintime_PREREGISTRATION.md
+⚠️ `def_pit` is RECONSTRUCTED. The map from the opponent's fine
+   strength_overall_* rating to difficulty is decoded and exact on 4560 of
+   4560 archived fixture-sides, and the venue pairing is verified on a live
+   payload that carries fixtures, 760/760. What is ASSUMED is that FPL
+   re-published the difficulty when it revised a strength mid-season. The
+   per-gameweek captures hold no fixtures payload, so no archived capture
+   can show a difficulty moving, and this arm cannot claim to have recovered
+   the true point-in-time difficulty.
+⚠️ No replay cells are spent and the `x 38` season conversion does NOT
+   apply. Thresholds below are t_crit(df) x SE, in coefficient units.
+------------------------------------------------------------------------------ 
+CORRECTIONS TO THE PRE-REGISTRATION (2026-08-16, POST-FIT)
+------------------------------------------------------------------------------ 
+A pre-registration edited after its fit is no longer one, so nothing below is
+applied in place. These are review findings, each reproduced independently before
+being written down. None of them changes the verdict; two of them weaken claims
+the pre-registration made, and that is the only direction a post-fit correction
+may run.
+
+1. THE VERDICT LETTER IS POLE-SPECIFICATION DEPENDENT, and the pole chosen was
+   the conservative one. Section 7 defines pole H on the STATISTIC (`Model P
+   returns exactly 1`). Defining it on the TRUTH instead -- the true
+   point-in-time slope is the shipped 1, with c_rev solved so Model E still
+   reproduces 1.568809 -- gives c_rev = 3.139961, Model P -> 0.661538 and a
+   Model D contrast of +2.139961. Separations become 0.773381 and 2.139961.
+   H2 still fires against its realised threshold of 1.2990; H1 does NOT
+   (1.9806 < 2.1400), and the decision rule would fall through to D. So:
+   the pre-registered pole is the harder alternative on both statistics, C is
+   the more cautious of the two labels, and both C and D forbid quoting -- but
+   `C' should be read as `C or D', not as a resolved property of the instrument.
+
+2. THERE IS A THIRD POLE AND SECTION 4 DENIES IT EXISTS. Section 4 says `a
+   negative contrast ... no mechanism here predicts'. Pole P -- FPL's
+   contemporaneous rating tracks the opponent's strength in THAT match better
+   than a season-end aggregate does -- is exactly that mechanism. Solved
+   (c_pit = 2.305783, Model E reproduces 1.568809), its Model D contrast is
+   -2.305783. So H1's null is not `no artefact'; it is `no artefact AND def_end
+   is the true regressor', with two zero-hindsight poles at 0 and -2.31. The
+   CANARY IS UNAFFECTED: the binding pairwise separation on the level is still
+   N-H at 0.4349 (N-P is 0.8709, P-H is 1.3058), so naming pole P would not
+   have flattered the instrument.
+
+3. THE PAIRED ESTIMATOR WAS REJECTED WITHOUT BEING COMPUTED. It is computed
+   below. b2_end - b2_pit has EXACTLY H2's pole separation, because both poles
+   pin Model E at 1.568809, and the two coefficients are strongly correlated
+   across season clusters, so it is much better determined than either level.
+   It also fires. `Rejected' was the wrong word; `computed, and it fires too'
+   is the right one, and it is the estimator to use if this is ever revisited.
+
+4. SECTION 6's `SHARPEST ROW' CANNOT FAIL. `def_end constant in 120 of 120
+   club-venue-season cells' is an arithmetic consequence of the map check that
+   runs earlier in the join and is required to pass. Monotonicity the
+   construction forces is not evidence. The liveness that can fail is the
+   438/1566 move rate and `def_pit' varying in 59 of 120.
+
+5. SECTION 2 UNDERSTATES ITS OWN CONTROL. It calls `FPL re-published the
+   difficulty when it revised a strength' unchecked. The map check substantially
+   checks it: a column frozen at season start would have to be reproduced by the
+   FIRST capture's strength, and that reproduces 2755 of 4560 against the
+   end-of-season strength's 4560 of 4560. The frozen-column alternative is
+   REFUTED, not merely unlikely. What survives is narrower -- whether FPL
+   PUBLISHED the intermediate values -- and if it did not, the correct
+   point-in-time column is the SEASON-START one, a third column this arm does
+   not fit and S1's lag-1 arm does not reach.
+
+6. THE DISCLOSURE SENTENCE IS FALSE AS WRITTEN. The preamble says `Not computed:
+   ... any standard error, t, p or threshold whatsoever', and section 7 then
+   quotes SE(b2_end) = 0.1375. That figure was not computed for this arm -- it
+   is the predecessor arm's banked control SE -- but it was KNOWN when the
+   canary was sized, which is why section 7 says H2 firing was the expected
+   outcome. Read the disclosure as `no standard error was computed HERE'.
+
+7. THE RANK WARNING IS SELECTIVE. It prints on Model D alone, which makes
+   Models E and P look better founded. With G = 3 the cluster scores sum to
+   zero, so the CR0 meat is rank 2 in ALL THREE models; CR2's adjustment lifts
+   E and P to nominal full rank. `df = 2' already encodes the real constraint.
+
+8. THE DENOMINATORS ARE INFLATED, in the join's report rather than here: 4560
+   fixture-sides are 93 distinct constraints over 120 club-seasons, and the
+   live venue check discriminates on 304 of 760 sides from 8 of 20 clubs, on
+   ONE observation printed twice. Both are corrected in join_liveness.txt.
+------------------------------------------------------------------------------ 
+NATIVE STRATUM -- CARRIES THE VERDICT 
+------------------------------------------------------------------------------ 
+
+CONTROL: the banked model refitted here. It must reproduce b2_end,
+b1 and the season x team CR2 SE, or nothing from this run may be quoted.
+
+Model E (banked, end-stamped def)
+  n = 1566, season clusters = 3, df = 2, t_crit = 4.303, SE type CR2
+  rank(vcov) = 3 of 3 parameters (the CR0 cluster meat is rank 2 in
+  every model here, G-1, whatever CR2's adjustment reports)
+  Satterthwaite df on the season x team clustering (context; the verdict
+  uses the pre-registered G-1): (Intercept) 9.8  w1 13.3  w2e 53.1 
+  term     estimate SE(season)  t vs H0         H0  threshold  SE(sxteam)
+  w1        +1.0476     0.1008    +0.47     1.0000     0.4338      0.1612
+  w2e       +1.5688     0.1375    +4.14     1.0000     0.5918      0.2253
+  CONTROL PASSES.
+
+MODEL P -- the PRIMARY estimand. `def` rebuilt at each row's own cutoff,
+all rows, not an interaction on a subset. The two poles it is read against
+are pole N 1.434919 (no artefact) and pole H 1.000000 (full artefact).
+
+Model P (point-in-time def)
+  n = 1566, season clusters = 3, df = 2, t_crit = 4.303, SE type CR2
+  rank(vcov) = 3 of 3 parameters (the CR0 cluster meat is rank 2 in
+  every model here, G-1, whatever CR2's adjustment reports)
+  Satterthwaite df on the season x team clustering (context; the verdict
+  uses the pre-registered G-1): (Intercept) 9.7  w1 13.2  w2p 55.1 
+  term     estimate SE(season)  t vs H0         H0  threshold  SE(sxteam)
+  w1        +1.0557     0.1068    +0.52     1.0000     0.4598      0.1596
+  w2p       +1.3783     0.3019    -0.19     1.4349     1.2990      0.2336
+  b2_pit = +1.3783. Against the other reference points, same SE 0.3019
+    vs the banked b2_end         +1.5688   t  -0.63   threshold 1.2990   does not separate
+    vs pole H (full artefact)    +1.0000   t  +1.25   threshold 1.2990   does not separate
+    vs the shipped position 1    +1.0000   t  +1.25   threshold 1.2990   does not separate
+
+MODEL D -- H1. The end-stamped column split into the part available at
+the cutoff and the revision the end-stamp adds. Under pole N the contrast
+b_rev - b_pit is EXACTLY 0; under pole H it is +1.202761.
+  cor(w2_pit, w2_rev) = -0.145   cor(w1, w2_rev) = +0.041   rows with w2_rev != 0: 438
+
+Model D (cutoff channel + revision channel)
+  n = 1566, season clusters = 3, df = 2, t_crit = 4.303, SE type CR2
+  rank(vcov) = 3 of 4 parameters (the CR0 cluster meat is rank 2 in
+  every model here, G-1, whatever CR2's adjustment reports)
+  ⚠️ CR2 IS ALSO RANK-DEFICIENT HERE: G clusters cannot span p parameters
+  Satterthwaite df on the season x team clustering (context; the verdict
+  uses the pre-registered G-1): (Intercept) 9.8  w1 13.4  w2p 54.6  w2r 44.7 
+  term     estimate SE(season)  t vs H0         H0  threshold  SE(sxteam)
+  w1        +1.0435     0.1097    +0.40     1.0000     0.4718      0.1608
+  w2p       +1.5192     0.2681    +1.94     1.0000     1.1535      0.2382
+  w2r       +1.6929     0.1933    +3.58     1.0000     0.8317      0.4053
+  CONTRAST b_rev - b_pit = +0.1737   SE(season) 0.4603   t vs 0 +0.38
+                          threshold 1.9806   SE(sxteam) 0.4275
+
+S4 (diagnostic, not a test): b1 is +1.0476 under Model E and +1.0557
+  under Model P. w1 is untouched by the reconstruction, so a large move
+  would mean the fit broke rather than the fixture channel.
+
+S3 (shape, not a test — no standard errors, so a sign flip in one
+season is not a result):
+  season          n     b2_end     b2_pit b_rev-b_pit
+  2023-24       513     1.4814     1.3606     0.7918
+  2024-25       527     1.4393     1.0154     0.4417
+  2025-26       526     1.8872     2.0638    -0.8812
+------------------------------------------------------------------------------ 
+THE CANARY -- sized before the fit, evaluated now
+------------------------------------------------------------------------------ 
+  H1  separation 1.202761   threshold 1.980600   CANARY FIRES
+  H2  separation 0.434919   threshold 1.298995   CANARY FIRES
+  (the NAIVE H2 sizing would have been 0.568809, which is 30.8% larger
+   and would have read 'fires' — the predecessor's error class, caught
+   here before the fit. It changed the MARGIN, not the answer.)
+  How far from resolving, so the sizing method can itself be judged:
+    H2 would have been detectable only if pole N projected above 2.299;
+    H1 only if pole H's contrast were 1.9806 rather than 1.2028.
+    The verdict therefore survives the sizing method by roughly a factor of
+    three, which also bounds every sensitivity of the poles to the control
+    coefficients they inherit — `a` is swept in sizing.txt and is flat, and
+    `b1` is not swept because cor(w1, w2_rev) = 0.041 makes the channel
+    nearly orthogonal to it.
+
+  PAIRED (post-hoc, correction 3): b2_end - b2_pit = +0.1905,
+    leave-one-season-out jackknife SE 0.1770, threshold 0.1770 x 4.303 = 0.7618
+    against the same separation 0.434919 -> CANARY FIRES HERE TOO
+------------------------------------------------------------------------------ 
+DECISION (pre-registration section 8)
+------------------------------------------------------------------------------ 
+  H1  b_rev - b_pit = +0.1737 vs 0          t +0.38  raw p 0.7421  Holm 1.0000
+  H2  b2_pit        = +1.3783 vs 1.434919  t -0.19  raw p 0.8685  Holm 1.0000
+  Holm thresholds at df 2: |t| > 6.205 for the smaller p, 4.303 for the larger
+
+  branch conditions: canary fired H1=TRUE H2=TRUE; Holm rejects H1=FALSE H2=FALSE;
+                     proximity to a pole: NOT EVALUATED — C short-circuits
+                     before the A/B branches read it, and under C it would
+                     be a reading rather than a branch condition.
+
+  VERDICT: C -- UNMEASURABLE
+  ⚠️ UNDER C THE PRE-REGISTRATION FORBIDS QUOTING ANY READING OF EITHER
+     ARM IN EITHER DIRECTION. The lines above are the decision rule's own
+     branch conditions, printed so the verdict can be audited — they are
+     NOT results. C is a fact about this INSTRUMENT, not about the
+     constant: it does not say b2 = 1.5688 is sound and it does not say
+     it is an artefact.
+
+  WHY IT DOES NOT RESOLVE -- a fact about the instrument, which is what
+  a C verdict is:
+    SE(b2_end)  0.1375      SE(b2_pit)  0.3019   ratio 2.20x
+    The reconstruction does not merely move the coefficient, it more than
+    doubles the season-clustered standard error, because the point-in-time
+    column's slope DISAGREES ACROSS SEASONS far more than the end-stamped
+    one's does. Season clustering is built to widen on exactly that, so
+    the arm loses power at the same time as it removes the leak.
+    Which of the two it is, without reading S3 at all: the season x
+    team CR2 SE goes 0.2253 -> 0.2336 (+3.7%) against +119.5% on the
+    season-clustered one. The regressor did not get weaker; the seasons
+    stopped agreeing. That is a restatement of what a season-clustered SE
+    IS, not a second reading of S3.
+    ⚠️ DO NOT carry `de-contaminating a regressor is not free' forward as
+       a standing claim. It is n = 1; the ratio is between two variance
+       estimates each carrying 2 df from the SAME three clusters, so it is
+       not itself a resolved quantity; and the same ratio on the pooled
+       stratum is only about 1.5. Record the three SE columns, not a law.
+    ⚠️ Under C, S3's per-season table above carries nothing either. It
+       is printed for audit, not for reading a shape off.
+------------------------------------------------------------------------------ 
+POOLED STRATUM -- CONTEXT ONLY, NO VERDICT 
+------------------------------------------------------------------------------ 
+
+CONTROL: the banked model refitted here. It must reproduce b2_end,
+b1 and the season x team CR2 SE, or nothing from this run may be quoted.
+
+Model E (banked, end-stamped def)
+  n = 2974, season clusters = 6, df = 5, t_crit = 2.571, SE type CR2
+  rank(vcov) = 3 of 3 parameters (the CR0 cluster meat is rank 5 in
+  every model here, G-1, whatever CR2's adjustment reports)
+  Satterthwaite df on the season x team clustering (context; the verdict
+  uses the pre-registered G-1): (Intercept) 20.6  w1 27.1  w2e 104.3 
+  term     estimate SE(season)  t vs H0         H0  threshold  SE(sxteam)
+  w1        +0.9568     0.1311    -0.33     1.0000     0.3370      0.1097
+  w2e       +1.5654     0.1184    +4.77     1.0000     0.3045      0.1712
+  CONTROL PASSES.
+
+MODEL P -- the PRIMARY estimand. `def` rebuilt at each row's own cutoff,
+all rows, not an interaction on a subset. The two poles it is read against
+are pole N 1.434919 (no artefact) and pole H 1.000000 (full artefact).
+
+Model P (point-in-time def)
+  n = 2974, season clusters = 6, df = 5, t_crit = 2.571, SE type CR2
+  rank(vcov) = 3 of 3 parameters (the CR0 cluster meat is rank 5 in
+  every model here, G-1, whatever CR2's adjustment reports)
+  Satterthwaite df on the season x team clustering (context; the verdict
+  uses the pre-registered G-1): (Intercept) 20.2  w1 26.7  w2p 111.4 
+  term     estimate SE(season)  t vs H0         H0  threshold  SE(sxteam)
+  w1        +0.9796     0.1291    -0.16     1.0000     0.3319      0.1096
+  w2p       +1.4546     0.1811    +0.11     1.4349     0.4656      0.1764
+  b2_pit = +1.4546. Against the other reference points, same SE 0.1811
+    vs the banked b2_end         +1.5654   t  -0.61   threshold 0.4656   does not separate
+    vs pole H (full artefact)    +1.0000   t  +2.51   threshold 0.4656   does not separate
+    vs the shipped position 1    +1.0000   t  +2.51   threshold 0.4656   does not separate
+
+MODEL D -- H1. The end-stamped column split into the part available at
+the cutoff and the revision the end-stamp adds. Under pole N the contrast
+b_rev - b_pit is EXACTLY 0; under pole H it is +1.202761.
+  cor(w2_pit, w2_rev) = -0.192   cor(w1, w2_rev) = +0.052   rows with w2_rev != 0: 756
+
+Model D (cutoff channel + revision channel)
+  n = 2974, season clusters = 6, df = 5, t_crit = 2.571, SE type CR2
+  rank(vcov) = 4 of 4 parameters (the CR0 cluster meat is rank 5 in
+  every model here, G-1, whatever CR2's adjustment reports)
+  Satterthwaite df on the season x team clustering (context; the verdict
+  uses the pre-registered G-1): (Intercept) 20.5  w1 27.0  w2p 110.3  w2r 86.7 
+  term     estimate SE(season)  t vs H0         H0  threshold  SE(sxteam)
+  w1        +0.9634     0.1327    -0.28     1.0000     0.3412      0.1100
+  w2p       +1.6240     0.1846    +3.38     1.0000     0.4746      0.1853
+  w2r       +1.3790     0.2011    +1.88     1.0000     0.5170      0.2888
+  CONTRAST b_rev - b_pit = -0.2451   SE(season) 0.3396   t vs 0 -0.72
+                          threshold 0.8730   SE(sxteam) 0.2996
+
+S4 (diagnostic, not a test): b1 is +0.9568 under Model E and +0.9796
+  under Model P. w1 is untouched by the reconstruction, so a large move
+  would mean the fit broke rather than the fixture channel.
+
+S3 (shape, not a test — no standard errors, so a sign flip in one
+season is not a result):
+  season          n     b2_end     b2_pit b_rev-b_pit
+  2020-21       490     2.0117     2.0038    -1.0037
+  2021-22       447     1.5973     1.5399    -0.8293
+  2022-23       471     1.1052     1.0515    -0.1248
+  2023-24       513     1.4814     1.3606     0.7918
+  2024-25       527     1.4393     1.0154     0.4417
+  2025-26       526     1.8872     2.0638    -0.8812
+
+⚠️ THE H0 QUOTED IN THIS BLOCK'S MODEL P TABLE (1.4349) IS POLE N SIZED
+   ON THE NATIVE STRATUM — an IWLS projection over those 1566 rows with
+   those control coefficients. The POOLED poles were never sized, and
+   sizing them now would be a post-hoc arm. So NO CANARY IS EVALUATED
+   HERE, and none may be inferred by dividing a pooled threshold into a
+   native separation — including the inference that would read as `the
+   pooled contrast arm was detectable and came out near pole N'. That
+   reading is available from the numbers above and is not licensed.
+
+⚠️ THIS STRATUM CARRIES NO VERDICT IN EITHER DIRECTION, per the
+   pre-registration and the record's rule against leaning on a stratum
+   for a rejection while disowning it for a null. Three of these six
+   seasons carry reconstructed xGC, which makes w1 a different construct.
+------------------------------------------------------------------------------ 
+S1 -- A STALER CUTOFF (declared sensitivity, no verdict)
+------------------------------------------------------------------------------ 
+`def_pit` rebuilt from capture GW{gw-1} instead of GW{gw}, clamped at GW1
+so the population does not change. Native stratum, season-clustered.
+  rows the lagged reconstruction moves: 454 / 1566 = 0.2899
+
+Model P, lag 1 (point-in-time def)
+  n = 1566, season clusters = 3, df = 2, t_crit = 4.303, SE type CR2
+  rank(vcov) = 3 of 3 parameters (the CR0 cluster meat is rank 2 in
+  every model here, G-1, whatever CR2's adjustment reports)
+  Satterthwaite df on the season x team clustering (context; the verdict
+  uses the pre-registered G-1): (Intercept) 9.7  w1 13.2  w2p 55.2 
+  term     estimate SE(season)  t vs H0         H0  threshold  SE(sxteam)
+  w1        +1.0624     0.1104    +0.57     1.0000     0.4749      0.1616
+  w2p       +1.4258     0.3107    -0.03     1.4349     1.3371      0.2348
+  b2_pit at lag 1 = +1.4258 against +1.3783 at lag 0. ⚠️ These are two
+  fits of overlapping data, so the gap has no standard error of its own
+  and 'a gap between two point estimates is not a result until it is
+  divided by something'. It is reported to show the reading is not
+  knife-edge on the cutoff convention, and for nothing else.

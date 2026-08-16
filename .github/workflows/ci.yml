@@ -1,0 +1,147 @@
+# The gates, run by a machine instead of by hand.
+#
+# Until this file existed, every check in this repository was run by a human
+# following a checklist. That is not a criticism of the checklist — it is that a
+# checklist cannot fail a merge, so "the gates passed" and "someone said the
+# gates passed" were the same claim, and only one of them is checkable.
+#
+# `go test ./...` is the whole suite and takes about three minutes wall-clock;
+# there is no value in splitting it into faster jobs that each report a partial
+# answer. `internal/backtest` and `internal/analysis` are ~95% of that time and
+# they are the two packages whose failure matters most.
+#
+# ⚠️ Expect `TestSnapshotCoversTheCurrentCode` to fail on any pull request that
+# touches internal/analysis, internal/backtest, internal/config or config.json —
+# INCLUDING a comment-only change, which moves the watched digest without
+# changing behaviour. That is the gate working exactly as designed and it is
+# also the known churn problem; it is not a reason to weaken this workflow. The
+# fix belongs in the gate, not here.
+#
+# ⚠️ The triggers are `pull_request` and `push`, deliberately NOT
+# `pull_request_target`. This job compiles and runs the pull request's own test
+# files, so a fork PR already executes attacker-authored code; that is safe only
+# because the token is read-only and this workflow holds no secrets. Converting
+# to `pull_request_target`, or adding any `secrets.` reference, makes a test
+# function a one-line exfiltration path. Either change needs a security review,
+# not a rubber stamp.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A superseded run tells you about code nobody is going to merge.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Actions are pinned to commit SHAs, not to mutable major tags. Nothing
+      # here holds a secret, so a hijacked tag could not steal anything — but it
+      # could tamper with the tree between checkout and `go test`, which makes
+      # this job's verdict untrustworthy, and that verdict is the entire point.
+      - name: Check out the full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # ⚠️ LOAD-BEARING — do not "optimise" this to a shallow clone.
+          # `TestAKeyDescribesTheCommitItNames` recomputes each snapshot key's
+          # watched digest from the commit that key names, and it SKIPS commits
+          # it cannot reach. Measured both ways: with a full clone it reports
+          # "63 keys verified against their own commit, 0 unreachable"; with
+          # --depth 1 it reports "no key names a commit reachable from this
+          # checkout", SKIPs, and the package still says ok. A check that
+          # degrades to a vacuous pass is worse than one that is absent, because
+          # the absent one does not tell you it succeeded.
+          fetch-depth: 0
+
+      # The comment above is documentation; this step is enforcement. Without
+      # it, one careless edit turns 63 verified keys into 0 and CI stays green
+      # without saying a word.
+      - name: Refuse a shallow checkout
+        run: |
+          if [ "$(git rev-parse --is-shallow-repository)" != "false" ]; then
+            echo "::error::Shallow checkout. TestAKeyDescribesTheCommitItNames" \
+                 "silently verifies nothing when the commits its keys name are" \
+                 "unreachable. Restore fetch-depth: 0."
+            exit 1
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          # Read from go.mod so the toolchain cannot drift from the module's
+          # own declaration — one quantity, one implementation.
+          go-version-file: go.mod
+          cache: true
+
+      # The suite downloads ~38 MB of archive data on a cold run, from the
+      # `master`/`main` branches of two third-party repositories (see
+      # internal/backtest/season.go and internal/priors/priors.go). Without this
+      # cache every run re-fetches it, and every run's verdict depends on what
+      # those branches happen to contain that minute. The cache does not make
+      # the dependency go away — pinning those URLs to upstream commit SHAs is
+      # the real fix and is not done here — but it means a green result stays
+      # reproducible instead of being re-rolled on each run.
+      - name: Cache the season archive
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/fpl
+          # ⚠️ The key is DERIVED, and a static one is a silent trap. `Load`
+          # revalidates a cached season against the parse version, team
+          # strength, availability, starts, restart gameweeks and rowGuardCount
+          # — all defined in season.go — and refetches when any of them fails.
+          # `actions/cache` does NOT save when the primary key hit exactly. So
+          # under a static key, the first change that invalidates the cached
+          # shape makes every run refetch 38 MB forever, while the cache still
+          # reports a hit. It would look cached and buy nothing.
+          #
+          # Hashing the two files that DEFINE validity means the key moves
+          # exactly when the cached bytes stop being acceptable, and the job
+          # saves again because the primary key missed. It over-invalidates —
+          # a comment-only edit to season.go moves the hash too — and that is
+          # the right direction to be wrong in: `restore-keys` still restores
+          # the previous archive, `Load` finds it valid and does not refetch,
+          # and the run costs a re-save rather than a re-download. Loud and
+          # self-correcting beats silent and permanent.
+          key: fpl-archive-${{ hashFiles('internal/backtest/season.go', 'internal/priors/priors.go') }}
+          restore-keys: fpl-archive-
+
+      # The private bare repository has a fail-closed `pre-receive` hook doing this.
+      # A hosted remote runs no such hook, so without this step the guard simply
+      # disappears on publication — and a pull request is exactly when it matters,
+      # because that is when content arrives from a branch nobody has read.
+      #
+      # ⚠️ The pattern lives in a repository secret, NOT in the tracked script. A
+      # published file containing the strings it searches for would be the
+      # disclosure it exists to prevent. Unset means skip-and-say-so, because a
+      # fork's pull request cannot read secrets and must not be failed for it.
+      #
+      # SHAs are passed through `env:` rather than interpolated into `run:`. They
+      # are hex and safe, but the rule is worth keeping absolute: nothing
+      # attacker-controlled has a path into a shell here.
+      - name: Scan the diff for disclosures
+        if: github.event_name == 'pull_request'
+        env:
+          LEAKSCAN_PATTERN: ${{ secrets.LEAKSCAN_PATTERN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: ./scripts/leakscan "$BASE_SHA..$HEAD_SHA"
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...

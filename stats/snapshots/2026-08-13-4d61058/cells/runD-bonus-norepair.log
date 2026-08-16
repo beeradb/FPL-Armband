@@ -1,0 +1,112 @@
+replay: all 6 slots busy, queueing (set FPL_REPLAY_SLOTS to change)
+replay: still queueing after 300s
+replay: still queueing after 600s
+replay: got a slot after 800s
+replay: slot 1/6, MemoryHigh=2G MemoryMax=4G, started 01:38:36
+=== RUN   TestDiagProjection
+
+=== bonus schedule, prior/evidence (ships 0.5/1.5). Metric: HOLD.
+
+variant                     gw1      gw6     gw11     gw16     gw21     gw26    POLICY |      HOLD   moves
+0.5 / 1.5 (ships)          8657     7715     6728     5541     4463     3103     36207 |     31457     592
+1.0 / 1.0                  8616     7561     6717     5615     4450     3090     36049 |     31495     599  <-- HOLD MOVED
+0.5 / 2.0                  8715     7594     6762     5515     4489     3127     36202 |     31502     603  <-- HOLD MOVED
+0.0 / 2.0                  8924     7717     6637     5559     4444     3120     36401 |     31708     581  <-- HOLD MOVED
+1.5 / 1.5                  8521     7684     6714     5640     4471     3139     36169 |     31697     607  <-- HOLD MOVED
+
+--- POLICY (the weekly transfer decision) ---
+Paired against "0.5 / 1.5 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+1.0 / 1.0                -0.193       24
+    early (prior-led)    -0.718        8
+    middle               +0.353        8
+    late (season-led)    -0.215        8
+0.5 / 2.0                +0.051       24
+    early (prior-led)    -0.268        8
+    middle               +0.010        8
+    late (season-led)    +0.411        8
+0.0 / 2.0                +0.203       24
+    early (prior-led)    +0.886        8
+    middle               -0.308        8
+    late (season-led)    +0.032        8
+1.5 / 1.5                +0.104       24
+    early (prior-led)    -0.565        8
+    middle               +0.476        8
+    late (season-led)    +0.402        8
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD (the opening fifteen; use this for scoring constants) ---
+Paired against "0.5 / 1.5 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+1.0 / 1.0                +0.283       24
+    early (prior-led)    +0.119        8
+    middle               -0.722        8
+    late (season-led)    +1.452        8
+0.5 / 2.0                +0.067       24
+    early (prior-led)    +0.196        8
+    middle               -0.016        8
+    late (season-led)    +0.021        8
+0.0 / 2.0                +0.284       24
+    early (prior-led)    +1.188        8
+    middle               -0.444        8
+    late (season-led)    +0.107        8
+1.5 / 1.5                +0.488       24
+    early (prior-led)    +0.239        8
+    middle               +0.512        8
+    late (season-led)    +0.713        8
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with the armband pinned to the day-one pick (diagnostic instrument) ---
+Paired against "0.5 / 1.5 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+1.0 / 1.0                +0.163       24
+    early (prior-led)    +0.155        8
+    middle               -0.923        8
+    late (season-led)    +1.255        8
+0.5 / 2.0                +0.104       24
+    early (prior-led)    +0.197        8
+    middle               +0.218        8
+    late (season-led)    -0.104        8
+0.0 / 2.0                +0.402       24
+    early (prior-led)    +1.341        8
+    middle               -0.196        8
+    late (season-led)    +0.061        8
+1.5 / 1.5                +0.488       24
+    early (prior-led)    +0.210        8
+    middle               +0.908        8
+    late (season-led)    +0.345        8
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with nobody doubled (diagnostic instrument; not what FPL pays) ---
+Paired against "0.5 / 1.5 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+1.0 / 1.0                +0.165       24
+    early (prior-led)    +0.155        8
+    middle               -0.923        8
+    late (season-led)    +1.262        8
+0.5 / 2.0                +0.083       24
+    early (prior-led)    +0.197        8
+    middle               +0.087        8
+    late (season-led)    -0.036        8
+0.0 / 2.0                +0.261       24
+    early (prior-led)    +1.048        8
+    middle               -0.327        8
+    late (season-led)    +0.061        8
+1.5 / 1.5                +0.372       24
+    early (prior-led)    +0.227        8
+    middle               +0.478        8
+    late (season-led)    +0.412        8
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+Cells written. Now: Rscript stats/sweep_inference.R <the FPL_CELLS path>
+--- PASS: TestDiagProjection (806.40s)
+PASS
+replay: exit=0 peak_rss=118 MB elapsed=1:20:17

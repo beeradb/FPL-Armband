@@ -1,0 +1,17 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+H#1,1786641360-604705,policy,min_gain=0.00,1,min_gain=0.70 (ships),0.018728940353654504,24,-
+H#1,1786641360-604705,policy,min_gain=0.40,2,min_gain=0.70 (ships),0.018728940353654504,24,-
+H#1,1786641360-604705,policy,min_gain=0.95,3,min_gain=0.70 (ships),0.060905537593180625,24,-
+H#1,1786641360-604705,policy,min_gain=1.30,4,min_gain=0.70 (ships),-0.23125024183376652,24,-
+H#1,1786641360-604705,hold,min_gain=0.00,1,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold,min_gain=0.40,2,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold,min_gain=0.95,3,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold,min_gain=1.30,4,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold_fixedcap,min_gain=0.00,1,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold_fixedcap,min_gain=0.40,2,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold_fixedcap,min_gain=0.95,3,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold_fixedcap,min_gain=1.30,4,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold_nocap,min_gain=0.00,1,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold_nocap,min_gain=0.40,2,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold_nocap,min_gain=0.95,3,min_gain=0.70 (ships),0,24,-
+H#1,1786641360-604705,hold_nocap,min_gain=1.30,4,min_gain=0.70 (ships),0,24,-

@@ -1,0 +1,9 @@
+figure,value
+watched_digest,71e98a52b733bad6ffa8946ad202a49337e2310d1a8e5343b1618052f0fa9948
+recorded_at,2026-08-13T16:35:01Z
+commit,5edf13cf7548c50a5370e5dc5c4d825394e7df71
+reconstructed,"backfilled 2026-08-15 when key.csv became the baseline key; watched_digest is exact, recomputed from commit 5edf13c; recorded_at is that commit's date standing in for the unrecorded write time"
+path.config.json,6f43f2a2f0e5a4f226e4729610d007b697ff079f7b98c5305c7004f6b2865135
+path.internal/analysis,385c8cd825c1f1b5c637c538e8d0e91e505045cc6aba1580a3c7ba796705b5f8
+path.internal/backtest,84c718902dd3e6c16d5ac20c76fa448e25dffadf0a6778b0ff7c592ab3739736
+path.internal/config,2e2a3f8a34834848f66283087affc1ffde6e96e9b58f0db2368bf3b2003fd8c4

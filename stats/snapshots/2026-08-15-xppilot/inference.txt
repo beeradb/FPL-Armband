@@ -1,0 +1,504 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+
+Read 180 cells from 1 file(s): 1 sweep(s).
+------------------------------------------------------------------------------
+Contract checks
+  ok  exactly one baseline arm in each of 1 sweep(s)
+  ok  re-derives from points / weeks: hold, policy, hold_fixedcap, hold_nocap, hold_xpoints, policy_xpoints
+  ok  no infeasible cells
+  ..  bank_up_to = 5  (pinned modern rule; totals are not comparable across seasons)
+------------------------------------------------------------------------------
+Sweep: 1786766030-1142414 / XPPILOT#1
+Metric: HOLD (the opening fifteen; scoring constants belong here)
+Paired against: half-life 4 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+flat (no recency)            -0.040    36 |    0.427   -0.09 |    0.492    5.0   -0.08 |   0.9381   1.0000
+half-life 2                  -0.639    36 |    0.423   -1.51 |    0.467    5.0   -1.37 |   0.2294   0.7024
+half-life 8                   0.446    36 |    0.391    1.14 |    0.283    5.0    1.58 |   0.1756   0.7024
+half-life 20                  0.147    36 |    0.436    0.34 |    0.361    5.0    0.41 |   0.7004   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    flat (no recency)          -0.08   -0.09   -0.41 |    0.225   3/6  |     3.0     0.0    97.0   1.09
+    half-life 2                -1.37   -1.53   -1.62 |    0.255   4/6  |     3.9     0.0    96.1   1.11
+    half-life 8                 1.58    1.14    0.94 |   -0.436   4/6  |     0.0     7.5    92.5   0.72
+    half-life 20                0.41    0.31    0.61 |   -0.590   4/6  |     0.0     0.0   100.0   0.75
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    flat (no recency)          SE    0.492  df    5.0  t   -0.08  p   0.9381
+    half-life 2                SE    0.467  df    5.0  t   -1.37  p   0.2294
+    half-life 8                SE    0.391  df   35.0  t    1.14  p   0.2617
+    half-life 20               SE    0.436  df   35.0  t    0.34  p   0.7380
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    half-life 2 minus flat (no recency)            -0.599    36 |    0.471   -1.27 |    0.521   -1.15 |    14
+    half-life 8 minus flat (no recency)             0.486    36 |    0.442    1.10 |    0.373    1.30 |    17
+    half-life 20 minus flat (no recency)            0.187    36 |    0.408    0.46 |    0.344    0.54 |    17
+    half-life 8 minus half-life 2                   1.085    36 |    0.500    2.17 |    0.347    3.13 |    23
+    half-life 20 minus half-life 2                  0.786    36 |    0.509    1.55 |    0.442    1.78 |    24
+    half-life 20 minus half-life 8                 -0.299    36 |    0.249   -1.20 |    0.155   -1.93 |    13
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786766030-1142414 / XPPILOT#1
+Metric: POLICY (the weekly transfer decision)
+Paired against: half-life 4 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+flat (no recency)            -2.316    36 |    0.536   -4.32 |    1.048    5.0   -2.21 |   0.0781   0.3125
+half-life 2                  -1.002    36 |    0.536   -1.87 |    0.750    5.0   -1.34 |   0.2393   0.7179
+half-life 8                  -0.335    36 |    0.441   -0.76 |    0.487    5.0   -0.69 |   0.5227   1.0000
+half-life 20                 -0.267    36 |    0.481   -0.56 |    0.691    5.0   -0.39 |   0.7151   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    flat (no recency)          -2.21   -6.56   -4.28 |    5.841   5/6  |    51.5     8.9    39.6   2.97
+    half-life 2                -1.34   -2.41   -1.31 |    2.343   5/6  |    21.3    22.3    56.4   1.81
+    half-life 8                -0.69   -0.74   -1.00 |    0.212   3/6  |     2.8     0.0    97.2   1.08
+    half-life 20               -0.39   -0.64   -0.52 |    1.811   3/6  |    20.9     6.0    73.0   1.65
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    flat (no recency)          SE    1.048  df    5.0  t   -2.21  p   0.0781
+    half-life 2                SE    0.750  df    5.0  t   -1.34  p   0.2393
+    half-life 8                SE    0.487  df    5.0  t   -0.69  p   0.5227
+    half-life 20               SE    0.691  df    5.0  t   -0.39  p   0.7151
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    half-life 2 minus flat (no recency)             1.314    36 |    0.596    2.20 |    0.998    1.32 |    25
+    half-life 8 minus flat (no recency)             1.981    36 |    0.457    4.33 |    0.703    2.82 |    26
+    half-life 20 minus flat (no recency)            2.049    36 |    0.404    5.07 |    0.491    4.17 |    28
+    half-life 8 minus half-life 2                   0.667    36 |    0.497    1.34 |    0.437    1.53 |    19
+    half-life 20 minus half-life 2                  0.735    36 |    0.528    1.39 |    0.850    0.87 |    24
+    half-life 20 minus half-life 8                  0.068    36 |    0.346    0.20 |    0.468    0.14 |    20
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786766030-1142414 / XPPILOT#1
+Metric: instrument: HOLD, armband pinned to the day-one pick
+Paired against: half-life 4 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+flat (no recency)             0.034    36 |    0.480    0.07 |    0.487    5.0    0.07 |   0.9476   1.0000
+half-life 2                  -0.430    36 |    0.411   -1.05 |    0.447    5.0   -0.96 |   0.3799   1.0000
+half-life 8                   0.310    36 |    0.367    0.84 |    0.179    5.0    1.73 |   0.1448   0.5790
+half-life 20                  0.002    36 |    0.428    0.01 |    0.353    5.0    0.01 |   0.9949   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    flat (no recency)           0.07    0.06    0.24 |   -0.210   3/6  |     0.0     0.0   100.0   0.93
+    half-life 2                -0.96   -1.05   -1.14 |    0.186   4/6  |     3.0     0.0    97.0   1.09
+    half-life 8                 1.73    0.84    0.65 |   -0.632   5/6  |     0.0     9.5    90.5   0.48
+    half-life 20                0.01    0.01    0.01 |   -0.559   2/6  |     0.0     0.0   100.0   0.76
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    flat (no recency)          SE    0.487  df    5.0  t    0.07  p   0.9476
+    half-life 2                SE    0.447  df    5.0  t   -0.96  p   0.3799
+    half-life 8                SE    0.367  df   35.0  t    0.84  p   0.4047
+    half-life 20               SE    0.428  df   35.0  t    0.01  p   0.9956
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    half-life 2 minus flat (no recency)            -0.464    36 |    0.483   -0.96 |    0.484   -0.96 |    12
+    half-life 8 minus flat (no recency)             0.276    36 |    0.453    0.61 |    0.381    0.72 |    16
+    half-life 20 minus flat (no recency)           -0.031    36 |    0.419   -0.07 |    0.305   -0.10 |    14
+    half-life 8 minus half-life 2                   0.740    36 |    0.481    1.54 |    0.365    2.03 |    18
+    half-life 20 minus half-life 2                  0.432    36 |    0.472    0.92 |    0.387    1.12 |    18
+    half-life 20 minus half-life 8                 -0.307    36 |    0.217   -1.41 |    0.181   -1.70 |     9
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786766030-1142414 / XPPILOT#1
+Metric: instrument: HOLD with nobody doubled (not what FPL pays)
+Paired against: half-life 4 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+flat (no recency)            -0.030    36 |    0.443   -0.07 |    0.504    5.0   -0.06 |   0.9555   1.0000
+half-life 2                  -0.542    36 |    0.405   -1.34 |    0.443    5.0   -1.22 |   0.2754   1.0000
+half-life 8                   0.221    36 |    0.355    0.62 |    0.196    5.0    1.13 |   0.3098   1.0000
+half-life 20                 -0.082    36 |    0.406   -0.20 |    0.359    5.0   -0.23 |   0.8294   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    flat (no recency)          -0.06   -0.06   -0.16 |    0.218   3/6  |     2.7     0.0    97.3   1.08
+    half-life 2                -1.22   -1.35   -1.44 |    0.204   5/6  |     3.4     0.0    96.6   1.10
+    half-life 8                 1.13    0.60    0.55 |   -0.587   4/6  |     0.0     3.0    97.0   0.53
+    half-life 20               -0.23   -0.18   -0.43 |   -0.413   4/6  |     0.0     0.0   100.0   0.81
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    flat (no recency)          SE    0.504  df    5.0  t   -0.06  p   0.9555
+    half-life 2                SE    0.443  df    5.0  t   -1.22  p   0.2754
+    half-life 8                SE    0.355  df   35.0  t    0.62  p   0.5370
+    half-life 20               SE    0.406  df   35.0  t   -0.20  p   0.8420
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    half-life 2 minus flat (no recency)            -0.512    36 |    0.449   -1.14 |    0.512   -1.00 |    13
+    half-life 8 minus flat (no recency)             0.251    36 |    0.429    0.58 |    0.404    0.62 |    16
+    half-life 20 minus flat (no recency)           -0.052    36 |    0.390   -0.13 |    0.327   -0.16 |    14
+    half-life 8 minus half-life 2                   0.763    36 |    0.476    1.60 |    0.385    1.98 |    19
+    half-life 20 minus half-life 2                  0.460    36 |    0.468    0.98 |    0.432    1.07 |    20
+    half-life 20 minus half-life 8                 -0.303    36 |    0.218   -1.39 |    0.175   -1.73 |     9
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786766030-1142414 / XPPILOT#1
+Metric: instrument: HOLD on accumulated xPoints (read beside HOLD)
+Paired against: half-life 4 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+flat (no recency)            -0.070    36 |    0.348   -0.20 |    0.480    5.0   -0.15 |   0.8892   1.0000
+half-life 2                  -0.524    36 |    0.302   -1.74 |    0.285    5.0   -1.84 |   0.1258   0.5031
+half-life 8                   0.187    36 |    0.304    0.62 |    0.171    5.0    1.09 |   0.3244   0.9733
+half-life 20                 -0.105    36 |    0.310   -0.34 |    0.322    5.0   -0.33 |   0.7576   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    flat (no recency)          -0.15   -0.21   -0.29 |    0.709   3/6  |    14.9     0.0    85.1   1.43
+    half-life 2                -1.84   -1.69   -1.89 |   -0.087   5/6  |     0.0     0.0   100.0   0.92
+    half-life 8                 1.09    0.59    0.53 |   -0.416   4/6  |     0.0     4.0    96.0   0.54
+    half-life 20               -0.33   -0.32   -0.67 |   -0.033   3/6  |     0.0     0.0   100.0   0.97
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    flat (no recency)          SE    0.480  df    5.0  t   -0.15  p   0.8892
+    half-life 2                SE    0.302  df   35.0  t   -1.74  p   0.0914
+    half-life 8                SE    0.304  df   35.0  t    0.62  p   0.5425
+    half-life 20               SE    0.322  df    5.0  t   -0.33  p   0.7576
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    half-life 2 minus flat (no recency)            -0.454    36 |    0.372   -1.22 |    0.494   -0.92 |    15
+    half-life 8 minus flat (no recency)             0.257    36 |    0.369    0.70 |    0.336    0.76 |    18
+    half-life 20 minus flat (no recency)           -0.035    36 |    0.330   -0.10 |    0.345   -0.10 |    17
+    half-life 8 minus half-life 2                   0.711    36 |    0.389    1.83 |    0.279    2.54 |    22
+    half-life 20 minus half-life 2                  0.419    36 |    0.363    1.15 |    0.397    1.06 |    20
+    half-life 20 minus half-life 8                 -0.292    36 |    0.252   -1.16 |    0.185   -1.58 |    11
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786766030-1142414 / XPPILOT#1
+Metric: instrument: POLICY on accumulated xPoints (read beside POLICY)
+Paired against: half-life 4 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+flat (no recency)            -2.448    36 |    0.394   -6.21 |    0.759    5.0   -3.22 |   0.0234   0.0935
+half-life 2                  -0.699    36 |    0.302   -2.32 |    0.308    5.0   -2.27 |   0.0723   0.2168
+half-life 8                  -0.034    36 |    0.304   -0.11 |    0.377    5.0   -0.09 |   0.9311   0.9311
+half-life 20                 -0.402    36 |    0.323   -1.24 |    0.396    5.0   -1.02 |   0.3561   0.7122
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    flat (no recency)          -3.22   -8.70   -7.25 |    2.986   6/6  |    49.4     3.5    47.1   2.70
+    half-life 2                -2.27   -2.66   -1.58 |    0.154   5/6  |     4.5    22.4    73.1   1.17
+    half-life 8                -0.09   -0.11   -0.31 |    0.258   2/6  |     6.8     0.0    93.2   1.20
+    half-life 20               -1.02   -1.38   -1.04 |    0.427   3/6  |    11.0     9.8    79.2   1.35
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    flat (no recency)          SE    0.759  df    5.0  t   -3.22  p   0.0234
+    half-life 2                SE    0.308  df    5.0  t   -2.27  p   0.0723
+    half-life 8                SE    0.377  df    5.0  t   -0.09  p   0.9311
+    half-life 20               SE    0.396  df    5.0  t   -1.02  p   0.3561
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    half-life 2 minus flat (no recency)             1.749    36 |    0.389    4.49 |    0.664    2.63 |    26
+    half-life 8 minus flat (no recency)             2.414    36 |    0.335    7.21 |    0.521    4.63 |    33
+    half-life 20 minus flat (no recency)            2.046    36 |    0.338    6.05 |    0.481    4.26 |    30
+    half-life 8 minus half-life 2                   0.665    36 |    0.314    2.12 |    0.180    3.69 |    20
+    half-life 20 minus half-life 2                  0.297    36 |    0.264    1.13 |    0.356    0.83 |    22
+    half-life 20 minus half-life 8                 -0.368    36 |    0.294   -1.25 |    0.317   -1.16 |    17
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786766030-1142414 / XPPILOT#1
+Metric: marginal: the armband's share of this effect
+Paired against: half-life 4 (ships)
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+flat (no recency)            -0.011    36 |    0.116   -0.09 |    0.195    5.0   -0.05 |   0.9588   0.9588
+half-life 2                  -0.097    36 |    0.070   -1.39 |    0.095    5.0   -1.03 |   0.3522   0.9267
+half-life 8                   0.225    36 |    0.104    2.17 |    0.185    5.0    1.22 |   0.2786   0.9267
+half-life 20                  0.229    36 |    0.102    2.24 |    0.168    5.0    1.36 |   0.2317   0.9267
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    flat (no recency)          -0.05   -0.11   -0.10 |    0.178   3/6  |    34.8     4.5    60.6   2.11
+    half-life 2                -1.03   -1.42   -2.33 |    0.026   4/6  |    13.4     0.0    86.6   1.39
+    half-life 8                 1.22    2.89    2.16 |    0.169   4/6  |    40.6     6.9    52.5   2.38
+    half-life 20                1.36    2.58    3.03 |    0.122   5/6  |    30.2     0.0    69.8   1.90
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    flat (no recency)          SE    0.195  df    5.0  t   -0.05  p   0.9588
+    half-life 2                SE    0.095  df    5.0  t   -1.03  p   0.3522
+    half-life 8                SE    0.185  df    5.0  t    1.22  p   0.2786
+    half-life 20               SE    0.168  df    5.0  t    1.36  p   0.2317
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    half-life 2 minus flat (no recency)            -0.086    36 |    0.112   -0.77 |    0.150   -0.58 |    12
+    half-life 8 minus flat (no recency)             0.235    36 |    0.107    2.21 |    0.129    1.83 |    19
+    half-life 20 minus flat (no recency)            0.239    36 |    0.086    2.78 |    0.074    3.24 |    20
+    half-life 8 minus half-life 2                   0.322    36 |    0.102    3.14 |    0.157    2.05 |    25
+    half-life 20 minus half-life 2                  0.326    36 |    0.097    3.37 |    0.135    2.41 |    27
+    half-life 20 minus half-life 8                  0.004    36 |    0.061    0.07 |    0.070    0.06 |    13
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786766030-1142414 / XPPILOT#1
+Metric: marginal: re-picking the captain weekly
+Paired against: half-life 4 (ships)
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+flat (no recency)            -0.074    36 |    0.121   -0.61 |    0.183    5.0   -0.40 |   0.7037   1.0000
+half-life 2                  -0.209    36 |    0.111   -1.89 |    0.158    5.0   -1.32 |   0.2427   0.9709
+half-life 8                   0.136    36 |    0.106    1.29 |    0.174    5.0    0.78 |   0.4686   1.0000
+half-life 20                  0.145    36 |    0.099    1.47 |    0.152    5.0    0.95 |   0.3838   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    flat (no recency)          -0.40   -0.67   -0.85 |    0.128   4/6  |    22.7     0.0    77.3   1.66
+    half-life 2                -1.32   -1.97   -2.98 |    0.082   5/6  |    16.9     0.0    83.1   1.49
+    half-life 8                 0.78    1.46    2.12 |    0.129   3/6  |    29.0     0.0    71.0   1.86
+    half-life 20                0.95    1.72    1.46 |    0.096   5/6  |    26.1     4.6    69.3   1.80
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    flat (no recency)          SE    0.183  df    5.0  t   -0.40  p   0.7037
+    half-life 2                SE    0.158  df    5.0  t   -1.32  p   0.2427
+    half-life 8                SE    0.174  df    5.0  t    0.78  p   0.4686
+    half-life 20               SE    0.152  df    5.0  t    0.95  p   0.3838
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    half-life 2 minus flat (no recency)            -0.135    36 |    0.108   -1.25 |    0.124   -1.09 |    14
+    half-life 8 minus flat (no recency)             0.210    36 |    0.089    2.36 |    0.117    1.79 |    19
+    half-life 20 minus flat (no recency)            0.219    36 |    0.071    3.09 |    0.091    2.39 |    20
+    half-life 8 minus half-life 2                   0.345    36 |    0.125    2.76 |    0.193    1.79 |    22
+    half-life 20 minus half-life 2                  0.354    36 |    0.112    3.16 |    0.153    2.31 |    24
+    half-life 20 minus half-life 8                  0.008    36 |    0.069    0.12 |    0.077    0.11 |    12
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Noise by information regime — POLICY, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      0.562      1.00        1.00      48
+middle                    26      0.823      1.46        1.18      48
+late (season-led)         16      0.997      1.77        1.51      48
+------------------------------------------------------------------------------
+Noise by information regime — HOLD, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      0.290      1.00        1.00      48
+middle                    26      0.728      2.51        1.18      48
+late (season-led)         16      0.993      3.43        1.51      48
+------------------------------------------------------------------------------
+Reproducing Go's paired means
+  ok  all 24 comparison(s) reproduce Go's mean and cell count (max abs diff 8.9e-16)
+  ..  8 comparison(s) computed here with no Go mean to check against:
+        XPPILOT#1 m_armband flat (no recency)
+        XPPILOT#1 m_armband half-life 2
+        XPPILOT#1 m_armband half-life 8
+        XPPILOT#1 m_armband half-life 20
+        XPPILOT#1 m_capweekly flat (no recency)
+        XPPILOT#1 m_capweekly half-life 2
+        XPPILOT#1 m_capweekly half-life 8
+        XPPILOT#1 m_capweekly half-life 20
+------------------------------------------------------------------------------
+wrote stats/out/1786766030-1142414_XPPILOT_1-hold-shape.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-hold-cells.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-policy-shape.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-policy-cells.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-hold_fixedcap-shape.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-hold_fixedcap-cells.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-hold_nocap-shape.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-hold_nocap-cells.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-hold_xpoints-shape.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-hold_xpoints-cells.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-policy_xpoints-shape.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-policy_xpoints-cells.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-m_armband-shape.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-m_armband-cells.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-m_capweekly-shape.png
+wrote stats/out/1786766030-1142414_XPPILOT_1-m_capweekly-cells.png
+------------------------------------------------------------------------------
+wrote stats/out/inference.csv
+
+Reading this: prefer the CR2 column, and read its df rather than assuming
+one. Treat a raw p under 0.05 whose Holm-adjusted p is not as the case the
+old |t| >= 2 rule mislabelled 'confirmed'. And weigh the shape plot above
+any single row: monotonicity, a plateau with a cliff, or the held-out
+season agreeing is what this project accepts as evidence.

@@ -1,0 +1,19 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,policy,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),3.482117805916432,36,decision:transfergate
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,policy,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),2.2293713592817324,36,decision:transfergatexp
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,policy,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),2.254583213774671,36,decision:transfergateres
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,policy_xpoints,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),2.2037622241043744,36,decision:transfergate
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,policy_xpoints,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),1.9419364475839385,36,decision:transfergatexp
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,policy_xpoints,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),-0.8278586396638159,36,decision:transfergateres
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold_xpoints,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold_xpoints,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold_xpoints,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold_fixedcap,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold_fixedcap,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold_fixedcap,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold_nocap,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold_nocap,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+TestDiagGateOracleOnXPoints#1,1786814218-1409335,hold_nocap,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres

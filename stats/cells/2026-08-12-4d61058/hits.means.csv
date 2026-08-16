@@ -1,0 +1,13 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells
+HITS#1,1786410409-75819,policy,no hits ever,1,hit>=3.0 (ships),0.0407452641434336,24
+HITS#1,1786410409-75819,policy,hit>=1.5,2,hit>=3.0 (ships),0.12605710195813202,24
+HITS#1,1786410409-75819,policy,hit>=5.0,3,hit>=3.0 (ships),0.322137472452118,24
+HITS#1,1786410409-75819,hold,no hits ever,1,hit>=3.0 (ships),0,24
+HITS#1,1786410409-75819,hold,hit>=1.5,2,hit>=3.0 (ships),0,24
+HITS#1,1786410409-75819,hold,hit>=5.0,3,hit>=3.0 (ships),0,24
+HITS#1,1786410409-75819,hold_fixedcap,no hits ever,1,hit>=3.0 (ships),0,24
+HITS#1,1786410409-75819,hold_fixedcap,hit>=1.5,2,hit>=3.0 (ships),0,24
+HITS#1,1786410409-75819,hold_fixedcap,hit>=5.0,3,hit>=3.0 (ships),0,24
+HITS#1,1786410409-75819,hold_nocap,no hits ever,1,hit>=3.0 (ships),0,24
+HITS#1,1786410409-75819,hold_nocap,hit>=1.5,2,hit>=3.0 (ships),0,24
+HITS#1,1786410409-75819,hold_nocap,hit>=5.0,3,hit>=3.0 (ships),0,24

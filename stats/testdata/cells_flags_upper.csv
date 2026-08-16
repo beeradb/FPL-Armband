@@ -1,0 +1,5 @@
+sweep,run_id,variant,variant_index,is_baseline,season,start_gw,weeks,infeasible,oracle,hold_points,hold_per_gw
+SELFTEST#1,r1,base,0,TRUE,2022-23,1,38,FALSE,info:availability,3800,100
+SELFTEST#1,r1,base,0,TRUE,2022-23,6,33,FALSE,,3300,100
+SELFTEST#1,r1,arm,1,FALSE,2022-23,1,38,FALSE,,3838,101
+SELFTEST#1,r1,arm,1,FALSE,2022-23,6,33,FALSE,,3333,101

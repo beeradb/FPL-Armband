@@ -1,0 +1,108 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+Clean-sheet calibration: which family?
+-ln P(clean sheet) = a + b * xGC, binomial GLM with a log link.
+A pure SCALE is a = 0 (this is what FPL_CS_XGC_FACTOR can express).
+A pure OFFSET is b = 1 (a flat rescale of every clean-sheet probability).
+
+rows: 1566   seasons: 2023-24, 2024-25, 2025-26
+⚠️  Name the DATA STATE beside any figure from this run: an unswitched dump
+    carries reconstructed 2022-23 xGC, which is a noisier regressor and
+    biases the fit toward the offset. FPL_NO_XGC_REPAIR=1 gives native only.
+
+all rows in file       n = 1566, clusters (season x team) = 60
+  free fit     a = -0.2012 (naive 0.1613, clustered 0.1811)
+               b = +1.2022 (naive 0.1254, clustered 0.1331)
+  restriction Wald, clustered:  t(a = 0) = -1.11    t(b = 1) = 1.52
+  pure SCALE   a = 0 forced,  f = 1.0530     LRT p = 0.2029
+  pure OFFSET  b = 1 forced,  a = +0.0520    LRT p = 0.09757
+  the less-rejected one-parameter family: SCALE
+  → 2x2 arms from the JOINT fit: f = 1.202, flat P(CS) x 1.223
+
+two-channel decomposition  -ln p = a + b1*x + b2*x*(def-1)
+  b1 is FPL_CS_XGC_FACTOR; b2 is that times FPL_DEF_FIXTURE_SCALE's
+  defensive half. The shipped position is b1 = b2 = 1.
+  b1 = +1.0476 (clustered 0.1612)   t(b1 = 1) = +0.30
+  b2 = +1.5688 (clustered 0.2253)   t(b2 = 1) = +2.53
+  t(b2 - b1) = +2.11          implied s = b2/b1 = 1.497
+  cor(w1, w2) = 0.001  — near zero means the two channels are
+  separately identified rather than trading off against each other.
+  ⚠️ POST-HOC: this decomposition was written after seeing a product fit.
+  ⚠️ `def` is read from the archive's END-OF-SEASON fixtures file and is
+     not gated by the replay cutoff. Two live captures three days apart
+     show 0 of 380 difficulties changing, so revision looks rare — but
+     that window is pre-season and reaches no archived season.
+
+  per season:
+    2023-24       513   b1 +0.9675   b2 +1.4814
+    2024-25       527   b1 +0.9046   b2 +1.4393
+    2025-26       526   b1 +1.1583   b2 +1.8872
+
+per season, free fit:
+  season            n        a        b
+  2023-24         513  +0.0421  +1.0947
+  2024-25         527  -0.1231  +1.0983
+  2025-26         526  -0.4614  +1.3928
+
+the Go diagnostic's bucket-mean estimator, on these same rows:
+  bucket-mean fit   a = -0.3799   b = +1.3312   (6 of 6 buckets used)
+  (the per-observation MLE above is the one that carries a verdict)
+
+=== POOLED (all six seasons) ===
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+Clean-sheet calibration: which family?
+-ln P(clean sheet) = a + b * xGC, binomial GLM with a log link.
+A pure SCALE is a = 0 (this is what FPL_CS_XGC_FACTOR can express).
+A pure OFFSET is b = 1 (a flat rescale of every clean-sheet probability).
+
+rows: 2974   seasons: 2020-21, 2021-22, 2022-23, 2023-24, 2024-25, 2025-26
+⚠️  Name the DATA STATE beside any figure from this run: an unswitched dump
+    carries reconstructed 2022-23 xGC, which is a noisier regressor and
+    biases the fit toward the offset. FPL_NO_XGC_REPAIR=1 gives native only.
+
+all rows in file       n = 2974, clusters (season x team) = 120
+  free fit     a = -0.1290 (naive 0.1086, clustered 0.1235)
+               b = +1.1229 (naive 0.0883, clustered 0.0941)
+  restriction Wald, clustered:  t(a = 0) = -1.04    t(b = 1) = 1.31
+  pure SCALE   a = 0 forced,  f = 1.0226     LRT p = 0.2233
+  pure OFFSET  b = 1 forced,  a = +0.0171    LRT p = 0.152
+  the less-rejected one-parameter family: SCALE
+  → 2x2 arms from the JOINT fit: f = 1.123, flat P(CS) x 1.138
+
+two-channel decomposition  -ln p = a + b1*x + b2*x*(def-1)
+  b1 is FPL_CS_XGC_FACTOR; b2 is that times FPL_DEF_FIXTURE_SCALE's
+  defensive half. The shipped position is b1 = b2 = 1.
+  b1 = +0.9568 (clustered 0.1097)   t(b1 = 1) = -0.39
+  b2 = +1.5654 (clustered 0.1712)   t(b2 = 1) = +3.30
+  t(b2 - b1) = +3.25          implied s = b2/b1 = 1.636
+  cor(w1, w2) = 0.012  — near zero means the two channels are
+  separately identified rather than trading off against each other.
+  ⚠️ POST-HOC: this decomposition was written after seeing a product fit.
+  ⚠️ `def` is read from the archive's END-OF-SEASON fixtures file and is
+     not gated by the replay cutoff. Two live captures three days apart
+     show 0 of 380 difficulties changing, so revision looks rare — but
+     that window is pre-season and reaches no archived season.
+
+  per season:
+    2020-21       490   b1 +1.4174   b2 +2.0117
+    2021-22       447   b1 +0.8962   b2 +1.5973
+    2022-23       471   b1 +0.3581   b2 +1.1052
+    2023-24       513   b1 +0.9675   b2 +1.4814
+    2024-25       527   b1 +0.9046   b2 +1.4393
+    2025-26       526   b1 +1.1583   b2 +1.8872
+
+per season, free fit:
+  season            n        a        b
+  2020-21         490  -0.7959  +1.6500
+  2021-22         447  -0.0020  +1.0409
+  2022-23         471  +0.4486  +0.5907
+  2023-24         513  +0.0421  +1.0947
+  2024-25         527  -0.1231  +1.0983
+  2025-26         526  -0.4614  +1.3928
+
+the Go diagnostic's bucket-mean estimator, on these same rows:
+  bucket-mean fit   a = -0.3589   b = +1.3016   (6 of 6 buckets used)
+  (the per-observation MLE above is the one that carries a verdict)

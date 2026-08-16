@@ -1,0 +1,194 @@
+sweep,run_id,key,value
+HITS#1,1786410409-75819,commit,149615c54ab3a4ccc7a46a1d6172a0e07d17d381
+HITS#1,1786410409-75819,dirty,true
+HITS#1,1786410409-75819,constants_digest,67455aaa8835
+HITS#1,1786410409-75819,bank_up_to,5
+HITS#1,1786410409-75819,season,2022-23<-2021-22
+HITS#1,1786410409-75819,season,2023-24<-2022-23
+HITS#1,1786410409-75819,season,2024-25<-2023-24
+HITS#1,1786410409-75819,season,2025-26<-2024-25
+HITS#1,1786410409-75819,start_gw,1
+HITS#1,1786410409-75819,start_gw,6
+HITS#1,1786410409-75819,start_gw,11
+HITS#1,1786410409-75819,start_gw,16
+HITS#1,1786410409-75819,start_gw,21
+HITS#1,1786410409-75819,start_gw,26
+HITS#1,1786410409-75819,declared_arm,0	hit>=3.0 (ships)
+HITS#1,1786410409-75819,declared_arm,1	no hits ever
+HITS#1,1786410409-75819,declared_arm,2	hit>=1.5
+HITS#1,1786410409-75819,declared_arm,3	hit>=5.0
+HITS#1,1786410409-75819,constant,chip_plan.bench_boost_gameweek	8
+HITS#1,1786410409-75819,constant,chip_plan.free_hit_gameweek	16
+HITS#1,1786410409-75819,constant,chip_plan.triple_captain_gameweek	9
+HITS#1,1786410409-75819,constant,chip_plan.wildcard_gameweek	6
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.ARS[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.ARS[0].match_dates	5 items, sha 3f0a0705"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.ARS[0].note	enters at round three as a European qualifier
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.ARS[0].start_date	2026-09-15
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.AVL[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.AVL[0].match_dates	5 items, sha 3f0a0705"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.AVL[0].note	enters at round three as a European qualifier
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.AVL[0].start_date	2026-09-15
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.BHA[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.BHA[0].match_dates	5 items, sha 3f0a0705"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.BHA[0].note	enters at round three as a European qualifier
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.BHA[0].start_date	2026-09-15
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.BOU[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.BOU[0].match_dates	5 items, sha 3f0a0705"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.BOU[0].note	enters at round three as a European qualifier
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.BOU[0].start_date	2026-09-15
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.BRE[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.BRE[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.BRE[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.BRE[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.CHE[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.CHE[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.CHE[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.CHE[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.COV[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.COV[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.COV[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.COV[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.CRY[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.CRY[0].match_dates	5 items, sha 3f0a0705"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.CRY[0].note	enters at round three as a European qualifier
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.CRY[0].start_date	2026-09-15
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.EVE[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.EVE[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.EVE[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.EVE[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.FUL[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.FUL[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.FUL[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.FUL[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.HUL[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.HUL[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.HUL[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.HUL[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.IPS[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.IPS[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.IPS[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.IPS[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.LEE[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.LEE[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.LEE[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.LEE[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.LIV[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.LIV[0].match_dates	5 items, sha 3f0a0705"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.LIV[0].note	enters at round three as a European qualifier
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.LIV[0].start_date	2026-09-15
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.MCI[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.MCI[0].match_dates	5 items, sha 3f0a0705"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.MCI[0].note	enters at round three as a European qualifier
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.MCI[0].start_date	2026-09-15
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.MUN[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.MUN[0].match_dates	5 items, sha 3f0a0705"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.MUN[0].note	enters at round three as a European qualifier
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.MUN[0].start_date	2026-09-15
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.NEW[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.NEW[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.NEW[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.NEW[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.NFO[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.NFO[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.NFO[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.NFO[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.SUN[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.SUN[0].match_dates	5 items, sha 3f0a0705"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.SUN[0].note	enters at round three as a European qualifier
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.SUN[0].start_date	2026-09-15
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.TOT[0].competition	League Cup
+HITS#1,1786410409-75819,constant,"congestion.domestic_cup_campaigns.TOT[0].match_dates	6 items, sha f7a87904"
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.TOT[0].note	enters at round two
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_campaigns.TOT[0].start_date	2026-08-26
+HITS#1,1786410409-75819,constant,congestion.domestic_cup_penalty	1
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.ARS[0].competition	UCL
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.ARS[0].start_date	2026-09-08
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.AVL[0].competition	UCL
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.AVL[0].start_date	2026-09-08
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.BHA[0].competition	UECL
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.BHA[0].end_date	2026-08-27
+HITS#1,1786410409-75819,constant,"congestion.european_campaigns.BHA[0].match_dates	2 items, sha 488b402a"
+HITS#1,1786410409-75819,constant,"congestion.european_campaigns.BHA[0].note	play-off round, two legs; progression not yet known"
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.BHA[0].start_date	2026-08-20
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.BHA[1].competition	UECL
+HITS#1,1786410409-75819,constant,"congestion.european_campaigns.BHA[1].note	league phase, conditional on winning the play-off"
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.BHA[1].start_date	2026-10-15
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.BOU[0].competition	UEL
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.BOU[0].start_date	2026-09-16
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.CRY[0].competition	UEL
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.CRY[0].start_date	2026-09-16
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.LIV[0].competition	UCL
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.LIV[0].start_date	2026-09-08
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.MCI[0].competition	UCL
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.MCI[0].start_date	2026-09-08
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.MUN[0].competition	UCL
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.MUN[0].start_date	2026-09-08
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.SUN[0].competition	UEL
+HITS#1,1786410409-75819,constant,congestion.european_campaigns.SUN[0].start_date	2026-09-16
+HITS#1,1786410409-75819,constant,congestion.long_haul_penalty	1
+HITS#1,1786410409-75819,constant,"congestion.long_haul_regions	2 items, sha 925816c9"
+HITS#1,1786410409-75819,constant,congestion.post_break_penalty	1
+HITS#1,1786410409-75819,constant,"congestion.regular_international_regions	5 items, sha 99456437"
+HITS#1,1786410409-75819,constant,congestion.short_rest_penalty	1
+HITS#1,1786410409-75819,constant,congestion.status_last_verified	2026-08-04
+HITS#1,1786410409-75819,constant,congestion.ucl_penalty	1
+HITS#1,1786410409-75819,constant,congestion.uecl_penalty	1
+HITS#1,1786410409-75819,constant,congestion.uel_penalty	1
+HITS#1,1786410409-75819,constant,congestion.very_short_rest_penalty	1
+HITS#1,1786410409-75819,constant,review_policy.always_act_on_ruled_out_starter	true
+HITS#1,1786410409-75819,constant,review_policy.bank_transfers_up_to	5
+HITS#1,1786410409-75819,constant,review_policy.free_transfer_value	2
+HITS#1,1786410409-75819,constant,review_policy.max_hits_per_week	1
+HITS#1,1786410409-75819,constant,review_policy.min_gain_for_free_transfer	0.4
+HITS#1,1786410409-75819,constant,review_policy.min_net_gain_for_minus_4	3
+HITS#1,1786410409-75819,constant,"review_policy.rules	8 items, sha ead95ae5"
+HITS#1,1786410409-75819,constant,review_policy.scheduled_run_lead_hours	6
+HITS#1,1786410409-75819,constant,"role_risk.confirmed_starters	4 items, sha 0a0f53ae"
+HITS#1,1786410409-75819,constant,"role_risk.new_coach_clubs	10 items, sha 3abb2b37"
+HITS#1,1786410409-75819,constant,role_risk.new_coach_gameweeks	6
+HITS#1,1786410409-75819,constant,role_risk.new_coach_penalty	1
+HITS#1,1786410409-75819,constant,role_risk.new_signing_gameweeks	5
+HITS#1,1786410409-75819,constant,role_risk.new_signing_penalty	0.88
+HITS#1,1786410409-75819,constant,weights.band_strength	0
+HITS#1,1786410409-75819,constant,weights.bench_weight	0.1
+HITS#1,1786410409-75819,constant,weights.blank_run_penalty	0.75
+HITS#1,1786410409-75819,constant,weights.blend_minutes_k	5
+HITS#1,1786410409-75819,constant,weights.blend_rate_k	8
+HITS#1,1786410409-75819,constant,weights.bonus_prior_weight	0.5
+HITS#1,1786410409-75819,constant,weights.bonus_weight	1.5
+HITS#1,1786410409-75819,constant,weights.defcon_clean_coupling	0.3
+HITS#1,1786410409-75819,constant,weights.fixture_horizon	5
+HITS#1,1786410409-75819,constant,weights.fixture_weight	0.65
+HITS#1,1786410409-75819,constant,weights.league_shrink_k	8
+HITS#1,1786410409-75819,constant,weights.minutes_half_life	4
+HITS#1,1786410409-75819,constant,weights.minutes_weight	1.25
+HITS#1,1786410409-75819,constant,weights.minutes_weight_by_position.DEF	1
+HITS#1,1786410409-75819,constant,weights.minutes_weight_by_position.FWD	1
+HITS#1,1786410409-75819,constant,weights.minutes_weight_by_position.GKP	1
+HITS#1,1786410409-75819,constant,weights.minutes_weight_by_position.MID	0.75
+HITS#1,1786410409-75819,constant,weights.prior_half_life	0
+HITS#1,1786410409-75819,constant,weights.rate_half_life	0
+HITS#1,1786410409-75819,constant,weights.rest_gameweeks	2
+HITS#1,1786410409-75819,constant,weights.rest_minutes_factor	0.83
+HITS#1,1786410409-75819,constant,"weights.rest_players	17 items, sha 98db8aaa"
+HITS#1,1786410409-75819,constant,weights.rest_regions	[] (empty)
+HITS#1,1786410409-75819,constant,weights.set_piece_weight	0
+HITS#1,1786410409-75819,constant,weights.tournament_absences[0].matches	6
+HITS#1,1786410409-75819,constant,weights.tournament_absences[0].name	AFCON 2025 — Senegal (winners)
+HITS#1,1786410409-75819,constant,"weights.tournament_absences[0].players	4 items, sha bd8f6665"
+HITS#1,1786410409-75819,constant,weights.tournament_absences[1].matches	6
+HITS#1,1786410409-75819,constant,weights.tournament_absences[1].name	AFCON 2025 — Nigeria (third place)
+HITS#1,1786410409-75819,constant,"weights.tournament_absences[1].players	3 items, sha e65e3ff8"
+HITS#1,1786410409-75819,constant,weights.tournament_absences[2].matches	6
+HITS#1,1786410409-75819,constant,"weights.tournament_absences[2].name	AFCON 2025 — Morocco (hosts, semi-finalists)"
+HITS#1,1786410409-75819,constant,"weights.tournament_absences[2].players	4 items, sha a13bd6b5"
+HITS#1,1786410409-75819,constant,weights.tournament_absences[3].matches	6
+HITS#1,1786410409-75819,constant,weights.tournament_absences[3].name	AFCON 2025 — Egypt (semi-finalists)
+HITS#1,1786410409-75819,constant,"weights.tournament_absences[3].players	1 items, sha b6bd732f"
+HITS#1,1786410409-75819,constant,weights.tournament_absences[4].matches	5
+HITS#1,1786410409-75819,constant,weights.tournament_absences[4].name	AFCON 2025 — Ivory Coast (quarter-finalists)
+HITS#1,1786410409-75819,constant,"weights.tournament_absences[4].players	4 items, sha 9ed65187"
+HITS#1,1786410409-75819,constant,weights.tournament_absences[5].matches	3
+HITS#1,1786410409-75819,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
+HITS#1,1786410409-75819,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"

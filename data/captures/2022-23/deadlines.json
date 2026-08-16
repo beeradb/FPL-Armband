@@ -1,0 +1,317 @@
+{
+  "season": "2022-23",
+  "deadlines": {
+    "1": "2022-08-05T17:30:00Z",
+    "10": "2022-10-08T12:30:00Z",
+    "11": "2022-10-14T17:30:00Z",
+    "12": "2022-10-18T17:00:00Z",
+    "13": "2022-10-22T10:00:00Z",
+    "14": "2022-10-29T10:00:00Z",
+    "15": "2022-11-05T13:30:00Z",
+    "16": "2022-11-12T11:00:00Z",
+    "17": "2022-12-26T11:00:00Z",
+    "18": "2022-12-30T18:15:00Z",
+    "19": "2023-01-02T16:00:00Z",
+    "2": "2022-08-13T10:00:00Z",
+    "20": "2023-01-13T18:30:00Z",
+    "21": "2023-01-21T11:00:00Z",
+    "22": "2023-02-03T18:30:00Z",
+    "23": "2023-02-11T11:00:00Z",
+    "24": "2023-02-18T11:00:00Z",
+    "25": "2023-02-24T18:30:00Z",
+    "26": "2023-03-04T11:00:00Z",
+    "27": "2023-03-11T11:00:00Z",
+    "28": "2023-03-17T18:30:00Z",
+    "29": "2023-04-01T10:00:00Z",
+    "3": "2022-08-20T10:00:00Z",
+    "30": "2023-04-08T10:00:00Z",
+    "31": "2023-04-15T10:00:00Z",
+    "32": "2023-04-21T17:30:00Z",
+    "33": "2023-04-25T17:00:00Z",
+    "34": "2023-04-29T10:00:00Z",
+    "35": "2023-05-06T12:30:00Z",
+    "36": "2023-05-13T10:00:00Z",
+    "37": "2023-05-20T10:00:00Z",
+    "38": "2023-05-28T14:00:00Z",
+    "4": "2022-08-27T10:00:00Z",
+    "5": "2022-08-30T17:00:00Z",
+    "6": "2022-09-03T10:00:00Z",
+    "7": "2022-09-10T10:00:00Z",
+    "8": "2022-09-16T17:30:00Z",
+    "9": "2022-10-01T10:00:00Z"
+  },
+  "confirmed": {
+    "1": true,
+    "10": true,
+    "11": true,
+    "12": true,
+    "13": true,
+    "14": true,
+    "15": true,
+    "16": true,
+    "17": true,
+    "18": true,
+    "19": true,
+    "2": true,
+    "20": true,
+    "21": true,
+    "22": true,
+    "23": true,
+    "24": true,
+    "25": true,
+    "26": true,
+    "27": true,
+    "28": true,
+    "29": true,
+    "3": true,
+    "30": true,
+    "31": true,
+    "32": true,
+    "33": true,
+    "34": true,
+    "35": true,
+    "36": true,
+    "37": true,
+    "38": true,
+    "4": true,
+    "5": true,
+    "6": true,
+    "7": true,
+    "8": true,
+    "9": true
+  },
+  "source": "https://web.archive.org/web/20230113231900id_/https://fantasy.premierleague.com/api/bootstrap-static/",
+  "source_at": "2023-01-13T23:19:00Z",
+  "recorded_at": "2026-08-11T20:34:11.56984413Z",
+  "cross_check": {
+    "rows": [
+      {
+        "event": 1,
+        "deadline": "2022-08-05T17:30:00Z",
+        "first_kickoff": "2022-08-05T19:00:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 2,
+        "deadline": "2022-08-13T10:00:00Z",
+        "first_kickoff": "2022-08-13T11:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 3,
+        "deadline": "2022-08-20T10:00:00Z",
+        "first_kickoff": "2022-08-20T11:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 4,
+        "deadline": "2022-08-27T10:00:00Z",
+        "first_kickoff": "2022-08-27T11:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 5,
+        "deadline": "2022-08-30T17:00:00Z",
+        "first_kickoff": "2022-08-30T18:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 6,
+        "deadline": "2022-09-03T10:00:00Z",
+        "first_kickoff": "2022-09-03T11:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 8,
+        "deadline": "2022-09-16T17:30:00Z",
+        "first_kickoff": "2022-09-16T19:00:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 9,
+        "deadline": "2022-10-01T10:00:00Z",
+        "first_kickoff": "2022-10-01T11:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 10,
+        "deadline": "2022-10-08T12:30:00Z",
+        "first_kickoff": "2022-10-08T14:00:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 11,
+        "deadline": "2022-10-14T17:30:00Z",
+        "first_kickoff": "2022-10-14T19:00:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 12,
+        "deadline": "2022-10-18T17:00:00Z",
+        "first_kickoff": "2022-10-18T18:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 13,
+        "deadline": "2022-10-22T10:00:00Z",
+        "first_kickoff": "2022-10-22T11:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 14,
+        "deadline": "2022-10-29T10:00:00Z",
+        "first_kickoff": "2022-10-29T11:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 15,
+        "deadline": "2022-11-05T13:30:00Z",
+        "first_kickoff": "2022-11-05T15:00:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 16,
+        "deadline": "2022-11-12T11:00:00Z",
+        "first_kickoff": "2022-11-12T12:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 17,
+        "deadline": "2022-12-26T11:00:00Z",
+        "first_kickoff": "2022-12-26T12:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 18,
+        "deadline": "2022-12-30T18:15:00Z",
+        "first_kickoff": "2022-12-30T19:45:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 19,
+        "deadline": "2023-01-02T16:00:00Z",
+        "first_kickoff": "2023-01-02T17:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 20,
+        "deadline": "2023-01-13T18:30:00Z",
+        "first_kickoff": "2023-01-13T20:00:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 21,
+        "deadline": "2023-01-21T11:00:00Z",
+        "first_kickoff": "2023-01-21T12:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 22,
+        "deadline": "2023-02-03T18:30:00Z",
+        "first_kickoff": "2023-02-03T20:00:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 23,
+        "deadline": "2023-02-11T11:00:00Z",
+        "first_kickoff": "2023-02-11T12:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 24,
+        "deadline": "2023-02-18T11:00:00Z",
+        "first_kickoff": "2023-02-18T12:30:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 25,
+        "deadline": "2023-02-24T18:30:00Z",
+        "first_kickoff": "2023-02-24T20:00:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 26,
+        "deadline": "2023-03-04T13:30:00Z",
+        "first_kickoff": "2023-03-04T12:30:00Z",
+        "gap_hours": -1
+      },
+      {
+        "event": 27,
+        "deadline": "2023-03-11T13:30:00Z",
+        "first_kickoff": "2023-03-11T12:30:00Z",
+        "gap_hours": -1
+      },
+      {
+        "event": 28,
+        "deadline": "2023-03-18T13:30:00Z",
+        "first_kickoff": "2023-03-17T20:00:00Z",
+        "gap_hours": -17.5
+      },
+      {
+        "event": 29,
+        "deadline": "2023-04-01T12:30:00Z",
+        "first_kickoff": "2023-04-01T11:30:00Z",
+        "gap_hours": -1
+      },
+      {
+        "event": 30,
+        "deadline": "2023-04-08T12:30:00Z",
+        "first_kickoff": "2023-04-08T11:30:00Z",
+        "gap_hours": -1
+      },
+      {
+        "event": 31,
+        "deadline": "2023-04-15T12:30:00Z",
+        "first_kickoff": "2023-04-15T11:30:00Z",
+        "gap_hours": -1
+      },
+      {
+        "event": 32,
+        "deadline": "2023-04-22T12:30:00Z",
+        "first_kickoff": "2023-04-21T19:00:00Z",
+        "gap_hours": -17.5
+      },
+      {
+        "event": 33,
+        "deadline": "2023-04-25T17:15:00Z",
+        "first_kickoff": "2023-04-25T18:30:00Z",
+        "gap_hours": 1.25
+      },
+      {
+        "event": 34,
+        "deadline": "2023-04-29T12:30:00Z",
+        "first_kickoff": "2023-04-29T11:30:00Z",
+        "gap_hours": -1
+      },
+      {
+        "event": 35,
+        "deadline": "2023-05-06T12:30:00Z",
+        "first_kickoff": "2023-05-06T14:00:00Z",
+        "gap_hours": 1.5
+      },
+      {
+        "event": 36,
+        "deadline": "2023-05-13T12:30:00Z",
+        "first_kickoff": "2023-05-13T11:30:00Z",
+        "gap_hours": -1
+      },
+      {
+        "event": 37,
+        "deadline": "2023-05-20T12:30:00Z",
+        "first_kickoff": "2023-05-20T11:30:00Z",
+        "gap_hours": -1
+      },
+      {
+        "event": 38,
+        "deadline": "2023-05-28T13:30:00Z",
+        "first_kickoff": "2023-05-28T15:30:00Z",
+        "gap_hours": 2
+      }
+    ],
+    "compared": 37,
+    "median_gap_hours": 1.5,
+    "inverted": 10,
+    "worst_inverted_hours": -17.5,
+    "drifted": 10
+  }
+}

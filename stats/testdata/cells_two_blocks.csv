@@ -1,0 +1,9 @@
+sweep,run_id,variant,variant_index,is_baseline,season,start_gw,weeks,infeasible,hold_points,hold_per_gw
+SELFTEST#1,r1,base one,0,true,2022-23,1,38,false,3800,100
+SELFTEST#1,r1,base one,0,true,2022-23,6,33,false,3300,100
+SELFTEST#1,r1,arm one,1,false,2022-23,1,38,false,3838,101
+SELFTEST#1,r1,arm one,1,false,2022-23,6,33,false,3333,101
+SELFTEST#2,r1,base two,0,true,2022-23,1,38,false,3724,98
+SELFTEST#2,r1,base two,0,true,2022-23,6,33,false,3234,98
+SELFTEST#2,r1,arm two,1,false,2022-23,1,38,false,3686,97
+SELFTEST#2,r1,arm two,1,false,2022-23,6,33,false,3201,97

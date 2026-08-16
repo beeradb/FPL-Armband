@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+#
+# Scan added lines and added paths in a commit range for a configured pattern,
+# and fail if any match.
+#
+# # Why this exists
+#
+# There is a `pre-receive` hook on the private bare repository that does exactly
+# this, fail-closed and unbypassable. **It does not survive publication.** A hosted
+# remote runs no such hook, so the moment `origin` moves the guard is simply gone
+# — and a pull-request workflow is when it is most wanted, because that is when
+# content arrives from branches nobody has read yet.
+#
+# So this is the same check, run in CI, where it can gate a merge instead of a
+# push.
+#
+# # ⚠️ The pattern is NOT in this file, and that is the whole design
+#
+# This script is published. A tracked file containing the strings it searches for
+# would *be* the disclosure it exists to prevent — the guard would leak the thing
+# it guards, to everyone, permanently, in the clearest possible form.
+#
+# So the pattern arrives in `LEAKSCAN_PATTERN`, from a repository secret. Two
+# consequences, both deliberate:
+#
+#   - **Unset means SKIP, loudly, not fail.** A fork's pull request cannot read
+#     secrets, so an unset pattern is the normal state for outside contributions
+#     and must not be reported as a violation. It says so on stdout rather than
+#     passing in silence.
+#   - **A wrong or empty secret degrades to a pass.** Nothing here can detect
+#     that, and pretending otherwise would be worse than saying it: this is a
+#     tripwire, not a proof.
+#
+# # ⚠️ Never echo the match
+#
+# A CI job log is more widely readable than the repository — often public even
+# when the repository is not, and retained after the branch is deleted. Printing
+# the offending line to explain the failure would reproduce the disclosure into a
+# log, to tell an author something they already know, having just written it.
+#
+# So this prints the PATH and nothing else, and prints `[path redacted]` when the
+# path itself is what matched. The author has the diff; they do not need it read
+# back to them.
+
+set -euo pipefail
+
+if [ -z "${LEAKSCAN_PATTERN:-}" ]; then
+	echo "leakscan: LEAKSCAN_PATTERN is unset — skipping."
+	echo "leakscan: this is expected for a fork's pull request, which cannot read secrets."
+	echo "leakscan: it is NOT a pass. Nothing was checked."
+	exit 0
+fi
+
+range="${1:-}"
+if [ -z "$range" ]; then
+	echo "usage: scripts/leakscan <git-range>" >&2
+	echo "  e.g. scripts/leakscan origin/main..HEAD" >&2
+	exit 2
+fi
+
+# -U0 drops context lines: unchanged content is not this range's to answer for.
+# Added paths are checked as well as added lines, because a filename can carry
+# the disclosure on its own.
+AWK_SCAN='
+/^\+\+\+ / {
+	p = substr($0, 5)
+	sub(/^b\//, "", p)
+	sub(/\t$/, "", p)
+	cur = p
+	if (tolower(p) ~ pat) { hit = 1; if (!("" in seen)) { seen[""] = 1; print "  [path redacted]" } }
+	next
+}
+/^\+/ {
+	if (tolower($0) ~ pat) {
+		if (!(cur in seen)) {
+			seen[cur] = 1
+			hit = 1
+			if (tolower(cur) ~ pat) { print "  [path redacted]" } else { print "  " cur }
+		}
+	}
+}
+END { if (hit) { exit 0 } else { exit 1 } }
+'
+
+paths=$(git diff -p -U0 "$range" | awk -v pat="$LEAKSCAN_PATTERN" "$AWK_SCAN") || paths=""
+
+if [ -n "$paths" ]; then
+	echo "leakscan: REJECTED — this range names something the repository may not name." >&2
+	echo "" >&2
+	echo "In:" >&2
+	printf '%s\n' "$paths" >&2
+	echo "" >&2
+	echo "The matched text is deliberately not shown: a CI log is more readable than" >&2
+	echo "this repository, and printing it would copy the disclosure into the log." >&2
+	echo "Check the diff for those paths." >&2
+	exit 1
+fi
+
+echo "leakscan: clean over $range"

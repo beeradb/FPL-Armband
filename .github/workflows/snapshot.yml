@@ -1,0 +1,127 @@
+# Regenerate the accuracy snapshot and publish it, so nobody does it by hand.
+#
+# # Why this exists
+#
+# `TestSnapshotCoversTheCurrentCode` fails when watched code has moved since the
+# newest snapshot. That guard is right and worth keeping — it is the only thing
+# tying a figure in the record to the code that produced it. But its digest is
+# over source blobs, so a COMMENT-ONLY edit trips it, and the cost lands on a
+# person: run eight diagnostics, render, commit a directory.
+#
+# Measured on 2026-08-16, over four regenerations in one session, every one of
+# them forced by a change with no behavioural content: the diagnostics take about
+# 90 seconds and one of the four moved no figure at all except the commit stamp.
+#
+# So the fix is not to weaken the gate. It is to stop making a human pay it.
+#
+# ⚠️ Note what this does NOT save. Deciding whether a change was inert still
+# requires computing the figures, so the 90 seconds is irreducible — it just
+# moves off the developer's machine. An earlier design proposed comparing a
+# figures digest to avoid banking a directory; that saves the directory and not
+# the time, and externalising the series saves the directory anyway.
+#
+# # Why it is a separate workflow
+#
+# ⚠️ This needs `contents: write` to publish. `ci.yml` runs the pull request's own
+# test files under `contents: read` and holds no secrets, and that combination is
+# the only reason a fork PR is safe there. **These must never become one
+# workflow.** A fork cannot trigger `push:` on the default branch, so nothing
+# here runs on untrusted code.
+
+name: Snapshot
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot-main
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The key records a watched digest recomputed from the commit it names,
+          # so the history has to be here. See ci.yml, which says this at length.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Cache the season archive
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/fpl
+          key: fpl-archive-${{ hashFiles('internal/backtest/season.go', 'internal/priors/priors.go') }}
+          restore-keys: fpl-archive-
+
+      # ⚠️ `-count=1` is load-bearing. Without it a second invocation on an
+      # unchanged tree returns `ok (cached)`, runs no diagnostic, writes nothing
+      # to FPL_MODEL_CSV — and exits 0. The renderer then banks a snapshot
+      # carrying `model.present,false`: 555 figures silently absent from a
+      # command that reported success. That has happened in this repository.
+      - name: Run the accuracy diagnostics
+        env:
+          FPL_MODEL_CSV: ${{ runner.temp }}/model.csv
+          DIAG: "1"
+        run: |
+          go test ./internal/backtest -count=1 -timeout 120m \
+            -run 'TestDiagCalibrationDrift|TestDiagCleanSheetPoisson|TestDiagPredictionBenchmark|TestDiagNextFivePredictors|TestDiagSixty|TestDiagDefconBias|TestDiagTeamBlend|TestDiagTransferError'
+
+      # ⚠️ A fresh file per run, and asserted to hold exactly one run before it is
+      # used. The diagnostics APPEND, and the renderer takes newest-wins per
+      # figure, so a reused path lets a stale run from another commit win a
+      # figure. That is how a snapshot once shipped pre-fix figures under a commit
+      # that had the fix. A runner's temp directory is fresh, and this checks
+      # rather than assuming it.
+      - name: Assert the model CSV holds exactly one run
+        env:
+          MODEL_CSV: ${{ runner.temp }}/model.csv
+        run: |
+          runs=$(awk -F, 'NR>1 {print $2}' "$MODEL_CSV" | sort -u | wc -l)
+          echo "runs in the model CSV: $runs"
+          if [ "$runs" -ne 1 ]; then
+            echo "::error::expected exactly one run, found $runs — a stale run could win a figure"
+            exit 1
+          fi
+
+      - name: Render the snapshot
+        env:
+          MODEL_CSV: ${{ runner.temp }}/model.csv
+        run: go run ./cmd/armband snapshot -model "$MODEL_CSV"
+
+      # Published as a release asset rather than committed. That is the whole
+      # point: the series leaves the repository and its history, and this is where
+      # it goes instead. The tag names the commit the snapshot describes, so it is
+      # resolvable without reading the assets.
+      #
+      # ⚠️ The published series is NOT a citable record. Nothing in the repository
+      # may point at it — see the retired-location guard, which forbids replacing
+      # an in-repo path with a location outside the repository. It is here so a
+      # figure can be checked, not so a comment can link to it.
+      - name: Publish the snapshot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          dir=$(ls -d stats/snapshots/*/ | sort | tail -1)
+          short=$(git rev-parse --short "$SHA")
+          tag="snapshot-$short"
+          echo "publishing $dir as $tag"
+          gh release create "$tag" "$dir"* \
+            --title "Accuracy snapshot at $short" \
+            --notes "Generated by the Snapshot workflow. The model figures and the constants in force at \`$short\`." \
+            || gh release upload "$tag" "$dir"* --clobber

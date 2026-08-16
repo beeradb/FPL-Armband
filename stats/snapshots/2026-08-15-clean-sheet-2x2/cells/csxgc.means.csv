@@ -1,0 +1,25 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+CSXGC#1,1786823442-1464327,policy,factor only f=1.1731 flat=1.0,1,shipped f=1.0 flat=1.0 (baseline),0.0806410814515319,36,-
+CSXGC#1,1786823442-1464327,policy,flat only f=1.0 flat=0.9046,2,shipped f=1.0 flat=1.0 (baseline),0.11851385259089378,36,-
+CSXGC#1,1786823442-1464327,policy,both f=1.1731 flat=0.9046 (the joint fit),3,shipped f=1.0 flat=1.0 (baseline),0.2780331231894928,36,-
+CSXGC#1,1786823442-1464327,policy,CANARY f=1.0 flat=0.5 (must move the fifteen),4,shipped f=1.0 flat=1.0 (baseline),-0.4765200650974866,36,-
+CSXGC#1,1786823442-1464327,policy_xpoints,factor only f=1.1731 flat=1.0,1,shipped f=1.0 flat=1.0 (baseline),-0.06377009619218398,36,-
+CSXGC#1,1786823442-1464327,policy_xpoints,flat only f=1.0 flat=0.9046,2,shipped f=1.0 flat=1.0 (baseline),0.027996917405522324,36,-
+CSXGC#1,1786823442-1464327,policy_xpoints,both f=1.1731 flat=0.9046 (the joint fit),3,shipped f=1.0 flat=1.0 (baseline),0.17113521187475497,36,-
+CSXGC#1,1786823442-1464327,policy_xpoints,CANARY f=1.0 flat=0.5 (must move the fifteen),4,shipped f=1.0 flat=1.0 (baseline),-0.40287895610513086,36,-
+CSXGC#1,1786823442-1464327,hold,factor only f=1.1731 flat=1.0,1,shipped f=1.0 flat=1.0 (baseline),0.05082526240039521,36,-
+CSXGC#1,1786823442-1464327,hold,flat only f=1.0 flat=0.9046,2,shipped f=1.0 flat=1.0 (baseline),0.1637288221002938,36,-
+CSXGC#1,1786823442-1464327,hold,both f=1.1731 flat=0.9046 (the joint fit),3,shipped f=1.0 flat=1.0 (baseline),0.1839922991238776,36,-
+CSXGC#1,1786823442-1464327,hold,CANARY f=1.0 flat=0.5 (must move the fifteen),4,shipped f=1.0 flat=1.0 (baseline),-0.5686120512112132,36,-
+CSXGC#1,1786823442-1464327,hold_xpoints,factor only f=1.1731 flat=1.0,1,shipped f=1.0 flat=1.0 (baseline),-0.05713409511873143,36,-
+CSXGC#1,1786823442-1464327,hold_xpoints,flat only f=1.0 flat=0.9046,2,shipped f=1.0 flat=1.0 (baseline),0.17548964728198277,36,-
+CSXGC#1,1786823442-1464327,hold_xpoints,both f=1.1731 flat=0.9046 (the joint fit),3,shipped f=1.0 flat=1.0 (baseline),0.10847959474583153,36,-
+CSXGC#1,1786823442-1464327,hold_xpoints,CANARY f=1.0 flat=0.5 (must move the fifteen),4,shipped f=1.0 flat=1.0 (baseline),-0.6682569444132562,36,-
+CSXGC#1,1786823442-1464327,hold_fixedcap,factor only f=1.1731 flat=1.0,1,shipped f=1.0 flat=1.0 (baseline),0.07683535706037542,36,-
+CSXGC#1,1786823442-1464327,hold_fixedcap,flat only f=1.0 flat=0.9046,2,shipped f=1.0 flat=1.0 (baseline),0.13187254872990867,36,-
+CSXGC#1,1786823442-1464327,hold_fixedcap,both f=1.1731 flat=0.9046 (the joint fit),3,shipped f=1.0 flat=1.0 (baseline),0.22330058032765818,36,-
+CSXGC#1,1786823442-1464327,hold_fixedcap,CANARY f=1.0 flat=0.5 (must move the fifteen),4,shipped f=1.0 flat=1.0 (baseline),-0.6051161367236882,36,-
+CSXGC#1,1786823442-1464327,hold_nocap,factor only f=1.1731 flat=1.0,1,shipped f=1.0 flat=1.0 (baseline),0.04616634813049774,36,-
+CSXGC#1,1786823442-1464327,hold_nocap,flat only f=1.0 flat=0.9046,2,shipped f=1.0 flat=1.0 (baseline),0.11211623821272948,36,-
+CSXGC#1,1786823442-1464327,hold_nocap,both f=1.1731 flat=0.9046 (the joint fit),3,shipped f=1.0 flat=1.0 (baseline),0.1926315713977805,36,-
+CSXGC#1,1786823442-1464327,hold_nocap,CANARY f=1.0 flat=0.5 (must move the fifteen),4,shipped f=1.0 flat=1.0 (baseline),-0.630849089182422,36,-

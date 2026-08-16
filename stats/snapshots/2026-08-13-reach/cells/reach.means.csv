@@ -1,0 +1,69 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+reach2#1,1786651296-646925,policy,min_gain = 3.0 (far above the binding 0.4),1,shipped (baseline),-1.7365560640732278,8,-
+reach2#1,1786651296-646925,policy,free_transfer_value = 0,2,shipped (baseline),0.43449656750572085,8,-
+reach2#1,1786651296-646925,policy,bank_up_to = 1,3,shipped (baseline),-1.223827231121282,8,-
+reach2#1,1786651296-646925,policy,max_hits = 0,4,shipped (baseline),-0.0436212814645307,8,-
+reach2#1,1786651296-646925,policy,decision_horizon = 1,5,shipped (baseline),-2.240274599542335,8,-
+reach2#1,1786651296-646925,policy,bank_lookahead on,6,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,policy,min_expected_minutes = 0 (no floor),7,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,policy,min_expected_minutes = 89 (near-total floor),8,shipped (baseline),-0.9492276887871851,8,-
+reach2#1,1786651296-646925,policy,bench_weight = 0,9,shipped (baseline),0.9791189931350113,8,-
+reach2#1,1786651296-646925,policy,bench_weight = 0.30 (past the recorded cliff),10,shipped (baseline),0.37914759725400504,8,-
+reach2#1,1786651296-646925,policy,minutes_half_life = 1,11,shipped (baseline),-0.532179633867278,8,-
+reach2#1,1786651296-646925,policy,minutes_half_life = 20,12,shipped (baseline),0.36956521739130377,8,-
+reach2#1,1786651296-646925,policy,weekly_xi off,13,shipped (baseline),-0.429347826086957,8,-
+reach2#1,1786651296-646925,policy,prepare_bench_boost on,14,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,policy,prepare_triple_captain on,15,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,policy,unified appearance off (legacy 0.624 rule),16,shipped (baseline),0.440932494279175,8,-
+reach2#1,1786651296-646925,policy,fixed bench tuple (derived slots off),17,shipped (baseline),-0.1391590389016022,8,-
+reach2#1,1786651296-646925,hold,min_gain = 3.0 (far above the binding 0.4),1,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,free_transfer_value = 0,2,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,bank_up_to = 1,3,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,max_hits = 0,4,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,decision_horizon = 1,5,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,bank_lookahead on,6,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,min_expected_minutes = 0 (no floor),7,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,min_expected_minutes = 89 (near-total floor),8,shipped (baseline),-18.99256292906179,8,-
+reach2#1,1786651296-646925,hold,bench_weight = 0,9,shipped (baseline),-0.3007723112128158,8,-
+reach2#1,1786651296-646925,hold,bench_weight = 0.30 (past the recorded cliff),10,shipped (baseline),1.7555778032036606,8,-
+reach2#1,1786651296-646925,hold,minutes_half_life = 1,11,shipped (baseline),0.23598398169336043,8,-
+reach2#1,1786651296-646925,hold,minutes_half_life = 20,12,shipped (baseline),0.7787471395880994,8,-
+reach2#1,1786651296-646925,hold,weekly_xi off,13,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,prepare_bench_boost on,14,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,prepare_triple_captain on,15,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold,unified appearance off (legacy 0.624 rule),16,shipped (baseline),-0.15389016018306734,8,-
+reach2#1,1786651296-646925,hold,fixed bench tuple (derived slots off),17,shipped (baseline),0.034897025171622964,8,-
+reach2#1,1786651296-646925,hold_fixedcap,min_gain = 3.0 (far above the binding 0.4),1,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,free_transfer_value = 0,2,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,bank_up_to = 1,3,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,max_hits = 0,4,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,decision_horizon = 1,5,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,bank_lookahead on,6,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,min_expected_minutes = 0 (no floor),7,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,min_expected_minutes = 89 (near-total floor),8,shipped (baseline),-18.8024885583524,8,-
+reach2#1,1786651296-646925,hold_fixedcap,bench_weight = 0,9,shipped (baseline),-0.34024599542334233,8,-
+reach2#1,1786651296-646925,hold_fixedcap,bench_weight = 0.30 (past the recorded cliff),10,shipped (baseline),1.7760297482837535,8,-
+reach2#1,1786651296-646925,hold_fixedcap,minutes_half_life = 1,11,shipped (baseline),0.4778318077803201,8,-
+reach2#1,1786651296-646925,hold_fixedcap,minutes_half_life = 20,12,shipped (baseline),0.7750286041189947,8,-
+reach2#1,1786651296-646925,hold_fixedcap,weekly_xi off,13,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,prepare_bench_boost on,14,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,prepare_triple_captain on,15,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_fixedcap,unified appearance off (legacy 0.624 rule),16,shipped (baseline),-0.1637585812356992,8,-
+reach2#1,1786651296-646925,hold_fixedcap,fixed bench tuple (derived slots off),17,shipped (baseline),0.05463386727688757,8,-
+reach2#1,1786651296-646925,hold_nocap,min_gain = 3.0 (far above the binding 0.4),1,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,free_transfer_value = 0,2,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,bank_up_to = 1,3,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,max_hits = 0,4,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,decision_horizon = 1,5,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,bank_lookahead on,6,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,min_expected_minutes = 0 (no floor),7,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,min_expected_minutes = 89 (near-total floor),8,shipped (baseline),-16.594393592677346,8,-
+reach2#1,1786651296-646925,hold_nocap,bench_weight = 0,9,shipped (baseline),-0.8797196796338671,8,-
+reach2#1,1786651296-646925,hold_nocap,bench_weight = 0.30 (past the recorded cliff),10,shipped (baseline),1.8571224256292904,8,-
+reach2#1,1786651296-646925,hold_nocap,minutes_half_life = 1,11,shipped (baseline),0.4213386727688784,8,-
+reach2#1,1786651296-646925,hold_nocap,minutes_half_life = 20,12,shipped (baseline),0.7750286041189929,8,-
+reach2#1,1786651296-646925,hold_nocap,weekly_xi off,13,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,prepare_bench_boost on,14,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,prepare_triple_captain on,15,shipped (baseline),0,8,-
+reach2#1,1786651296-646925,hold_nocap,unified appearance off (legacy 0.624 rule),16,shipped (baseline),-0.11441647597254079,8,-
+reach2#1,1786651296-646925,hold_nocap,fixed bench tuple (derived slots off),17,shipped (baseline),0.05463386727688757,8,-

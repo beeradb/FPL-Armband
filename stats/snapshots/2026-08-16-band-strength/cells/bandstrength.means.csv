@@ -1,0 +1,13 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+bandstrength#1,1786888252-1904264,policy,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.1579787330645459,36,-
+bandstrength#1,1786888252-1904264,policy,"band_strength 2 — CANARY, double dose, sizes the instrument",2,band_strength 0 — FPL's blended FDR alone (ships),-0.4734894593780936,36,-
+bandstrength#1,1786888252-1904264,policy_xpoints,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.2833322594652279,36,-
+bandstrength#1,1786888252-1904264,policy_xpoints,"band_strength 2 — CANARY, double dose, sizes the instrument",2,band_strength 0 — FPL's blended FDR alone (ships),-0.41232133042105823,36,-
+bandstrength#1,1786888252-1904264,hold,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.3572621088830089,36,-
+bandstrength#1,1786888252-1904264,hold,"band_strength 2 — CANARY, double dose, sizes the instrument",2,band_strength 0 — FPL's blended FDR alone (ships),-0.2787642954977054,36,-
+bandstrength#1,1786888252-1904264,hold_xpoints,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.1456152868541477,36,-
+bandstrength#1,1786888252-1904264,hold_xpoints,"band_strength 2 — CANARY, double dose, sizes the instrument",2,band_strength 0 — FPL's blended FDR alone (ships),-0.45320112307873356,36,-
+bandstrength#1,1786888252-1904264,hold_fixedcap,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.315326682174508,36,-
+bandstrength#1,1786888252-1904264,hold_fixedcap,"band_strength 2 — CANARY, double dose, sizes the instrument",2,band_strength 0 — FPL's blended FDR alone (ships),-0.2090385795095941,36,-
+bandstrength#1,1786888252-1904264,hold_nocap,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.29343593202288887,36,-
+bandstrength#1,1786888252-1904264,hold_nocap,"band_strength 2 — CANARY, double dose, sizes the instrument",2,band_strength 0 — FPL's blended FDR alone (ships),-0.23651921749747828,36,-

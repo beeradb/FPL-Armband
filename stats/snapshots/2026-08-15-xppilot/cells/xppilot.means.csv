@@ -1,0 +1,25 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+XPPILOT#1,1786766030-1142414,policy,flat (no recency),1,half-life 4 (ships),-2.315742990800198,36,-
+XPPILOT#1,1786766030-1142414,policy,half-life 2,2,half-life 4 (ships),-1.0020736495755567,36,-
+XPPILOT#1,1786766030-1142414,policy,half-life 8,3,half-life 4 (ships),-0.3347778923198452,36,-
+XPPILOT#1,1786766030-1142414,policy,half-life 20,4,half-life 4 (ships),-0.2669269736394067,36,-
+XPPILOT#1,1786766030-1142414,policy_xpoints,flat (no recency),1,half-life 4 (ships),-2.447889505767007,36,-
+XPPILOT#1,1786766030-1142414,policy_xpoints,half-life 2,2,half-life 4 (ships),-0.6992596808812335,36,-
+XPPILOT#1,1786766030-1142414,policy_xpoints,half-life 8,3,half-life 4 (ships),-0.03421617722519738,36,-
+XPPILOT#1,1786766030-1142414,policy_xpoints,half-life 20,4,half-life 4 (ships),-0.4020876705088866,36,-
+XPPILOT#1,1786766030-1142414,hold,flat (no recency),1,half-life 4 (ships),-0.04017246031929508,36,-
+XPPILOT#1,1786766030-1142414,hold,half-life 2,2,half-life 4 (ships),-0.638993321916663,36,-
+XPPILOT#1,1786766030-1142414,hold,half-life 8,3,half-life 4 (ships),0.44589266357000845,36,-
+XPPILOT#1,1786766030-1142414,hold,half-life 20,4,half-life 4 (ships),0.1471091131655583,36,-
+XPPILOT#1,1786766030-1142414,hold_xpoints,flat (no recency),1,half-life 4 (ships),-0.07037057671397424,36,-
+XPPILOT#1,1786766030-1142414,hold_xpoints,half-life 2,2,half-life 4 (ships),-0.5240892641495432,36,-
+XPPILOT#1,1786766030-1142414,hold_xpoints,half-life 8,3,half-life 4 (ships),0.18672282386692451,36,-
+XPPILOT#1,1786766030-1142414,hold_xpoints,half-life 20,4,half-life 4 (ships),-0.10493694325073911,36,-
+XPPILOT#1,1786766030-1142414,hold_fixedcap,flat (no recency),1,half-life 4 (ships),0.03361993121718538,36,-
+XPPILOT#1,1786766030-1142414,hold_fixedcap,half-life 2,2,half-life 4 (ships),-0.4300622587712593,36,-
+XPPILOT#1,1786766030-1142414,hold_fixedcap,half-life 8,3,half-life 4 (ships),0.30966152953185777,36,-
+XPPILOT#1,1786766030-1142414,hold_fixedcap,half-life 20,4,half-life 4 (ships),0.002393582771157396,36,-
+XPPILOT#1,1786766030-1142414,hold_nocap,flat (no recency),1,half-life 4 (ships),-0.029573048642461883,36,-
+XPPILOT#1,1786766030-1142414,hold_nocap,half-life 2,2,half-life 4 (ships),-0.541905494708698,36,-
+XPPILOT#1,1786766030-1142414,hold_nocap,half-life 8,3,half-life 4 (ships),0.2211366955360088,36,-
+XPPILOT#1,1786766030-1142414,hold_nocap,half-life 20,4,half-life 4 (ships),-0.08162880922224917,36,-

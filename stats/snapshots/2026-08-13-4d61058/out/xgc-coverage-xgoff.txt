@@ -1,0 +1,14 @@
+replay: slot 6/8, MemoryHigh=2G MemoryMax=4G, started 00:04:25
+=== RUN   TestDiagXGCPoints
+    xgcpoints_test.go:78: prior      season     appearances with xGC, repair off    on
+    xgcpoints_test.go:98: 2018-19    2019-20                                  0    0
+    xgcpoints_test.go:98: 2019-20    2020-21                                  0    0
+    xgcpoints_test.go:98: 2020-21    2021-22                                  0    0
+    xgcpoints_test.go:98: 2021-22    2022-23                               6496    6496
+    xgcpoints_test.go:98: 2022-23    2023-24                              10659    10659
+    xgcpoints_test.go:98: 2023-24    2024-25                              10907    10907
+    xgcpoints_test.go:98: 2024-25    2025-26                              10911    10911
+    xgcpoints_test.go:104: no played season's xGC coverage moved, so this measured nothing — either the repair is not reaching Load or the seasons list is wrong
+--- FAIL: TestDiagXGCPoints (1.41s)
+FAIL
+replay: exit=1 peak_rss=37 MB elapsed=0:01.41

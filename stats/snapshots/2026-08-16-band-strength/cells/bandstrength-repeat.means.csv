@@ -1,0 +1,7 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+bandstrength#1,1786887667-1898223,policy,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.10604723376462566,36,-
+bandstrength#1,1786887667-1898223,policy_xpoints,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.22708134712450978,36,-
+bandstrength#1,1786887667-1898223,hold,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.3385378993693256,36,-
+bandstrength#1,1786887667-1898223,hold_xpoints,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.1398917345377101,36,-
+bandstrength#1,1786887667-1898223,hold_fixedcap,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.2820461543287627,36,-
+bandstrength#1,1786887667-1898223,hold_nocap,band_strength 1 — the 3/14/3 adjustment at full strength,1,band_strength 0 — FPL's blended FDR alone (ships),0.2674017809887375,36,-

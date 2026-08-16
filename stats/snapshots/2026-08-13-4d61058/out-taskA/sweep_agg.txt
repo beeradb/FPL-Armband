@@ -1,0 +1,238 @@
+
+Read 36 cells from 1 file(s): 1 sweep(s).
+------------------------------------------------------------------------------
+Contract checks
+  ok  exactly one baseline arm in each of 1 sweep(s)
+  ok  re-derives from points / weeks: hold, policy, hold_fixedcap, hold_nocap
+  ok  no infeasible cells
+  ..  bank_up_to = 5  (pinned modern rule; totals are not comparable across seasons)
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+------------------------------------------------------------------------------
+Sweep: paired / AGG6R#1:v0
+Metric: HOLD (the opening fifteen; scoring constants belong here)
+Paired against: season aggregates not rebuilt
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+shipped (aggregates rebuil   -0.460    18 |    0.902   -0.51 |    0.379    2.0   -1.21 |   0.3484   0.3484
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    shipped (aggregates rebu   -1.21   -0.44   -0.65 |   -2.880   3/3  |     0.0     0.0   100.0   0.36
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    shipped (aggregates rebuil SE    0.902  df   17.0  t   -0.51  p   0.6161
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / AGG6R#1:v0
+Metric: POLICY (the weekly transfer decision)
+Paired against: season aggregates not rebuilt
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+shipped (aggregates rebuil    1.461    18 |    0.946    1.55 |    1.525    2.0    0.96 |   0.4390   0.4390
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    shipped (aggregates rebu    0.96    1.62    2.12 |    4.520   2/3  |    23.5     0.0    76.5   1.69
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    shipped (aggregates rebuil SE    1.525  df    2.0  t    0.96  p   0.4390
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / AGG6R#1:v0
+Metric: instrument: HOLD, armband pinned to the day-one pick
+Paired against: season aggregates not rebuilt
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+shipped (aggregates rebuil   -0.286    18 |    0.969   -0.30 |    0.615    2.0   -0.47 |   0.6876   0.6876
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    shipped (aggregates rebu   -0.47   -0.27   -0.32 |   -2.203   1/3  |     0.0     0.0   100.0   0.58
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    shipped (aggregates rebuil SE    0.969  df   17.0  t   -0.30  p   0.7715
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / AGG6R#1:v0
+Metric: instrument: HOLD with nobody doubled (not what FPL pays)
+Paired against: season aggregates not rebuilt
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+shipped (aggregates rebuil   -0.911    18 |    0.878   -1.04 |    0.356    2.0   -2.56 |   0.1249   0.1249
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    shipped (aggregates rebu   -2.56   -0.90   -1.29 |   -2.724   3/3  |     0.0     0.0   100.0   0.35
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    shipped (aggregates rebuil SE    0.878  df   17.0  t   -1.04  p   0.3137
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / AGG6R#1:v0
+Metric: marginal: the armband's share of this effect
+Paired against: season aggregates not rebuilt
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+shipped (aggregates rebuil    0.451    18 |    0.291    1.55 |    0.352    2.0    1.28 |   0.3290   0.3290
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    shipped (aggregates rebu    1.28    1.36    3.50 |    0.041   3/3  |     2.0     0.0    98.0   1.06
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    shipped (aggregates rebuil SE    0.352  df    2.0  t    1.28  p   0.3290
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / AGG6R#1:v0
+Metric: marginal: re-picking the captain weekly
+Paired against: season aggregates not rebuilt
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+shipped (aggregates rebuil   -0.174    18 |    0.487   -0.36 |    0.792    2.0   -0.22 |   0.8461   0.8461
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    shipped (aggregates rebu   -0.22   -0.69   -0.27 |    1.687   2/3  |    33.7    43.2    23.2   3.12
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    shipped (aggregates rebuil SE    0.792  df    2.0  t   -0.22  p   0.8461
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Noise by information regime — POLICY, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      1.154      1.00        1.00       6
+middle                    26      1.644      1.43        1.18       6
+late (season-led)         16      2.223      1.93        1.51       6
+------------------------------------------------------------------------------
+Noise by information regime — HOLD, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      1.931      1.00        1.00       6
+middle                    26      1.742      0.90        1.18       6
+late (season-led)         16      1.033      0.54        1.51       6
+------------------------------------------------------------------------------
+Reproducing Go's paired means
+  !!  no .means.csv beside the cells file, so Go's means cannot be checked.
+      This is the pipeline's only end-to-end test. Re-run the sweep with a
+      current build, which writes it automatically.
+------------------------------------------------------------------------------
+wrote stats/snapshots/2026-08-13-4d61058/out-taskA/inference.csv
+
+Reading this: prefer the CR2 column, and read its df rather than assuming
+one. Treat a raw p under 0.05 whose Holm-adjusted p is not as the case the
+old |t| >= 2 rule mislabelled 'confirmed'. And weigh the shape plot above
+any single row: monotonicity, a plateau with a cliff, or the held-out
+season agreeing is what this project accepts as evidence.

@@ -1,0 +1,14 @@
+replay: slot 6/8, MemoryHigh=2G MemoryMax=4G, started 00:04:42
+=== RUN   TestDiagXGCCoverage
+    xgccoverage_test.go:46: season    appearances  with xGC  reconstructed   mean club xGA/match  season totals rebuilt
+    xgccoverage_test.go:109: 2018-19         10245     99.9%          10231      1.337 vs 1.408 goals (95%)  505
+    xgccoverage_test.go:109: 2019-20         10543    100.0%          10543      1.328 vs 1.356 goals (98%)  515
+    xgccoverage_test.go:109: 2020-21          9905    100.0%           9903      1.283 vs 1.382 goals (93%)  524
+    xgccoverage_test.go:109: 2021-22          9788     99.9%           9779      1.322 vs 1.401 goals (94%)  537
+    xgccoverage_test.go:109: 2022-23         10811     97.4%           4033      1.443 vs 1.430 goals (101%)  0
+    xgccoverage_test.go:109: 2023-24         11086     96.1%              0      1.554 vs 1.646 goals (94%)  0
+    xgccoverage_test.go:109: 2024-25         11431     95.4%              0      1.436 vs 1.465 goals (98%)  0
+    xgccoverage_test.go:109: 2025-26         11361     96.0%              0      1.389 vs 1.380 goals (101%)  0
+--- PASS: TestDiagXGCCoverage (0.89s)
+PASS
+replay: exit=0 peak_rss=68 MB elapsed=0:00.89

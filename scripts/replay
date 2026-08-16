@@ -1,0 +1,253 @@
+#!/usr/bin/env bash
+#
+# Run a replay sweep under a concurrency limit, a memory cap, and an exit status
+# you can trust.
+#
+# # Why this exists
+#
+# The project record says replay sweeps must be run one at a time, after several
+# were killed by memory pressure on the test infrastructure — one block four
+# separate times, at 1, 3, 3 and 4 arms of 6. The rule was enforced by everyone
+# remembering to follow it, and sweeps were serialised by hand.
+#
+# The rule was aimed at the wrong process. Sampling every process once a second
+# across a whole sweep block:
+#
+#     go (the `go test` driver)   1031 MB   resident for the entire run
+#     link                          262 MB   seconds, during the build
+#     compile                       211 MB   seconds, during the build
+#     backtest.test (the sweep)     145 MB   resident for the entire run
+#     vet                            28 MB   seconds
+#
+# **The toolchain driver is seven times the size of the sweep it is driving, and
+# it stays resident for the whole three hours.** Every concurrent `go test` pays
+# it again, so four parallel sweeps is four gigabytes of `go` and about half a
+# gigabyte of actual replay. That is what kept being killed.
+#
+# # What this does
+#
+#   1. **Compiles once under a build lock and runs the binary as a child.** This is the
+#      fix; everything below is a guard rail. It removes about seven eighths of a
+#      concurrent run's footprint, and costs nothing, because the build was
+#      happening anyway — it just was not being shared or serialised.
+#
+#   2. **A bounded semaphore instead of a convention.** Concurrency is limited
+#      to FPL_REPLAY_SLOTS runs; the rest *queue* rather than racing. "Do not
+#      start a sweep while one is running" was being enforced by people
+#      remembering to, which is not enforcement.
+#
+#   3. **A per-run memory cap, set above the measured peak.** It binds on a run
+#      that has gone wrong rather than taxing every ordinary one, and it degrades
+#      rather than kills where the host can back it with swap — the behaviour you
+#      want from a three-hour job.
+#
+#   4. **An exit status you can trust.** This project has already lost a run to
+#      a sweep that "reported success while having been OOM-killed, because a
+#      trailing echo masked the exit status". A killed sweep leaves a partial
+#      cells file, which reads downstream as a complete sweep with fewer arms —
+#      the exact failure writeSweepProvenance exists to make arithmetic. So this
+#      exits with the real status, and on signal 9 prints `KILLED BY SIGNAL 9 —
+#      this is an out-of-memory kill, not a test failure`. Note it does NOT print
+#      the string "OOM": grep your log for SIGNAL, not for OOM.
+#
+#   5. **The peak RSS of every run, printed.** Not decoration: the table above
+#      exists because an earlier version of this comment confidently recorded
+#      70 MB, which was the sweep binary's steady state measured on a pre-built
+#      binary, and understated a real concurrent run sevenfold.
+#
+# # Usage
+#
+#   scripts/replay -run TestDiagTransferPolicy -v -timeout 2h
+#   EXP=G FPL_CELLS=/tmp/g.csv scripts/replay -run TestDiagTransferPolicy -v -timeout 2h
+#
+# `go test` flag SPELLINGS are accepted and translated to their `-test.*` form
+# for the compiled binary — not passed through to `go test`, which is not run.
+# Anything outside the translated list reaches the test binary raw, so a flag
+# `go test` understands and the binary does not (`-race`, `-cover`, `-json`, a
+# package path) is rejected with a usage dump rather than honoured. DIAG=1 is set
+# for you, since a sweep that is not DIAG-gated just skips.
+#
+#   FPL_REPLAY_SLOTS     concurrent runs allowed          (default 3)
+#   FPL_REPLAY_MEM_HIGH  soft cap: throttle and reclaim   (default 2G)
+#   FPL_REPLAY_MEM_MAX   hard cap on this run's cgroup    (default 4G)
+#   FPL_REPLAY_NICE      niceness, so sweeps yield to interactive work (default 10)
+#
+set -uo pipefail
+
+slots=${FPL_REPLAY_SLOTS:-3}
+# Both caps sit ABOVE the measured peak, which is 89-142 MB per run across the
+# banked sweep blocks. A soft cap under the peak would throttle every ordinary
+# sweep and make the wrapper a tax rather than a safety net; these only bind on a
+# run that has gone wrong.
+#
+# ⚠️ Corrected 2026-08-16. This said "0.9-1.0 GB per run across five sweep
+# blocks", which was already contradicted 55 lines below: those five numbers were
+# measured while this wrapper still shelled out to `go test`, and that gigabyte
+# WAS the `go` driver, which is gone. The consequence of the stale figure was not
+# cosmetic — it made the 2G soft cap read as roughly 2x headroom when it is
+# nearer 20x, so nobody tuning it would suspect it of being decorative.
+mem_high=${FPL_REPLAY_MEM_HIGH:-2G}
+mem_max=${FPL_REPLAY_MEM_MAX:-4G}
+nice_to=${FPL_REPLAY_NICE:-10}
+
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# Keyed by repository path, so a worktree queues against its own checkout
+# rather than against an unrelated one that happens to share the machine.
+lockdir="${XDG_RUNTIME_DIR:-/tmp}/fpl-replay-$(echo "$repo" | md5sum | cut -c1-12)"
+mkdir -p "$lockdir"
+
+# --- acquire a slot -----------------------------------------------------------
+#
+# flock on one of N files. Non-blocking sweep first so an idle machine starts
+# instantly and says nothing; only a genuinely full queue prints and waits.
+slot_fd=
+acquire() {
+	local i
+	for i in $(seq 1 "$slots"); do
+		exec {fd}>"$lockdir/slot.$i"
+		if flock -n "$fd"; then
+			slot_fd=$fd
+			slot_n=$i
+			return 0
+		fi
+		exec {fd}>&-
+	done
+	return 1
+}
+
+if ! acquire; then
+	echo "replay: all $slots slots busy, queueing (set FPL_REPLAY_SLOTS to change)" >&2
+	waited=0
+	until acquire; do
+		sleep 5
+		waited=$((waited + 5))
+		if [ $((waited % 300)) -eq 0 ]; then
+			echo "replay: still queueing after ${waited}s" >&2
+		fi
+	done
+	echo "replay: got a slot after ${waited}s" >&2
+fi
+
+# --- run ----------------------------------------------------------------------
+#
+export DIAG="${DIAG:-1}"
+
+# **GOMEMLIMIT is deliberately not set here, and it is now moot rather than
+# merely unhelpful.**
+#
+# The obvious move is to hand Go the same figure as MemoryHigh so the collector
+# pushes back before the cgroup has to. Measured while this wrapper still shelled
+# out to `go test`: peak RSS was 899, 962, 978, 1003 and 1004 MB across five
+# blocks with GOMEMLIMIT=1GiB, against 1031 and 1032 MB on two blocks without it.
+# So it bought perhaps 6%, on different blocks, against a block-to-block spread
+# of 105 MB — too small and too confounded to call an effect.
+#
+# It is moot because that gigabyte was the `go` driver, and the driver is gone:
+# the process this wrapper now runs peaks around 145 MB, nowhere near any cap
+# worth setting. An explicitly-set GOMEMLIMIT is still passed through.
+
+stamp=$(date +%H:%M:%S)
+echo "replay: slot $slot_n/$slots, MemoryHigh=$mem_high MemoryMax=$mem_max, started $stamp" >&2
+
+timefile=$(mktemp)
+cd "$repo" || exit 1
+
+# GNU time reports the peak RSS. It is the one part of this wrapper that is
+# merely informative, so a host without it loses the number rather than the run.
+timer=(/usr/bin/time -v -o "$timefile")
+[ -x /usr/bin/time ] || timer=()
+
+# --- build once, then run the binary ------------------------------------------
+#
+# **This is the part that actually makes sweeps cheap to run in parallel, and it
+# is not the memory cap.** Sampling every process once a second across a whole
+# sweep block: the `go` command peaks at 1031 MB, `link` at 262, `compile` at
+# 211, and the sweep binary itself at 145. The toolchain driver is seven times
+# the size of the thing it is driving, it stays resident for the entire run — 11
+# minutes, 20 minutes, three hours — and every concurrent `go test` pays it
+# again. Four parallel sweeps is four gigabytes of `go`, and about half a
+# gigabyte of actual replay.
+#
+# So compile once under a build lock, then run the binary in a child process and
+# WAIT for it — this shell is never replaced. The distinction is load-bearing
+# rather than pedantic: the guard rails below that *report* anything need this
+# script to outlive the run. The printed peak RSS is read out of the timer file
+# afterwards and is wholly lost under an exec, which would also leak the timer
+# file it never removes; the signal-9 diagnosis half of the trustworthy exit
+# status goes with it. The slot lock and the memory cap would survive an exec —
+# do not count them.
+#
+# (The `exec` calls in this file are file-descriptor manipulation: `exec {fd}>f`
+# with NO command word redirects this shell's own descriptors and replaces
+# nothing. What this script deliberately never does is `exec` a *command*.)
+#
+# The compile is serialised because it is the expensive-but-brief part and there
+# is no reason for two of them to overlap; the runs are not, because they are the
+# cheap part.
+bin="$lockdir/backtest.test"
+exec {bfd}>"$lockdir/build.lock"
+flock "$bfd"
+if ! go test -c -o "$bin" ./internal/backtest; then
+	echo "replay: build failed" >&2
+	exec {bfd}>&-
+	exit 1
+fi
+exec {bfd}>&-
+
+# `go test` flag spellings, translated to the ones a test binary answers to, so
+# the recipes recorded throughout docs/ can be pasted here unchanged.
+args=()
+for a in "$@"; do
+	case "$a" in
+	-test.* | --test.*) args+=("$a") ;;
+	-run | -v | -timeout | -count | -short | -bench | -benchtime | -parallel | -failfast | -list | -cpu | -shuffle)
+		args+=("-test.${a#-}")
+		;;
+	-run=* | -timeout=* | -count=* | -bench=* | -benchtime=* | -parallel=* | -list=* | -cpu=* | -shuffle=* | -v=*)
+		args+=("-test.${a#-}")
+		;;
+	*) args+=("$a") ;;
+	esac
+done
+
+# The test binary reads the archive through paths relative to its own package
+# directory, which is where `go test` would have started it.
+cd "$repo/internal/backtest" || exit 1
+
+# --scope, not --unit: the run stays a child of this shell, so Ctrl-C and the
+# caller's process tree still work the way they would without the wrapper.
+#
+# Without a user systemd manager there is no cgroup to put a limit in. The slot
+# semaphore, the build lock and the exit-status reporting are the parts that
+# matter most, so degrade to those rather than refusing to run.
+if systemctl --user is-active --quiet default.target 2>/dev/null; then
+	systemd-run --user --scope -q --nice="$nice_to" \
+		-p MemoryHigh="$mem_high" -p MemoryMax="$mem_max" \
+		"${timer[@]}" "$bin" "${args[@]}"
+	status=$?
+else
+	echo "replay: no user systemd manager; running without a memory cap" >&2
+	nice -n "$nice_to" "${timer[@]}" "$bin" "${args[@]}"
+	status=$?
+fi
+
+peak=$(awk '/Maximum resident set size/ {printf "%.0f MB", $NF/1024}' "$timefile" 2>/dev/null)
+elapsed=$(awk '/Elapsed \(wall clock\)/ {print $NF}' "$timefile" 2>/dev/null)
+rm -f "$timefile"
+
+# Release before reporting, so a queued run starts while we print.
+[ -n "$slot_fd" ] && exec {slot_fd}>&-
+
+echo "replay: exit=$status peak_rss=${peak:-unknown} elapsed=${elapsed:-unknown}" >&2
+
+if [ "$status" -eq 137 ] || [ "$status" -eq 9 ]; then
+	cat >&2 <<-EOF
+		replay: KILLED BY SIGNAL 9 — this is an out-of-memory kill, not a test failure.
+		replay: any cells file this run wrote is PARTIAL. Check the arm count against
+		replay: the provenance row before using it; a short sweep reads downstream as a
+		replay: complete sweep with fewer arms.
+	EOF
+	free -m | head -2 >&2
+fi
+
+exit $status

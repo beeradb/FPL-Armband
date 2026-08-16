@@ -1,0 +1,642 @@
+{
+  "entry_id": 2785902,
+  "hypothetical_budget_m": 0,
+  "model": "claude-opus-5",
+  "effort": "medium",
+  "max_iterations": 25,
+  "weights": {
+    "fixture_horizon": 5,
+    "minutes_half_life": 4,
+    "rate_half_life": 0,
+    "prior_half_life": 0,
+    "bonus_weight": 1.5,
+    "defcon_clean_coupling": 0.3,
+    "bonus_prior_weight": 0.5,
+    "band_strength": 0,
+    "fixture_weight": 0.65,
+    "set_piece_weight": 0,
+    "bench_weight": 0.1,
+    "minutes_weight": 1.25,
+    "minutes_weight_by_position": {
+      "DEF": 1,
+      "FWD": 1,
+      "GKP": 1,
+      "MID": 0.75
+    },
+    "rest_players": [
+      "William Saliba",
+      "Lucas Digne",
+      "Maxence Lacroix",
+      "Pedro Porro Sauceda",
+      "Rodrigo 'Rodri' Hernandez Cascante",
+      "Jordan Pickford",
+      "Reece James",
+      "Marc Guéhi",
+      "Djed Spence",
+      "Declan Rice",
+      "Elliot Anderson",
+      "Morgan Rogers",
+      "Emiliano Martínez Romero",
+      "Lisandro Martínez",
+      "Cristian Romero",
+      "Enzo Fernández",
+      "Alexis Mac Allister"
+    ],
+    "rest_regions": [],
+    "rest_minutes_factor": 0.83,
+    "rest_gameweeks": 2,
+    "blend_minutes_k": 5,
+    "blend_rate_k": 8,
+    "tournament_absences": [
+      {
+        "name": "AFCON 2025 — Senegal (winners)",
+        "matches": 6,
+        "players": [
+          "Iliman Ndiaye",
+          "Ismaïla Sarr",
+          "Pape Matar Sarr",
+          "Habib Diarra"
+        ]
+      },
+      {
+        "name": "AFCON 2025 — Nigeria (third place)",
+        "matches": 6,
+        "players": [
+          "Alex Iwobi",
+          "Calvin Bassey",
+          "Ola Aina"
+        ]
+      },
+      {
+        "name": "AFCON 2025 — Morocco (hosts, semi-finalists)",
+        "matches": 6,
+        "players": [
+          "Chemsdine Talbi",
+          "Noussair Mazraoui",
+          "Amine Adli",
+          "Issa Diop"
+        ]
+      },
+      {
+        "name": "AFCON 2025 — Egypt (semi-finalists)",
+        "matches": 6,
+        "players": [
+          "Omar Marmoush"
+        ]
+      },
+      {
+        "name": "AFCON 2025 — Ivory Coast (quarter-finalists)",
+        "matches": 5,
+        "players": [
+          "Amad Diallo",
+          "Ibrahim Sangaré",
+          "Evann Guessand",
+          "Simon Adingra"
+        ]
+      },
+      {
+        "name": "AFCON 2025 — group and last-16 exits",
+        "matches": 3,
+        "players": [
+          "Bryan Mbeumo",
+          "Carlos Baleba",
+          "Rayan Aït-Nouri",
+          "Dango Ouattara"
+        ]
+      }
+    ]
+  },
+  "congestion": {
+    "european_campaigns": {
+      "ARS": [
+        {
+          "competition": "UCL",
+          "start_date": "2026-09-08"
+        }
+      ],
+      "AVL": [
+        {
+          "competition": "UCL",
+          "start_date": "2026-09-08"
+        }
+      ],
+      "BHA": [
+        {
+          "competition": "UECL",
+          "start_date": "2026-08-20",
+          "end_date": "2026-08-27",
+          "match_dates": [
+            "2026-08-20",
+            "2026-08-27"
+          ],
+          "note": "play-off round, two legs; progression not yet known"
+        },
+        {
+          "competition": "UECL",
+          "start_date": "2026-10-15",
+          "note": "league phase, conditional on winning the play-off"
+        }
+      ],
+      "BOU": [
+        {
+          "competition": "UEL",
+          "start_date": "2026-09-16"
+        }
+      ],
+      "CRY": [
+        {
+          "competition": "UEL",
+          "start_date": "2026-09-16"
+        }
+      ],
+      "LIV": [
+        {
+          "competition": "UCL",
+          "start_date": "2026-09-08"
+        }
+      ],
+      "MCI": [
+        {
+          "competition": "UCL",
+          "start_date": "2026-09-08"
+        }
+      ],
+      "MUN": [
+        {
+          "competition": "UCL",
+          "start_date": "2026-09-08"
+        }
+      ],
+      "SUN": [
+        {
+          "competition": "UEL",
+          "start_date": "2026-09-16"
+        }
+      ]
+    },
+    "domestic_cup_campaigns": {
+      "ARS": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-09-15",
+          "match_dates": [
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round three as a European qualifier"
+        }
+      ],
+      "AVL": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-09-15",
+          "match_dates": [
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round three as a European qualifier"
+        }
+      ],
+      "BHA": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-09-15",
+          "match_dates": [
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round three as a European qualifier"
+        }
+      ],
+      "BOU": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-09-15",
+          "match_dates": [
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round three as a European qualifier"
+        }
+      ],
+      "BRE": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "CHE": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "COV": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "CRY": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-09-15",
+          "match_dates": [
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round three as a European qualifier"
+        }
+      ],
+      "EVE": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "FUL": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "HUL": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "IPS": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "LEE": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "LIV": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-09-15",
+          "match_dates": [
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round three as a European qualifier"
+        }
+      ],
+      "MCI": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-09-15",
+          "match_dates": [
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round three as a European qualifier"
+        }
+      ],
+      "MUN": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-09-15",
+          "match_dates": [
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round three as a European qualifier"
+        }
+      ],
+      "NEW": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "NFO": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ],
+      "SUN": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-09-15",
+          "match_dates": [
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round three as a European qualifier"
+        }
+      ],
+      "TOT": [
+        {
+          "competition": "League Cup",
+          "start_date": "2026-08-26",
+          "match_dates": [
+            "2026-08-26",
+            "2026-09-15",
+            "2026-10-28",
+            "2027-01-13",
+            "2027-02-03",
+            "2027-03-21"
+          ],
+          "note": "enters at round two"
+        }
+      ]
+    },
+    "status_last_verified": "2026-08-04",
+    "long_haul_regions": [
+      30,
+      10
+    ],
+    "regular_international_regions": [
+      241,
+      73,
+      200,
+      152,
+      21
+    ],
+    "ucl_penalty": 1,
+    "uel_penalty": 1,
+    "uecl_penalty": 1,
+    "domestic_cup_penalty": 1.0,
+    "short_rest_penalty": 1,
+    "very_short_rest_penalty": 1,
+    "post_break_penalty": 1,
+    "long_haul_penalty": 1.0
+  },
+  "role_risk": {
+    "new_signing_penalty": 0.88,
+    "new_signing_gameweeks": 5,
+    "confirmed_starters": [
+      "Morgan Rogers",
+      "Maxence Lacroix",
+      "Elliot Anderson",
+      "Marcos Senesi Barón"
+    ],
+    "new_coach_clubs": [
+      "BOU",
+      "CHE",
+      "CRY",
+      "FUL",
+      "IPS",
+      "LIV",
+      "MCI",
+      "NEW",
+      "NFO",
+      "TOT"
+    ],
+    "new_coach_penalty": 1,
+    "new_coach_gameweeks": 6
+  },
+  "chip_plan": {
+    "wildcard_gameweek": 6,
+    "free_hit_gameweek": 16,
+    "bench_boost_gameweek": 8,
+    "triple_captain_gameweek": 9
+  },
+  "review_policy": {
+    "min_gain_for_free_transfer": 0.4,
+    "min_net_gain_for_minus_4": 3,
+    "bank_transfers_up_to": 5,
+    "free_transfer_value": 2,
+    "max_hits_per_week": 1,
+    "always_act_on_ruled_out_starter": true,
+    "rules": [
+      "Do nothing is a valid and usually underrated answer. Only recommend a move when the case is affirmative.",
+      "Never take a hit to chase last week's points. A player who blanked is not thereby a sell.",
+      "Prefer fixing a problem (injury, lost starting place, terrible run) over chasing an upgrade.",
+      "If a wildcard is planned within two gameweeks, do not spend transfers on problems the wildcard will fix anyway.",
+      "Check team news before finalising: the model cannot see press conferences, and FPL's own news field lags them.",
+      "In any gameweek where the squad can be rebuilt for free — the first deadline, or a wildcard week and the weeks it still covers — the squad is a variable, not a constraint. Choose the chip gameweek on its fixture profile first, then build the squad to suit it. Never rule a chip out because the current squad does not support it.",
+      "Bench Boost and Triple Captain are squad-dependent and so are wildcard-enabled; Free Hit builds its own squad and never is. Plan the wildcard and the chips that follow it together.",
+      "A projected price rise is a reason to act earlier in the week on a move you had already decided, not a reason to make one you would otherwise decline. Waiting for Friday's team news beats saving 0.1m: if the price case and the news case disagree, the news wins."
+    ],
+    "scheduled_run_lead_hours": 6
+  },
+  "roster": {
+    "exclude": [
+      {
+        "player_code": 67089,
+        "player": "Dubravka",
+        "reason": "Re-checked 2026-08-08, no change. WhoScored's GK preview (6 Aug 2026) states De Zerbi has confirmed Kinsky as undisputed No.1 for 2026/27 on a new long-term deal, with Dubravka signed as \"experienced cover rather than genuine competition\". Kinsky also impressed in pre-season vs Chelsea. Exclusion stands. Clear only if Kinsky is injured or dropped.",
+        "set_on": "2026-08-05",
+        "until_gameweek": 10,
+        "last_checked": "2026-08-07"
+      },
+      {
+        "player_code": 462424,
+        "player": "Saliba",
+        "reason": "Re-checked 2026-08-08 and pushed back. Arsenal's statement gives no return date: rehab \"with continual management\", out for an \"extended period\" (Sky Sports, Al Jazeera, 23 Jul 2026). L'Equipe report the back problem has been there since March and that surgery — rejected for now — would have meant four to five months. Arsenal are shopping for a centre-back (Stones, Konsa) which is not what a club does for a short absence. GW8 was optimistic; GW12 is the realistic floor. Clear the moment he is named in a matchday squad.",
+        "set_on": "2026-08-05",
+        "until_gameweek": 12,
+        "last_checked": "2026-08-07"
+      }
+    ],
+    "minutes": [
+      {
+        "player_code": 500040,
+        "player": "Mosquera",
+        "reason": "Steps into Arsenal's centre-back pairing while Saliba is out with a back injury and Timber is still rehabilitating. His 986 minutes over 9 starts are backup minutes and understate the role he is about to hold. Clear when Saliba is back in a matchday squad.",
+        "set_on": "2026-08-05",
+        "until_gameweek": 8,
+        "expected_minutes": 85,
+        "last_checked": "2026-08-05"
+      },
+      {
+        "player_code": 219168,
+        "player": "Isak",
+        "reason": "Scores 0.48 at £9.0m because a 2025-26 wrecked by a lack of pre-season held him to 694 minutes. That season is an artefact, not his level: 2758 minutes and 34 starts in 2024-25, 2253 and 27 before that. He is now reported 100% fit, played 45 minutes against Leeds on 2 Aug after returning from the World Cup injury-free, and Iraola has said he 'has come in a good place' (thisisanfield/liverpool.com, Aug 2026). 75 is his 2024-25 rate of 72.6 min/gw rounded up slightly for a settled pre-season, deliberately not a nailed-striker 79 — this corrects a distortion, it does not assert he is better than his best season. Clear once real 2026-27 minutes exist, or revert if he misses the opening weeks.",
+        "set_on": "2026-08-07",
+        "until_gameweek": 6,
+        "expected_minutes": 75,
+        "last_checked": "2026-08-07"
+      },
+      {
+        "player_code": 485055,
+        "player": "Kinsky",
+        "reason": "Scores 0.41 at £4.5m off 630 minutes as a backup, and 19% of managers already hold him — the market is right and the model cannot see why. De Zerbi has named him first choice for 2026-27, he has signed a new contract, Vicario is on the transfer market and expected back in Serie A, and Dubravka joined as the experienced deputy (ESPN/Italpress, Aug 2026). This is the same correction as Mosquera: his record is backup minutes and understates the role he now holds. Note prior_half_life cannot fix this — both his seasons are thin (540 and 630), so blending makes him worse, not better. 88 is a nailed Premier League keeper. Clear if Vicario stays and wins the shirt back, or on any pre-season reversal.",
+        "set_on": "2026-08-07",
+        "until_gameweek": 6,
+        "expected_minutes": 88,
+        "last_checked": "2026-08-07"
+      },
+      {
+        "player_code": 451284,
+        "player": "van Ewijk",
+        "reason": "Model scores him 0.00 only because he has no Premier League minutes. He started 43 of Coventry's 44 Championship games in the title win, with 8 assists (8th in the whole division) and 5.92 xA as an attacking right-back, and is the consensus pick as the best 4.0m defender in the game. Nailed starter, not a fringe player. Revisit if Coventry sign a right-back.",
+        "set_on": "2026-08-07",
+        "until_gameweek": 10,
+        "expected_minutes": 85,
+        "last_checked": "2026-08-07"
+      },
+      {
+        "player_code": 445122,
+        "player": "J.Timber",
+        "reason": "Groin injury that ruled him out of the 2026 World Cup; still rehabilitating as of late July, said only \"hopefully back soon\" (Sky Sports). No return date. Even when fit he is behind Mosquera/Calafiori/Hincapie in a reshuffled back line. Revisit when he is training fully.",
+        "set_on": "2026-08-07",
+        "until_gameweek": 6,
+        "expected_minutes": 15,
+        "last_checked": "2026-08-07"
+      },
+      {
+        "player_code": 461102,
+        "player": "Thomas",
+        "reason": "Coventry CB, scored 0.00 only for lack of PL minutes. 33 Championship games in the title win, 3 goals + 4 assists and 8.56 defensive contributions per 90 — genuine DefCon and set-piece threat at 4.0m. Set to 75 not 85 because Coventry have signed CB Aurele Amenda and were linked with more stoppers, so his place is good but not guaranteed. Revisit after the GW1 XI.",
+        "set_on": "2026-08-07",
+        "until_gameweek": 6,
+        "expected_minutes": 75,
+        "last_checked": "2026-08-07"
+      }
+    ],
+    "teams": [
+      {
+        "team": "ARS",
+        "xgc_factor": 1.15,
+        "reason": "Arsenal's 0.72 xGC per match was earned with Saliba in the side, and he is out to at least GW12 with Timber also rehabilitating. Every Arsenal defensive asset — Raya's and Mosquera's clean sheets and goals-conceded blocks — is priced off a back line that will not take the field. 1.15 is deliberately modest: the archive says Arsenal conceded 0.67 without Saliba against 0.71 with him over nine games in 2025-26, so the direct evidence is that they cope, and this prices the *combination* of Saliba and Timber missing rather than Saliba alone. Revert to 1.0 the moment either is named in a matchday squad; drop the whole entry if the opening weeks show no leak.",
+        "set_on": "2026-08-07",
+        "until_gameweek": 12,
+        "last_checked": "2026-08-07"
+      }
+    ],
+    "lock": []
+  },
+  "criteria": [
+    "Expected points only become real points if the player is on the pitch. Treat expected minutes as a first-class filter, not a tiebreaker: check expected_minutes_per_gw and rotation_risk before recommending anyone.",
+    "Never recommend a starting XI player below roughly 60 expected minutes per gameweek unless you say explicitly why the rotation risk is worth it.",
+    "Weight underlying numbers (xG, xA, xGC) over raw past points — form follows the underlying data, not the other way round.",
+    "Value fixture runs over the next 4-6 gameweeks, not just the next match.",
+    "Set-piece and penalty duty is a major tiebreaker: a penalty taker is worth roughly half a goal per five matches on its own.",
+    "Be sceptical of players heavily overperforming their xG — say so explicitly when recommending or fading them.",
+    "For new signings, last season's stats came from a different club. Say so, and be explicit that their role in the new side is unproven.",
+    "Players returning late from a summer international tournament are routinely eased back in. Prefer rested alternatives for the opening weeks.",
+    "A model number has a resolution limit. Mean absolute error is about 0.5 points per 90, so treat gaps under roughly 0.5 as a tie and decide on what the model cannot see (fixtures, team news, concentration); respect gaps above 1.0 as real.",
+    "The captain's score is doubled, so captaincy value accrues only to the single highest-scoring player in the XI. A second premium who never outscores your captain adds nothing to that slot — compare captain candidates on doubled value, not raw points per million."
+  ],
+  "report_dir": "reports",
+  "cache_dir": ".cache/fpl",
+  "cache_minutes": 60
+}

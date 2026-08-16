@@ -1,0 +1,17 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+MINK#1,1786599413-529981,policy,BlendMinutesK 1,1,BlendMinutesK 5 (ships),-0.00794254584300417,24,-
+MINK#1,1786599413-529981,policy,BlendMinutesK 3,2,BlendMinutesK 5 (ships),0.3256018655046109,24,-
+MINK#1,1786599413-529981,policy,BlendMinutesK 8,3,BlendMinutesK 5 (ships),-0.5803914202798648,24,-
+MINK#1,1786599413-529981,policy,BlendMinutesK 12,4,BlendMinutesK 5 (ships),-0.8260813472483951,24,-
+MINK#1,1786599413-529981,hold,BlendMinutesK 1,1,BlendMinutesK 5 (ships),-0.11502144139443911,24,-
+MINK#1,1786599413-529981,hold,BlendMinutesK 3,2,BlendMinutesK 5 (ships),0.27169957712005716,24,-
+MINK#1,1786599413-529981,hold,BlendMinutesK 8,3,BlendMinutesK 5 (ships),-0.4110925015530282,24,-
+MINK#1,1786599413-529981,hold,BlendMinutesK 12,4,BlendMinutesK 5 (ships),-0.755822034140112,24,-
+MINK#1,1786599413-529981,hold_fixedcap,BlendMinutesK 1,1,BlendMinutesK 5 (ships),0.17297400878636596,24,-
+MINK#1,1786599413-529981,hold_fixedcap,BlendMinutesK 3,2,BlendMinutesK 5 (ships),0.44182352470395997,24,-
+MINK#1,1786599413-529981,hold_fixedcap,BlendMinutesK 8,3,BlendMinutesK 5 (ships),-0.5108387486104883,24,-
+MINK#1,1786599413-529981,hold_fixedcap,BlendMinutesK 12,4,BlendMinutesK 5 (ships),-0.6952430673826558,24,-
+MINK#1,1786599413-529981,hold_nocap,BlendMinutesK 1,1,BlendMinutesK 5 (ships),-0.09826376109270818,24,-
+MINK#1,1786599413-529981,hold_nocap,BlendMinutesK 3,2,BlendMinutesK 5 (ships),0.2524309929201228,24,-
+MINK#1,1786599413-529981,hold_nocap,BlendMinutesK 8,3,BlendMinutesK 5 (ships),-0.5457714085431471,24,-
+MINK#1,1786599413-529981,hold_nocap,BlendMinutesK 12,4,BlendMinutesK 5 (ships),-0.7371201717597599,24,-

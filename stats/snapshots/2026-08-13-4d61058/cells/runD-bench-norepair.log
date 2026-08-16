@@ -1,0 +1,93 @@
+replay: all 6 slots busy, queueing (set FPL_REPLAY_SLOTS to change)
+replay: got a slot after 155s
+replay: slot 2/6, MemoryHigh=2G MemoryMax=4G, started 01:28:05
+=== RUN   TestDiagProjection
+
+=== opening bench weight (ships 0.10). Metric: HOLD.
+
+variant                     gw1      gw6     gw11     gw16     gw21     gw26    POLICY |      HOLD   moves
+bench weight 0.10 (ships)     8657     7715     6728     5541     4463     3103     36207 |     31457     592
+bench weight 0.02          8825     7556     6640     5569     4400     3048     36038 |     31474     589  <-- HOLD MOVED
+bench weight 0.05          8767     7638     6672     5569     4454     3071     36171 |     31536     584  <-- HOLD MOVED
+bench weight 0.20          8674     7722     6737     5549     4373     3001     36056 |     31152     597  <-- HOLD MOVED
+
+--- POLICY (the weekly transfer decision) ---
+Paired against "bench weight 0.10 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench weight 0.02        -0.419       24
+    early (prior-led)    -0.050        8
+    middle               -0.241        8
+    late (season-led)    -0.966        8
+bench weight 0.05        -0.133       24
+    early (prior-led)    +0.070        8
+    middle               -0.098        8
+    late (season-led)    -0.370        8
+bench weight 0.20        -0.480       24
+    early (prior-led)    +0.082        8
+    middle               +0.084        8
+    late (season-led)    -1.606        8
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD (the opening fifteen; use this for scoring constants) ---
+Paired against "bench weight 0.10 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench weight 0.02        +0.228       24
+    early (prior-led)    -0.045        8
+    middle               -0.380        8
+    late (season-led)    +1.108        8
+bench weight 0.05        +0.456       24
+    early (prior-led)    -0.124        8
+    middle               -0.184        8
+    late (season-led)    +1.675        8
+bench weight 0.20        -0.641       24
+    early (prior-led)    -0.437        8
+    middle               +0.236        8
+    late (season-led)    -1.724        8
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with the armband pinned to the day-one pick (diagnostic instrument) ---
+Paired against "bench weight 0.10 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench weight 0.02        +0.105       24
+    early (prior-led)    -0.051        8
+    middle               -0.300        8
+    late (season-led)    +0.666        8
+bench weight 0.05        +0.277       24
+    early (prior-led)    -0.219        8
+    middle               -0.184        8
+    late (season-led)    +1.233        8
+bench weight 0.20        -0.535       24
+    early (prior-led)    -0.298        8
+    middle               +0.285        8
+    late (season-led)    -1.592        8
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with nobody doubled (diagnostic instrument; not what FPL pays) ---
+Paired against "bench weight 0.10 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench weight 0.02        +0.105       24
+    early (prior-led)    -0.051        8
+    middle               -0.300        8
+    late (season-led)    +0.666        8
+bench weight 0.05        +0.347       24
+    early (prior-led)    -0.009        8
+    middle               -0.184        8
+    late (season-led)    +1.233        8
+bench weight 0.20        -0.535       24
+    early (prior-led)    -0.298        8
+    middle               +0.285        8
+    late (season-led)    -1.592        8
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+Cells written. Now: Rscript stats/sweep_inference.R <the FPL_CELLS path>
+--- PASS: TestDiagProjection (577.72s)
+PASS
+replay: exit=0 peak_rss=125 MB elapsed=9:37.64

@@ -1,0 +1,13 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+BENCH#1,1786598886-522240,policy,bench weight 0.02,1,bench weight 0.10 (ships),-0.4188901773283928,24,-
+BENCH#1,1786598886-522240,policy,bench weight 0.05,2,bench weight 0.10 (ships),-0.1326143186841131,24,-
+BENCH#1,1786598886-522240,policy,bench weight 0.20,3,bench weight 0.10 (ships),-0.47989206477478835,24,-
+BENCH#1,1786598886-522240,hold,bench weight 0.02,1,bench weight 0.10 (ships),0.22763617378891876,24,-
+BENCH#1,1786598886-522240,hold,bench weight 0.05,2,bench weight 0.10 (ships),0.45586591188707803,24,-
+BENCH#1,1786598886-522240,hold,bench weight 0.20,3,bench weight 0.10 (ships),-0.6414029043462687,24,-
+BENCH#1,1786598886-522240,hold_fixedcap,bench weight 0.02,1,bench weight 0.10 (ships),0.10479300818259614,24,-
+BENCH#1,1786598886-522240,hold_fixedcap,bench weight 0.05,2,bench weight 0.10 (ships),0.27663176883714663,24,-
+BENCH#1,1786598886-522240,hold_fixedcap,bench weight 0.20,3,bench weight 0.10 (ships),-0.5350644434597527,24,-
+BENCH#1,1786598886-522240,hold_nocap,bench weight 0.02,1,bench weight 0.10 (ships),0.10479300818259644,24,-
+BENCH#1,1786598886-522240,hold_nocap,bench weight 0.05,2,bench weight 0.10 (ships),0.34680720743363774,24,-
+BENCH#1,1786598886-522240,hold_nocap,bench weight 0.20,3,bench weight 0.10 (ships),-0.5350644434597527,24,-

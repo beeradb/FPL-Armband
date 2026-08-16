@@ -1,0 +1,661 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+
+Read 108 cells from 1 file(s): 1 sweep(s).
+------------------------------------------------------------------------------
+Contract checks
+  ok  exactly one baseline arm in each of 1 sweep(s)
+  ok  re-derives from points / weeks: hold, policy, hold_fixedcap, hold_nocap, hold_xpoints, policy_xpoints
+  ok  no infeasible cells
+  ..  bank_up_to = 5  (pinned modern rule; totals are not comparable across seasons)
+------------------------------------------------------------------------------
+Sweep: 1786888252-1904264 / bandstrength#1
+Metric: HOLD (the opening fifteen; scoring constants belong here)
+Paired against: band_strength 0 — FPL's blended FDR alone (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+band_strength 1 — the 3/14    0.357    36 |    0.243    1.47 |    0.184    5.0    1.94 |   0.1098   0.2196   0.1103
+band_strength 2 — CANARY,    -0.279    36 |    0.287   -0.97 |    0.272    5.0   -1.02 |   0.3530   0.3530   0.3473
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    band_strength 1 — the 3/14    0.1103 |        6        6    0.00013
+    band_strength 2 — CANARY,     0.3473 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    band_strength 1 — the 3/    1.94    1.59    1.00 |   -0.100   4/6  |     0.0    20.5    79.5   0.82
+    band_strength 2 — CANARY   -1.02   -0.91   -1.59 |   -0.120   3/6  |     0.0     0.0   100.0   0.89
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    band_strength 1 — the 3/14 SE    0.243  df   35.0  t    1.47  p   0.1511
+    band_strength 2 — CANARY,  SE    0.287  df   35.0  t   -0.97  p   0.3376
+
+  Family size for the Holm adjustment: 2 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    band_strength 2 — CANARY, double dose, sizes   -0.636    36 |    0.342   -1.86 |    0.355   -1.79 |    12   0.1213
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786888252-1904264 / bandstrength#1
+Metric: POLICY (the weekly transfer decision)
+Paired against: band_strength 0 — FPL's blended FDR alone (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+band_strength 1 — the 3/14    0.158    36 |    0.406    0.39 |    0.342    5.0    0.46 |   0.6634   0.6634   0.6440
+band_strength 2 — CANARY,    -0.473    36 |    0.412   -1.15 |    0.259    5.0   -1.83 |   0.1275   0.2550   0.1322
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    band_strength 1 — the 3/14    0.6440 |        6        6    0.00013
+    band_strength 2 — CANARY,     0.1322 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    band_strength 1 — the 3/    0.46    0.35    0.81 |   -0.501   4/6  |     0.0     0.0   100.0   0.76
+    band_strength 2 — CANARY   -1.83   -1.07   -1.29 |   -0.782   5/6  |     0.0     0.0   100.0   0.58
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    band_strength 1 — the 3/14 SE    0.406  df   35.0  t    0.39  p   0.6999
+    band_strength 2 — CANARY,  SE    0.412  df   35.0  t   -1.15  p   0.2586
+
+  Family size for the Holm adjustment: 2 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    band_strength 2 — CANARY, double dose, sizes   -0.631    36 |    0.345   -1.83 |    0.411   -1.54 |    15   0.1828
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786888252-1904264 / bandstrength#1
+Metric: instrument: HOLD, armband pinned to the day-one pick
+Paired against: band_strength 0 — FPL's blended FDR alone (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+band_strength 1 — the 3/14    0.315    36 |    0.243    1.30 |    0.181    5.0    1.74 |   0.1416   0.2833   0.1556
+band_strength 2 — CANARY,    -0.209    36 |    0.285   -0.73 |    0.236    5.0   -0.89 |   0.4164   0.4164   0.4271
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    band_strength 1 — the 3/14    0.1556 |        6        6    0.00013
+    band_strength 2 — CANARY,     0.4271 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    band_strength 1 — the 3/    1.74    1.41    0.88 |   -0.106   4/6  |     0.0    20.5    79.5   0.81
+    band_strength 2 — CANARY   -0.89   -0.69   -0.92 |   -0.217   3/6  |     0.0     0.0   100.0   0.78
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    band_strength 1 — the 3/14 SE    0.243  df   35.0  t    1.30  p   0.2023
+    band_strength 2 — CANARY,  SE    0.285  df   35.0  t   -0.73  p   0.4675
+
+  Family size for the Holm adjustment: 2 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    band_strength 2 — CANARY, double dose, sizes   -0.524    36 |    0.324   -1.62 |    0.328   -1.60 |    11   0.1687
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786888252-1904264 / bandstrength#1
+Metric: instrument: HOLD with nobody doubled (not what FPL pays)
+Paired against: band_strength 0 — FPL's blended FDR alone (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+band_strength 1 — the 3/14    0.293    36 |    0.241    1.22 |    0.169    5.0    1.74 |   0.1428   0.2855   0.1391
+band_strength 2 — CANARY,    -0.237    36 |    0.285   -0.83 |    0.232    5.0   -1.02 |   0.3549   0.3549   0.3794
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    band_strength 1 — the 3/14    0.1391 |        6        6    0.00013
+    band_strength 2 — CANARY,     0.3794 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    band_strength 1 — the 3/    1.74    1.32    0.81 |   -0.126   4/6  |     0.0    21.5    78.5   0.76
+    band_strength 2 — CANARY   -1.02   -0.77   -1.07 |   -0.236   3/6  |     0.0     0.0   100.0   0.76
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    band_strength 1 — the 3/14 SE    0.241  df   35.0  t    1.22  p   0.2318
+    band_strength 2 — CANARY,  SE    0.285  df   35.0  t   -0.83  p   0.4122
+
+  Family size for the Holm adjustment: 2 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    band_strength 2 — CANARY, double dose, sizes   -0.530    36 |    0.324   -1.64 |    0.334   -1.59 |    10   0.1716
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786888252-1904264 / bandstrength#1
+Metric: instrument: HOLD on accumulated xPoints (read beside HOLD)
+Paired against: band_strength 0 — FPL's blended FDR alone (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+band_strength 1 — the 3/14    0.146    36 |    0.224    0.65 |    0.102    5.0    1.43 |   0.2117   0.3349   0.2123
+band_strength 2 — CANARY,    -0.453    36 |    0.273   -1.66 |    0.281    5.0   -1.61 |   0.1675   0.3349   0.1787
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    band_strength 1 — the 3/14    0.2123 |        6        6    0.00013
+    band_strength 2 — CANARY,     0.1787 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    band_strength 1 — the 3/    1.43    0.62    0.58 |   -0.269   5/6  |     0.0     2.5    97.5   0.43
+    band_strength 2 — CANARY   -1.61   -1.59   -2.31 |   -0.013   4/6  |     0.0     0.0   100.0   0.99
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    band_strength 1 — the 3/14 SE    0.224  df   35.0  t    0.65  p   0.5194
+    band_strength 2 — CANARY,  SE    0.281  df    5.0  t   -1.61  p   0.1675
+
+  Family size for the Holm adjustment: 2 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    band_strength 2 — CANARY, double dose, sizes   -0.599    36 |    0.283   -2.12 |    0.261   -2.30 |    11   0.0509
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786888252-1904264 / bandstrength#1
+Metric: instrument: POLICY on accumulated xPoints (read beside POLICY)
+Paired against: band_strength 0 — FPL's blended FDR alone (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+band_strength 1 — the 3/14    0.283    36 |    0.302    0.94 |    0.118    5.0    2.40 |   0.0614   0.1228   0.0700
+band_strength 2 — CANARY,    -0.412    36 |    0.320   -1.29 |    0.305    5.0   -1.35 |   0.2350   0.2350   0.2533
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    band_strength 1 — the 3/14    0.0700 |        6        6    0.00013
+    band_strength 2 — CANARY,     0.2533 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    band_strength 1 — the 3/    2.40    0.81    2.56 |   -0.651   5/6  |     0.0     0.0   100.0   0.34
+    band_strength 2 — CANARY   -1.35   -1.27   -1.34 |   -0.077   4/6  |     0.0     0.0   100.0   0.94
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    band_strength 1 — the 3/14 SE    0.302  df   35.0  t    0.94  p   0.3546
+    band_strength 2 — CANARY,  SE    0.320  df   35.0  t   -1.29  p   0.2064
+
+  Family size for the Holm adjustment: 2 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    band_strength 2 — CANARY, double dose, sizes   -0.696    36 |    0.265   -2.62 |    0.280   -2.48 |    12   0.0552
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786888252-1904264 / bandstrength#1
+Metric: marginal: the armband's share of this effect
+Paired against: band_strength 0 — FPL's blended FDR alone (ships)
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+band_strength 1 — the 3/14    0.064    36 |    0.037    1.74 |    0.035    5.0    1.83 |   0.1272   0.2543   0.0759
+band_strength 2 — CANARY,    -0.042    36 |    0.084   -0.50 |    0.119    5.0   -0.36 |   0.7369   0.7369   0.7273
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    band_strength 1 — the 3/14    0.0759 |        6        6    0.00013
+    band_strength 2 — CANARY,     0.7273 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    band_strength 1 — the 3/    1.83    1.75    1.63 |   -0.001   4/6  |     0.0     2.4    97.6   0.96
+    band_strength 2 — CANARY   -0.36   -0.54   -0.58 |    0.049   3/6  |    18.4     0.0    81.6   1.53
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    band_strength 1 — the 3/14 SE    0.037  df   35.0  t    1.74  p   0.0909
+    band_strength 2 — CANARY,  SE    0.119  df    5.0  t   -0.36  p   0.7369
+
+  Family size for the Holm adjustment: 2 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    band_strength 2 — CANARY, double dose, sizes   -0.106    36 |    0.072   -1.47 |    0.091   -1.17 |     8   0.2901
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786888252-1904264 / bandstrength#1
+Metric: marginal: re-picking the captain weekly
+Paired against: band_strength 0 — FPL's blended FDR alone (ships)
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+band_strength 1 — the 3/14    0.042    36 |    0.026    1.59 |    0.020    5.0    2.06 |   0.0948   0.1895   0.1025
+band_strength 2 — CANARY,    -0.070    36 |    0.083   -0.84 |    0.109    5.0   -0.64 |   0.5520   0.5520   0.5921
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    band_strength 1 — the 3/14    0.1025 |        6        6    0.00013
+    band_strength 2 — CANARY,     0.5921 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    band_strength 1 — the 3/    2.06    1.45    2.78 |   -0.003   4/6  |     0.0     0.0   100.0   0.70
+    band_strength 2 — CANARY   -0.64   -0.89   -0.90 |    0.035   3/6  |    13.7     0.0    86.3   1.40
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    band_strength 1 — the 3/14 SE    0.026  df   35.0  t    1.59  p   0.1201
+    band_strength 2 — CANARY,  SE    0.109  df    5.0  t   -0.64  p   0.5520
+
+  Family size for the Holm adjustment: 2 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    band_strength 2 — CANARY, double dose, sizes   -0.112    36 |    0.075   -1.50 |    0.097   -1.15 |     9   0.3177
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Noise by information regime — POLICY, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      0.574      1.00        1.00      24
+middle                    26      0.665      1.16        1.18      24
+late (season-led)         16      0.861      1.50        1.51      24
+------------------------------------------------------------------------------
+Noise by information regime — HOLD, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      0.356      1.00        1.00      24
+middle                    26      0.404      1.13        1.18      24
+late (season-led)         16      0.578      1.62        1.51      24
+------------------------------------------------------------------------------
+Reproducing Go's paired means
+  ok  all 12 comparison(s) reproduce Go's mean and cell count (max abs diff 0e+00)
+  ..  4 comparison(s) computed here with no Go mean to check against:
+        bandstrength#1 m_armband band_strength 1 — the 3/14/3 adjustment at full strength
+        bandstrength#1 m_armband band_strength 2 — CANARY, double dose, sizes the instrument
+        bandstrength#1 m_capweekly band_strength 1 — the 3/14/3 adjustment at full strength
+        bandstrength#1 m_capweekly band_strength 2 — CANARY, double dose, sizes the instrument
+------------------------------------------------------------------------------
+wrote /tmp/bs3-inf/inference.csv
+
+Reading this: prefer the CR2 column, and read its df rather than assuming
+one. Treat a raw p under 0.05 whose Holm-adjusted p is not as the case the
+old |t| >= 2 rule mislabelled 'confirmed'. And weigh the shape plot above
+any single row: monotonicity, a plateau with a cliff, or the held-out
+season agreeing is what this project accepts as evidence.
+
+`p_wild` is a SECOND estimator, not a correction to the first: it swaps an
+unverifiable normality assumption on the season means for a symmetry one.
+It is a function of the SEASON TOTALS ALONE, so it says nothing whatever
+about the shape of the cells inside a season. Read it with
+`wild_seasons_movable` and `wild_floor` — both are populated on inert rows
+too, so `wild_floor > 0.05` is a working filter for 'could not be measured'
+and `wild_inert` names which of the three reasons applies. ASYMMETRIC BY
+RULE: it may withdraw support from a CR2 rejection, never grant one. Do not
+Holm-adjust it, and derive no MDE from it.

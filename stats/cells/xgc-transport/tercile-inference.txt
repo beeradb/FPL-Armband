@@ -1,0 +1,133 @@
+rows 570, seasons 2022-23 2023-24 2024-25 2025-26
+liveness 1, raw movement: 570 of 570 player-seasons move = 1.0000
+                          494 of 570 move by more than 1% = 0.8667
+liveness 2, NOT a scalar rescale -- within-season CV of rec90_ust/rec90_fpl:
+                          2022-23 0.0461   2023-24 0.0433   2024-25 0.0436   2025-26 0.0476
+recentring identity: max |act90-weighted mean of recentred - 1| = 2.22e-16
+
+=== Table 1. Raw tercile ratios (reproduces the Go log)
+season    arm      terc     n  ratio-of-totals mean-of-ratios   boot SE
+2022-23   FPL      low     40           1.0047          1.0043   0.0098
+2022-23   FPL      mid     40           1.0050          1.0127   0.0116
+2022-23   FPL      high    40           1.0231          1.0335   0.0161
+2022-23   UST      low     40           0.9235          0.9228   0.0126
+2022-23   UST      mid     40           0.9347          0.9410   0.0102
+2022-23   UST      high    40           0.9536          0.9646   0.0190
+2023-24   FPL      low     51           1.0051          1.0066   0.0041
+2023-24   FPL      mid     53           0.9987          1.0020   0.0078
+2023-24   FPL      high    51           0.9857          0.9897   0.0095
+2023-24   UST      low     51           1.0051          1.0059   0.0087
+2023-24   UST      mid     53           0.9935          0.9953   0.0133
+2023-24   UST      high    51           0.9956          0.9975   0.0160
+2024-25   FPL      low     47           1.0072          1.0099   0.0046
+2024-25   FPL      mid     49           1.0100          1.0111   0.0054
+2024-25   FPL      high    47           0.9995          1.0053   0.0054
+2024-25   UST      low     47           1.0502          1.0511   0.0108
+2024-25   UST      mid     49           1.0555          1.0570   0.0107
+2024-25   UST      high    47           1.0454          1.0489   0.0089
+2025-26   FPL      low     50           1.0033          1.0067   0.0063
+2025-26   FPL      mid     52           1.0070          1.0129   0.0074
+2025-26   FPL      high    50           0.9939          1.0015   0.0115
+2025-26   UST      low     50           1.0208          1.0243   0.0125
+2025-26   UST      mid     52           1.0343          1.0403   0.0138
+2025-26   UST      high    50           1.0087          1.0181   0.0141
+Go/R estimator agreement: max |difference| over 24 bucket cells = 5.78e-10
+
+whole-population ratio per season-arm (the level the recentring removes):
+  2022-23   FPL  1.0109
+  2022-23   UST  0.9372
+  2023-24   FPL  0.9964
+  2023-24   UST  0.9979
+  2024-25   FPL  1.0056
+  2024-25   UST  1.0504
+  2025-26   FPL  1.0016
+  2025-26   UST  1.0217
+
+=== Table 2. Recentred tercile ratios (tercile ratio / this season-arm's whole-population ratio)
+season    arm           low      mid     high     high-low
+2022-23   FPL        0.9939   0.9942   1.0121      +0.0183
+2022-23   UST        0.9855   0.9974   1.0176      +0.0321
+2023-24   FPL        1.0088   1.0024   0.9893      -0.0195
+2023-24   UST        1.0073   0.9956   0.9978      -0.0095
+2024-25   FPL        1.0016   1.0044   0.9939      -0.0076
+2024-25   UST        0.9997   1.0048   0.9952      -0.0045
+2025-26   FPL        1.0017   1.0054   0.9923      -0.0094
+2025-26   UST        0.9992   1.0124   0.9873      -0.0119
+
+=== Table 3 [4 seasons: 2022-23 2023-24 2024-25 2025-26]. Is each bucket flat?
+quantity                            S      mean        SE       t       p    Holm    thresh    MDE80              95% CI
+FPL recentred low minus 1           4   +0.0015    0.0030   +0.49  0.6575  1.0000    0.0097   0.0126  [ -0.0082, +0.0112]
+FPL recentred mid minus 1           4   +0.0016    0.0025   +0.63  0.5753  1.0000    0.0081   0.0106  [ -0.0065, +0.0097]
+FPL recentred high minus 1          4   -0.0031    0.0052   -0.60  0.5933  1.0000    0.0164   0.0215  [ -0.0195, +0.0134]
+UST recentred low minus 1           4   -0.0021    0.0045   -0.46  0.6764  1.0000    0.0145   0.0189  [ -0.0165, +0.0124]
+UST recentred mid minus 1           4   +0.0026    0.0038   +0.67  0.5526  1.0000    0.0122   0.0160  [ -0.0096, +0.0148]
+UST recentred high minus 1          4   -0.0006    0.0064   -0.09  0.9371  1.0000    0.0205   0.0268  [ -0.0210, +0.0199]
+
+=== Table 4 [4 seasons: 2022-23 2023-24 2024-25 2025-26]. Paired UST minus FPL -- the transport contrast
+quantity                            S      mean        SE       t       p    Holm    thresh    MDE80              95% CI
+UST-FPL recentred low               4   -0.0036    0.0016   -2.19  0.1157  0.5787    0.0052   0.0068  [ -0.0088, +0.0016]
+UST-FPL recentred mid               4   +0.0010    0.0029   +0.33  0.7612  1.0000    0.0092   0.0120  [ -0.0082, +0.0102]
+UST-FPL recentred high              4   +0.0025    0.0029   +0.86  0.4509  1.0000    0.0093   0.0121  [ -0.0068, +0.0118]
+UST-FPL (high-low)                  4   +0.0061    0.0036   +1.68  0.1912  0.7650    0.0116   0.0151  [ -0.0054, +0.0177]
+UST-FPL spread (max-min)            4   +0.0043    0.0052   +0.83  0.4694  1.0000    0.0166   0.0217  [ -0.0123, +0.0209]
+
+=== Table 5 [4 seasons: 2022-23 2023-24 2024-25 2025-26]. Tercile structure per arm
+quantity                            S      mean        SE       t       p    Holm    thresh    MDE80              95% CI
+FPL (high-low)                      4   -0.0046    0.0080   -0.57  0.6098  1.0000    0.0256   0.0334  [ -0.0301, +0.0210]
+FPL spread (max-min)                4   +0.0153    0.0021   +7.19  0.0055  0.0222    0.0068   0.0089  [ +0.0085, +0.0221]
+UST (high-low)                      4   +0.0015    0.0103   +0.15  0.8907  1.0000    0.0328   0.0429  [ -0.0313, +0.0343]
+UST spread (max-min)                4   +0.0196    0.0054   +3.63  0.0361  0.1082    0.0172   0.0225  [ +0.0024, +0.0368]
+
+=== Table 3 [3 seasons: 2023-24 2024-25 2025-26 -- 2022-23 dropped, GW16-38 only]. Is each bucket flat?
+quantity                            S      mean        SE       t       p    Holm    thresh    MDE80              95% CI
+FPL recentred low minus 1           3   +0.0040    0.0024   +1.70  0.2322  0.6965    0.0102   0.0127  [ -0.0062, +0.0142]
+FPL recentred mid minus 1           3   +0.0041    0.0009   +4.55  0.0451  0.2255    0.0038   0.0048  [ +0.0002, +0.0079]
+FPL recentred high minus 1          3   -0.0081    0.0014   -6.01  0.0266  0.1597    0.0058   0.0073  [ -0.0140, -0.0023]
+UST recentred low minus 1           3   +0.0021    0.0026   +0.79  0.5115  0.9389    0.0112   0.0140  [ -0.0091, +0.0133]
+UST recentred mid minus 1           3   +0.0043    0.0048   +0.89  0.4694  0.9389    0.0208   0.0260  [ -0.0165, +0.0251]
+UST recentred high minus 1          3   -0.0066    0.0032   -2.09  0.1724  0.6895    0.0136   0.0170  [ -0.0202, +0.0070]
+
+=== Table 4 [3 seasons: 2023-24 2024-25 2025-26 -- 2022-23 dropped, GW16-38 only]. Paired UST minus FPL -- the transport contrast
+quantity                            S      mean        SE       t       p    Holm    thresh    MDE80              95% CI
+UST-FPL recentred low               3   -0.0020    0.0003   -6.57  0.0224  0.1121    0.0013   0.0016  [ -0.0033, -0.0007]
+UST-FPL recentred mid               3   +0.0002    0.0040   +0.06  0.9594  1.0000    0.0170   0.0212  [ -0.0168, +0.0173]
+UST-FPL recentred high              3   +0.0016    0.0039   +0.40  0.7281  1.0000    0.0168   0.0209  [ -0.0152, +0.0183]
+UST-FPL (high-low)                  3   +0.0035    0.0036   +0.98  0.4318  1.0000    0.0155   0.0193  [ -0.0120, +0.0190]
+UST-FPL spread (max-min)            3   +0.0011    0.0058   +0.19  0.8662  1.0000    0.0250   0.0312  [ -0.0239, +0.0261]
+
+=== Table 5 [3 seasons: 2023-24 2024-25 2025-26 -- 2022-23 dropped, GW16-38 only]. Tercile structure per arm
+quantity                            S      mean        SE       t       p    Holm    thresh    MDE80              95% CI
+FPL (high-low)                      3   -0.0122    0.0037   -3.31  0.0805  0.1737    0.0158   0.0197  [ -0.0280, +0.0037]
+FPL spread (max-min)                3   +0.0143    0.0027   +5.36  0.0331  0.1324    0.0115   0.0143  [ +0.0028, +0.0258]
+UST (high-low)                      3   -0.0087    0.0022   -3.97  0.0579  0.1737    0.0094   0.0117  [ -0.0180, +0.0007]
+UST spread (max-min)                3   +0.0154    0.0049   +3.17  0.0868  0.1737    0.0210   0.0261  [ -0.0055, +0.0364]
+
+=== Table 6. The continuous contrast: slope of log(rec90_ust/rec90_fpl) on exposure
+season        slope  SE(club)      n   clubs
+2022-23     +0.0256    0.0275    120   20
+2023-24     +0.0232    0.0160    155   20
+2024-25     +0.0008    0.0164    143   20
+2025-26     -0.0017    0.0233    152   20
+
+pooled [4 seasons: 2022-23 2023-24 2024-25 2025-26]: slope +0.0120, SE 0.0072, t +1.66, p 0.1956, thresh 0.0229, MDE80 0.0300
+  positive in 3 of 4 seasons; implied high-low gap = slope x 0.386 = +0.0046
+
+pooled [3 seasons: 2023-24 2024-25 2025-26 -- 2022-23 dropped]: slope +0.0074, SE 0.0079, t +0.94, p 0.4476, thresh 0.0341, MDE80 0.0425
+  positive in 2 of 3 seasons; implied high-low gap = slope x 0.387 = +0.0029
+
+=== Table 7. mean-of-ratios minus ratio-of-totals, by tercile (percentage points)
+season    arm        low      mid     high   monotone?
+2022-23   FPL     -0.039   +0.768   +1.039   yes
+2022-23   UST     -0.079   +0.625   +1.095   yes
+2023-24   FPL     +0.153   +0.325   +0.395   yes
+2023-24   UST     +0.079   +0.178   +0.191   yes
+2024-25   FPL     +0.264   +0.102   +0.577   no
+2024-25   UST     +0.096   +0.150   +0.351   yes
+2025-26   FPL     +0.342   +0.589   +0.762   yes
+2025-26   UST     +0.346   +0.595   +0.949   yes
+increasing in exposure in 7 of 8 season-arms; overall range -0.079 to +1.095 pp
+
+Estimator: ratio of totals over per-player season XGC90, players weighted equally
+in rate space; recentred on the same season-arm's whole-population ratio.
+Uncertainty: club-clustered pairs bootstrap within season (Table 1),
+season-clustered elsewhere. thresh = t_crit(S-1) * SE.

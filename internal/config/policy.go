@@ -1,0 +1,127 @@
+package config
+
+// ReviewPolicy is the standing brief for the weekly review. You set the
+// thresholds and the rules; the agent decides within them.
+//
+// The point of writing these down is that they bind the agent in the weeks
+// when a move feels tempting. "Only transfer for a real gain" is easy to agree
+// with in the abstract and easy to abandon after a bad gameweek.
+type ReviewPolicy struct {
+	// MinGainForTransfer is the modelled points-per-gameweek improvement a
+	// straight swap must deliver to be worth a free transfer. Below this,
+	// bank the transfer instead.
+	//
+	// # It reads 0.4, it is a no-op at that value, and raising it did not help
+	//
+	// The gate is `gain >= MinGainForTransfer && gain x horizon + money >=
+	// FreeTransferValue`. At the shipped horizon of 5 and a free-transfer charge
+	// of 2, the second clause already demands gain >= 0.4 — so the first clause
+	// bound nothing. Sweeping it confirmed that exactly: 0.0 and 0.4 produce
+	// byte-identical seasons, the same 222 transfers and the same points, over
+	// four seasons and three entry points. Two constants were expressing one
+	// threshold and one of them was decorative.
+	//
+	// It was briefly raised to 0.7 and is **retracted**. The reasoning still
+	// looks sound: TestDiagTransferError finds the model over-rates the player
+	// it *buys* by about 0.53 pts/gw while the player it sells is well
+	// calibrated, and correcting a flat buy-side bias is arithmetically the same
+	// as demanding that much more gain, which puts the honest threshold near
+	// 0.4 + 0.53. A totals sweep on three start points appeared to confirm it,
+	// 18048 at 0.70 against 17911.
+	//
+	// Re-measured properly — six start points, 24 matched cells, paired
+	// differences — the direction **reverses**: 0.4 reads +0.535 pts/gw over 0.7
+	// (t = +1.63), where the old method had 0.7 ahead by 137 points. Neither
+	// clears |t| = 2, so the honest statement is that this constant does not
+	// resolve on points at any value, and a setting changed on evidence that has
+	// since inverted goes back.
+	//
+	// Two candidate explanations for the reversal and this cannot separate them:
+	// the earlier run had half the cells, and BlankRunPenalty shipped in between,
+	// which moves the same players. That is the standing rule — a sweep is only
+	// valid at the setting of every knob it shares a population with.
+	//
+	// So it sits at 0.4 knowing it is a **no-op**: the gate's second clause,
+	// gain x horizon + money >= FreeTransferValue, already demands 0.4 at horizon
+	// 5 and charge 2, and 0.0 and 0.4 return byte-identical seasons. The real
+	// threshold lives in free_transfer_value. Do not raise this one again without
+	// re-measuring that at the same time.
+	MinGainForTransfer float64 `json:"min_gain_for_free_transfer"`
+
+	// MinGainForHit is the net modelled gain, across the whole horizon and
+	// after the 4-point cost, required to justify a hit.
+	MinGainForHit float64 `json:"min_net_gain_for_minus_4"`
+
+	// BankUpTo is how many free transfers may accumulate.
+	//
+	// FPL raised this from 2 to 5 for the 2024-25 season. A replay of an
+	// earlier season must use the rule that was in force — see
+	// backtest.BankLimitFor.
+	//
+	// Old doc, kept because it still describes the intent: how many free
+	// transfers to accumulate before spending,
+	// absent an injury or a genuinely large upgrade. FPL caps banking at 5.
+	BankUpTo int `json:"bank_transfers_up_to"`
+
+	// FreeTransferValue is what a free transfer is charged before it will be
+	// spent, in points across the horizon.
+	//
+	// A transfer with no deduction is not a transfer with no cost. Judged only
+	// on a small per-gameweek threshold, the replay churned: it sold Palmer and
+	// bought him back two gameweeks later, cycled the same three forwards
+	// across four transfers, and round-tripped Saliba — twelve such reversals
+	// across three seasons.
+	//
+	// Charging for the transfer is really a confidence threshold rather than a
+	// true opportunity cost. A banked transfer that is about to expire is
+	// genuinely free in resource terms, and exempting it makes no difference to
+	// the replay at all; what the charge actually filters is moves too small to
+	// be distinguishable from noise.
+	//
+	// Four — the price of buying another — is too high: it cuts the replay from
+	// 73 transfers to 39 and scores below charging nothing. Anything from 1 to
+	// 2.5 beats zero on all three seasons; 2 is the middle of that range. The
+	// exact value is not resolvable on three seasons, so treat it as a knob
+	// rather than a calibrated constant.
+	FreeTransferValue float64 `json:"free_transfer_value"`
+
+	// MaxHitsPerWeek caps points deliberately spent on extra transfers.
+	// Zero means never take a hit.
+	MaxHitsPerWeek int `json:"max_hits_per_week"`
+
+	// AlwaysActOnInjury forces a move when a starter is ruled out, regardless
+	// of the gain thresholds — an unavailable player scores zero, which no
+	// threshold can outweigh.
+	AlwaysActOnInjury bool `json:"always_act_on_ruled_out_starter"`
+
+	// Rules are free-text policies applied verbatim during the review.
+	Rules []string `json:"rules"`
+
+	// LeadHours is how long before a deadline a scheduled run should fire.
+	//
+	// The point of running late is team news: press conferences land one to two
+	// days out and confirmed line-ups only at the deadline itself. Too early and
+	// the run reasons from stale availability; too late and there is no time to
+	// act on it. Six hours is a compromise that clears most Friday pressers
+	// while leaving the evening to decide.
+	LeadHours float64 `json:"scheduled_run_lead_hours"`
+}
+
+func DefaultReviewPolicy() ReviewPolicy {
+	return ReviewPolicy{
+		MinGainForTransfer: 0.4,
+		MinGainForHit:      3.0,
+		FreeTransferValue:  2.0,
+		BankUpTo:           5,
+		LeadHours:          6,
+		MaxHitsPerWeek:     1,
+		AlwaysActOnInjury:  true,
+		Rules: []string{
+			"Do nothing is a valid and usually underrated answer. Only recommend a move when the case is affirmative.",
+			"Never take a hit to chase last week's points. A player who blanked is not thereby a sell.",
+			"Prefer fixing a problem (injury, lost starting place, terrible run) over chasing an upgrade.",
+			"If a wildcard is planned within two gameweeks, do not spend transfers on problems the wildcard will fix anyway.",
+			"Check team news before finalising: the model cannot see press conferences, and FPL's own news field lags them.",
+		},
+	}
+}

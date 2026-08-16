@@ -1,0 +1,202 @@
+package snapshot
+
+import (
+	"encoding/csv"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+// Provenance is what a sweep records about itself, written as a side effect of
+// emitting cells rather than by anybody remembering to.
+//
+// The one field that cannot be recovered from the cells file afterwards is
+// DeclaredArms. A sweep killed under load leaves a cells file containing however
+// many arms finished, and nothing in it says how many were asked for — so three
+// arms of six reads downstream as a complete three-arm sweep. That has happened:
+// AGENTS.md records a block killed four times at 1, 3, 3 and 4 arms of 6, whose
+// missing arms were reported as "unverified rather than corrected" only because
+// somebody noticed by hand. Declaring the arms up front makes the gap arithmetic.
+type Provenance struct {
+	Sweep        string   // sweep label, e.g. "MINHL#1"
+	RunID        string   // per-process id, so two runs of one block stay separate
+	Commit       string   // git HEAD at the time of the run
+	Dirty        bool     // true when the working tree had uncommitted changes
+	Digest       string   // Fingerprint.Digest: the constants in force
+	Seasons      []string // season pairs replayed, as "cur<-prior"
+	StartGWs     []int    // entry gameweeks
+	BankUpTo     int      // free-transfer bank rule pinned for every cell
+	DeclaredArms []string // every arm the sweep intended to run, in order
+	Constants    []Constant
+	Env          []Constant
+}
+
+const provenanceSuffix = ".provenance.csv"
+
+// ProvenancePath is where a cells file's provenance lives: beside it, same base.
+//
+// The suffix rule is duplicated in no other language. stats/*.R derives the
+// .means.csv path independently and the two rules once disagreed — Go trimmed a
+// ".csv" suffix and R substituted a ".csv$" anchor, which differ for a path not
+// ending in .csv, and the mismatch killed a run *after* the replay had been paid
+// for. Nothing outside Go reads provenance, so there is only one rule here.
+func ProvenancePath(cells string) string {
+	return strings.TrimSuffix(cells, ".csv") + provenanceSuffix
+}
+
+// WriteProvenance appends one sweep's provenance to the sidecar file.
+//
+// Append rather than truncate, for the same reason the cells file appends:
+// several sweeps run in one session and losing the earlier ones is the failure
+// mode. Written before the first cell rather than after the last, so a killed
+// sweep still leaves its declaration behind — which is the entire point, since a
+// killed sweep is exactly when the declaration is needed.
+func WriteProvenance(path string, p Provenance) error {
+	if path == "" {
+		return nil
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	w := csv.NewWriter(f)
+	if st.Size() == 0 {
+		if err := w.Write([]string{"sweep", "run_id", "key", "value"}); err != nil {
+			return err
+		}
+	}
+	put := func(k, v string) {
+		_ = w.Write([]string{p.Sweep, p.RunID, k, v})
+	}
+	put("commit", p.Commit)
+	put("dirty", strconv.FormatBool(p.Dirty))
+	put("constants_digest", p.Digest)
+	put("bank_up_to", strconv.Itoa(p.BankUpTo))
+	for _, s := range p.Seasons {
+		put("season", s)
+	}
+	for _, g := range p.StartGWs {
+		put("start_gw", strconv.Itoa(g))
+	}
+	// One row per arm, in declaration order, so the reader can name which arms
+	// are missing rather than only counting them.
+	for i, a := range p.DeclaredArms {
+		put("declared_arm", fmt.Sprintf("%d\t%s", i, a))
+	}
+	for _, c := range p.Constants {
+		put("constant", c.Path+"\t"+c.Value)
+	}
+	for _, c := range p.Env {
+		put("env", c.Path+"\t"+c.Value)
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// ReadProvenance reads every sweep's provenance from a sidecar file, keyed by
+// (sweep, run_id) exactly as the cells file is.
+func ReadProvenance(path string) (map[string]Provenance, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	r := csv.NewReader(f)
+	r.FieldsPerRecord = -1
+	if _, err := r.Read(); err != nil { // header
+		if err == io.EOF {
+			return map[string]Provenance{}, nil
+		}
+		return nil, err
+	}
+	out := map[string]Provenance{}
+	// Arms are collected with their declared index so the order survives a file
+	// whose rows got interleaved by two concurrent sweeps.
+	type armRef struct {
+		idx  int
+		name string
+	}
+	arms := map[string][]armRef{}
+	for {
+		rec, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if len(rec) < 4 {
+			continue
+		}
+		key := rec[0] + "\x00" + rec[1]
+		p := out[key]
+		p.Sweep, p.RunID = rec[0], rec[1]
+		k, v := rec[2], rec[3]
+		name, rest, _ := strings.Cut(v, "\t")
+		switch k {
+		case "commit":
+			p.Commit = v
+		case "dirty":
+			p.Dirty = v == "true"
+		case "constants_digest":
+			p.Digest = v
+		case "bank_up_to":
+			p.BankUpTo, _ = strconv.Atoi(v)
+		case "season":
+			p.Seasons = append(p.Seasons, v)
+		case "start_gw":
+			if n, err := strconv.Atoi(v); err == nil {
+				p.StartGWs = append(p.StartGWs, n)
+			}
+		case "declared_arm":
+			i, _ := strconv.Atoi(name)
+			arms[key] = append(arms[key], armRef{idx: i, name: rest})
+		case "constant":
+			p.Constants = append(p.Constants, Constant{Path: name, Value: rest})
+		case "env":
+			p.Env = append(p.Env, Constant{Path: name, Value: rest})
+		}
+		out[key] = p
+	}
+	for key, list := range arms {
+		sort.Slice(list, func(i, j int) bool { return list[i].idx < list[j].idx })
+		p := out[key]
+		for _, a := range list {
+			p.DeclaredArms = append(p.DeclaredArms, a.name)
+		}
+		out[key] = p
+	}
+	return out, nil
+}
+
+// GitState reports HEAD and whether the tree was clean.
+//
+// A dirty tree is recorded rather than refused. Measurements get taken mid-change
+// constantly and refusing would only mean they got taken with no stamp at all;
+// what matters is that "commit abc1234, tree dirty" cannot later be mistaken for
+// "commit abc1234".
+func GitState(dir string) (sha string, dirty bool) {
+	run := func(args ...string) string {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		out, err := cmd.Output()
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(out))
+	}
+	sha = run("rev-parse", "HEAD")
+	if sha == "" {
+		return "unknown", false
+	}
+	return sha, run("status", "--porcelain") != ""
+}

@@ -1,0 +1,17 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+ORACLEMINUTES#1,1786410044-73049,policy,ORACLE[info:minutes] perfect minutes,1,real (ships),2.1756064592878097,24,info:minutes
+ORACLEMINUTES#1,1786410044-73049,hold,ORACLE[info:minutes] perfect minutes,1,real (ships),4.818792276458179,24,info:minutes
+ORACLEMINUTES#1,1786410044-73049,hold_fixedcap,ORACLE[info:minutes] perfect minutes,1,real (ships),5.33945965732293,24,info:minutes
+ORACLEMINUTES#1,1786410044-73049,hold_nocap,ORACLE[info:minutes] perfect minutes,1,real (ships),4.863403356538368,24,info:minutes
+ORACLEMINUTES#1,1786417371-107320,policy,ORACLE[info:availability] never played at all,1,real (ships),-0.12363438007030651,24,info:availability
+ORACLEMINUTES#1,1786417371-107320,policy,ORACLE[info:lineups] perfect lineups,2,real (ships),1.2974986625587313,24,info:lineups
+ORACLEMINUTES#1,1786417371-107320,policy,ORACLE[info:minutes] perfect minutes,3,real (ships),1.7768222565848435,24,info:minutes
+ORACLEMINUTES#1,1786417371-107320,hold,ORACLE[info:availability] never played at all,1,real (ships),0.3803366705969671,24,info:availability
+ORACLEMINUTES#1,1786417371-107320,hold,ORACLE[info:lineups] perfect lineups,2,real (ships),1.9304673735451763,24,info:lineups
+ORACLEMINUTES#1,1786417371-107320,hold,ORACLE[info:minutes] perfect minutes,3,real (ships),1.2319988337579868,24,info:minutes
+ORACLEMINUTES#1,1786417371-107320,hold_fixedcap,ORACLE[info:availability] never played at all,1,real (ships),0.3923980741057405,24,info:availability
+ORACLEMINUTES#1,1786417371-107320,hold_fixedcap,ORACLE[info:lineups] perfect lineups,2,real (ships),2.4780493946683877,24,info:lineups
+ORACLEMINUTES#1,1786417371-107320,hold_fixedcap,ORACLE[info:minutes] perfect minutes,3,real (ships),1.8044073161350054,24,info:minutes
+ORACLEMINUTES#1,1786417371-107320,hold_nocap,ORACLE[info:availability] never played at all,1,real (ships),0.3605998284917045,24,info:availability
+ORACLEMINUTES#1,1786417371-107320,hold_nocap,ORACLE[info:lineups] perfect lineups,2,real (ships),2.184551779159903,24,info:lineups
+ORACLEMINUTES#1,1786417371-107320,hold_nocap,ORACLE[info:minutes] perfect minutes,3,real (ships),1.4825640024438649,24,info:minutes

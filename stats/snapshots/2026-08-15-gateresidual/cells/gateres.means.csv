@@ -1,0 +1,19 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+GATERES#1,1786774384-1192412,policy,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),3.4821178059164315,36,decision:transfergate
+GATERES#1,1786774384-1192412,policy,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),2.2461357257314543,36,decision:transfergatexp
+GATERES#1,1786774384-1192412,policy,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),2.3825467022454054,36,decision:transfergateres
+GATERES#1,1786774384-1192412,policy_xpoints,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),2.1118874764428557,36,decision:transfergate
+GATERES#1,1786774384-1192412,policy_xpoints,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),1.9129542765322074,36,decision:transfergatexp
+GATERES#1,1786774384-1192412,policy_xpoints,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),-0.5827545530270838,36,decision:transfergateres
+GATERES#1,1786774384-1192412,hold,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+GATERES#1,1786774384-1192412,hold,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+GATERES#1,1786774384-1192412,hold,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+GATERES#1,1786774384-1192412,hold_xpoints,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+GATERES#1,1786774384-1192412,hold_xpoints,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+GATERES#1,1786774384-1192412,hold_xpoints,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+GATERES#1,1786774384-1192412,hold_fixedcap,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+GATERES#1,1786774384-1192412,hold_fixedcap,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+GATERES#1,1786774384-1192412,hold_fixedcap,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+GATERES#1,1786774384-1192412,hold_nocap,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+GATERES#1,1786774384-1192412,hold_nocap,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+GATERES#1,1786774384-1192412,hold_nocap,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres

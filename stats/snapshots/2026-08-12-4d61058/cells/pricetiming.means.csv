@@ -1,0 +1,5 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagPriceTimingSignificance#1,1786396764-50576,policy,ORACLE[info:prices] perfect timing,1,real prices (ships),0.11790714000382312,24,info:prices
+TestDiagPriceTimingSignificance#1,1786396764-50576,hold,ORACLE[info:prices] perfect timing,1,real prices (ships),0,24,info:prices
+TestDiagPriceTimingSignificance#1,1786396764-50576,hold_fixedcap,ORACLE[info:prices] perfect timing,1,real prices (ships),0,24,info:prices
+TestDiagPriceTimingSignificance#1,1786396764-50576,hold_nocap,ORACLE[info:prices] perfect timing,1,real prices (ships),0,24,info:prices

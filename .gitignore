@@ -1,0 +1,25 @@
+
+.cache/
+.claude/settings.local.json
+.claude/worktrees/
+.DS_Store
+/armband
+# Build output
+# Claude Code local settings (machine-specific permissions)
+# Diagnostic sweep binary
+# FPL API response cache
+# Generated reports (remove this line if you want to track them)
+# Local config may contain your FPL entry id
+# macOS
+# Plots and inference tables from stats/sweep_inference.R
+config.local.json
+armband-sweep
+reports
+reports/
+stats/out/
+tmp-review/
+/priorblend
+
+# Python bytecode from the harvest scripts
+__pycache__/
+*.pyc

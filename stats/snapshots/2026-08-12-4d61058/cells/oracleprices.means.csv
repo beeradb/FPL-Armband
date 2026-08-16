@@ -1,0 +1,5 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+ORACLEPRICES#1,1786410339-75394,policy,ORACLE[info:prices] perfect timing,1,real prices (ships),0.3936634309202954,24,info:prices
+ORACLEPRICES#1,1786410339-75394,hold,ORACLE[info:prices] perfect timing,1,real prices (ships),0,24,info:prices
+ORACLEPRICES#1,1786410339-75394,hold_fixedcap,ORACLE[info:prices] perfect timing,1,real prices (ships),0,24,info:prices
+ORACLEPRICES#1,1786410339-75394,hold_nocap,ORACLE[info:prices] perfect timing,1,real prices (ships),0,24,info:prices

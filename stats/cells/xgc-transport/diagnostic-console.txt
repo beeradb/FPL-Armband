@@ -1,0 +1,17 @@
+=== RUN   TestDiagXGCTransport
+    xgctransport_test.go:86: season   arm         n      ratio    corr    MAE%   ever-n  ever ratio  ever MAE%   spearman  n
+    xgctransport_test.go:107: 2022-23  FPL-fed    6496    1.0001   0.935   15.1     2914     1.0110       4.6    0.9598  120
+    xgctransport_test.go:107: 2022-23  UST-fed    6496    0.9289   0.906   23.4     2914     0.9452      17.4    0.9408  120
+    xgctransport_test.go:153: 2022-23  coverage: transported 670.6 against FPL 722.1 = 0.9287
+    xgctransport_test.go:107: 2023-24  FPL-fed   10659    0.9962   0.939   13.1     5184     1.0100       3.2    0.9659  155
+    xgctransport_test.go:107: 2023-24  UST-fed   10659    0.9983   0.910   22.3     5184     1.0071      16.0    0.9446  155
+    xgctransport_test.go:153: 2023-24  coverage: transported 1186.1 against FPL 1183.6 = 1.0021
+    xgctransport_test.go:107: 2024-25  FPL-fed   10907    1.0020   0.950   13.2     5172     1.0094       3.0    0.9830  143
+    xgctransport_test.go:107: 2024-25  UST-fed   10907    1.0471   0.908   24.6     5172     1.0540      17.8    0.9537  143
+    xgctransport_test.go:153: 2024-25  coverage: transported 1132.5 against FPL 1083.6 = 1.0451
+    xgctransport_test.go:107: 2025-26  FPL-fed   10911    0.9996   0.919   15.9     5261     1.0054       5.2    0.9204  152
+    xgctransport_test.go:107: 2025-26  UST-fed   10911    1.0213   0.868   27.5     5261     1.0210      20.2    0.8683  152
+    xgctransport_test.go:153: 2025-26  coverage: transported 1074.9 against FPL 1052.2 = 1.0216
+--- PASS: TestDiagXGCTransport (0.36s)
+PASS
+ok  	fplagent/internal/backtest	(cached)

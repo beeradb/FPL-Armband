@@ -1,0 +1,17 @@
+{
+ "crosswalk": "bundled",
+ "first_gw": 1,
+ "join_goal_cells": 10141,
+ "join_goal_mismatch": 0,
+ "join_goals_ratio": 1.0,
+ "join_minutes_ratio": 1.003783,
+ "last_gw": 15,
+ "offset_source": "in-season",
+ "offset_xa": 1.204314,
+ "offset_xg": 1.02876,
+ "renumbered": false,
+ "rows": 2397,
+ "season": "2022-23",
+ "sum_xa": 232.4114,
+ "sum_xg": 380.68
+}

@@ -1,0 +1,13 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+BLEND2#1,1786717115-844711,policy,both k=12,1,both k=8 (ships),-0.2695897971212613,24,-
+BLEND2#1,1786717115-844711,policy,both k=16,2,both k=8 (ships),-0.23726807136418118,24,-
+BLEND2#1,1786717115-844711,policy,both k=24,3,both k=8 (ships),-0.6425806982872203,24,-
+BLEND2#1,1786717115-844711,hold,both k=12,1,both k=8 (ships),-0.09602089314617945,24,-
+BLEND2#1,1786717115-844711,hold,both k=16,2,both k=8 (ships),0.21232916799278398,24,-
+BLEND2#1,1786717115-844711,hold,both k=24,3,both k=8 (ships),-0.4896936111180959,24,-
+BLEND2#1,1786717115-844711,hold_fixedcap,both k=12,1,both k=8 (ships),0.22137383550427092,24,-
+BLEND2#1,1786717115-844711,hold_fixedcap,both k=16,2,both k=8 (ships),0.3428944746879538,24,-
+BLEND2#1,1786717115-844711,hold_fixedcap,both k=24,3,both k=8 (ships),-0.40793088755045215,24,-
+BLEND2#1,1786717115-844711,hold_nocap,both k=12,1,both k=8 (ships),0.025749109988240686,24,-
+BLEND2#1,1786717115-844711,hold_nocap,both k=16,2,both k=8 (ships),0.3203802538041665,24,-
+BLEND2#1,1786717115-844711,hold_nocap,both k=24,3,both k=8 (ships),-0.18688306460045587,24,-

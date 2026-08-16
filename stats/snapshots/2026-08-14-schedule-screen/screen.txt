@@ -1,0 +1,243 @@
+Schedule screen — does a constant's best value depend on entry point?
+Metric: HOLD, per gameweek. 12 sweep(s) over 12 committed cells file(s). No replay.
+
+------------------------------------------------------------------------------
+1786708411-807087 / BLEND#1
+  baseline: BlendRateK=8 (ships)
+  6 seasons; commit 4a56c75; DIRTY TREE (commit does not identify the code)
+  arm                                     GW1     GW6    GW11    GW16    GW21    GW26     early      late late-early       p  GW1-rest       t       p
+  BlendRateK=12                         0.035  -0.601  -2.494   0.290  -0.759   1.692    -0.283     0.467   0.749   0.434     0.410    0.70   0.517
+  BlendRateK=16                         0.092   0.409  -1.988   0.855  -0.519   2.987     0.251     1.234   0.984   0.571    -0.257   -0.49   0.643
+  BlendRateK=24                         0.158  -0.409  -1.946  -0.304   0.991   3.500    -0.126     2.245   2.371   0.344    -0.208   -0.29   0.782
+  ladder slope (rho: setting vs gain)       1.000   0.000  -0.200  -0.200   0.400   1.000
+    over 4 arms at settings  8, 12, 16, 24
+  SCHEDULE TEST — does the ladder slope trend with entry point?
+    d(slope)/d(entry gw) = 0.0076   t = 1.28   p = 0.257   df = 5.0 (6 seasons)
+    GW1-to-GW26 swing over the ladder's span: 115.2 a season; p=0.05 threshold 231.3, 80%-power MDE 314.1
+  ordering across settings: Spearman rho(early, late) = 0.000
+  best arm early: BlendRateK=16
+  best arm late:  BlendRateK=24
+  >> FLAG: ladder slope changes sign (3 positive, 2 negative) — DESCRIPTIVE, see the schedule test; argmax moves between columns
+------------------------------------------------------------------------------
+1786639147-596472 / MINHL#1
+  baseline: half-life 4 (ships)
+  6 seasons; commit b400ec3; DIRTY TREE (commit does not identify the code)
+  arm                                     GW1     GW6    GW11    GW16    GW21    GW26     early      late late-early       p  GW1-rest       t       p
+  flat (no recency)                     0.114   0.263  -0.018  -0.007  -0.426  -0.167     0.188    -0.296  -0.485   0.714     0.185    0.34   0.747
+  half-life 2                          -0.101  -0.146  -0.696  -1.493  -2.000   0.603    -0.124    -0.699  -0.575   0.702     0.646    1.02   0.355
+  half-life 8                           0.061  -0.768  -0.762   1.522   0.583   2.038    -0.353     1.311   1.664   0.133    -0.461   -1.35   0.236
+  half-life 20                          0.158  -0.773  -0.310   0.377   0.815   0.615    -0.307     0.715   1.023   0.418     0.013    0.03   0.978
+  ladder slope (rho: setting vs gain)       1.000  -0.800   0.000   0.800   1.000   0.600
+    over 4 arms at settings  4,  2,  8, 20
+  SCHEDULE TEST — does the ladder slope trend with entry point?
+    d(slope)/d(entry gw) = 0.0029   t = 0.83   p = 0.445   df = 5.0 (6 seasons)
+    GW1-to-GW26 swing over the ladder's span: 49.8 a season; p=0.05 threshold 154.4, 80%-power MDE 209.6
+  ordering across settings: Spearman rho(early, late) = -0.700
+  best arm early: flat (no recency)
+  best arm late:  half-life 8
+  >> FLAG: ladder slope changes sign (4 positive, 1 negative) — DESCRIPTIVE, see the schedule test; pooled early/late ordering reverses (rho < 0); argmax moves between columns
+------------------------------------------------------------------------------
+1786639915-600276 / FIXW#1
+  baseline: fixture weight 0.65 (ships)
+  6 seasons; commit b400ec3; DIRTY TREE (commit does not identify the code)
+  arm                                     GW1     GW6    GW11    GW16    GW21    GW26     early      late late-early       p  GW1-rest       t       p
+  fixture weight 0.00                  -1.373  -0.697  -1.929   0.543  -0.463   1.026    -1.035     0.281   1.316   0.337    -1.069   -1.05   0.342
+  fixture weight 0.35                   0.000   0.076  -0.696  -0.333  -0.926   2.026     0.038     0.550   0.512   0.594    -0.029   -0.08   0.937
+  fixture weight 1.00                   0.092   0.000  -0.387   0.196  -0.352   0.513     0.046     0.080   0.034   0.962     0.098    0.22   0.836
+  ladder slope (rho: setting vs gain)       0.949   0.316   0.800  -0.200   0.600  -0.600
+    over 4 arms at settings 0.65, 0.00, 0.35, 1.00
+  SCHEDULE TEST — does the ladder slope trend with entry point?
+    d(slope)/d(entry gw) = -0.0827   t = -1.33   p = 0.242   df = 5.0 (6 seasons)
+    GW1-to-GW26 swing over the ladder's span: -78.6 a season; p=0.05 threshold 152.4, 80%-power MDE 206.9
+  ordering across settings: Spearman rho(early, late) = 0.000
+  best arm early: fixture weight 1.00
+  best arm late:  fixture weight 0.35
+  >> FLAG: ladder slope changes sign (4 positive, 2 negative) — DESCRIPTIVE, see the schedule test; argmax moves between columns
+------------------------------------------------------------------------------
+1786641913-607336 / H#1
+  baseline: min_gain=0.70 (ships)
+  6 seasons; commit 6825396; DIRTY TREE (commit does not identify the code)
+  THEOREM — every arm is byte-identical on HOLD, so this knob does not
+  reach the metric at all. Not screened, and not counted in the family.
+------------------------------------------------------------------------------
+1786645791-625124 / benchshape#1
+  baseline: flat 1/1/1/1 (baseline)
+  6 seasons; commit 68b6380; DIRTY TREE (commit does not identify the code)
+  arm                                     GW1     GW6    GW11    GW16    GW21    GW26     early      late late-early       p  GW1-rest       t       p
+  fixed 2.4/1.0/0.4/0.2 (the shipped    2.167  -0.081  -0.702  -0.478  -0.148   0.038     1.043    -0.055  -1.098   0.077     2.441    2.97   0.031
+  fixed 1.9/1.2/0.6/0.3 (its predece    2.114  -0.141  -0.940  -0.500  -0.250   0.064     0.986    -0.093  -1.079   0.058     2.468    3.35   0.020
+  derived from the eleven (ships)       1.689  -0.525   0.077  -0.428   0.556  -2.449     0.582    -0.947  -1.528   0.393     2.242    1.65   0.159
+  ladder slope: n/a — only 2 arm(s) share the modal label prefix 'fixed'; a ladder needs 3
+  so neither the slope nor the schedule test has a referent here.
+  ordering across settings: Spearman rho(early, late) = -0.200
+  best arm early: fixed 2.4/1.0/0.4/0.2 (the shipped tuple)
+  best arm late:  flat 1/1/1/1 (baseline)
+  >> FLAG: pooled early/late ordering reverses (rho < 0); argmax moves between columns
+------------------------------------------------------------------------------
+1786598705-519405 / BONUS#1
+  baseline: 0.5 / 1.5 (ships)
+  4 seasons; commit d9b83c5; DIRTY TREE (commit does not identify the code); FPL_SWEEP_SEASONS=default
+  arm                                     GW1     GW6    GW11    GW16    GW21    GW26     early      late late-early       p  GW1-rest       t       p
+  1.0 / 1.0                            -0.579  -0.152  -0.143  -1.054  -0.597   2.173    -0.365     0.788   1.153   0.351    -0.624   -0.46   0.677
+  0.5 / 2.0                             0.000  -0.197  -0.071  -0.141  -1.625  -0.327    -0.098    -0.976  -0.877   0.255     0.472    0.89   0.438
+  0.0 / 2.0                             2.105  -0.250  -0.125  -0.120  -0.389  -0.212     0.928    -0.300  -1.228   0.355     2.324    1.07   0.363
+  1.5 / 1.5                            -1.368   0.970   0.955  -0.000   0.125   0.135    -0.199     0.130   0.329   0.622    -1.805   -1.55   0.219
+  ladder slope: n/a — two arms parse to the same setting (0.5), so the labels do not order the family — often a 2-D sweep
+  so neither the slope nor the schedule test has a referent here.
+  ordering across settings: Spearman rho(early, late) = -0.700
+  best arm early: 0.0 / 2.0
+  best arm late:  1.0 / 1.0
+  >> FLAG: pooled early/late ordering reverses (rho < 0); argmax moves between columns
+------------------------------------------------------------------------------
+1786599454-530487 / MINK#1
+  baseline: BlendMinutesK 5 (ships)
+  4 seasons; commit 1a08d43; DIRTY TREE (commit does not identify the code); FPL_SWEEP_SEASONS=default
+  arm                                     GW1     GW6    GW11    GW16    GW21    GW26     early      late late-early       p  GW1-rest       t       p
+  BlendMinutesK 1                       0.086  -0.258  -0.893   1.783  -3.208   1.173    -0.086    -1.018  -0.932   0.583     0.366    0.41   0.708
+  BlendMinutesK 3                       0.000  -0.424  -0.268   0.750  -1.458   2.846    -0.212     0.694   0.906   0.618    -0.289   -0.55   0.620
+  BlendMinutesK 8                      -0.086  -2.826   0.696  -0.217  -1.694   1.750    -1.456     0.028   1.483   0.327     0.373    0.46   0.678
+  BlendMinutesK 12                     -0.066  -3.083  -0.732   1.359  -2.014  -0.500    -1.575    -1.257   0.318   0.738     0.928    0.96   0.406
+  ladder slope (rho: setting vs gain)      -0.872  -0.700   0.400  -0.400   0.100  -0.500
+    over 5 arms at settings  5,  1,  3,  8, 12
+  SCHEDULE TEST — does the ladder slope trend with entry point?
+    d(slope)/d(entry gw) = 0.0011   t = 0.14   p = 0.899   df = 3.0 (4 seasons)
+    GW1-to-GW26 swing over the ladder's span: 11.6 a season; p=0.05 threshold 267.3, 80%-power MDE 349.5
+  ordering across settings: Spearman rho(early, late) = 0.200
+  best arm early: BlendMinutesK 5 (ships)
+  best arm late:  BlendMinutesK 3
+  >> FLAG: ladder slope changes sign (2 positive, 4 negative) — DESCRIPTIVE, see the schedule test; argmax moves between columns
+------------------------------------------------------------------------------
+1786598694-519032 / MINW#1
+  baseline: exponent 1.25 (ships)
+  4 seasons; commit d9b83c5; DIRTY TREE (commit does not identify the code); FPL_SWEEP_SEASONS=default
+  arm                                     GW1     GW6    GW11    GW16    GW21    GW26     early      late late-early       p  GW1-rest       t       p
+  exponent 1.00                         0.441  -0.136  -0.205  -0.533  -0.611  -0.788     0.152    -0.700  -0.852   0.122     0.896    2.19   0.116
+  exponent 1.15                         0.454  -0.030  -0.214  -0.457  -0.139   0.038     0.212    -0.050  -0.262   0.356     0.614    1.71   0.187
+  exponent 1.50                         0.276  -0.038  -0.795  -0.674  -2.444   2.731     0.119     0.143   0.024   0.991     0.520    0.55   0.619
+  exponent 1.75                         0.461   0.652  -0.670  -0.565  -2.542   0.288     0.556    -1.127  -1.683   0.467     1.028    1.02   0.382
+  ladder slope (rho: setting vs gain)       0.200   0.700  -0.600  -0.500  -0.600   0.800
+    over 5 arms at settings 1.25, 1.00, 1.15, 1.50, 1.75
+  SCHEDULE TEST — does the ladder slope trend with entry point?
+    d(slope)/d(entry gw) = -0.0061   t = -0.04   p = 0.971   df = 3.0 (4 seasons)
+    GW1-to-GW26 swing over the ladder's span: -4.4 a season; p=0.05 threshold 349.2, 80%-power MDE 456.5
+  ordering across settings: Spearman rho(early, late) = -0.800
+  best arm early: exponent 1.75
+  best arm late:  exponent 1.50
+  >> FLAG: ladder slope changes sign (3 positive, 3 negative) — DESCRIPTIVE, see the schedule test; pooled early/late ordering reverses (rho < 0); argmax moves between columns
+------------------------------------------------------------------------------
+1786598892-522374 / BENCH#1
+  baseline: bench weight 0.10 (ships)
+  4 seasons; commit d9b83c5; DIRTY TREE (commit does not identify the code); FPL_SWEEP_SEASONS=default
+  arm                                     GW1     GW6    GW11    GW16    GW21    GW26     early      late late-early       p  GW1-rest       t       p
+  bench weight 0.02                    -1.145  -0.621  -0.134   0.772  -1.139   0.673    -0.883    -0.233   0.650   0.803    -1.055   -0.60   0.589
+  bench weight 0.05                    -0.553   0.568   0.000   0.772  -0.361   2.346     0.008     0.993   0.985   0.629    -1.218   -0.77   0.495
+  bench weight 0.20                    -0.079  -1.318   0.268   1.250  -2.375  -0.615    -0.699    -1.495  -0.797   0.669     0.479    0.32   0.769
+  ladder slope (rho: setting vs gain)       0.800  -0.400   0.949   0.316  -0.200  -0.800
+    over 4 arms at settings 0.10, 0.02, 0.05, 0.20
+  SCHEDULE TEST — does the ladder slope trend with entry point?
+    d(slope)/d(entry gw) = -0.5097   t = -1.18   p = 0.321   df = 3.0 (4 seasons)
+    GW1-to-GW26 swing over the ladder's span: -87.2 a season; p=0.05 threshold 234.1, 80%-power MDE 306.1
+  ordering across settings: Spearman rho(early, late) = 0.800
+  best arm early: bench weight 0.05
+  best arm late:  bench weight 0.05
+  >> FLAG: ladder slope changes sign (3 positive, 3 negative) — DESCRIPTIVE, see the schedule test
+------------------------------------------------------------------------------
+1786410409-75819 / HITS#1
+  baseline: hit>=3.0 (ships)
+  4 seasons; commit 149615c; DIRTY TREE (commit does not identify the code)
+  THEOREM — every arm is byte-identical on HOLD, so this knob does not
+  reach the metric at all. Not screened, and not counted in the family.
+------------------------------------------------------------------------------
+1786415470-97906 / TEAMFORM#1
+  baseline: shipped, no club-form blend
+  4 seasons; provenance absent
+  arm                                     GW1     GW6    GW11    GW16    GW21    GW26     early      late late-early       p  GW1-rest       t       p
+  club form, weight 0.25                0.013  -0.114  -0.170  -0.978  -1.569   1.519    -0.050    -0.025   0.025   0.958     0.276    0.85   0.459
+  club form, weight 0.50                0.026  -0.008   0.777  -1.076   0.847   3.154     0.009     2.001   1.991   0.452    -0.713   -0.64   0.568
+  club form, weight 0.75                0.020  -0.008   0.518  -0.283   0.722   2.269     0.006     1.496   1.490   0.447    -0.624   -0.68   0.548
+  ladder slope (rho: setting vs gain)       0.500   0.866   0.500   0.500   0.500   0.500
+    over 3 arms at settings 0.25, 0.50, 0.75
+  SCHEDULE TEST — does the ladder slope trend with entry point?
+    d(slope)/d(entry gw) = 0.1175   t = 0.78   p = 0.494   df = 3.0 (4 seasons)
+    GW1-to-GW26 swing over the ladder's span: 55.8 a season; p=0.05 threshold 228.5, 80%-power MDE 298.7
+  ordering across settings: Spearman rho(early, late) = 1.000
+  best arm early: club form, weight 0.50
+  best arm late:  club form, weight 0.50
+  no flag
+------------------------------------------------------------------------------
+1786465642-199009 / ANCHORED#1
+  baseline: chips at fixed offsets from entry
+  4 seasons; commit efb68d7; DIRTY TREE (commit does not identify the code)
+  THEOREM — every arm is byte-identical on HOLD, so this knob does not
+  reach the metric at all. Not screened, and not counted in the family.
+------------------------------------------------------------------------------
+SCHEDULE TEST, every ordered ladder in the bank.
+The estimate is the change in the ladder's slope per gameweek of entry:
+non-zero means the constant's best value depends on when you enter.
+Holm is over the 7 ladders tested.
+
+⚠️ The raw estimate is SIX DIFFERENT UNITS and must not be read across
+   rows: BENCH's ladder spans 0.18 and MINK's spans 11. `swing` and
+   `MDE` put every row on one scale — season points, over that ladder's
+   own range, GW1 entry against GW26.
+sweep          d(slope)/d(gw)       t       p     df    p_holm    swing    thr05    mde80
+FIXW#1                -0.0827   -1.33   0.242    5.0     1.000    -78.6    152.4    206.9
+BLEND#1                0.0076    1.28   0.257    5.0     1.000    115.2    231.3    314.1
+BENCH#1               -0.5097   -1.18   0.321    3.0     1.000    -87.2    234.1    306.1
+MINHL#1                0.0029    0.83   0.445    5.0     1.000     49.8    154.4    209.6
+TEAMFORM#1             0.1175    0.78   0.494    3.0     1.000     55.8    228.5    298.7
+MINK#1                 0.0011    0.14   0.899    3.0     1.000     11.6    267.3    349.5
+MINW#1                -0.0061   -0.04   0.971    3.0     1.000     -4.4    349.2    456.5
+
+The threshold columns are the finding. Against CLAUDE.md's own median
+detectable of 39 points a season, this screen is 4-9x blunter at p=0.05
+and 5-12x at 80% power, so 'nothing resolves' was close to guaranteed by
+the design. ⚠️ swing/thr05 is IDENTICALLY t/t_crit, so the two are one
+number in two costumes -- read them for scale, never as corroboration.
+⚠️ And do NOT import the recorded
+prior that an interaction is the CHEAP contrast: that holds for a
+difference of differences WITHIN one cell, which cancels path divergence.
+This one is formed BETWEEN cells, across entry points that are different
+squads scoring different football, so none of that cancellation applies.
+------------------------------------------------------------------------------
+Ranked by the late-minus-early contrast, largest first.
+Holm is over the 31 arm contrasts with a p-value.
+sweep                      arm                            late-early       t       p   p_holm
+BLEND#1                    BlendRateK=24                       2.371    1.05   0.344    1.000
+TEAMFORM#1                 club form, weight 0.50              1.991    0.86   0.452    1.000
+MINW#1                     exponent 1.75                      -1.683   -0.83   0.467    1.000
+MINHL#1                    half-life 8                         1.664    1.79   0.133    1.000
+benchshape#1               derived from the eleven (ships     -1.528   -0.93   0.393    1.000
+TEAMFORM#1                 club form, weight 0.75              1.490    0.87   0.447    1.000
+MINK#1                     BlendMinutesK 8                     1.483    1.17   0.327    1.000
+FIXW#1                     fixture weight 0.00                 1.316    1.06   0.337    1.000
+BONUS#1                    0.0 / 2.0                          -1.228   -1.09   0.355    1.000
+BONUS#1                    1.0 / 1.0                           1.153    1.10   0.351    1.000
+benchshape#1               fixed 2.4/1.0/0.4/0.2 (the shi     -1.098   -2.22   0.077    1.000
+benchshape#1               fixed 1.9/1.2/0.6/0.3 (its pre     -1.079   -2.44   0.058    1.000
+MINHL#1                    half-life 20                        1.023    0.88   0.418    1.000
+BENCH#1                    bench weight 0.05                   0.985    0.54   0.629    1.000
+BLEND#1                    BlendRateK=16                       0.984    0.61   0.571    1.000
+MINK#1                     BlendMinutesK 1                    -0.932   -0.61   0.583    1.000
+MINK#1                     BlendMinutesK 3                     0.906    0.55   0.618    1.000
+BONUS#1                    0.5 / 2.0                          -0.877   -1.40   0.255    1.000
+MINW#1                     exponent 1.00                      -0.852   -2.14   0.122    1.000
+BENCH#1                    bench weight 0.20                  -0.797   -0.47   0.669    1.000
+BLEND#1                    BlendRateK=12                       0.749    0.85   0.434    1.000
+BENCH#1                    bench weight 0.02                   0.650    0.27   0.803    1.000
+MINHL#1                    half-life 2                        -0.575   -0.41   0.702    1.000
+FIXW#1                     fixture weight 0.35                 0.512    0.57   0.594    1.000
+MINHL#1                    flat (no recency)                  -0.485   -0.39   0.714    1.000
+BONUS#1                    1.5 / 1.5                           0.329    0.55   0.622    1.000
+MINK#1                     BlendMinutesK 12                    0.318    0.37   0.738    1.000
+MINW#1                     exponent 1.15                      -0.262   -1.09   0.356    1.000
+FIXW#1                     fixture weight 1.00                 0.034    0.05   0.962    1.000
+TEAMFORM#1                 club form, weight 0.25              0.025    0.06   0.958    1.000
+MINW#1                     exponent 1.50                       0.024    0.01   0.991    1.000
+------------------------------------------------------------------------------
+Read this as a screen. A flag buys a pre-registered re-run of that one
+constant; it is not a verdict, and the contrast's SIZE is attenuated by
+the entry columns being nested suffixes of one season. See this file's
+header for the three limitations that constrain the reading.
+
+wrote stats/snapshots/2026-08-14-schedule-screen/screen.csv

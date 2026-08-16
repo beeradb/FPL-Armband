@@ -1,0 +1,22 @@
+{
+  "captured_at": "2020-09-11T01:25:42Z",
+  "files": [
+    {
+      "endpoint": "/bootstrap-static/",
+      "name": "bootstrap-static.json.gz",
+      "bytes": 723931,
+      "stored_bytes": 62322,
+      "sha256": "a0297114915b83a8565202da07b0ffd9560c2c6bcef9a9ee05fc36a841a43840"
+    }
+  ],
+  "event": 1,
+  "event_deadline": "2020-09-12T10:00:00Z",
+  "hours_to_deadline": 32.571666666666665,
+  "fplagent_version": "3e05205d5394",
+  "backfill": {
+    "season": "2020-21",
+    "source": "https://web.archive.org/web/20200911012542id_/https://fantasy.premierleague.com/api/bootstrap-static/",
+    "wayback_timestamp": "20200911012542",
+    "digest": "E4RNM3NOLJCPRBAGUHKUTOJHAJ3VFX2H"
+  }
+}

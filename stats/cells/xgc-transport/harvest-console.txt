@@ -1,0 +1,54 @@
+
+=== 2022-23  (transport arm: Understat xG for a season that has FPL's)
+crosswalk 2022-23 (code): 772 of 778 players mapped, 1.0000 of league minutes, 330/330 players with 900+ minutes
+  vs the archive's bundled id_dict: 620 agree, 0 disagree
+  200/772 players
+  400/772 players
+  600/772 players
+  harvest: 772 players, 0 failed, 240 matches whose date mapped to no gameweek, 779 rejected as not Premier League, 0 dates carried more than one gameweek
+  join check on 10811 cells: understat/FPL minutes 1.0038
+  goals anchor on 10141 cells: 1.0000, 0 cell(s) disagree
+  offset: borrowed LEAVE-ONE-OUT 1.1076 over 3 seasons (all four 1.0885); this season's OWN in-season ratio is 1.0288, which is what the borrow gets wrong by +7.7%
+  crosswalk carries 731.5 of 731.5 FPL xG on GW16-38 = 1.0000 of the mass
+  wrote stats/out/transport-2022-23-xg.csv: 5022 rows, 1033.0 xG
+
+=== 2023-24  (transport arm: Understat xG for a season that has FPL's)
+crosswalk 2023-24 (code): 847 of 865 players mapped, 0.9999 of league minutes, 339/339 players with 900+ minutes
+  vs the archive's bundled id_dict: 0 agree, 0 disagree
+  200/847 players
+  400/847 players
+  600/847 players
+  800/847 players
+  harvest: 847 players, 0 failed, 221 matches whose date mapped to no gameweek, 928 rejected as not Premier League, 0 dates carried more than one gameweek
+  join check on 11080 cells: understat/FPL minutes 1.0040
+  goals anchor on 10332 cells: 1.0000, 0 cell(s) disagree
+  offset: borrowed LEAVE-ONE-OUT 1.0877 over 3 seasons (all four 1.0885); this season's OWN in-season ratio is 1.0899, which is what the borrow gets wrong by -0.2%
+  crosswalk carries 1198.5 of 1198.5 FPL xG on GW1-38 = 1.0000 of the mass
+  wrote stats/out/transport-2023-24-xg.csv: 5334 rows, 1201.0 xG
+
+=== 2024-25  (transport arm: Understat xG for a season that has FPL's)
+crosswalk 2024-25 (code): 777 of 804 players mapped, 1.0000 of league minutes, 321/321 players with 900+ minutes
+  vs the archive's bundled id_dict: 0 agree, 0 disagree
+  200/777 players
+  400/777 players
+  600/777 players
+  harvest: 777 players, 0 failed, 267 matches whose date mapped to no gameweek, 846 rejected as not Premier League, 0 dates carried more than one gameweek
+  join check on 11431 cells: understat/FPL minutes 1.0041
+  goals anchor on 10928 cells: 1.0000, 0 cell(s) disagree
+  offset: borrowed LEAVE-ONE-OUT 1.0753 over 3 seasons (all four 1.0885); this season's OWN in-season ratio is 1.1234, which is what the borrow gets wrong by -4.3%
+  crosswalk carries 1100.7 of 1100.7 FPL xG on GW1-38 = 1.0000 of the mass
+  wrote stats/out/transport-2024-25-xg.csv: 5276 rows, 1150.0 xG
+
+=== 2025-26  (transport arm: Understat xG for a season that has FPL's)
+crosswalk 2025-26 (code): 814 of 841 players mapped, 1.0000 of league minutes, 339/339 players with 900+ minutes
+  vs the archive's bundled id_dict: 0 agree, 0 disagree
+  200/814 players
+  400/814 players
+  600/814 players
+  800/814 players
+  harvest: 814 players, 0 failed, 348 matches whose date mapped to no gameweek, 1042 rejected as not Premier League, 0 dates carried more than one gameweek
+  join check on 11332 cells: understat/FPL minutes 1.0037
+  goals anchor on 10753 cells: 0.9947, 4 cell(s) disagree
+  offset: borrowed LEAVE-ONE-OUT 1.0833 over 3 seasons (all four 1.0885); this season's OWN in-season ratio is 1.1067, which is what the borrow gets wrong by -2.1%
+  crosswalk carries 1067.7 of 1069.9 FPL xG on GW1-38 = 0.9979 of the mass
+  wrote stats/out/transport-2025-26-xg.csv: 5316 rows, 1091.3 xG

@@ -1,0 +1,5 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+ORACLEGATE#1,1786399233-64710,policy,ORACLE[decision:transfergate] perfect acceptance,1,real (ships),2.783863625039254,24,decision:transfergate
+ORACLEGATE#1,1786399233-64710,hold,ORACLE[decision:transfergate] perfect acceptance,1,real (ships),0,24,decision:transfergate
+ORACLEGATE#1,1786399233-64710,hold_fixedcap,ORACLE[decision:transfergate] perfect acceptance,1,real (ships),0,24,decision:transfergate
+ORACLEGATE#1,1786399233-64710,hold_nocap,ORACLE[decision:transfergate] perfect acceptance,1,real (ships),0,24,decision:transfergate

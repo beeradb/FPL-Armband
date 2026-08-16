@@ -1,0 +1,90 @@
+replay: slot 1/3, MemoryHigh=2G MemoryMax=4G, started 03:25:54
+=== RUN   TestDiagAvailabilityByPosition
+
+7421 player-cutoffs, 4 seasons, established players only
+(5+ appearances averaging 60+ minutes at the cutoff).
+Predicting mean minutes per gameweek over the next 5.
+FPL_NO_BLANK_RUN=1, so ExpectedMinutes carries no blank-run discount.
+minutes_half_life=4 blend_minutes_k=5 horizon=5
+
+=== UNFLAGGED — the population the recorded calibration used
+
+position   blanks           n  expected    actual     bias    ratio
+all        0             5801      69.1      66.9     -2.2   0.9679
+all        1              552      53.6      39.2    -14.4   0.7310
+all        2              221      44.0      31.8    -12.1   0.7239
+all        3              136      35.6      26.1     -9.5   0.7325
+all        4 or more      486      23.2      25.0     +1.8   1.0767
+
+GKP        0              573      79.2      79.5     +0.3   1.0038
+GKP        1               47      58.5      33.1    -25.3   0.5667
+GKP        2               22      44.6      13.6    -30.9   0.3054
+GKP        3               16      45.2      27.0    -18.2   0.5976
+GKP        4 or more       96      19.7      15.7     -4.0   0.7979
+
+DEF        0             2342      68.6      66.1     -2.5   0.9641
+DEF        1              284      51.7      39.4    -12.3   0.7619
+DEF        2              115      42.2      32.0    -10.2   0.7577
+DEF        3               80      33.8      25.0     -8.7   0.7421
+DEF        4 or more      233      23.4      26.3     +2.9   1.1223
+
+MID        0             2379      67.9      65.5     -2.3   0.9659
+MID        1              183      55.5      41.8    -13.7   0.7540
+MID        2               66      45.6      36.6     -8.9   0.8044
+MID        3               34      35.7      26.2     -9.5   0.7341
+MID        4 or more      122      24.3      29.4     +5.1   1.2087
+
+FWD        0              507      66.4      62.9     -3.5   0.9473
+FWD        1               38      52.5      32.1    -20.3   0.6125
+FWD        2               18      48.2      35.2    -13.1   0.7291
+FWD        3                6      33.9      36.5     +2.6   1.0761
+FWD        4 or more       35      27.8      26.7     -1.1   0.9601
+
+
+=== FLAGGED — availabilityFactor already has this channel
+
+position   blanks           n  expected    actual     bias    ratio
+all        0               21      59.4       0.0    -59.4   0.0000
+all        1               16      48.3       0.0    -48.3   0.0000
+all        2               12      46.3       0.0    -46.3   0.0000
+all        3               16      34.6       0.6    -34.0   0.0163
+all        4 or more      160      16.3       0.0    -16.3   0.0000
+
+GKP        0                1      50.8       0.0    -50.8   0.0000
+GKP        1                2      59.2       0.0    -59.2   0.0000
+GKP        4 or more       10      13.2       0.0    -13.2   0.0000
+
+DEF        0               14      61.6       0.0    -61.6   0.0000
+DEF        1               10      42.4       0.0    -42.4   0.0000
+DEF        2                6      49.3       0.0    -49.3   0.0000
+DEF        3               10      32.6       0.9    -31.7   0.0276
+DEF        4 or more      102      15.6       0.0    -15.6   0.0000
+
+MID        0                6      55.7       0.0    -55.7   0.0000
+MID        1                4      57.5       0.0    -57.5   0.0000
+MID        2                4      45.0       0.0    -45.0   0.0000
+MID        3                6      37.9       0.0    -37.9   0.0000
+MID        4 or more       46      18.5       0.0    -18.5   0.0000
+
+FWD        2                2      40.0       0.0    -40.0   0.0000
+FWD        4 or more        2      14.9       0.0    -14.9   0.0000
+
+
+=== the de-levelling, unflagged only
+
+run-0 ratio is the divisor the comment calls position-wide.
+raw = plateau ratio; delevelled = raw / run-0 ratio.
+
+position     n(0)      run-0 n(1-3)      raw  delevelled
+all          5801     0.9679    909   0.7296      0.7538
+GKP           573     1.0038     85   0.5142      0.5122
+DEF          2342     0.9641    479   0.7586      0.7868
+MID          2379     0.9659    283   0.7629      0.7898
+FWD           507     0.9473     62   0.6763      0.7139
+
+No standard error is printed here on purpose. Four positions invite an argmax
+over the one furthest from the pool; the uncertainty, the season clustering and
+the multiplicity correction are in stats/blank_run_position.R.
+--- PASS: TestDiagAvailabilityByPosition (0.54s)
+PASS
+replay: exit=0 peak_rss=69 MB elapsed=0:00.53

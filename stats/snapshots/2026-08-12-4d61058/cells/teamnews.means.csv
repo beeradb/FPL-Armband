@@ -1,0 +1,9 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+ORACLETEAMNEWS#1,1786546398-356672,policy,ORACLE[info:teamnews] real flags at each deadline,1,real (ships),0.6521290776630215,36,info:teamnews
+ORACLETEAMNEWS#1,1786546398-356672,policy,ORACLE[info:teamnews+teamnews_chance] flags plus published chance,2,real (ships),0.17194026909892715,36,info:teamnews+teamnews_chance
+ORACLETEAMNEWS#1,1786546398-356672,hold,ORACLE[info:teamnews] real flags at each deadline,1,real (ships),0.8710176699307133,36,info:teamnews
+ORACLETEAMNEWS#1,1786546398-356672,hold,ORACLE[info:teamnews+teamnews_chance] flags plus published chance,2,real (ships),0.8741900685550572,36,info:teamnews+teamnews_chance
+ORACLETEAMNEWS#1,1786546398-356672,hold_fixedcap,ORACLE[info:teamnews] real flags at each deadline,1,real (ships),0.791948987744183,36,info:teamnews
+ORACLETEAMNEWS#1,1786546398-356672,hold_fixedcap,ORACLE[info:teamnews+teamnews_chance] flags plus published chance,2,real (ships),0.8091559823062501,36,info:teamnews+teamnews_chance
+ORACLETEAMNEWS#1,1786546398-356672,hold_nocap,ORACLE[info:teamnews] real flags at each deadline,1,real (ships),0.7962199113991648,36,info:teamnews
+ORACLETEAMNEWS#1,1786546398-356672,hold_nocap,ORACLE[info:teamnews+teamnews_chance] flags plus published chance,2,real (ships),0.8147210358785498,36,info:teamnews+teamnews_chance

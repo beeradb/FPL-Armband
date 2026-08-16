@@ -1,0 +1,66 @@
+Clean sheets against the MODEL'S OWN regressor (XGC90, point-in-time).
+One row per team-gameweek; predicted at cut, realised at cut+1.
+Single-fixture gameweeks, representative played 90.
+
+NATIVE xGC ONLY (2023-24, 2024-25, 2025-26) — the headline.
+XGC90              n   predicted    actual     ratio    mean x needed mult
+0.0-1.0          118      0.4309    0.3729     1.156     0.845       0.865
+1.0-1.3          305      0.3011    0.2721     1.106     1.204       0.904
+1.3-1.6          721      0.2422    0.2524     0.960     1.421       1.042
+1.6-99.0         422      0.1704    0.1445     1.179     1.781       0.848
+ALL             1566      0.2486    0.2363     1.052     1.432       0.951
+
+POOLED, including reconstructed-xGC seasons — CONTEXT, not the headline.
+A reconstructed regressor carries 16-20% club-match error, which is
+errors-in-variables on the very quantity being calibrated.
+XGC90              n   predicted    actual     ratio    mean x needed mult
+0.0-1.0          274      0.4347    0.4124     1.054     0.838       0.949
+1.0-1.3          879      0.3053    0.2981     1.024     1.190       0.976
+1.3-1.6         1244      0.2410    0.2540     0.949     1.426       1.054
+1.6-99.0         577      0.1746    0.1629     1.071     1.755       0.933
+ALL             2974      0.2650    0.2640     1.004     1.366       0.996
+
+--- SIZING 1: what the 90-minute guard selects on ---
+Clean-sheet rate from the FIXTURE (opponent scored 0), so it exists for
+dropped rows too. Single-fixture club-gameweeks only, all six seasons.
+
+  kept (rep played 90)      n   2974   clean-sheet rate 0.2636
+  dropped (rep under 90)    n    492   clean-sheet rate 0.1992
+  dropped share            14.2%
+  kept minus dropped       +0.0644
+
+  A POSITIVE gap is the feared direction: the guard keeps the better
+  defensive matches, raising `actual` among the kept and SHRINKING the
+  apparent over-prediction. The corrected figure, which is the point of
+  carrying `pred` on the dropped rows too:
+
+    ratio on KEPT only (what the fit reports)  1.0051
+    ratio on KEPT + DROPPED (unselected)       1.0305
+
+  The second is the honest one for a LEVEL claim, and it is the larger.
+  ⚠️ It is still not the population the model scores: it conditions on a
+  club having a most-played defender or keeper with a positive XGC90 at
+  all, and it prices every club by that one player. It removes the
+  90-minute selection and nothing else.
+
+--- SIZING 2: the defcon/clean-sheet coupling this dump omits ---
+  predicted, coupling OMITTED (what the fit used)  0.2650
+  predicted, coupling APPLIED (what the engine does) 0.2669
+  rows the coupling moves at all: 214 of 2974 (7.2%)
+  ratio against actual, coupling applied: 1.0112 (omitted: 1.0038)
+
+  ⚠️ Read the DIRECTION off these numbers, not off a mechanism story. A
+  first version of this block asserted the coupling 'can only LOWER a
+  predicted clean sheet'; the aggregate says otherwise, because the
+  factor sits BELOW 1 for most defenders it touches and exp(-x*cf) then
+  rises. The omission does run toward this file's conclusion — applying
+  the coupling moves the ratio further from 1, not closer — but for the
+  opposite mechanical reason to the one asserted.
+
+Read the `needed mult` column as the shape question: a CONSTANT column
+wants a flat scale, a FALLING column wants the factor, and a RISING
+column says the factor's sign is wrong. The fit itself is R's job —
+FPL_CSREG_ROWS then stats/cs_calibration.R. Go prints no verdict.
+--- PASS: TestDiagCleanSheetRegressor (1.68s)
+PASS
+replay: exit=0 peak_rss=46 MB elapsed=0:01.68

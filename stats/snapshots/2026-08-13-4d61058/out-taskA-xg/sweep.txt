@@ -1,0 +1,238 @@
+
+Read 36 cells from 1 file(s): 1 sweep(s).
+------------------------------------------------------------------------------
+Contract checks
+  ok  exactly one baseline arm in each of 1 sweep(s)
+  ok  re-derives from points / weeks: hold, policy, hold_fixedcap, hold_nocap
+  ok  no infeasible cells
+  ..  bank_up_to = 5  (pinned modern rule; totals are not comparable across seasons)
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+------------------------------------------------------------------------------
+Sweep: paired / XG6R#1:v0
+Metric: HOLD (the opening fifteen; scoring constants belong here)
+Paired against: neither repair
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+expected-goals backfill, x    2.710    18 |    0.901    3.01 |    0.447    2.0    6.07 |   0.0261   0.0261
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    expected-goals backfill,    6.07    2.49    4.88 |   -2.961   3/3  |     0.0     0.0   100.0   0.41
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    expected-goals backfill, x SE    0.901  df   17.0  t    3.01  p   0.0079
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / XG6R#1:v0
+Metric: POLICY (the weekly transfer decision)
+Paired against: neither repair
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+expected-goals backfill, x    2.040    18 |    0.745    2.74 |    0.298    2.0    6.84 |   0.0207   0.0207
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    expected-goals backfill,    6.84    2.35    3.44 |   -1.984   3/3  |     0.0     0.0   100.0   0.34
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    expected-goals backfill, x SE    0.745  df   17.0  t    2.74  p   0.0140
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / XG6R#1:v0
+Metric: instrument: HOLD, armband pinned to the day-one pick
+Paired against: neither repair
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+expected-goals backfill, x    2.875    18 |    0.951    3.02 |    0.401    2.0    7.17 |   0.0189   0.0189
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    expected-goals backfill,    7.17    2.47    5.20 |   -3.576   3/3  |     0.0     0.0   100.0   0.34
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    expected-goals backfill, x SE    0.951  df   17.0  t    3.02  p   0.0077
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / XG6R#1:v0
+Metric: instrument: HOLD with nobody doubled (not what FPL pays)
+Paired against: neither repair
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+expected-goals backfill, x    0.763    18 |    0.914    0.83 |    0.765    2.0    1.00 |   0.4237   0.4237
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    expected-goals backfill,    1.00    0.72    1.26 |   -1.609   2/3  |     0.0     0.0   100.0   0.72
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    expected-goals backfill, x SE    0.914  df   17.0  t    0.83  p   0.4155
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / XG6R#1:v0
+Metric: marginal: the armband's share of this effect
+Paired against: neither repair
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+expected-goals backfill, x    1.947    18 |    0.274    7.12 |    0.352    2.0    5.54 |   0.0311   0.0311
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    expected-goals backfill,    5.54    8.52    6.14 |    0.215   3/3  |    14.8    20.2    65.0   1.54
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    expected-goals backfill, x SE    0.352  df    2.0  t    5.54  p   0.0311
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Sweep: paired / XG6R#1:v0
+Metric: marginal: re-picking the captain weekly
+Paired against: neither repair
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+expected-goals backfill, x   -0.165    18 |    0.354   -0.47 |    0.149    2.0   -1.10 |   0.3846   0.3846
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    expected-goals backfill,   -1.10   -0.55   -0.34 |   -0.200   2/3  |     0.0    36.0    64.0   0.50
+    t seas  = CR2 clustered on season, df ~2.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 10 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    expected-goals backfill, x SE    0.354  df   17.0  t   -0.47  p   0.6472
+
+  Family size for the Holm adjustment: 1 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+------------------------------------------------------------------------------
+Noise by information regime — POLICY, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      0.749      1.00        1.00       6
+middle                    26      1.058      1.41        1.18       6
+late (season-led)         16      1.807      2.41        1.51       6
+------------------------------------------------------------------------------
+Noise by information regime — HOLD, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      1.802      1.00        1.00       6
+middle                    26      1.402      0.78        1.18       6
+late (season-led)         16      1.665      0.92        1.51       6
+------------------------------------------------------------------------------
+Reproducing Go's paired means
+  !!  no .means.csv beside the cells file, so Go's means cannot be checked.
+      This is the pipeline's only end-to-end test. Re-run the sweep with a
+      current build, which writes it automatically.
+------------------------------------------------------------------------------
+wrote stats/snapshots/2026-08-13-4d61058/out-taskA-xg/inference.csv
+
+Reading this: prefer the CR2 column, and read its df rather than assuming
+one. Treat a raw p under 0.05 whose Holm-adjusted p is not as the case the
+old |t| >= 2 rule mislabelled 'confirmed'. And weigh the shape plot above
+any single row: monotonicity, a plateau with a cliff, or the held-out
+season agreeing is what this project accepts as evidence.

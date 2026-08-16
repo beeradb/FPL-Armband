@@ -1,0 +1,31 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+anti-residual-gate#1,1786856685-1752645,policy,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),3.482117805916433,36,decision:transfergate
+anti-residual-gate#1,1786856685-1752645,policy,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),2.229371359281732,36,decision:transfergatexp
+anti-residual-gate#1,1786856685-1752645,policy,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),2.254583213774671,36,decision:transfergateres
+anti-residual-gate#1,1786856685-1752645,policy,ORACLE[decision:transfergateanti] ANTI-residual,4,real (ships),-4.105340140761573,36,decision:transfergateanti
+anti-residual-gate#1,1786856685-1752645,policy,ORACLE[decision:transfergateall] NO GATE (accepts all),5,real (ships),-2.1680680624711894,36,decision:transfergateall
+anti-residual-gate#1,1786856685-1752645,policy_xpoints,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),2.203762224104373,36,decision:transfergate
+anti-residual-gate#1,1786856685-1752645,policy_xpoints,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),1.9419364475839385,36,decision:transfergatexp
+anti-residual-gate#1,1786856685-1752645,policy_xpoints,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),-0.8278586396638159,36,decision:transfergateres
+anti-residual-gate#1,1786856685-1752645,policy_xpoints,ORACLE[decision:transfergateanti] ANTI-residual,4,real (ships),-1.056840235313732,36,decision:transfergateanti
+anti-residual-gate#1,1786856685-1752645,policy_xpoints,ORACLE[decision:transfergateall] NO GATE (accepts all),5,real (ships),-1.9755517144658172,36,decision:transfergateall
+anti-residual-gate#1,1786856685-1752645,hold,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+anti-residual-gate#1,1786856685-1752645,hold,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+anti-residual-gate#1,1786856685-1752645,hold,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+anti-residual-gate#1,1786856685-1752645,hold,ORACLE[decision:transfergateanti] ANTI-residual,4,real (ships),0,36,decision:transfergateanti
+anti-residual-gate#1,1786856685-1752645,hold,ORACLE[decision:transfergateall] NO GATE (accepts all),5,real (ships),0,36,decision:transfergateall
+anti-residual-gate#1,1786856685-1752645,hold_xpoints,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+anti-residual-gate#1,1786856685-1752645,hold_xpoints,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+anti-residual-gate#1,1786856685-1752645,hold_xpoints,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+anti-residual-gate#1,1786856685-1752645,hold_xpoints,ORACLE[decision:transfergateanti] ANTI-residual,4,real (ships),0,36,decision:transfergateanti
+anti-residual-gate#1,1786856685-1752645,hold_xpoints,ORACLE[decision:transfergateall] NO GATE (accepts all),5,real (ships),0,36,decision:transfergateall
+anti-residual-gate#1,1786856685-1752645,hold_fixedcap,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+anti-residual-gate#1,1786856685-1752645,hold_fixedcap,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+anti-residual-gate#1,1786856685-1752645,hold_fixedcap,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+anti-residual-gate#1,1786856685-1752645,hold_fixedcap,ORACLE[decision:transfergateanti] ANTI-residual,4,real (ships),0,36,decision:transfergateanti
+anti-residual-gate#1,1786856685-1752645,hold_fixedcap,ORACLE[decision:transfergateall] NO GATE (accepts all),5,real (ships),0,36,decision:transfergateall
+anti-residual-gate#1,1786856685-1752645,hold_nocap,ORACLE[decision:transfergate] perfect on POINTS,1,real (ships),0,36,decision:transfergate
+anti-residual-gate#1,1786856685-1752645,hold_nocap,ORACLE[decision:transfergatexp] perfect on UNDERLYING,2,real (ships),0,36,decision:transfergatexp
+anti-residual-gate#1,1786856685-1752645,hold_nocap,ORACLE[decision:transfergateres] perfect on the RESIDUAL,3,real (ships),0,36,decision:transfergateres
+anti-residual-gate#1,1786856685-1752645,hold_nocap,ORACLE[decision:transfergateanti] ANTI-residual,4,real (ships),0,36,decision:transfergateanti
+anti-residual-gate#1,1786856685-1752645,hold_nocap,ORACLE[decision:transfergateall] NO GATE (accepts all),5,real (ships),0,36,decision:transfergateall

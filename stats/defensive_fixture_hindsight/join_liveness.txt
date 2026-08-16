@@ -1,0 +1,45 @@
+2020-21: captures GW1..GW38; GW38 capture vs teams.csv disagrees for 0/20 clubs
+2021-22: captures GW1..GW38; GW38 capture vs teams.csv disagrees for 0/20 clubs
+2022-23: captures GW1..GW38; GW38 capture vs teams.csv disagrees for 0/20 clubs
+2023-24: captures GW1..GW38; GW38 capture vs teams.csv disagrees for 0/20 clubs
+2024-25: captures GW1..GW38; GW38 capture vs teams.csv disagrees for 0/20 clubs
+2025-26: captures GW1..GW38; GW38 capture vs teams.csv disagrees for 0/20 clubs
+
+=== liveness: pooled (six seasons), n = 2974 ===
+  def: [('0.7', 79), ('0.85', 1059), ('1', 1040), ('1.2', 593), ('1.4', 203)]
+  revised_opp: [(0, 2386), (1, 588)]
+  revised_delta: [(-2, 5), (-1, 365), (0, 2386), (1, 218)]
+  either_revised_season: [(0, 841), (1, 2133)]
+  def | revised_opp = 0: [('0.7', 43), ('0.85', 876), ('1', 883), ('1.2', 417), ('1.4', 167)]
+  def | revised_opp = 1: [('0.7', 36), ('0.85', 183), ('1', 157), ('1.2', 176), ('1.4', 36)]
+  per season revised_opp share:
+    2020-21  95/490  (0.194)
+    2021-22  94/447  (0.210)
+    2022-23  91/471  (0.193)
+    2023-24  90/513  (0.175)
+    2024-25  125/527  (0.237)
+    2025-26  93/526  (0.177)
+  q_w (share of sum w2^2 on revised rows) = 0.2372   ⚠️ an approximation; see the R script for the exact sizing
+  def re-derived from the archive's own fixtures.csv: 2974/2974 agree
+  on the 588 REVISED rows, Spearman(def, opponent strength):  end-of-season 0.866   at the cutoff 0.518
+    -> the archive's difficulty column tracks END-of-season strength.
+  club-venue-season cells with more than one `def`: 0/240
+
+=== liveness: native (three seasons), n = 1566 ===
+  def: [('0.7', 79), ('0.85', 410), ('1', 675), ('1.2', 263), ('1.4', 139)]
+  revised_opp: [(0, 1258), (1, 308)]
+  revised_delta: [(-1, 167), (0, 1258), (1, 141)]
+  either_revised_season: [(0, 502), (1, 1064)]
+  def | revised_opp = 0: [('0.7', 43), ('0.85', 360), ('1', 588), ('1.2', 164), ('1.4', 103)]
+  def | revised_opp = 1: [('0.7', 36), ('0.85', 50), ('1', 87), ('1.2', 99), ('1.4', 36)]
+  per season revised_opp share:
+    2023-24  90/513  (0.175)
+    2024-25  125/527  (0.237)
+    2025-26  93/526  (0.177)
+  q_w (share of sum w2^2 on revised rows) = 0.2876   ⚠️ an approximation; see the R script for the exact sizing
+  def re-derived from the archive's own fixtures.csv: 1566/1566 agree
+  on the 308 REVISED rows, Spearman(def, opponent strength):  end-of-season 0.872   at the cutoff 0.421
+    -> the archive's difficulty column tracks END-of-season strength.
+  club-venue-season cells with more than one `def`: 0/120
+
+wrote 2974 rows to stats/defensive_fixture_hindsight/joined_rows.csv

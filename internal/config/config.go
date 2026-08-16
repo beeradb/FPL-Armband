@@ -1,0 +1,382 @@
+package config
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+
+	"armband/internal/analysis"
+)
+
+// Config holds everything the agent needs that isn't derived from the FPL API.
+type Config struct {
+	// EntryID is your FPL manager ID. Find it in the URL when you view your
+	// points page: fantasy.premierleague.com/entry/<THIS NUMBER>/event/1.
+	// Leave 0 before the season starts or if you only want squad suggestions.
+	EntryID int `json:"entry_id"`
+
+	// HypotheticalBudget is the money the squad builder plans with in millions
+	// when EntryID is 0. Zero means FPL's £100.0m opening allowance.
+	//
+	// It applies only when there is no squad to price. With an EntryID the
+	// budget is that squad's selling value plus its bank, and this is ignored —
+	// overriding a real budget with a number from a file would be inventing
+	// money. Its purpose is the mid-season projection: asking what £103m would
+	// buy today, for a team that is not yours or does not exist.
+	HypotheticalBudget float64 `json:"hypothetical_budget_m"`
+
+	// Model is the Claude model to reason with.
+	Model string `json:"model"`
+
+	// Effort trades cost and latency against depth: low|medium|high|xhigh|max.
+	Effort string `json:"effort"`
+
+	// MaxIterations caps how many tool-calling rounds a single run may take.
+	// This is a runaway ceiling, not a typical-case setting: the loop ends when
+	// the model stops calling tools, so lowering it bounds the worst case
+	// rather than reducing normal spend.
+	MaxIterations int `json:"max_iterations"`
+
+	// Weights tune the player scoring model.
+	Weights analysis.Weights `json:"weights"`
+
+	// Congestion models European, international and travel load. The FPL API
+	// does not publish European qualification or nationality names, so the
+	// club and region lists must be filled in by hand — run `armband nations`
+	// to map nationality codes to countries.
+	Congestion analysis.Congestion `json:"congestion"`
+
+	// RoleRisk prices uncertainty about whether a player's statistical record
+	// still applies — summer transfers and managerial changes. Neither is in
+	// the FPL API's team data, so new_coach_clubs must be filled in by hand.
+	RoleRisk analysis.RoleRisk `json:"role_risk"`
+
+	// Chips records when you intend to play each chip. Zero means unplanned.
+	// The plan feeds squad construction: a wildcard shortens the horizon the
+	// current squad must serve, and a bench boost makes all fifteen players
+	// count rather than eleven plus fodder.
+	//
+	// Both sets, since FPL grants a second from GW20 in 2025-26 onward. No
+	// backfill is needed in Load: `ChipSchedule.UnmarshalJSON` accepts the flat
+	// single-set object every existing config.json carries and reads it as the
+	// first set, which is the only set the seasons those files were written for
+	// granted.
+	Chips analysis.ChipSchedule `json:"chip_plan"`
+
+	// Review is the standing brief for the weekly decision: the thresholds and
+	// rules the agent must work within when deciding whether to act.
+	Review ReviewPolicy `json:"review_policy"`
+
+	// Roster is the standing set of player locks and exclusions the analysis
+	// layer has established — injuries, lost places, players the squad must be
+	// built around. These bind every solver call and survive between runs.
+	Roster Roster `json:"roster,omitempty"`
+
+	// Criteria are your own rules, passed verbatim to the agent. This is the
+	// main place to encode personal preferences, e.g.
+	//   "Never own more than one Spurs player."
+	//   "Prefer nailed starters over rotation risks, even at a points cost."
+	Criteria []string `json:"criteria"`
+
+	// ReportDir is where Markdown reports are written.
+	ReportDir string `json:"report_dir"`
+
+	// CacheDir stores FPL API responses between runs.
+	CacheDir string `json:"cache_dir"`
+
+	// CacheMinutes is how long cached API responses stay fresh.
+	CacheMinutes int `json:"cache_minutes"`
+}
+
+func Default() Config {
+	return Config{
+		EntryID:       0,
+		Model:         "claude-opus-5",
+		Effort:        "high",
+		MaxIterations: 25,
+		Weights:       analysis.DefaultWeights(),
+		Congestion:    analysis.DefaultCongestion(),
+		RoleRisk:      analysis.DefaultRoleRisk(),
+		Review:        DefaultReviewPolicy(),
+		Criteria: []string{
+			"Expected points only become real points if the player is on the pitch. Treat expected minutes as a first-class filter, not a tiebreaker: check expected_minutes_per_gw and rotation_risk before recommending anyone.",
+			"Never recommend a starting XI player below roughly 60 expected minutes per gameweek unless you say explicitly why the rotation risk is worth it.",
+			"Weight underlying numbers (xG, xA, xGC) over raw past points — form follows the underlying data, not the other way round.",
+			"Value fixture runs over the next 4-6 gameweeks, not just the next match.",
+			"Set-piece and penalty duty is a major tiebreaker: a penalty taker is worth roughly half a goal per five matches on its own.",
+			"Be sceptical of players heavily overperforming their xG — say so explicitly when recommending or fading them.",
+			"For new signings, last season's stats came from a different club. Say so, and be explicit that their role in the new side is unproven.",
+			"Players returning late from a summer international tournament are routinely eased back in. Prefer rested alternatives for the opening weeks.",
+		},
+		ReportDir:    "reports",
+		CacheDir:     filepath.Join(".cache", "fpl"),
+		CacheMinutes: 60,
+	}
+}
+
+// Load reads config from path, creating it with defaults if absent.
+func Load(path string) (Config, error) {
+	cfg := Default()
+
+	b, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		if err := Save(path, cfg); err != nil {
+			return cfg, fmt.Errorf("writing default config: %w", err)
+		}
+		return cfg, nil
+	}
+	if err != nil {
+		return cfg, err
+	}
+
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return cfg, fmt.Errorf("parsing %s: %w", path, err)
+	}
+
+	// Backfill anything the user left out.
+	//
+	// Only values that are meaningless at zero are backfilled. Term weights —
+	// BonusWeight, FixtureWeight, SetPieceWeight — are deliberately absent from
+	// this list, because zero is a setting rather than an omission: SetPieceWeight
+	// ships at 0.0 after measurement showed it double-counted penalties, and a
+	// guard here would silently overwrite anyone disabling one to re-run that.
+	//
+	// A key absent from the file keeps its default regardless, since Unmarshal
+	// leaves fields it does not see alone and cfg starts from Default().
+	d := Default()
+	if cfg.Model == "" {
+		cfg.Model = d.Model
+	}
+	if cfg.Effort == "" {
+		cfg.Effort = d.Effort
+	}
+	if cfg.MaxIterations <= 0 {
+		cfg.MaxIterations = d.MaxIterations
+	}
+	if cfg.Weights.Horizon <= 0 {
+		cfg.Weights.Horizon = d.Weights.Horizon
+	}
+	if cfg.Weights.MinutesHalfLife <= 0 {
+		cfg.Weights.MinutesHalfLife = d.Weights.MinutesHalfLife
+	}
+	// BonusPriorWeight's disabled state is -1, not 0: zero is a real setting
+	// meaning "ignore a purely historical bonus rate entirely". An absent key
+	// unmarshals to 0, which would silently switch the schedule on, so it is
+	// probed for presence the way rest_minutes_factor is.
+	if !hasKey(b, "weights", "bonus_prior_weight") {
+		cfg.Weights.BonusPriorWeight = d.Weights.BonusPriorWeight
+	}
+	if cfg.Weights.BenchWeight <= 0 {
+		cfg.Weights.BenchWeight = d.Weights.BenchWeight
+	}
+	if cfg.Weights.MinutesWeight <= 0 {
+		cfg.Weights.MinutesWeight = d.Weights.MinutesWeight
+	}
+	// The post-tournament term used to be "rest_discount", a Score multiplier.
+	// It now multiplies expected minutes instead, because that is the channel it
+	// was measured in. The two are not the same number: the minutes exponent is
+	// convex, so a minutes factor f lands at f^MinutesWeight on Score.
+	//
+	// Migrate rather than ignore. An unknown key unmarshals silently, so an old
+	// file would lose the term altogether with nothing to show for it.
+	//
+	// Presence has to be probed separately. cfg starts from Default(), so a
+	// missing rest_minutes_factor is indistinguishable from one written at the
+	// default value — testing it against zero, as every other backfill here
+	// does, would mean the migration never fires at all.
+	var probe struct {
+		Weights struct {
+			Factor   *float64 `json:"rest_minutes_factor"`
+			Discount *float64 `json:"rest_discount"`
+		} `json:"weights"`
+	}
+	if err := json.Unmarshal(b, &probe); err == nil &&
+		probe.Weights.Factor == nil && probe.Weights.Discount != nil &&
+		*probe.Weights.Discount > 0 && *probe.Weights.Discount < 1 {
+		exp := cfg.Weights.MinutesWeight
+		if exp <= 0 {
+			exp = d.Weights.MinutesWeight
+		}
+		// Preserve the old file's effective Score effect rather than jumping it
+		// to the new calibrated default: the point is that behaviour does not
+		// change silently under someone.
+		cfg.Weights.RestMinutesFactor = math.Pow(*probe.Weights.Discount, 1/exp)
+	}
+	cfg.Weights.LegacyRestDiscount = 0
+	if cfg.Weights.RestMinutesFactor <= 0 || cfg.Weights.RestMinutesFactor > 1 {
+		cfg.Weights.RestMinutesFactor = d.Weights.RestMinutesFactor
+	}
+	// Backfill congestion penalties so a partially-written block still works.
+	dc := d.Congestion
+	for _, f := range []struct {
+		p   *float64
+		def float64
+	}{
+		{&cfg.Congestion.UCLPenalty, dc.UCLPenalty},
+		{&cfg.Congestion.UELPenalty, dc.UELPenalty},
+		{&cfg.Congestion.UECLPenalty, dc.UECLPenalty},
+		{&cfg.Congestion.ShortRestPenalty, dc.ShortRestPenalty},
+		{&cfg.Congestion.VeryShortRest, dc.VeryShortRest},
+		{&cfg.Congestion.PostBreakPenalty, dc.PostBreakPenalty},
+		{&cfg.Congestion.LongHaulPenalty, dc.LongHaulPenalty},
+	} {
+		if *f.p <= 0 || *f.p > 1 {
+			*f.p = f.def
+		}
+	}
+	// ⚠️ The two campaign maps are deliberately NOT backfilled on empty, and this
+	// is the one place in this function where that is the right call.
+	//
+	// Every other backfill here reads "zero is meaningless for this field, so it
+	// means the user left it out". For a list of clubs that is false: an empty
+	// list is a legitimate statement — nobody is in Europe this season, or the
+	// cup is over. Backfilling it conflated "I did not say" with "I say: none",
+	// and combined with encoding/json merging into a non-nil map it meant the
+	// list could not be SHORTENED by any route at all: not by deleting a club,
+	// not by `{}`, not by `null`. A club knocked out of Europe could not be
+	// removed.
+	//
+	// `analysis.CampaignMap` now replaces on unmarshal, so an absent key keeps
+	// the Go default and a present key wins — the same rule the slice-typed
+	// lists have always followed.
+	// TestLoadLetsTheFileReplaceEveryHandMaintainedList pins all three cases.
+	//
+	// ⚠️ This is NOT a general licence to delete backfills. It applies to a
+	// hand-maintained ENUMERATION whose membership can legitimately be zero. It
+	// does not apply to `Review.Rules` or `MinutesWeightByPosition`, which are
+	// fixed-arity structures where empty is meaningless rather than a statement,
+	// and whose backfills below are correct.
+	if cfg.Congestion.DomesticCupPenalty <= 0 || cfg.Congestion.DomesticCupPenalty > 1 {
+		cfg.Congestion.DomesticCupPenalty = d.Congestion.DomesticCupPenalty
+	}
+	if len(cfg.Weights.MinutesWeightByPosition) == 0 {
+		cfg.Weights.MinutesWeightByPosition = d.Weights.MinutesWeightByPosition
+	}
+	if cfg.Weights.BlendMinutesK <= 0 {
+		cfg.Weights.BlendMinutesK = d.Weights.BlendMinutesK
+	}
+	if cfg.Weights.BlendRateK <= 0 {
+		cfg.Weights.BlendRateK = d.Weights.BlendRateK
+	}
+	if cfg.Weights.LeagueShrinkK <= 0 {
+		cfg.Weights.LeagueShrinkK = d.Weights.LeagueShrinkK
+	}
+	// ⚠️ No backfill for TournamentAbsences either, and for the same reason as the
+	// campaign maps below: it is a hand-maintained ENUMERATION whose membership can
+	// legitimately go to zero — a summer with no tournament — so an empty list is a
+	// statement and only an absent key is an omission. `cfg` starts from Default(),
+	// so omitting the key already keeps the six shipped groups.
+	//
+	// The `== nil` guard that used to be here made `"tournament_absences": null`
+	// resurrect the default while `[]` emptied it, which is two answers to one
+	// question and neither is documented.
+	if cfg.RoleRisk.NewSigningPenalty <= 0 || cfg.RoleRisk.NewSigningPenalty > 1 {
+		cfg.RoleRisk.NewSigningPenalty = d.RoleRisk.NewSigningPenalty
+	}
+	if cfg.RoleRisk.NewSigningGameweeks <= 0 {
+		cfg.RoleRisk.NewSigningGameweeks = d.RoleRisk.NewSigningGameweeks
+	}
+	if cfg.RoleRisk.NewCoachPenalty <= 0 || cfg.RoleRisk.NewCoachPenalty > 1 {
+		cfg.RoleRisk.NewCoachPenalty = d.RoleRisk.NewCoachPenalty
+	}
+	if cfg.RoleRisk.NewCoachGameweeks <= 0 {
+		cfg.RoleRisk.NewCoachGameweeks = d.RoleRisk.NewCoachGameweeks
+	}
+	if cfg.Review.MinGainForTransfer <= 0 {
+		cfg.Review.MinGainForTransfer = d.Review.MinGainForTransfer
+	}
+	if cfg.Review.MinGainForHit <= 0 {
+		cfg.Review.MinGainForHit = d.Review.MinGainForHit
+	}
+	if cfg.Review.FreeTransferValue <= 0 {
+		cfg.Review.FreeTransferValue = d.Review.FreeTransferValue
+	}
+	if cfg.Review.BankUpTo <= 0 {
+		cfg.Review.BankUpTo = d.Review.BankUpTo
+	}
+	if cfg.Review.LeadHours <= 0 {
+		cfg.Review.LeadHours = d.Review.LeadHours
+	}
+	if len(cfg.Review.Rules) == 0 {
+		cfg.Review.Rules = d.Review.Rules
+	}
+	if cfg.ReportDir == "" {
+		cfg.ReportDir = d.ReportDir
+	}
+	if cfg.CacheDir == "" {
+		cfg.CacheDir = d.CacheDir
+	}
+	if cfg.CacheMinutes <= 0 {
+		cfg.CacheMinutes = d.CacheMinutes
+	}
+	return cfg, nil
+}
+
+func Save(path string, cfg Config) error {
+	if dir := filepath.Dir(path); dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	// Written to a sibling and renamed over the target, rather than truncating
+	// the live file. `os.WriteFile` opens O_TRUNC, so a crash, a SIGINT or a full
+	// disk between the truncate and the write leaves a zero-length or half-written
+	// config.json — taking the roster overrides and the review policy with it, and
+	// those are the parts nothing else can reconstruct. Rename within a directory
+	// is atomic, so a reader sees the old file or the new one and never a partial.
+	//
+	// The temporary file is a sibling deliberately: /tmp is frequently a different
+	// filesystem, and rename across filesystems fails.
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".config-*.json")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // no-op once the rename succeeds
+	if _, err := tmp.Write(append(b, '\n')); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	// CreateTemp makes the file 0600; the config has always been 0644.
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
+// hasKey reports whether a nested key is present in the raw config JSON.
+//
+// Needed wherever a field's "unset" state is not its zero value. cfg starts
+// from Default(), so testing the value cannot distinguish "absent" from
+// "written at the default" — and for BonusPriorWeight the zero value is a real
+// setting (ignore a purely historical bonus rate) while the disabled state is
+// -1. Testing against zero would switch the schedule on for every existing
+// config file. See the rest_minutes_factor migration for the same trap.
+func hasKey(raw []byte, path ...string) bool {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return false
+	}
+	for i, k := range path {
+		v, ok := m[k]
+		if !ok {
+			return false
+		}
+		if i == len(path)-1 {
+			return true
+		}
+		m = nil
+		if err := json.Unmarshal(v, &m); err != nil {
+			return false
+		}
+	}
+	return false
+}

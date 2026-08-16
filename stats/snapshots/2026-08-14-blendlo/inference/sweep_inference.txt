@@ -1,0 +1,434 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+
+Read 216 cells from 1 file(s): 1 sweep(s).
+------------------------------------------------------------------------------
+Contract checks
+  ok  exactly one baseline arm in each of 1 sweep(s)
+  ok  re-derives from points / weeks: hold, policy, hold_fixedcap, hold_nocap
+  ok  no infeasible cells
+  ..  bank_up_to = 5  (pinned modern rule; totals are not comparable across seasons)
+------------------------------------------------------------------------------
+Sweep: 1786721062-875311 / BLENDLO#1
+Metric: HOLD (the opening fifteen; scoring constants belong here)
+Paired against: BlendRateK=8 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+BlendRateK=3                 -0.107    36 |    0.373   -0.29 |    0.496    5.0   -0.22 |   0.8375   1.0000
+BlendRateK=5                  0.048    36 |    0.263    0.18 |    0.313    5.0    0.15 |   0.8838   1.0000
+BlendRateK=12                -0.306    36 |    0.407   -0.75 |    0.457    5.0   -0.67 |   0.5327   1.0000
+BlendRateK=16                 0.306    36 |    0.573    0.53 |    0.401    5.0    0.76 |   0.4796   1.0000
+BlendRateK=24                 0.331    36 |    0.646    0.51 |    0.546    5.0    0.61 |   0.5703   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    BlendRateK=3               -0.22   -0.31   -0.30 |    0.759   2/6  |    14.8     1.1    84.1   1.43
+    BlendRateK=5                0.15    0.21    0.13 |    0.282   3/6  |    10.8    18.4    70.8   1.38
+    BlendRateK=12              -0.67   -0.86   -0.54 |    0.498   4/6  |     8.1    18.6    73.3   1.29
+    BlendRateK=16               0.76    0.53    0.46 |   -1.060   5/6  |     0.0     5.3    94.7   0.69
+    BlendRateK=24               0.61    0.52    0.44 |   -0.694   3/6  |     0.0     5.4    94.6   0.85
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    BlendRateK=3               SE    0.496  df    5.0  t   -0.22  p   0.8375
+    BlendRateK=5               SE    0.313  df    5.0  t    0.15  p   0.8838
+    BlendRateK=12              SE    0.457  df    5.0  t   -0.67  p   0.5327
+    BlendRateK=16              SE    0.573  df   35.0  t    0.53  p   0.5965
+    BlendRateK=24              SE    0.646  df   35.0  t    0.51  p   0.6111
+
+  Family size for the Holm adjustment: 5 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    BlendRateK=5 minus BlendRateK=3                 0.155    36 |    0.292    0.53 |    0.316    0.49 |    22
+    BlendRateK=12 minus BlendRateK=3               -0.199    36 |    0.537   -0.37 |    0.319   -0.62 |    19
+    BlendRateK=16 minus BlendRateK=3                0.413    36 |    0.575    0.72 |    0.327    1.27 |    21
+    BlendRateK=24 minus BlendRateK=3                0.439    36 |    0.617    0.71 |    0.716    0.61 |    19
+    BlendRateK=12 minus BlendRateK=5               -0.354    36 |    0.487   -0.73 |    0.294   -1.20 |    17
+    BlendRateK=16 minus BlendRateK=5                0.258    36 |    0.612    0.42 |    0.310    0.83 |    20
+    BlendRateK=24 minus BlendRateK=5                0.283    36 |    0.664    0.43 |    0.459    0.62 |    20
+    BlendRateK=16 minus BlendRateK=12               0.612    36 |    0.419    1.46 |    0.156    3.94 |    17
+    BlendRateK=24 minus BlendRateK=12               0.638    36 |    0.587    1.09 |    0.507    1.26 |    15
+    BlendRateK=24 minus BlendRateK=16               0.025    36 |    0.463    0.05 |    0.520    0.05 |    10
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786721062-875311 / BLENDLO#1
+Metric: POLICY (the weekly transfer decision)
+Paired against: BlendRateK=8 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+BlendRateK=3                 -0.151    36 |    0.427   -0.35 |    0.349    5.0   -0.43 |   0.6828   1.0000
+BlendRateK=5                 -0.217    36 |    0.361   -0.60 |    0.457    5.0   -0.47 |   0.6556   1.0000
+BlendRateK=12                -0.350    36 |    0.464   -0.76 |    0.512    5.0   -0.68 |   0.5239   1.0000
+BlendRateK=16                -0.276    36 |    0.442   -0.62 |    0.534    5.0   -0.52 |   0.6280   1.0000
+BlendRateK=24                -0.752    36 |    0.535   -1.41 |    0.861    5.0   -0.87 |   0.4224   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    BlendRateK=3               -0.43   -0.35   -0.31 |   -0.373   4/6  |     0.0     4.6    95.4   0.81
+    BlendRateK=5               -0.47   -0.67   -0.52 |    0.621   3/6  |    12.8     8.7    78.5   1.41
+    BlendRateK=12              -0.68   -0.71   -2.17 |    0.110   4/6  |     1.2     0.0    98.8   1.04
+    BlendRateK=16              -0.52   -0.62   -0.84 |    0.543   4/6  |     7.2     0.0    92.8   1.21
+    BlendRateK=24              -0.87   -1.57   -2.32 |    3.067   4/6  |    27.0     0.0    73.0   1.79
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    BlendRateK=3               SE    0.427  df   35.0  t   -0.35  p   0.7256
+    BlendRateK=5               SE    0.457  df    5.0  t   -0.47  p   0.6556
+    BlendRateK=12              SE    0.512  df    5.0  t   -0.68  p   0.5239
+    BlendRateK=16              SE    0.534  df    5.0  t   -0.52  p   0.6280
+    BlendRateK=24              SE    0.861  df    5.0  t   -0.87  p   0.4224
+
+  Family size for the Holm adjustment: 5 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    BlendRateK=5 minus BlendRateK=3                -0.065    36 |    0.361   -0.18 |    0.457   -0.14 |    18
+    BlendRateK=12 minus BlendRateK=3               -0.199    36 |    0.531   -0.37 |    0.754   -0.26 |    19
+    BlendRateK=16 minus BlendRateK=3               -0.124    36 |    0.537   -0.23 |    0.683   -0.18 |    17
+    BlendRateK=24 minus BlendRateK=3               -0.601    36 |    0.585   -1.03 |    1.051   -0.57 |    14
+    BlendRateK=12 minus BlendRateK=5               -0.134    36 |    0.435   -0.31 |    0.605   -0.22 |    18
+    BlendRateK=16 minus BlendRateK=5               -0.059    36 |    0.426   -0.14 |    0.366   -0.16 |    15
+    BlendRateK=24 minus BlendRateK=5               -0.535    36 |    0.404   -1.32 |    0.648   -0.83 |    18
+    BlendRateK=16 minus BlendRateK=12               0.075    36 |    0.383    0.20 |    0.363    0.21 |    18
+    BlendRateK=24 minus BlendRateK=12              -0.402    36 |    0.368   -1.09 |    0.657   -0.61 |    18
+    BlendRateK=24 minus BlendRateK=16              -0.477    36 |    0.359   -1.33 |    0.443   -1.07 |    14
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786721062-875311 / BLENDLO#1
+Metric: instrument: HOLD, armband pinned to the day-one pick
+Paired against: BlendRateK=8 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+BlendRateK=3                  0.421    36 |    0.452    0.93 |    0.736    5.0    0.57 |   0.5920   1.0000
+BlendRateK=5                  0.331    36 |    0.280    1.18 |    0.292    5.0    1.13 |   0.3091   1.0000
+BlendRateK=12                -0.238    36 |    0.416   -0.57 |    0.489    5.0   -0.49 |   0.6476   1.0000
+BlendRateK=16                 0.312    36 |    0.571    0.55 |    0.473    5.0    0.66 |   0.5382   1.0000
+BlendRateK=24                 0.395    36 |    0.589    0.67 |    0.443    5.0    0.89 |   0.4141   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    BlendRateK=3                0.57    1.10    1.07 |    2.364   4/6  |    30.7     0.6    68.7   1.92
+    BlendRateK=5                1.13    1.29    0.91 |    0.116   4/6  |     4.0    13.6    82.4   1.14
+    BlendRateK=12              -0.49   -0.66   -0.41 |    0.665   4/6  |    10.2    18.5    71.2   1.36
+    BlendRateK=16               0.66    0.54    0.49 |   -0.645   5/6  |     0.0     3.5    96.5   0.82
+    BlendRateK=24               0.89    0.66    0.59 |   -0.960   3/6  |     0.0     4.3    95.7   0.74
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    BlendRateK=3               SE    0.736  df    5.0  t    0.57  p   0.5920
+    BlendRateK=5               SE    0.292  df    5.0  t    1.13  p   0.3091
+    BlendRateK=12              SE    0.489  df    5.0  t   -0.49  p   0.6476
+    BlendRateK=16              SE    0.571  df   35.0  t    0.55  p   0.5879
+    BlendRateK=24              SE    0.589  df   35.0  t    0.67  p   0.5075
+
+  Family size for the Holm adjustment: 5 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    BlendRateK=5 minus BlendRateK=3                -0.090    36 |    0.354   -0.25 |    0.481   -0.19 |    17
+    BlendRateK=12 minus BlendRateK=3               -0.658    36 |    0.614   -1.07 |    0.717   -0.92 |    14
+    BlendRateK=16 minus BlendRateK=3               -0.109    36 |    0.604   -0.18 |    0.647   -0.17 |    16
+    BlendRateK=24 minus BlendRateK=3               -0.026    36 |    0.646   -0.04 |    0.944   -0.03 |    14
+    BlendRateK=12 minus BlendRateK=5               -0.568    36 |    0.515   -1.10 |    0.435   -1.31 |    13
+    BlendRateK=16 minus BlendRateK=5               -0.019    36 |    0.584   -0.03 |    0.388   -0.05 |    14
+    BlendRateK=24 minus BlendRateK=5                0.064    36 |    0.612    0.10 |    0.518    0.12 |    15
+    BlendRateK=16 minus BlendRateK=12               0.550    36 |    0.394    1.39 |    0.156    3.53 |    12
+    BlendRateK=24 minus BlendRateK=12               0.632    36 |    0.511    1.24 |    0.385    1.64 |    13
+    BlendRateK=24 minus BlendRateK=16               0.082    36 |    0.403    0.20 |    0.392    0.21 |    11
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786721062-875311 / BLENDLO#1
+Metric: instrument: HOLD with nobody doubled (not what FPL pays)
+Paired against: BlendRateK=8 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+BlendRateK=3                  0.073    36 |    0.391    0.19 |    0.585    5.0    0.12 |   0.9056   1.0000
+BlendRateK=5                  0.101    36 |    0.267    0.38 |    0.269    5.0    0.38 |   0.7226   1.0000
+BlendRateK=12                -0.225    36 |    0.394   -0.57 |    0.445    5.0   -0.51 |   0.6342   1.0000
+BlendRateK=16                 0.240    36 |    0.528    0.45 |    0.446    5.0    0.54 |   0.6132   1.0000
+BlendRateK=24                 0.279    36 |    0.554    0.50 |    0.400    5.0    0.70 |   0.5173   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    BlendRateK=3                0.12    0.21    0.22 |    1.313   4/6  |    22.8     0.0    77.2   1.67
+    BlendRateK=5                0.38    0.39    0.33 |    0.032   4/6  |     1.2     5.8    93.0   1.04
+    BlendRateK=12              -0.51   -0.65   -0.43 |    0.460   4/6  |     7.9    16.4    75.7   1.28
+    BlendRateK=16               0.54    0.44    0.45 |   -0.575   4/6  |     0.0     0.0   100.0   0.82
+    BlendRateK=24               0.70    0.49    0.46 |   -0.995   3/6  |     0.0     1.7    98.3   0.70
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    BlendRateK=3               SE    0.585  df    5.0  t    0.12  p   0.9056
+    BlendRateK=5               SE    0.269  df    5.0  t    0.38  p   0.7226
+    BlendRateK=12              SE    0.445  df    5.0  t   -0.51  p   0.6342
+    BlendRateK=16              SE    0.528  df   35.0  t    0.45  p   0.6524
+    BlendRateK=24              SE    0.554  df   35.0  t    0.50  p   0.6182
+
+  Family size for the Holm adjustment: 5 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    BlendRateK=5 minus BlendRateK=3                 0.028    36 |    0.315    0.09 |    0.425    0.07 |    16
+    BlendRateK=12 minus BlendRateK=3               -0.298    36 |    0.536   -0.56 |    0.502   -0.59 |    16
+    BlendRateK=16 minus BlendRateK=3                0.167    36 |    0.551    0.30 |    0.472    0.35 |    16
+    BlendRateK=24 minus BlendRateK=3                0.206    36 |    0.565    0.36 |    0.753    0.27 |    15
+    BlendRateK=12 minus BlendRateK=5               -0.326    36 |    0.484   -0.67 |    0.346   -0.94 |    12
+    BlendRateK=16 minus BlendRateK=5                0.139    36 |    0.573    0.24 |    0.386    0.36 |    14
+    BlendRateK=24 minus BlendRateK=5                0.178    36 |    0.577    0.31 |    0.395    0.45 |    16
+    BlendRateK=16 minus BlendRateK=12               0.465    36 |    0.354    1.31 |    0.169    2.75 |    12
+    BlendRateK=24 minus BlendRateK=12               0.504    36 |    0.483    1.04 |    0.360    1.40 |    13
+    BlendRateK=24 minus BlendRateK=16               0.039    36 |    0.409    0.09 |    0.413    0.09 |    10
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786721062-875311 / BLENDLO#1
+Metric: marginal: the armband's share of this effect
+Paired against: BlendRateK=8 (ships)
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+BlendRateK=3                 -0.180    36 |    0.143   -1.26 |    0.284    5.0   -0.63 |   0.5539   1.0000
+BlendRateK=5                 -0.053    36 |    0.104   -0.51 |    0.152    5.0   -0.35 |   0.7416   1.0000
+BlendRateK=12                -0.081    36 |    0.055   -1.48 |    0.076    5.0   -1.06 |   0.3385   1.0000
+BlendRateK=16                 0.066    36 |    0.133    0.50 |    0.162    5.0    0.41 |   0.7005   1.0000
+BlendRateK=24                 0.053    36 |    0.163    0.32 |    0.246    5.0    0.21 |   0.8391   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    BlendRateK=3               -0.63   -1.62   -4.41 |    0.410   4/6  |    48.1     0.0    51.9   2.56
+    BlendRateK=5               -0.35   -0.54   -0.72 |    0.081   4/6  |    19.3     0.0    80.7   1.56
+    BlendRateK=12              -1.06   -1.59   -1.70 |    0.020   4/6  |    17.4     0.0    82.6   1.50
+    BlendRateK=16               0.41    0.55    0.41 |    0.072   3/6  |    10.9    10.9    78.2   1.36
+    BlendRateK=24               0.21    0.39    0.29 |    0.253   4/6  |    25.3     8.0    66.7   1.81
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    BlendRateK=3               SE    0.284  df    5.0  t   -0.63  p   0.5539
+    BlendRateK=5               SE    0.152  df    5.0  t   -0.35  p   0.7416
+    BlendRateK=12              SE    0.076  df    5.0  t   -1.06  p   0.3385
+    BlendRateK=16              SE    0.162  df    5.0  t    0.41  p   0.7005
+    BlendRateK=24              SE    0.246  df    5.0  t    0.21  p   0.8391
+
+  Family size for the Holm adjustment: 5 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    BlendRateK=5 minus BlendRateK=3                 0.127    36 |    0.069    1.84 |    0.155    0.82 |    11
+    BlendRateK=12 minus BlendRateK=3                0.099    36 |    0.145    0.69 |    0.248    0.40 |    17
+    BlendRateK=16 minus BlendRateK=3                0.246    36 |    0.185    1.33 |    0.275    0.90 |    18
+    BlendRateK=24 minus BlendRateK=3                0.233    36 |    0.169    1.37 |    0.223    1.04 |    20
+    BlendRateK=12 minus BlendRateK=5               -0.028    36 |    0.120   -0.23 |    0.139   -0.20 |    14
+    BlendRateK=16 minus BlendRateK=5                0.119    36 |    0.169    0.70 |    0.199    0.60 |    15
+    BlendRateK=24 minus BlendRateK=5                0.105    36 |    0.166    0.64 |    0.220    0.48 |    18
+    BlendRateK=16 minus BlendRateK=12               0.147    36 |    0.121    1.22 |    0.099    1.49 |    10
+    BlendRateK=24 minus BlendRateK=12               0.133    36 |    0.158    0.85 |    0.182    0.73 |    13
+    BlendRateK=24 minus BlendRateK=16              -0.013    36 |    0.101   -0.13 |    0.121   -0.11 |     9
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Sweep: 1786721062-875311 / BLENDLO#1
+Metric: marginal: re-picking the captain weekly
+Paired against: BlendRateK=8 (ships)
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm
+BlendRateK=3                 -0.528    36 |    0.236   -2.23 |    0.511    5.0   -1.03 |   0.3487   1.0000
+BlendRateK=5                 -0.283    36 |    0.173   -1.63 |    0.300    5.0   -0.94 |   0.3889   1.0000
+BlendRateK=12                -0.069    36 |    0.057   -1.21 |    0.085    5.0   -0.81 |   0.4553   1.0000
+BlendRateK=16                -0.006    36 |    0.071   -0.08 |    0.114    5.0   -0.05 |   0.9605   1.0000
+BlendRateK=24                -0.063    36 |    0.150   -0.42 |    0.238    5.0   -0.26 |   0.8020   1.0000
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    BlendRateK=3               -1.03   -3.52   -3.97 |    1.431   3/6  |    63.9     0.0    36.1   3.41
+    BlendRateK=5               -0.94   -1.91   -2.75 |    0.407   3/6  |    34.1     0.0    65.9   2.02
+    BlendRateK=12              -0.81   -1.35   -1.39 |    0.028   3/6  |    22.8     0.0    77.2   1.66
+    BlendRateK=16              -0.05   -0.11   -0.07 |    0.060   3/6  |    30.5    14.9    54.7   2.08
+    BlendRateK=24              -0.26   -0.53   -0.37 |    0.256   2/6  |    29.8    10.9    59.3   2.00
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    BlendRateK=3               SE    0.511  df    5.0  t   -1.03  p   0.3487
+    BlendRateK=5               SE    0.300  df    5.0  t   -0.94  p   0.3889
+    BlendRateK=12              SE    0.085  df    5.0  t   -0.81  p   0.4553
+    BlendRateK=16              SE    0.114  df    5.0  t   -0.05  p   0.9605
+    BlendRateK=24              SE    0.238  df    5.0  t   -0.26  p   0.8020
+
+  Family size for the Holm adjustment: 5 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos
+    BlendRateK=5 minus BlendRateK=3                 0.245    36 |    0.123    2.00 |    0.221    1.11 |    13
+    BlendRateK=12 minus BlendRateK=3                0.459    36 |    0.224    2.05 |    0.468    0.98 |    18
+    BlendRateK=16 minus BlendRateK=3                0.522    36 |    0.224    2.33 |    0.468    1.12 |    21
+    BlendRateK=24 minus BlendRateK=3                0.465    36 |    0.195    2.38 |    0.349    1.33 |    22
+    BlendRateK=12 minus BlendRateK=5                0.214    36 |    0.163    1.31 |    0.261    0.82 |    15
+    BlendRateK=16 minus BlendRateK=5                0.277    36 |    0.166    1.66 |    0.265    1.04 |    17
+    BlendRateK=24 minus BlendRateK=5                0.220    36 |    0.148    1.48 |    0.186    1.18 |    20
+    BlendRateK=16 minus BlendRateK=12               0.063    36 |    0.048    1.30 |    0.036    1.75 |     8
+    BlendRateK=24 minus BlendRateK=12               0.006    36 |    0.133    0.04 |    0.175    0.03 |    13
+    BlendRateK=24 minus BlendRateK=16              -0.057    36 |    0.120   -0.48 |    0.157   -0.36 |     9
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+------------------------------------------------------------------------------
+Noise by information regime — POLICY, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      0.765      1.00        1.00      60
+middle                    26      0.593      0.78        1.18      60
+late (season-led)         16      0.904      1.18        1.51      60
+------------------------------------------------------------------------------
+Noise by information regime — HOLD, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      0.442      1.00        1.00      60
+middle                    26      0.739      1.67        1.18      60
+late (season-led)         16      1.000      2.26        1.51      60
+------------------------------------------------------------------------------
+Reproducing Go's paired means
+  ok  all 20 comparison(s) reproduce Go's mean and cell count (max abs diff 0e+00)
+  ..  10 comparison(s) computed here with no Go mean to check against:
+        BLENDLO#1 m_armband BlendRateK=3
+        BLENDLO#1 m_armband BlendRateK=5
+        BLENDLO#1 m_armband BlendRateK=12
+        BLENDLO#1 m_armband BlendRateK=16
+        BLENDLO#1 m_armband BlendRateK=24
+        BLENDLO#1 m_capweekly BlendRateK=3
+        BLENDLO#1 m_capweekly BlendRateK=5
+        BLENDLO#1 m_capweekly BlendRateK=12
+        BLENDLO#1 m_capweekly BlendRateK=16
+        BLENDLO#1 m_capweekly BlendRateK=24
+------------------------------------------------------------------------------
+wrote stats/out/1786721062-875311_BLENDLO_1-hold-shape.png
+wrote stats/out/1786721062-875311_BLENDLO_1-hold-cells.png
+wrote stats/out/1786721062-875311_BLENDLO_1-policy-shape.png
+wrote stats/out/1786721062-875311_BLENDLO_1-policy-cells.png
+wrote stats/out/1786721062-875311_BLENDLO_1-hold_fixedcap-shape.png
+wrote stats/out/1786721062-875311_BLENDLO_1-hold_fixedcap-cells.png
+wrote stats/out/1786721062-875311_BLENDLO_1-hold_nocap-shape.png
+wrote stats/out/1786721062-875311_BLENDLO_1-hold_nocap-cells.png
+wrote stats/out/1786721062-875311_BLENDLO_1-m_armband-shape.png
+wrote stats/out/1786721062-875311_BLENDLO_1-m_armband-cells.png
+wrote stats/out/1786721062-875311_BLENDLO_1-m_capweekly-shape.png
+wrote stats/out/1786721062-875311_BLENDLO_1-m_capweekly-cells.png
+------------------------------------------------------------------------------
+wrote stats/out/inference.csv
+
+Reading this: prefer the CR2 column, and read its df rather than assuming
+one. Treat a raw p under 0.05 whose Holm-adjusted p is not as the case the
+old |t| >= 2 rule mislabelled 'confirmed'. And weigh the shape plot above
+any single row: monotonicity, a plateau with a cliff, or the held-out
+season agreeing is what this project accepts as evidence.
