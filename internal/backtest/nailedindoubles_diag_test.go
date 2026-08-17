@@ -510,27 +510,42 @@ func reportPerGameweekRates(t *testing.T, all []seasonWeeks) {
 		}
 	}
 	t.Log("== per-GAMEWEEK 'cleared 60 at least once', doubles against singles ==")
-	t.Log("Diversification predicts the nailed-to-fringe gap narrows in the double column.")
+	t.Log("Diversification predicts the gap between nailed and not narrows in the double")
+	t.Log("column. Read the rotation reference, not the fringe one — see the note below the table.")
 	t.Logf("%-18s %8s %9s   %8s %9s   %8s", "nailedness",
 		"S weeks", "S >=1x60", "D weeks", "D >=1x60", "diff")
-	var sTop, sBot, dTop, dBot float64
+	sRate := map[string]float64{}
+	dRate := map[string]float64{}
 	for _, b := range nailedBuckets {
 		s, d := single[b.Label], double[b.Label]
 		if s == nil || d == nil {
 			continue
 		}
 		sr, dr := rate(s.WeekSixty, s.Weeks), rate(d.WeekSixty, d.Weeks)
-		if b.Label == nailedBuckets[len(nailedBuckets)-1].Label {
-			sTop, dTop = sr, dr
-		}
-		if b.Label == nailedBuckets[0].Label {
-			sBot, dBot = sr, dr
-		}
+		sRate[b.Label], dRate[b.Label] = sr, dr
 		t.Logf("%-18s %8d %9.4f   %8d %9.4f   %+8.4f",
 			b.Label, s.Weeks, sr, d.Weeks, dr, dr-sr)
 	}
-	t.Logf("nailed-minus-fringe gap: singles %.4f, doubles %.4f (narrowing is %+0.4f)",
-		sTop-sBot, dTop-dBot, (dTop-dBot)-(sTop-sBot))
+
+	// Two reference buckets, because the choice of reference decides the answer
+	// and only one of the two is a fair test.
+	//
+	// The fringe bucket sits at 0.05 in a single week, so it is close to a floor
+	// and cannot gain much from a second lottery — a gap measured against it moves
+	// mostly with what happens at the top. The rotation bucket is where a second
+	// chance can actually help, which is what the diversification mechanism is
+	// about, so nailed-minus-rotation is the contrast that discriminates and
+	// nailed-minus-fringe is reported beside it rather than instead of it.
+	top := nailedBuckets[len(nailedBuckets)-1].Label
+	for _, ref := range []string{nailedBuckets[0].Label, nailedBuckets[1].Label} {
+		sg, dg := sRate[top]-sRate[ref], dRate[top]-dRate[ref]
+		word := "WIDENS"
+		if dg < sg {
+			word = "narrows"
+		}
+		t.Logf("gap nailed minus %-18s singles %.4f, doubles %.4f — %s by %+0.4f",
+			ref, sg, dg, word, dg-sg)
+	}
 }
 
 // reportBothLegs is the headline: given the club doubled, how often did he do the
