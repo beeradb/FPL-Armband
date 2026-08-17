@@ -30,7 +30,7 @@ import (
 	"os"
 	"testing"
 
-	"armband/internal/analysis"
+	"armband/internal/config"
 	"armband/internal/fpl"
 )
 
@@ -71,11 +71,11 @@ func TestDiagFixtureLoadMatchesTheArchive(t *testing.T) {
 				continue
 			}
 			// The deadline for gameweek `gw` stands after `gw-1` is played, which
-			// is where the shipped weekly engine is built. See PointInTimeWith.
-			vb, vf := PointInTimeWith(cur, prior, gw-1, Oracles{})
-			w := cfg.Weights
-			w.Horizon = 1
-			e := analysis.NewEngineFull(vb, vf, w, analysis.Congestion{}, analysis.RoleRisk{})
+			// is where the shipped weekly engine is built. Through EngineAt, so
+			// the priors, the recency index and the team-form source are attached
+			// the way Simulate attaches them — an unwired engine reads flat season
+			// minutes and reports the fallback as the model's own number.
+			e, vb := EngineAt(cur, prior, gw-1, weeklyXIConfig(cfg, gw))
 			if !e.FixtureLoadInScore() {
 				t.Fatal("FixtureLoadInScore is false on a horizon-1 engine, so this " +
 					"probe would be reading a field nothing multiplies. Check " +
@@ -156,10 +156,7 @@ func TestFixtureLoadMatchesTheArchiveOnOneSeason(t *testing.T) {
 	// the moment the grid moves — which is how a test comes to pin only the half
 	// that was never broken.
 	for _, gw := range sampledFixtureWeeks(truth, clubs) {
-		vb, vf := PointInTimeWith(cur, prior, gw-1, Oracles{})
-		w := cfg.Weights
-		w.Horizon = 1
-		e := analysis.NewEngineFull(vb, vf, w, analysis.Congestion{}, analysis.RoleRisk{})
+		e, vb := EngineAt(cur, prior, gw-1, weeklyXIConfig(cfg, gw))
 
 		seen := map[int]bool{}
 		for i := range vb.Elements {
@@ -188,6 +185,21 @@ func TestFixtureLoadMatchesTheArchiveOnOneSeason(t *testing.T) {
 		t.Errorf("the sampled gameweeks hold %d blanks and %d doubles; this test "+
 			"pins nothing it does not exercise", blanks, doubles)
 	}
+}
+
+// weeklyXIConfig is the replay's own config with the horizon shortened to the
+// single imminent gameweek — the view `Simulate` builds under `WeeklyXI`, and
+// the only one on which `FixtureLoadInScore()` is true.
+//
+// It goes through `sweepConfig` rather than a `SimConfig` literal so that every
+// other field is whatever the replay uses, and it is fed to `EngineAt` so the
+// priors, the recency index and the team-form source are attached. An engine
+// built by hand carries the *fallback* value of `ExpectedMinutes` in a field the
+// model reads, which `TestEveryScoringEngineGetsRecency` exists to refuse.
+func weeklyXIConfig(cfg config.Config, gw int) SimConfig {
+	sc := sweepConfig(cfg, gw, true)
+	sc.Weights.Horizon = 1
+	return sc
 }
 
 // sampledFixtureWeeks picks an ordinary week, the last week of the season, and

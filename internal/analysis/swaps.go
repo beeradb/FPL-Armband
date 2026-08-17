@@ -205,6 +205,20 @@ func xiValueForTransfer(squad []PlayerMetrics, credit ChipCredit) float64 {
 		adj := make([]PlayerMetrics, len(squad))
 		copy(adj, squad)
 		for i := range adj {
+			// ⚠️ `> 0` means "was this field ever computed", and it stopped being
+			// only that when fixtureLoadFor learned to return a real 0. A player
+			// whose club blanks EVERY gameweek in the window now reads exactly 0
+			// and the multiply is skipped, so the transfer objective values him at
+			// full score — the same wrong answer the pre-fix anchor gave, rather
+			// than a new one, but not the answer this term is supposed to give.
+			//
+			// Unreachable at shipped config and left alone for that reason: this
+			// runs on the transfer engine, whose horizon is 5, and no archived
+			// club blanks five consecutive rounds. It becomes reachable at a
+			// configured horizon of 1. Separating "unset" from "zero" needs a
+			// second field on PlayerMetrics, which would also stop a hand-built
+			// PlayerMetrics exercising this line — and that construction is how
+			// TestFixtureLoadSeparatesTransfersFromSquadBuilding pins the seam.
 			if adj[i].FixtureLoad > 0 && !adj[i].loadInScore {
 				adj[i].Score *= adj[i].FixtureLoad
 			}

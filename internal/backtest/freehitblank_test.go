@@ -73,10 +73,11 @@ func TestFreeHitNeverFieldsABlankingClub(t *testing.T) {
 		if blanking < 4 {
 			continue
 		}
-		vb, vf := PointInTimeWith(cur, prior, gw-1, Oracles{})
-		w := cfg.Weights
-		w.Horizon = 1
-		he := analysis.NewEngineFull(vb, vf, w, analysis.Congestion{}, analysis.RoleRisk{})
+		// The one-gameweek engine `Simulate` hands `freeHitSquad`, built through
+		// EngineAt so the priors and the recency index are attached — this test
+		// judges which fifteen comes back, and an unwired engine scores every
+		// player on flat season minutes.
+		he, vb := EngineAt(cur, prior, gw-1, weeklyXIConfig(cfg, gw))
 
 		// Two budgets, because the guard binds through the BUDGET. A blanking
 		// player is worth zero and so is a bench slot's fourth-choice keeper, and
