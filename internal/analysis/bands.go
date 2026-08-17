@@ -78,8 +78,39 @@ func (e *Engine) teamBands() bands {
 			scored   float64
 			conceded float64
 		}
+		// ⚠️ **Club id breaks every tie here, and that is the whole reason this
+		// block is not three lines shorter.**
+		//
+		// This ranged the map straight into `rs` and ordered it with the
+		// non-stable `sort.Slice`, so two clubs on the same goals-per-match — which
+		// is common early, being a small integer over the same small number of
+		// matches — were separated by Go's randomised map order. Only a tie *on a
+		// band boundary* changes anything, but that is exactly the tie that decides
+		// membership of the bottom or top three, and it changed from run to run.
+		//
+		// Measured before the fix, on two replays of one sweep at one commit with
+		// `band_strength 1`: 3 of 36 `hold_points` cells differed, 12 of 36
+		// `policy_points`, and 7 each on moves and hits — decisions, not only
+		// scores. At cutoff 6 on 2024-25 the four band boundaries between them
+		// admitted 144 distinct assignments from identical data. ⚠️ That count is
+		// a product of `C(tie size, places inside the band)` over the four
+		// boundaries and is NOT the product of the tie sizes, so do not try to
+		// reproduce it from four numbers; the derivation is in
+		// TestBandStrengthIsDeterministicAtTheShippedSetting's comment.
+		//
+		// `sort.SliceStable` alone would NOT have fixed it: stability preserves the
+		// input order, and the input order was already the random one. The ordering
+		// has to be a total order on a key that is itself stable, which is the club
+		// id. This is the same class as `Optimize`'s map-ordered bench, pinned by
+		// TestSeedOrderIsDeterministic, and `newTeamFormIndex`.
+		ids := make([]int, 0, len(by))
+		for id := range by {
+			ids = append(ids, id)
+		}
+		sort.Ints(ids)
 		var rs []rated
-		for id, r := range by {
+		for _, id := range ids {
+			r := by[id]
 			if r.played < bandMinMatches {
 				continue
 			}
@@ -94,14 +125,24 @@ func (e *Engine) teamBands() bands {
 
 		// Attack: fewest goals scored is the worst attack, and the band an
 		// opposing defender wants to face.
-		sort.Slice(rs, func(i, j int) bool { return rs[i].scored < rs[j].scored })
+		sort.Slice(rs, func(i, j int) bool {
+			if rs[i].scored != rs[j].scored {
+				return rs[i].scored < rs[j].scored
+			}
+			return rs[i].id < rs[j].id
+		})
 		for i := 0; i < bandSize; i++ {
 			b.attack[rs[i].id] = bandWorst
 			b.attack[rs[len(rs)-1-i].id] = bandBest
 		}
 		// Defence: most goals conceded is the worst defence, and the band an
 		// opposing attacker wants to face.
-		sort.Slice(rs, func(i, j int) bool { return rs[i].conceded > rs[j].conceded })
+		sort.Slice(rs, func(i, j int) bool {
+			if rs[i].conceded != rs[j].conceded {
+				return rs[i].conceded > rs[j].conceded
+			}
+			return rs[i].id < rs[j].id
+		})
 		for i := 0; i < bandSize; i++ {
 			b.defence[rs[i].id] = bandWorst
 			b.defence[rs[len(rs)-1-i].id] = bandBest
@@ -171,3 +212,128 @@ func (e *Engine) defenceBandAdj(opponentID int, strength float64) float64 {
 	}
 	return 1
 }
+
+// Reading a club's fixture RUN off the same bands the scoring path uses.
+//
+// # Why this exists, and what it must never become
+//
+// This is instrumentation. Nothing below is read by `Score`, by `Optimize` or by
+// the transfer gate, and it must stay that way: "do not build a custom
+// fixture-difficulty rating" is a closed line in this project's record, and a
+// second rating that started life as a mediator would be exactly that, arriving
+// through the one door nobody reviews as scoring.
+//
+// What it is for is making a *null readable*. A fixture-run arm that comes back
+// flat has at least three explanations — the bands were never computed, the squad
+// never faced a banded opponent, or the policy saw the distinction and declined to
+// act on it — and they license opposite conclusions. Counting them apart is the
+// same argument the banking funnel is built on.
+//
+// # It borrows the model's window rather than defining one
+//
+// The count runs over `TeamFixtures(team, horizon)`, which is the identical call
+// `Metrics` makes at the identical horizon. So "the run" here is the run the
+// engine actually scored, not a second opinion about how far ahead to look. That
+// matters more than it sounds: "do not move the fixture window" is also closed,
+// and a mediator quietly reading a different window would report on a lever nobody
+// pulled.
+//
+// ⚠️ **The bands are computed from FINISHED fixtures only** (see teamBands), so
+// this carries no scoreline a manager could not have seen. It does NOT clear the
+// separate, known leak on the difficulty *rank*: `FixtureBrief.Difficulty` comes
+// from the archive's end-stamped `team_h_difficulty`, which `playedFixtures`
+// leaves alone. Nothing here reads Difficulty — only OpponentID and the bands —
+// which is why this counter is clean where a difficulty-weighted one would not be.
+
+// FixtureRun is what the 3/14/3 bands say about a club's next few fixtures:
+// how many are against an opponent worth targeting, and how many against one
+// worth avoiding.
+type FixtureRun struct {
+	// Ready is false before bandMinMatches have been played by enough clubs, when
+	// there is no rating at all. A zero run with Ready false and a zero run with
+	// Ready true are different facts — the first says the instrument could not
+	// look, the second says it looked and found nothing.
+	Ready bool
+	// Fixtures is how many matches the window actually held.
+	//
+	// ⚠️ **Blanks and doubles do NOT change this**, which is the natural
+	// misreading and the one that matters, since it is the reason a reader would
+	// suspect a double gameweek of inflating an exposure count. The window is
+	// `TeamFixtures(team, n)`, which takes the next n *fixtures* — so a double
+	// changes which gameweeks those n span, not how many there are. It falls short
+	// of the horizon only when the season runs out, or when a planned free hit has
+	// removed gameweeks through SetSkipGameweeks.
+	Fixtures int
+	// Target and Avoid are the banded opponents in the window, counted from the
+	// point of view of the position asked about.
+	Target, Avoid int
+}
+
+// Net is the run as one signed number: how many more targets than avoids.
+//
+// Signed rather than a ratio because it is summed across moves downstream, and a
+// ratio has no meaningful zero when the window is empty.
+func (r FixtureRun) Net() int { return r.Target - r.Avoid }
+
+// FixtureRunFor counts the banded opponents in a club's next `horizon` fixtures,
+// from the point of view of a position.
+//
+// # Which band a position reads is not arbitrary
+//
+// A keeper or defender is paid mostly for the opponent NOT scoring, so the band
+// that matters to him is the opponent's ATTACK: facing one of the three bluntest
+// attacks is the fixture he wants. A midfielder or forward is paid for his own
+// returns, so what matters is the opponent's DEFENCE.
+//
+// Which band each position reads is the same choice `attackBandAdj` and
+// `defenceBandAdj` make, and it is why the model is already position-dependent
+// without any per-position weight.
+//
+// ⚠️ **How much each is WORTH is not the same, so a count is never a proxy for
+// the adjustment's size.** The model's coefficients are deliberately asymmetric
+// on the attacking side — attackBandTarget 0.23 against attackBandAvoid 0.15,
+// for the measured reason given above them — while `Net` weighs target and avoid
+// equally. And the defensive band enters the clean sheet through `exp(-x)`, which
+// is convex, so equal-weighted counts are not proportional there either.
+//
+// ⚠️ It is also a REPORTING choice at the edges: a midfielder earns clean sheets
+// too, and this counts only his attacking channel. His clean sheet pays 1 against
+// 5 or 6 for a goal, so the simplification costs a reader precision and cannot
+// invert a reading. Nothing is scored from any of it.
+func (e *Engine) FixtureRunFor(teamID, horizon, position int) FixtureRun {
+	b := e.teamBands()
+	if !b.ready {
+		return FixtureRun{}
+	}
+	// Keepers (1) and defenders (2) read the opponent's attack; midfielders and
+	// forwards read the opponent's defence. See above. Bare element types because
+	// that is this package's idiom — defconThreshold spells it the same way.
+	side := b.defence
+	if position == 1 || position == 2 {
+		side = b.attack
+	}
+	run := FixtureRun{Ready: true}
+	for _, f := range e.TeamFixtures(teamID, horizon) {
+		run.Fixtures++
+		switch side[f.OpponentID] {
+		case bandWorst:
+			run.Target++
+		case bandBest:
+			run.Avoid++
+		}
+	}
+	return run
+}
+
+// BandsReady reports whether the 3/14/3 ratings exist yet at this cutoff.
+//
+// False before bandMinMatches have been played by enough clubs, which is the
+// opening five or six gameweeks of every season. Exported for the replay's
+// fixture-run mediator, which has to tell "the bands said nothing" apart from
+// "there were no bands" — those are the first two of the three explanations a
+// flat fixture-run arm has, and pooling them licenses opposite conclusions.
+//
+// It is a *reading* of the bands and never a gate on them: nothing on the
+// scoring path consults it, because attackBandAdj and defenceBandAdj already
+// return 1 when the rating is absent.
+func (e *Engine) BandsReady() bool { return e.teamBands().ready }

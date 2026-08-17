@@ -158,7 +158,7 @@ ship at zero because the honest measurement said "off" — the table notes each 
 | `tournament_absences` | AFCON 2025 | Mid-season tournaments that overlapped the season the aggregates came from, so those matches leave the *denominator* rather than counting as rotation risk. **Pre-season only** — it switches itself off once GW1 completes. Re-derive every summer. |
 | `rate_half_life` | `0` | Off. Recency weighting on per-90 *rates* rather than minutes. Measured as a better predictor and a worse policy, so it ships disabled. |
 | `prior_half_life` | `0` | Off. Blends seasons *before* last one into it, for players whose last season was an injury artefact. The mechanism is unit-tested; the benefit is not measurable on the replay archive, so it is off by default. |
-| `band_strength` | `0` | Off. An experimental re-rating of the three best and three worst attacks and defences. Measured as no better than FPL's own difficulty ratings. |
+| `band_strength` | `0` | Off. Re-rates the three best and three worst attacks and defences separately, on top of FPL's blended difficulty, and scales how hard the model leans on that. It reaches the weekly transfer decision as well as the scoring, so it is the setting to change to make the squad chase fixture runs. Nothing has separated it from `0` on points; turn it on to experiment, not on a measured case. See [model.md](model.md). |
 
 **`set_piece_weight` ships at 0, and putting it back to 1.0 re-introduces a measured bug.**
 FPL's expected-goals figure already contains penalties, and its expected-assists figure already
@@ -443,6 +443,44 @@ recorded verdict is that the policy never banks a transfer and that banking is n
 it turns out nothing was counting whether the rule ever fired, so the replay now records that
 and no sweep has yet run under it. Turning either on is supported and explained in the output;
 no points claim is made for it.
+
+### The third lever: leaning into fixture runs
+
+`weights.band_strength` is the same kind of switch one layer down, and it completes the set.
+It rates opponents' attack and defence separately, bands them 3/14/3 — worst three, an
+undifferentiated middle, best three — and scales how far the model leans on that on top of
+FPL's blended difficulty. It reaches the **weekly transfer decision**, not only the scoring of
+a player in isolation, because the transfer search scores its candidates through the same
+engine. So it is the setting that makes the squad move toward a club whose run is starting.
+
+The three levers are meant to be usable **together**, and that is the case nothing has tested.
+Every recorded fixture arm ran with banking off, no chip credit, and no coordination between
+them — and this project's own rule is that a one-at-a-time result is silent about any other
+configuration. Set all three and the replay runs the tandem:
+
+```json
+"weights": { "band_strength": 0.25 },
+"review": {
+  "bank_transfers_lookahead": true,
+  "prepare_squad_for_chips": true
+}
+```
+
+`0.25` there is **an example and not a recommendation.** It is the one setting the record calls
+the deciding arm and has never actually run, which is why it is the interesting number to try;
+it is not a value anything measured as good. `1.0` leans the full measured band effect, `0` is off.
+
+The replay records what the lever had to work with, so a flat result is readable rather than
+ambiguous: how many decision weeks the bands existed in at all (they need five matches played,
+so the opening weeks of every season have no rating), how many transfers were made in those
+weeks, how many moved the squad toward the better run, how many traded it away, and by how many
+banded fixtures on net.
+
+**Ships at `0`, and every caution above applies harder here.** Acting on fixture difficulty has
+been tried repeatedly and has never separated from leaving FPL's own ratings alone — the
+per-match effect is large and real, but you never buy a fixture, you buy a run of them, and runs
+converge. Anything from two to eight gameweeks of lookahead performs the same. Treat a non-zero
+setting as an experiment you are running, not as a recommendation.
 
 ---
 

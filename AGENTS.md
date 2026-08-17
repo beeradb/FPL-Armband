@@ -1143,19 +1143,30 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   whole sweep by construction**, and only `POLICY` rows could move. A textbook instance of the trap:
   a byte-identical result that was a comparison which never ran.
   ⚠️ `FPL_NO_XGC_REPAIR` bears on **18 of 36 cells**, not the 6 an earlier note claimed.
-- **`teamBands` is not run-to-run deterministic** — `bands.go` ranges a map into a slice and
-  sorts it with the non-stable `sort.Slice`, so a tie at a band boundary resolves by map order.
-  Two banked runs at one commit and one constants digest differ, at `band_strength 1`, in **3 of
-  36 `hold_points` cells, 12 of 36 `policy_points`, 13 `policy_xpoints`, 6 `hold_xpoints`, and 7
-  each on `moves` and `hits`** — decisions, not only scores. **`squad_hash` moves in 1 cell
-  against `hold_points`'s 3**, so two cells re-scored an unchanged fifteen: squad-hash identity
-  is weaker evidence than points identity, which matters wherever this file leans on it. **No
-  per-season magnitude is available** — one repeat gives an occurrence count, not an effect size.
-  **Inert at the shipped `band_strength` of 0 as a code fact**: `attackBandAdj` and
-  `defenceBandAdj` return 1 *before* calling `teamBands`, and the run agrees at 0 of 36 in every
-  column. Latent in the replay, but `FPL_WEIGHT=band=1` reaches a live `armband review`, so a
-  user can reach it. **Unfixed.** `Optimize` had the identical defect and is pinned by
-  `TestSeedOrderIsDeterministic`; this path has no equivalent.
+- **`teamBands` was not run-to-run deterministic, and is now pinned.** `bands.go` ranged a map
+  into a slice and sorted it with the non-stable `sort.Slice`, so a tie at a band boundary
+  resolved by map order. Fixed by building the slice in club-id order and breaking both sort
+  ties on club id — `sort.SliceStable` alone would **not** have worked, because stability
+  preserves an input order that was already the random one. `TestBandAssignmentIsDeterministic`
+  pins it against a constructed boundary tie, so the test carries its own positive control
+  rather than depending on whichever ties a season happens to hold;
+  `TestBandTiesBreakTowardTheLowerClubID` pins which total order was chosen.
+  ⚠️ **Every `BandStrength` figure recorded before the fix carries that jitter and cannot be
+  re-derived from its own cells. Its size is known and small: it moved the s=1 arm's mean from
+  +0.339 to +0.357 pts/gw — 0.7 points a season, about a tenth of that contrast's own CR2
+  standard error — and concentrated in the GW1 and GW6 entries rather than the GW26 column that
+  carries most of the estimate. So it widens an interval and cannot overturn a null**; had the arm
+  resolved, the defect would have been disqualifying. One repeat is a single draw, not a variance
+  estimate. Two banked runs at one commit
+  and one constants digest differed, at `band_strength 1`, in **3 of 36 `hold_points` cells, 12 of
+  36 `policy_points`, 13 `policy_xpoints`, 6 `hold_xpoints`, and 7 each on `moves` and `hits`** —
+  decisions, not only scores. **`squad_hash` moved in 1 cell against `hold_points`'s 3**, so two
+  cells re-scored an unchanged fifteen: squad-hash identity is weaker evidence than points
+  identity, which matters wherever this file leans on it. **No per-season magnitude is
+  available** — one repeat gives an occurrence count, not an effect size. It was **inert at the
+  shipped `band_strength` of 0 as a code fact** and reachable by a user through
+  `FPL_WEIGHT=band=1`, which is why it was fixed rather than left latent. `Optimize` had the
+  identical defect and is pinned by `TestSeedOrderIsDeterministic`.
 - **`BlendRateK` is banked and nothing resolves.** The ladder is **non-monotone** over 3/5/12/16/24
   — −4.1, +1.8, −11.6, +11.6, +12.6 a season, Holm 1.000 — and **8 ships unchanged**. The low side
   is flat: k=3/5 are the smallest effects. Two seasons carry the swing, and dropping both reverses
@@ -1187,7 +1198,8 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
 - **The scoring-chip timing `+0.000` is a declared invariance, not a result.**
   `mustNotMoveForAxis(AxisChipWeek)` returns all eight of `cellMetricColumns` — the eight columns
   every sweep collects a comparable series for, which is **not** every column in the cells file,
-  since the ten chip-reading columns, the five banking-mediator columns and `oracle_kind` are
+  since the ten chip-reading columns, the five banking-mediator columns, the five fixture-run
+  mediator columns and `oracle_kind` are
   required to differ by arm — and the harness checks
   them cell by cell on every run. The axis reads a finished season's per-week gains and plays no
   chip, so a byte-identical `POLICY` is what it is *required* to produce. It says the argmax never

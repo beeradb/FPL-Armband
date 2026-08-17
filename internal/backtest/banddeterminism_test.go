@@ -10,22 +10,24 @@ import (
 	"armband/internal/analysis"
 )
 
-// The attack/defence bands are NOT run-to-run deterministic, and the only reason
-// that is latent rather than live is that `BandStrength` ships at 0.
+// The attack/defence bands WERE not run-to-run deterministic. Fixed, and pinned
+// by `TestBandAssignmentIsDeterministic` in internal/analysis. Everything below
+// is kept because it is the measurement of what the defect cost, and that governs
+// how every pre-fix `BandStrength` figure may be read.
 //
 // # The defect
 //
-// `teamBands` builds its candidate slice by ranging over a `map[int]*rec`, whose
-// iteration order Go randomises per run, and then orders it with `sort.Slice`,
-// which is **not stable**. So whenever two clubs have the same goals-per-match —
-// which is common early, because it is a small integer over the same small number
-// of matches — *which* of them lands in the bottom or top three is decided by map
-// order, and changes from one run to the next.
+// `teamBands` built its candidate slice by ranging over a `map[int]*rec`, whose
+// iteration order Go randomises per run, and then ordered it with `sort.Slice`,
+// which is **not stable**. So whenever two clubs had the same goals-per-match —
+// common early, because it is a small integer over the same small number of
+// matches — *which* of them landed in the bottom or top three was decided by map
+// order, and changed from one run to the next.
 //
 // This is the same defect the record already carries against `Optimize`, which
 // "ranged over a map to order each DP seed's bench, and returned two different
 // fifteens from identical inputs on about one landscape in seventy-two" and is
-// now pinned by `TestSeedOrderIsDeterministic`. Here it is unpinned.
+// pinned by `TestSeedOrderIsDeterministic`.
 //
 // **Only a tie ON A BAND BOUNDARY matters**, which is why the instability is not
 // simply a function of how many ties there are. A tie wholly inside the bottom
@@ -33,12 +35,22 @@ import (
 // spanning the third and fourth places decides membership. 2024-25 at cutoff 7 has
 // interior ties and no boundary tie, and is perfectly stable.
 //
-// The deterministic quantity is therefore the number of **reachable** assignments,
-// which is a product of the boundary tie multiplicities. Quote that, not a sample:
-// at cutoff 6 the four boundaries tie 3-way (third-worst attack), 2-way
-// (third-worst defence), 4-way (third-best attack) and 4-way (third-best defence),
-// giving **144 reachable assignments**. A run of 40 engines sees 30-34 of them and
-// that count is itself a draw — do not write it down as a property.
+// The deterministic quantity is therefore the number of **reachable** assignments.
+// Quote that, not a sample.
+//
+// ⚠️ **It is a product of `C(tie size, places inside the band)`, NOT a product of
+// the tie sizes** — an earlier version of this comment listed the sizes alone and
+// they multiply to 96, so the only arithmetic a reader could do returned the wrong
+// answer. At cutoff 6 on 2024-25 the four boundaries are:
+//
+//	third-worst attack   3-way tie, 2 places inside   C(3,2) = 3
+//	third-best attack    4-way tie, 1 place inside    C(4,1) = 4
+//	third-worst defence  2-way tie, 1 place inside    C(2,1) = 2
+//	third-best defence   4-way tie, 2 places inside   C(4,2) = 6
+//
+// giving 3 x 4 x 2 x 6 = **144 reachable assignments**. A run of 40 engines sees
+// 30-34 of them and that count is itself a draw — do not write it down as a
+// property. Cutoff 7 computes to exactly 1, which is why it was stable.
 //
 // The profile, as reachable counts: cutoff 6 is the worst on this season, cutoffs
 // 5 and 6 are the only bad ones, and from GW7 on it is 1 or 2. `TestDiagBandDeterminism`
@@ -85,13 +97,14 @@ import (
 // live `armband review` non-deterministic, and `FPL_BAND_STRENGTH` does the same
 // for `armband backtest`.
 //
-// **The consequence is mostly for measurement**: any figure about `BandStrength` —
-// including every historical one — is reproducible only to within this jitter, and
-// a sweep of it cannot be re-derived from its own cells.
+// **The consequence is mostly for measurement, and it does not expire with the
+// fix**: any `BandStrength` figure recorded BEFORE it — which is every historical
+// one — is reproducible only to within this jitter, and such a sweep cannot be
+// re-derived from its own cells. Figures taken after it can.
 //
-// The fix, when someone takes it: give the sort a total order by breaking ties on
-// club id, which is what `sort.SliceStable` alone would not do, since the input
-// order is already random.
+// The fix, taken: build the candidate slice in club-id order and break both sort
+// ties on club id, giving a total order. `sort.SliceStable` alone would not have
+// done it, since the input order was already random.
 //
 // # What the test below does and does NOT prove
 //
@@ -159,8 +172,7 @@ func TestBandStrengthIsDeterministicAtTheShippedSetting(t *testing.T) {
 		t.Fatalf("the DEFAULT configuration produced %d distinct score vectors over "+
 			"%d scored players from byte-identical inputs. Something map-ordered has "+
 			"reached the shipped scoring path — this is the class that has already "+
-			"bitten in Optimize and newTeamFormIndex, and that teamBands still "+
-			"carries behind band_strength 0.", len(seen), scored)
+			"bitten in Optimize, newTeamFormIndex and teamBands.", len(seen), scored)
 	}
 }
 

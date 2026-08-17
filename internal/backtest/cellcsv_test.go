@@ -198,6 +198,20 @@ type cellRow struct {
 	HasBanking bool
 	BankingMediator
 
+	// The fixture-run mediator, the second funnel in this region. Named rather
+	// than embedded because FixtureRunMediator.Moves would collide with
+	// cellRow.Moves, which is the season's transfer count — two different
+	// quantities one letter apart, and embedding would have made the shadowing
+	// silent.
+	//
+	// It shares HasBanking as its gate on purpose: both funnels are counted on
+	// weeks that reached `decide`, so they are recorded together or not at all,
+	// and a reader can put band_ready_weeks over decision_weeks without checking
+	// two flags. ⚠️ The nesting is `decision_weeks >= band_ready_weeks` and
+	// `band_moves >= band_run_moves` — NOT one chain of four, because the last
+	// three count moves and the first counts weeks. See fixtureRunCols.
+	FixtureRuns FixtureRunMediator
+
 	// What each chip actually returned in the week it was played, and which week
 	// that was. Zero week means the arm did not play that chip in this cell.
 	//
@@ -449,6 +463,9 @@ func (r cellRow) asInfeasible() cellRow {
 	// a count of what the decision loop did, and an infeasible cell never ran
 	// one. Leaving it would report decision weeks in a cell that played none.
 	r.HasBanking, r.BankingMediator = false, BankingMediator{}
+	// The fixture-run funnel goes with it, for the identical reason: it counts
+	// what the decision loop did, and an infeasible cell never ran one.
+	r.FixtureRuns = FixtureRunMediator{}
 	r.HasChipWeeks = false
 	r.BenchBoostGW, r.BenchBoostPts, r.TripleCapGW, r.TripleCapPts = 0, 0, 0, 0
 	r.HasChipOracle, r.chipReadings = false, chipReadings{}
@@ -493,6 +510,8 @@ var cellHeader = []string{
 	"hold_nocap_points", "hold_nocap_per_gw",
 	"decision_weeks", "consulted_weeks", "weighed_weeks", "banked_weeks",
 	"free_at_decision",
+	"band_ready_weeks", "band_moves", "band_run_moves", "band_worse_moves",
+	"band_exposure",
 	"bench_boost_gw", "bench_boost_pts", "triple_captain_gw", "triple_captain_pts",
 	"bench_boost_oracle_gw", "bench_boost_oracle_pts",
 	"bench_boost_median_pts", "bench_boost_threshold_pts", "bench_boost_bar_pts",
@@ -536,6 +555,37 @@ const (
 	// and the oracle pair last, and every one of those four contracts has a
 	// position test indexing from the end.
 	bankingCols = 5
+	// fixtureRunCols is the fixture-run mediator, the second funnel in the
+	// decision-mediator region and the counterpart of the banking one beside it:
+	//
+	//	band_ready_weeks  of decision_weeks, weeks the 3/14/3 bands existed
+	//	band_moves        transfers made in those weeks, with both players resolvable
+	//	band_run_moves    of those, moves toward the better run
+	//	band_worse_moves  of those, moves that traded the run away
+	//	band_exposure     the signed size of the whole, in banded fixtures
+	//
+	// ⚠️ **band_run_moves and band_worse_moves do not sum to band_moves**, and
+	// that is the point of carrying both: the remainder is moves the bands had
+	// nothing to say about, which "runs converge" predicts is the modal case. With
+	// only the favourable count, `band_moves - band_run_moves` would pool ties
+	// with reversals and `band_run_moves` would have no null to be read against.
+	//
+	// A separate counted block rather than four more banking columns, because the
+	// two funnels have different denominators — the banking one counts weeks all
+	// the way down, and the last four of these count MOVES. Merging them into one
+	// `bankingCols` would put a moves count under a header block whose own
+	// documentation says every column in it is a week, which is precisely the kind
+	// of mislabelling this file's rules exist to stop.
+	//
+	// It sits immediately after the banking block and before the chip block, so
+	// both of those keep their named neighbours — see
+	// TestTheFixtureRunBlockSitsBetweenBankingAndTheChips.
+	//
+	// ⚠️ **`band_exposure` is the one signed column in the file**, and the only
+	// one where a negative number is a normal reading rather than a fault: across
+	// 63 replayed transfers the incoming player's fixtures got *harder* 63% of the
+	// time, so a negative sum is the recorded prior and not a sign error.
+	fixtureRunCols = 5
 	// chipWeekCols is the chip block: two gameweeks and two one-off point
 	// totals. Four rather than eight because there are no per-gw columns here —
 	// see cellRow.HasChipWeeks for why a chip must not be normalised by weeks.
@@ -878,6 +928,29 @@ func (s *cellSink) cell(r cellRow) {
 		rec = append(rec, floatOrBlank(r.MeanFreeAtDecision()))
 	} else {
 		rec = append(rec, "")
+	}
+	// The fixture-run funnel, under the same blank-is-a-gap rule and with its own
+	// second step. band_ready_weeks is written whenever the decision loop ran, so
+	// a zero there is a measurement: it says the bands never existed in this cell,
+	// which is the true reading of an early-entry cell and was invisible before.
+	//
+	// The three move columns go blank when band_ready_weeks is 0, because with no
+	// bands there is no exposure to have moved and a 0 would assert that transfers
+	// were measured against a rating that did not exist. That is the same
+	// distinction weighed_weeks and banked_weeks draw against consulted_weeks.
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec, strconv.Itoa(r.FixtureRuns.ReadyWeeks))
+	} else {
+		rec = append(rec, "")
+	}
+	if r.HasBanking && r.FixtureRuns.ReadyWeeks > 0 {
+		rec = append(rec,
+			strconv.Itoa(r.FixtureRuns.Moves),
+			strconv.Itoa(r.FixtureRuns.RunMoves),
+			strconv.Itoa(r.FixtureRuns.WorseMoves),
+			strconv.Itoa(r.FixtureRuns.Exposure))
+	} else {
+		rec = append(rec, "", "", "", "")
 	}
 	// Same rule again for the chips, and for the same reason: a blank says the
 	// sweep did not record them, where a zero would say the chip returned

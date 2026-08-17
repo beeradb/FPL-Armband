@@ -383,7 +383,14 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 	// step is relative to the shorter header it leaves. Removing it is what makes
 	// the first entry below the 50-column header `origin/main` really wrote,
 	// checked with `git show`.
-	noBanking := withoutBankingBlock()
+	// ⚠️ The fixture-run block is newer than the banking block and sits
+	// immediately AFTER it, so it comes off first and the whole chain shifts one
+	// name down again. Because it sits after the banking block, removing it does
+	// not move where the banking block starts — which is why the next line can
+	// keep using `bankingBlockAt()`, an offset into the full header, on the
+	// already-shortened one.
+	noFixtureRuns := withoutFixtureRunBlock()
+	noBanking := headerWithout(noFixtureRuns, bankingBlockAt(), bankingCols)
 	noChipOracle := headerWithout(noBanking, chipOracleBlockAtIn(noBanking), chipOracleCols)
 	noXPoints := headerWithout(noChipOracle, xPointsBlockAtIn(noChipOracle), xPointsCols)
 	noArm := headerWithout(noXPoints, len(noXPoints)-oracleCols-armCols, armCols)
@@ -426,13 +433,18 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 		// which is why it heads the chain rather than tailing it. Everything below
 		// it shifted down one name; the widths did not move, because they are
 		// facts about commits.
-		"predecessor (no banking columns)":              noBanking,
-		"two builds back (no chip-oracle either)":       noChipOracle,
-		"three builds back (no xpoints either)":         noXPoints,
-		"four builds back (no arm columns either)":      noArm,
-		"five builds back (no chip columns either)":     noChipWeek,
-		"six builds back (no oracle pair either)":       noOracle,
-		"seven builds back (no captaincy rungs either)": noOracle[:len(noOracle)-captainRungCols],
+		// ⚠️ The fixture-run block is the fourth mid-header block and the newest,
+		// sitting immediately after the banking one. It heads the chain and every
+		// entry below it shifted down one name again; the widths did not move,
+		// because they are facts about commits.
+		"predecessor (no fixture-run columns)":          noFixtureRuns,
+		"two builds back (no banking either)":           noBanking,
+		"three builds back (no chip-oracle either)":     noChipOracle,
+		"four builds back (no xpoints either)":          noXPoints,
+		"five builds back (no arm columns either)":      noArm,
+		"six builds back (no chip columns either)":      noChipWeek,
+		"seven builds back (no oracle pair either)":     noOracle,
+		"eight builds back (no captaincy rungs either)": noOracle[:len(noOracle)-captainRungCols],
 	}
 	// The property these entries have now failed three times to have: a
 	// synthesised header must be the one the build it names really wrote.
@@ -451,13 +463,14 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 		cols int
 		last string
 	}{
-		{"predecessor (no banking columns)", 50, "oracle_kind"},
-		{"two builds back (no chip-oracle either)", 40, "oracle_kind"},
-		{"three builds back (no xpoints either)", 36, "oracle_kind"},
-		{"four builds back (no arm columns either)", 33, "oracle_kind"},
-		{"five builds back (no chip columns either)", 29, "oracle_kind"},
-		{"six builds back (no oracle pair either)", 27, "hold_nocap_per_gw"},
-		{"seven builds back (no captaincy rungs either)", 23, "weekly_per_gw"},
+		{"predecessor (no fixture-run columns)", 55, "oracle_kind"},
+		{"two builds back (no banking either)", 50, "oracle_kind"},
+		{"three builds back (no chip-oracle either)", 40, "oracle_kind"},
+		{"four builds back (no xpoints either)", 36, "oracle_kind"},
+		{"five builds back (no arm columns either)", 33, "oracle_kind"},
+		{"six builds back (no chip columns either)", 29, "oracle_kind"},
+		{"seven builds back (no oracle pair either)", 27, "hold_nocap_per_gw"},
+		{"eight builds back (no captaincy rungs either)", 23, "weekly_per_gw"},
 	} {
 		got, ok := stale[w.name]
 		if !ok {
@@ -777,9 +790,12 @@ func TestTheBankingBlockIsBeforeTheChipBlockAndCounted(t *testing.T) {
 		t.Fatalf("the column before the banking block is %q, want the captaincy "+
 			"rungs' last column", before)
 	}
-	if after := cellHeader[at+bankingCols]; after != "bench_boost_gw" {
-		t.Fatalf("the column after the banking block is %q, want the chip block's "+
-			"first column", after)
+	// The banking block's right-hand neighbour is the fixture-run block, not the
+	// chip block: the two mediators sit together in one decision-mediator region,
+	// and the chip columns moved four to the right when the second funnel landed.
+	if after := cellHeader[at+bankingCols]; after != "band_ready_weeks" {
+		t.Fatalf("the column after the banking block is %q, want the fixture-run "+
+			"block's first column", after)
 	}
 	// And the synthesised predecessor really is this header minus exactly those
 	// two, which is the property the stale-header chain's first entry rests on.
@@ -1727,10 +1743,24 @@ func chipOracleBlockAt() int { return chipOracleBlockAtIn(cellHeader) }
 // Anchored from the END like every other block offset here, so it stays correct
 // whatever is added in front of it.
 func bankingBlockAtIn(h []string) int {
-	return chipOracleBlockAtIn(h) - chipWeekCols - bankingCols
+	return fixtureRunBlockAtIn(h) - bankingCols
 }
 
 func bankingBlockAt() int { return bankingBlockAtIn(cellHeader) }
+
+// fixtureRunBlockAtIn is where the fixture-run columns start: immediately after
+// the banking block and immediately before the chip block.
+//
+// Anchored from the END for the same reason every offset here is. Note that
+// bankingBlockAtIn now chains through this rather than through chipWeekCols
+// directly — the banking block stopped being the chip block's neighbour when this
+// one went in between them, and an offset that still subtracted only chipWeekCols
+// would have silently re-labelled four banking columns as fixture-run ones.
+func fixtureRunBlockAtIn(h []string) int {
+	return chipOracleBlockAtIn(h) - chipWeekCols - fixtureRunCols
+}
+
+func fixtureRunBlockAt() int { return fixtureRunBlockAtIn(cellHeader) }
 
 // headerWithout removes n columns starting at at, which is how an older header
 // is synthesised once a block has been added anywhere but the end.
@@ -1770,10 +1800,24 @@ func withoutChipOracleBlock() []string {
 }
 
 // withoutBankingBlock is this build's header with the five transfer-banking
-// columns removed from the middle — literally the header the predecessor build
-// wrote, since the banking block is the newest and it too went in mid-header.
+// columns removed from the middle.
+//
+// ⚠️ It is **no longer the predecessor** — the fixture-run block went in after it
+// and immediately after it in the schema — so the stale-header chain removes that
+// one first. The same demotion the xPoints and chip-oracle helpers above already
+// carry, recorded for the same reason: this test's own comments say its entries
+// have three times failed to name the build they describe, and an uncorrected
+// "literally the predecessor" is how the fourth happens. This function is still
+// what the banking block's position assertion is written against.
 func withoutBankingBlock() []string {
 	return headerWithout(cellHeader, bankingBlockAt(), bankingCols)
+}
+
+// withoutFixtureRunBlock is this build's header with the four fixture-run columns
+// removed from the middle — literally the header the predecessor build wrote,
+// since the fixture-run block is the newest and it too went in mid-header.
+func withoutFixtureRunBlock() []string {
+	return headerWithout(cellHeader, fixtureRunBlockAt(), fixtureRunCols)
 }
 
 // TestTheXPointsBlockIsBeforeTheArmBlockAndCounted is the positional half of the
