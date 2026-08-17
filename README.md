@@ -2,16 +2,21 @@
 
 An AI Fantasy Premier League analyst that runs on your machine. The binary is `armband`.
 
+One free command builds the best 15-man squad it can find under the real rules — £100m,
+positional quotas, three per club. Another finds the best transfers for the squad you already
+own. Neither one touches an AI model: the scoring is a deterministic quantitative engine built
+from FPL's actual points rules, reading the public FPL API, and it costs nothing to run. When
+you want a second opinion that has actually read the team news, an LLM agent reasons over the
+same numbers, searches the web for what the model cannot see, and critiques the model's own
+output before it recommends anything. That layer is the only part that costs money, and it is
+optional.
+
 *Named for the captaincy, which is the biggest single decision you make each week and the one
 effect in this project's record that stands clear of the noise.*
 
-It pulls live data from the public FPL API, scores every player with a quantitative model built
-from FPL's actual scoring rules, and hands the results to a language model to reason over, critique
-and turn into a recommendation.
-
 The shape of the system, and where the split falls: everything up to the agent is deterministic
-and costs nothing to run, and the language model is judgement layered on top of numbers it never
-computes itself.
+and free, and the language model is judgement layered on top of numbers it never computes
+itself.
 
 ```mermaid
 flowchart LR
@@ -39,44 +44,48 @@ flowchart LR
     class you muted
 ```
 
-It beats the baselines you'd otherwise use. A transfer is a question about order, not about hitting
-a points total, so the number to look at is how well a predictor ranks players within a gameweek.
-Measured against the two things every FPL player already does by eye:
+## Quick start
 
-| predictor | ranks players within a gameweek | over-rates its own top 20 by |
-|---|---|---|
-| this model | 0.427 | 0.41 pts/gw |
-| last five gameweeks | 0.330 | 2.57 |
-| flat season average | 0.311 | 1.03 |
+```bash
+go build -o armband ./cmd/armband
 
-The second column is the one that costs you money. Every predictor flatters the players it likes
-most, and those are exactly the players a transfer search picks from, so a five-game average will
-talk you into a captain it has over-rated by two and a half points a week. Full tables, including
-the columns where this is only line-ball with a moving average, are in
-[docs/accuracy.md](docs/accuracy.md).
-
-Drawn to scale, that second column is the whole pitch — the model's edge is how honest it is
-about its own favourites:
-
-```mermaid
-%%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#B9762A, #1F5F73, #2F7A57"}}}}%%
-xychart-beta
-    title "how far each predictor over-rates its own top 20"
-    x-axis ["this model", "last 5 gameweeks", "season average"]
-    y-axis "points per gameweek" 0 --> 3
-    bar [0.41, 2.57, 1.03]
+./armband squad          # best 15 it can find under the real rules — free, no AI
+./armband transfers      # best transfers for the squad you own — free
+./armband fixtures       # fixture difficulty table
+./armband brief          # the whole deterministic picture, as Markdown
 ```
+
+For the AI commands, set credentials once:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...     # platform.claude.com/settings/keys
+./armband review                        # the weekly decision
+```
+
+First run writes a `config.json` you can edit, or copy `config.example.json` over it and set
+`entry_id` to your own team. Requires **Go 1.26.5 or newer** (see `go.mod`). Nothing but the AI
+commands needs a credential of any kind — the FPL endpoints this uses are public and
+unauthenticated.
+
+**Only `entry_id` is required.** Every other key has a shipped default, and a key you leave out
+of the file keeps that default — `config.example.json` is deliberately the short version rather
+than the full one. The long `config.json` this repository ships is the *model's* configuration:
+around forty tunable constants, most of which you should not need to touch and none of which you
+should change without reading what it does first.
+
+## Two things to know before your first paid run
 
 **It writes to your config, never to FPL.** There is no authenticated write path at all — the
 session cookie, the my-team endpoint and the `auth` command were removed outright, and
-`TestTheClientHasNoAuthenticatedSurface` fails the build if one comes back. You make the transfers.
+`TestTheClientHasNoAuthenticatedSurface` fails the build if one comes back. You make the
+transfers.
 
 That config write is worth understanding, because **a review run leaves something behind**. When
 the agent establishes something the model cannot see — a player out for six weeks, one who has
-lost his place — it records it with `set_player_status`, which persists to `config.json` and binds
-every later run, the free commands included: an excluded player is not offered again by `squad`,
-`transfers` or `suggest_transfers` until the override is cleared. It refuses to store one without
-a reason, and every standing override is re-reported for review each run. See
+lost his place — it records it with `set_player_status`, which persists to `config.json` and
+binds every later run, the free commands included: an excluded player is not offered again by
+`squad`, `transfers` or `suggest_transfers` until the override is cleared. It refuses to store
+one without a reason, and every standing override is re-reported for review each run. See
 [docs/configuration.md](docs/configuration.md).
 
 The loop is worth seeing whole — one paid run writes a fact down, and every free run afterwards
@@ -105,50 +114,64 @@ flowchart LR
     class audit muted
 ```
 
----
-
-## Quick start
-
-```bash
-go build -o armband ./cmd/armband
-
-./armband squad          # best 15 it can find under the real rules — free, no AI
-./armband fixtures       # fixture difficulty table
-./armband chips          # chip windows and plan validation
-./armband brief          # the whole deterministic picture, as Markdown
-```
-
-For the AI commands, set credentials once:
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...     # platform.claude.com/settings/keys
-./armband review                        # the weekly decision
-```
-
-First run writes a `config.json` you can edit, or copy `config.example.json` over it and set
-`entry_id` to your own team. Requires **Go 1.26.5 or newer** (see `go.mod`). Nothing but the AI commands
-needs a credential of any kind — the FPL endpoints this uses are public and unauthenticated.
-
-**Only `entry_id` is required.** Every other key has a shipped default, and a key you leave out of
-the file keeps that default — `config.example.json` is deliberately the short version rather than
-the full one. The long `config.json` this repository ships is the *model's* configuration: around
-forty tunable constants, most of which you should not need to touch and none of which you should
-change without reading what it does first.
-
 ## It plays its own picks, in public
 
-[FPL Armband](https://fantasy.premierleague.com/entry/2785902/history) is this project's team — and
-the `entry_id` `config.example.json` ships with, so change it to your own. Every gameweek it fields
-what the model says, and the table is there whether that goes well or badly.
+[FPL Armband](https://fantasy.premierleague.com/entry/2785902/history) is this project's own
+team. Every gameweek it fields what the model says, and the table is there whether that goes
+well or badly. A model that only ever scores itself against replays of seasons it was tuned on
+is marking its own homework — so the picks go somewhere anyone can check them. It is also the
+`entry_id` that `config.example.json` ships with, so change that to your own.
 
-A model that only ever scores itself against replays of seasons it was tuned on is marking its own
-homework. So the picks go somewhere anyone can check them.
+One season is a small sample, and a league table is a slow way to learn anything. The
+measurement that *does* resolve is below, against thousands of player-gameweeks. Read the live
+team as skin in the game.
 
-One season is a small sample, and a league table is a slow way to learn anything. The measurement
-that *does* resolve is in [docs/accuracy.md](docs/accuracy.md), against thousands of
-player-gameweeks — but it answers whether the model is right about **football**, not whether a
-change to it earns **points**. That second question is [docs/replay.md](docs/replay.md)'s, and it
-resolves far less often. Read the live team as skin in the game.
+## Does it actually work?
+
+A transfer is a question about **order** — will this player out-score that one — not about
+hitting a points total. So the number to judge a predictor by is how well it ranks players
+within a gameweek.
+
+The baselines are not straw men; they are what an FPL manager actually reasons from today.
+**Recent form** here is a player's mean score over his last five gameweeks — the same idea as
+the form figure FPL itself shows next to every player, and as the rolling averages on every
+FPL stats site. The **flat season average** is total points divided by games played. Those are
+the alternatives a real person is choosing between when they look at a player and guess.
+
+| predictor | ranks players within a gameweek | over-rates its own top 20 by |
+|---|---|---|
+| **this model** | **0.427** | **0.41 pts/gw** |
+| recent form (last five gameweeks) | 0.330 | 2.57 |
+| flat season average | 0.311 | 1.03 |
+
+The first column is a rank correlation: 0 means the ordering is no better than random, 1 means
+perfect, higher is better. The model orders players 29% better than recent form. Football
+is noisy and a perfect predictor of it is impossible, so read the column as a comparison
+between the real alternatives, not as marks out of one.
+
+The second column is the one that costs you money. Every predictor flatters the players it
+rates highest, and those are exactly the players you would captain or transfer in. This model
+over-rates its own top twenty by 0.41 points a gameweek; recent form over-rates its own by
+2.57 — enough to talk you into a captain it has flattered by two and a half points a week.
+
+Drawn to scale, that second column is the whole pitch — the model's edge is how honest it is
+about its own favourites:
+
+```mermaid
+%%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#B9762A, #1F5F73, #2F7A57"}}}}%%
+xychart-beta
+    title "how far each predictor over-rates its own top 20"
+    x-axis ["this model", "last 5 gameweeks", "season average"]
+    y-axis "points per gameweek" 0 --> 3
+    bar [0.41, 2.57, 1.03]
+```
+
+That is not the whole story, and the whole story is deliberately frank: on some measures —
+picking out the players who go on to haul — the model is only line-ball with the moving
+average, and most of its internal constants cannot be shown to be optimal. The full tables,
+the unflattering columns included, are in [docs/accuracy.md](docs/accuracy.md). It answers
+whether the model is right about **football**; whether a change to it earns **points** is
+[docs/replay.md](docs/replay.md)'s question, and it resolves far less often.
 
 ## Commands
 
@@ -213,22 +236,6 @@ twenty times. Use `review` when you want it to work on its own.
 > A chat subscription **cannot** fund `review`. Consumer plans cover the chat products;
 > `armband` calls the Messages API directly and bills an API organization. `brief` exists
 > precisely so the subscription you have is usable here.
-
-## Documentation
-
-Everything in `docs/` is reference — a description of the system as the code stands, nothing
-speculative. Seven documents and an index:
-
-| | |
-|---|---|
-| **[docs/accuracy.md](docs/accuracy.md)** | How well it actually predicts, measured against a five-game average and a season average. **Start here if you want to know whether it works.** |
-| **[docs/model.md](docs/model.md)** | How players are scored: underlying stats, fixtures, expected minutes, congestion, role risk. The intellectual core. |
-| **[docs/configuration.md](docs/configuration.md)** | Every config field, what it does, and what you must fill in by hand. |
-| **[docs/workflow.md](docs/workflow.md)** | The weekly review protocol and chip strategy. |
-| **[docs/architecture.md](docs/architecture.md)** | Code layout, data flow, SDK gotchas, how to extend it. |
-| **[docs/replay.md](docs/replay.md)** | The backtest harness: how a scoring change is validated, and what it can and cannot resolve. |
-| **[docs/backfill.md](docs/backfill.md)** | Recovering historical team news from the Internet Archive, and the one rule that must not be got wrong. |
-| **[docs/README.md](docs/README.md)** | The map: what each document covers and how they fit together. |
 
 ---
 
@@ -368,6 +375,22 @@ Worth knowing before you trust a recommendation:
   scarce axis, and six seasons of football is a small sample for questions at that resolution.
   [docs/replay.md](docs/replay.md) is candid about which comparisons the harness can settle and
   which it can't.
+
+## Documentation
+
+Everything in `docs/` is reference — a description of the system as the code stands, nothing
+speculative. Seven documents and an index:
+
+| | |
+|---|---|
+| **[docs/accuracy.md](docs/accuracy.md)** | How well it actually predicts, measured against a five-game average and a season average. **Start here if you want to know whether it works.** |
+| **[docs/model.md](docs/model.md)** | How players are scored: underlying stats, fixtures, expected minutes, congestion, role risk. The intellectual core. |
+| **[docs/configuration.md](docs/configuration.md)** | Every config field, what it does, and what you must fill in by hand. |
+| **[docs/workflow.md](docs/workflow.md)** | The weekly review protocol and chip strategy. |
+| **[docs/architecture.md](docs/architecture.md)** | Code layout, data flow, SDK gotchas, how to extend it. |
+| **[docs/replay.md](docs/replay.md)** | The backtest harness: how a scoring change is validated, and what it can and cannot resolve. |
+| **[docs/backfill.md](docs/backfill.md)** | Recovering historical team news from the Internet Archive, and the one rule that must not be got wrong. |
+| **[docs/README.md](docs/README.md)** | The map: what each document covers and how they fit together. |
 
 ## Testing
 
