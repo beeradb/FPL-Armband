@@ -343,6 +343,14 @@ stand.
   same way**: Satterthwaite gave **1.72**, not the assumed 2. And ⚠️ **a rank-deficient
   cluster-robust matrix can still be computable** — that gate's augmented CR2 was rank 3 of 4, so a
   declared numerical fallback could never have caught it.
+- **A canary is judged against the standard error of the ARM IT GATES, and that SE is unknown until
+  the arm runs.** So gating on the canary's own SE makes the check a **necessary** condition and not
+  a sufficient one: failing it closes the family, passing it does not open it. Where the gated arm
+  does run, re-state the ceiling against the arm's own threshold. Measured 2026-08-17: the
+  bench-boost canary was gated at 2.06 (its own SE 0.803) where the rule's threshold turned out to
+  be 2.65 (SE 1.032) — a 22% loosening, in the direction that flatters the instrument. It did not
+  bite at a sixfold margin; it decides a marginal one, which is exactly what that run's
+  pre-registration predicted the gate would be.
 - **One quantity, two implementations — this project's signature failure.**
   `TestTheSharedCellQuantitiesHaveOneImplementation` and
   `TestTheCopiedExpressionsHaveOneImplementation` scan for it. Extend an existing scan rather than
@@ -1452,6 +1460,82 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
 - **Anchoring the chips on the calendar is a clean null as a measurement, and "anchoring is worth
   nothing" is not established** — MDE 34-37 per season-path, with the sign resting entirely on the
   GW1 column. `fullSight` is the realistic arm, because the biggest double is known ahead of time.
+- **A bench-boost PLACEMENT contrast is measurable at a threshold of 2.65, and the reason is the
+  comparison rather than the effect. It is the best worked example this file has of "make the
+  comparison sharper".** The chip is **path-invariant**: `consult` (the trigger's weigh-and-fire
+  step) runs after `pickXI` (which picks the eleven and therefore the bench) and mutates only
+  `chipTriggers`, playing it reaches `weekScoreWithChip` alone, and `BenchBoostGain` (what the chip
+  would have been worth) is recorded every week against the *unchipped* week. So two placement arms
+  hold the identical fifteen, make the identical transfers, and differ only in which recorded gain
+  enters the total. **`HOLD` cannot carry a chip at all, so `POLICY` is the only available metric
+  and the usual noise objection is answered by the invariance rather than evaded**: neither the ~70
+  `POLICY` median nor the 303-point transfer floor applies.
+  Checked as a **confinement** in 36 of 36 cells on `squad_hash`/`moves`/`hits`, on the whole
+  per-week gain vector, and on the exact integer identity `Δpolicy_points == bench_boost_pts`.
+  ⚠️ **Mind the denominators**: for the chip-week oracle arm that identity is `0 == 0`, since
+  `AxisChipWeek` plays no chip — powerless by construction. It has content in **25 of 36** cells for
+  the control and **33 of 36** for the rule, and the liveness half is the chip's week moving in
+  **34 of 36**. `stats/snapshots/2026-08-17-bench-boost-placement/`, six seasons, blocks at
+  `b44088d` and `e579f30` with the shared arms byte-identical across both, **points per
+  season-path** — a chip is a one-week event, so do not multiply by 38.
+  A **decaying option reservation** based at `DefaultBenchBoostBar` 16 and falling to zero at the
+  chip's expiry (realised bar at firing **3.79 to 18.14**; base *and* decay asserted and unswept,
+  congestion off) beats a bench boost at entry+6 by **+5.778** — CR2 SE 1.032, df 5, t 5.60,
+  threshold 2.65 season-clustered and 3.31 entry-clustered, naive t 4.02, wild 0.0096 at `S_eff` 6
+  floor 0.000129, 6 of 6 season means positive, LOSO +5.03 to +6.40 (sign stability there is
+  arithmetic, each subset sharing five of six seasons), post-hoc leave-one-cell-out +5.23 to +6.23.
+  Perfect placement is **+16.139** over the same control, one-sided 95% lower bound +14.52; the rule
+  recovers **0.358, Fieller [0.198, 0.518]**. The ceiling's own t is mechanical — it is non-negative
+  by construction — and it ran first as a canary.
+  ⚠️ **What resolves is "this rule beats THIS control", and the control is a straw man on TIMING.**
+  The rule plays the chip at mean **GW 27.97** against the control's **19.5** and the oracle's
+  **27.75**, and `ChipBarAt` decays the bar to expiry, so **lateness is designed into the rule**
+  rather than discovered about state. This contrast cannot separate the two. The comparator that
+  would — a calendar anchor on the known big double, which `anchoredPlan` already expresses — is
+  **unrun**, and is the single thing owed here.
+  ⚠️ **The control is an AVERAGE week, not a bad one**: median week 4.278 against its 3.694,
+  difference +0.583, t 1.09 against a threshold of 1.37, unresolved. A bench boost on an arbitrary
+  week is worth ~4 points because **there are no autosubs under it** — a week's gain is the bench's
+  points *less the substitutions forfeited*.
+  ⚠️ **The ceiling is a mixture of six argmax problems**, ranging over 38 weeks at GW1 and 13 at
+  GW26 and falling monotonically 18.83 → 13.50, so +16.139 is nobody's season figure and the
+  recovered fraction spans **0.049 to 0.704** by entry point. It also picks the entry week in 2 of
+  36 cells, which `gw > start` forbids the rule.
+  ⚠️ **Both levels against no chip are ≥ 0 BY CONSTRUCTION** — the substitutes are a subset of the
+  bench players who played — so the rule's +9.47 and the control's 3.69 carry the ceiling's
+  mechanical status. Quote no t, no p and no threshold on either. **Nothing here weighs the chip
+  against its own opportunity cost, which is what "should the lever be on" actually asks**, and the
+  lever ships off.
+  ⚠️ **One floor argument and five conditions, and they are different things.** The floor:
+  `prepare_squad_for_chips` is **off** (`prep_weeks` 0 in 36 of 36) and no arm plays a wildcard,
+  free hit or triple captain, so every arm boosts a bench the ordinary objective credits at almost
+  nothing. A flat bench *plausibly* flattens the gain profile across weeks, making the measured
+  ceiling a floor on the ceiling — **a mechanism argument, not a measurement**, and the autosub
+  credit a stronger bench would also earn runs the other way. **The conditions carry no direction**
+  and are simple-effect: `WeeklyXI` false, congestion off, `BankUpTo` 5, `DefaultOptionHalfLife` 8
+  (asserted, and it is what sets *when* the rule fires), and the bar. At `WeeklyXI` false the bench
+  is chosen on the five-week horizon, so the fielding half of a doubles mechanism is off while 16 of
+  36 oracle picks are GW ≥ 33 — that sets the **shape** of the gain profile, which is the only thing
+  a placement rule is scored on.
+  ⚠️ **The threshold transports to no other chip arm in this section.** The anchoring arm plays a
+  wildcard and a free hit, so its arms diverge on the transfer path and its MDE of 34-37 is what
+  that costs — unchanged and not refuted here. `ChipCredit`'s bench channel is *preparation*, moves
+  transfer decisions, and its +13.3 is `per_gw × 38` where everything here is `per_path`. The
+  recorded timing levels use different comparators again. None of them is this one.
+  ⚠️ **There are TWO bar-16 rules in this record and they are not the same rule.** `firstClearing`
+  (behind the `*_threshold_pts` columns) takes the first week whose **realised** gain clears 16;
+  `BenchBoostTrigger` scores a **projection** before the deadline. Their levels against no chip are
+  **17.9** and **9.5**, agreeing in 6 of 36 cells — one week of foresight, not a verdict on either.
+  And the bar is **two literals**, `chipBarBenchBoost` and `config.DefaultBenchBoostBar`, with no
+  reference between them and no equality test.
+  Nothing here recommends a placement week, none was chosen, and nothing licenses turning the lever
+  on.
+- **`OptionPricing.CongestionSensitivity = 0` means the DEFAULT of 1.0, not off** —
+  `CongestionFactor` reads `if sensitivity <= 0 { sensitivity = DefaultCongestionSensitivity }`,
+  which is that struct's correct **unset-means-default** convention and a trap for an arm meaning to
+  hold the channel still: the default is the *strongest* setting, so a zero reports a confounded
+  contrast as a clean one. Say `1e-12`. `TestCongestionSensitivityZeroIsTheDefaultNotOff` pins both
+  halves.
 - **The scoring-chip timing `+0.000` is a declared invariance, not a result.**
   `mustNotMoveForAxis(AxisChipWeek)` returns all eight of `cellMetricColumns` — the eight columns
   every sweep collects a comparable series for, which is **not** every column in the cells file,
@@ -1470,8 +1554,13 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   measured**, and the output is oracle minus the first week clearing the bar — so a bar set too low
   flatters timing and one set too high flatters the threshold rule. **There is no threshold of its
   own**, and both differences are ≥ 0 in every cell by construction, so a t against zero is
-  mechanical. An interval on a bound is the only legitimate reading. Nothing has been re-measured
-  under the banked schema; a re-sweep is owed.
+  mechanical. An interval on a bound is the only legitimate reading. **Both halves are now banked
+  under the current schema** — `stats/snapshots/2026-08-17-bench-boost-placement/cells/bbceiling.csv`,
+  arm 2, 36 cells on six seasons — and recompute to **+6.4** timing and **+30.2** threshold rule,
+  summed over the two chips as above (per chip: bench boost +1.9 / +15.6, triple captain
+  +4.4 / +14.6). Read those **beside** +8.3/+21.9, not instead of them: different grid, different
+  data state, and both remain ≥ 0 in every cell by construction, so neither carries a t or a
+  threshold.
 - **Only two of the four chips are *preparation* problems.** A free hit fields a temporary fifteen
   and a wildcard *is* the rebuild, so what those want was already wired **for the preparation
   credit**. The free hit's own *builder* is a separate thing and needs its own blank guard — see

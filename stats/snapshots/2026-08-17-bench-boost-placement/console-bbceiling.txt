@@ -1,0 +1,219 @@
+replay: slot 1/3, MemoryHigh=2G MemoryMax=4G, started 14:10:53
+=== RUN   TestDiagBenchBoostPlacement
+
+=== bench-boost placement: the canary first, the rule only if it clears
+36 cells (6 seasons x 6 starts)
+Every figure below is POINTS PER SEASON-PATH. A chip pays in one
+gameweek, so the cell total is the whole effect: do NOT divide by
+weeks played and do NOT multiply by 38.
+The control plays the bench boost at entry+6 and nothing else.
+No arm plays a wildcard, a free hit or a triple captain.
+
+--- where the control puts the boost
+season    entry   bb gw
+2020-21   GW1         7
+2020-21   GW6        12
+2020-21   GW11       17
+2020-21   GW16       22
+2020-21   GW21       27
+2020-21   GW26       32
+2021-22   GW1         7
+2021-22   GW6        12
+2021-22   GW11       17
+2021-22   GW16       22
+2021-22   GW21       27
+2021-22   GW26       32
+2022-23   GW1         7
+2022-23   GW6        12
+2022-23   GW11       17
+2022-23   GW16       22
+2022-23   GW21       27
+2022-23   GW26       32
+2023-24   GW1         7
+2023-24   GW6        12
+2023-24   GW11       17
+2023-24   GW16       22
+2023-24   GW21       27
+2023-24   GW26       32
+2024-25   GW1         7
+2024-25   GW6        12
+2024-25   GW11       17
+2024-25   GW16       22
+2024-25   GW21       27
+2024-25   GW26       32
+2025-26   GW1         7
+2025-26   GW6        12
+2025-26   GW11       17
+2025-26   GW16       22
+2025-26   GW21       27
+2025-26   GW26       32
+cells the control can place a bench boost in: 36 of 36
+
+--- BLOCK BBCEILING: the canary
+Perfect placement is bench_boost_oracle_pts on the oracle arm; the
+control's own pick is bench_boost_pts on arm 1. The ceiling is their
+difference and is >= 0 in every cell BY CONSTRUCTION, because the
+oracle's argmax ranges over the slice the control's pick is drawn
+from. A t against zero is therefore mechanical: read this as an
+interval on a bound, and as a SIZING of the comparison rather than
+as a test of anything.
+
+*** ORACLE SWEEP — these arms are given hindsight ***
+  decision:chipweek            decision  bounds scoring-chip TIMING on the squad actually held; not chip preparation, which needs a squad built for the chip
+                               must not move: policy_points, hold_points, hold_fixedcap_points, hold_nocap_points, hold_xpoints, policy_xpoints, moves, hits
+Every oracled figure is an **upper bound** on what a capability could be
+worth, never a score. The totals below are NOT comparable with any figure
+in AGENTS.md, all of which were measured with no hindsight at all — and
+no oracle may become the default, or the whole record stops being
+comparable with itself at a stroke.
+
+variant                     gw1      gw6     gw11     gw16     gw21     gw26    POLICY |      HOLD   moves
+no chip (reference)       13264    11366     9828     8232     6565     4603     53858 |     47105     950
+bench boost at entry+6    13283    11392     9850     8257     6595     4614     53991 |     47105     950
+ORACLE[decision:chipweek] perfect bench-boost week    13264    11366     9828     8232     6565     4603     53858 |     47105     950
+
+--- POLICY (the weekly transfer decision) ---
+Paired against "no chip (reference)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench boost at entry+6   +0.158       36
+    early (prior-led)    +0.107       12
+    middle               +0.156       12
+    late (season-led)    +0.209       12
+ORACLE[decision:chipweek] perfect bench-boost week   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- POLICY on accumulated xPoints (instrument; read beside POLICY) ---
+Paired against "no chip (reference)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench boost at entry+6   +0.189       36
+    early (prior-led)    +0.108       12
+    middle               +0.184       12
+    late (season-led)    +0.274       12
+ORACLE[decision:chipweek] perfect bench-boost week   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD (the opening fifteen; use this for scoring constants) ---
+Paired against "no chip (reference)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench boost at entry+6   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:chipweek] perfect bench-boost week   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD on accumulated xPoints (instrument; read beside HOLD) ---
+Paired against "no chip (reference)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench boost at entry+6   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:chipweek] perfect bench-boost week   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with the armband pinned to the day-one pick (diagnostic instrument) ---
+Paired against "no chip (reference)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench boost at entry+6   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:chipweek] perfect bench-boost week   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with nobody doubled (diagnostic instrument; not what FPL pays) ---
+Paired against "no chip (reference)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+bench boost at entry+6   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+ORACLE[decision:chipweek] perfect bench-boost week   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+Cells written. Now: Rscript stats/sweep_inference.R <the FPL_CELLS path>
+
+path invariance checked on 72 arm-cells: squad/moves/hits, the
+whole per-week gain vector, and the exact integer identity
+policy_points(arm) - policy_points(baseline) == bench_boost_pts.
+
+season    entry   weeks |  ctl gw ctl pts |  orc gw orc pts |  ceiling
+2020-21@1                38 |       7       0 |      19      22 |       22
+2020-21@11               28 |      17       8 |      28      22 |       14
+2020-21@16               23 |      22       4 |      19      18 |       14
+2020-21@21               18 |      27       1 |      36      20 |       19
+2020-21@26               13 |      32       0 |      37      10 |       10
+2020-21@6                33 |      12       0 |      22      25 |       25
+2021-22@1                38 |       7       0 |      36      20 |       20
+2021-22@11               28 |      17       0 |      33      20 |       20
+2021-22@16               23 |      22       0 |      36      28 |       28
+2021-22@21               18 |      27       0 |      28      26 |       26
+2021-22@26               13 |      32       0 |      26       4 |        4
+2021-22@6                33 |      12       5 |      26      19 |       14
+2022-23@1                38 |       7       0 |      33      18 |       18
+2022-23@11               28 |      17       9 |      26      20 |       11
+2022-23@16               23 |      22       4 |      16      19 |       15
+2022-23@21               18 |      27      11 |      33      16 |        5
+2022-23@26               13 |      32       3 |      29      28 |       25
+2022-23@6                33 |      12       9 |      16      22 |       13
+2023-24@1                38 |       7      15 |       5      21 |        6
+2023-24@11               28 |      17       0 |      23      18 |       18
+2023-24@16               23 |      22       0 |      37      18 |       18
+2023-24@21               18 |      27      11 |      35      16 |        5
+2023-24@26               13 |      32       3 |      35      21 |       18
+2023-24@6                33 |      12       1 |      37      22 |       21
+2024-25@1                38 |       7       2 |      32      26 |       24
+2024-25@11               28 |      17       3 |      12      16 |       13
+2024-25@16               23 |      22       5 |      33      20 |       15
+2024-25@21               18 |      27       4 |      24      20 |       16
+2024-25@26               13 |      32       2 |      30      12 |       10
+2024-25@6                33 |      12       8 |      24      16 |        8
+2025-26@1                38 |       7       2 |      35      25 |       23
+2025-26@11               28 |      17       2 |      36      19 |       17
+2025-26@16               23 |      22      12 |      36      24 |       12
+2025-26@21               18 |      27       3 |      22      20 |       17
+2025-26@26               13 |      32       3 |      36      17 |       14
+2025-26@6                33 |      12       3 |       8      26 |       23
+
+mean ceiling over 36 cells: +16.14 points per season-path
+cells where the control already caught the best week: 0 of 36
+distinct oracle weeks: 17
+
+This mean carries NO dispersion. The per-cell values are banked as
+bench_boost_oracle_pts (arm 2) and bench_boost_pts (arm 1); the
+standard error, the threshold and the wild bootstrap come from
+stats/bench_boost_placement.R and from nowhere else.
+--- PASS: TestDiagBenchBoostPlacement (473.69s)
+PASS
+replay: exit=0 peak_rss=133 MB elapsed=7:53.50

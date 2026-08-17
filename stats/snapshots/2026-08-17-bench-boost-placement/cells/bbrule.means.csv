@@ -1,0 +1,13 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+BBRULE#1,1786990769-2609726,policy,bench boost at entry+6,1,no chip (reference),0.15759361411535386,36,-
+BBRULE#1,1786990769-2609726,policy,bench boost by state rule,2,no chip (reference),0.42945882443403427,36,-
+BBRULE#1,1786990769-2609726,policy_xpoints,bench boost at entry+6,1,no chip (reference),0.18886744152139873,36,-
+BBRULE#1,1786990769-2609726,policy_xpoints,bench boost by state rule,2,no chip (reference),0.49959111808600576,36,-
+BBRULE#1,1786990769-2609726,hold,bench boost at entry+6,1,no chip (reference),0,36,-
+BBRULE#1,1786990769-2609726,hold,bench boost by state rule,2,no chip (reference),0,36,-
+BBRULE#1,1786990769-2609726,hold_xpoints,bench boost at entry+6,1,no chip (reference),0,36,-
+BBRULE#1,1786990769-2609726,hold_xpoints,bench boost by state rule,2,no chip (reference),0,36,-
+BBRULE#1,1786990769-2609726,hold_fixedcap,bench boost at entry+6,1,no chip (reference),0,36,-
+BBRULE#1,1786990769-2609726,hold_fixedcap,bench boost by state rule,2,no chip (reference),0,36,-
+BBRULE#1,1786990769-2609726,hold_nocap,bench boost at entry+6,1,no chip (reference),0,36,-
+BBRULE#1,1786990769-2609726,hold_nocap,bench boost by state rule,2,no chip (reference),0,36,-
