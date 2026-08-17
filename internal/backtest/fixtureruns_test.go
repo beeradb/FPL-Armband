@@ -55,9 +55,13 @@ func TestTheFixtureRunBlockSitsBetweenBankingAndTheChips(t *testing.T) {
 		t.Fatalf("the column before the fixture-run block is %q, want the banking "+
 			"block's last column — the two mediators are one region", before)
 	}
-	if after := cellHeader[at+fixtureRunCols]; after != "bench_boost_gw" {
-		t.Fatalf("the column after the fixture-run block is %q, want the chip "+
-			"block's first column", after)
+	// ⚠️ Its right-hand neighbour is no longer the chip block: the four
+	// option-value funnels landed between them, so the decision-mediator region
+	// is now three funnels wide — banking, fixture runs, option value — with the
+	// dose pair after it and the chips after that.
+	if after := cellHeader[at+fixtureRunCols]; after != "ftv_weeks" {
+		t.Fatalf("the column after the fixture-run block is %q, want the "+
+			"option-value block's first column", after)
 	}
 }
 
@@ -500,7 +504,18 @@ func TestTheSweepAssignsBothMediators(t *testing.T) {
 	// Both mediators, asserted together. They are one region of the cells file and
 	// they fail the same way, so a guard watching only the newer one would leave
 	// the older join exactly as exposed as it was before.
-	for _, want := range []string{"bankingOf(res)", "fixtureRunsOf(res)"} {
+	// The two original mediators, plus the five that landed with the option-value
+	// levers and the dose. Every one of them fails the same way — blank columns,
+	// a sweep that prints and banks normally, no other test executing the line —
+	// so they are watched together. ⚠️ The five new ones are named INDIVIDUALLY
+	// rather than as one block assignment, because the four levers are
+	// independently switchable and a guard that accepted any one of them would
+	// let the other three go silently missing.
+	for _, want := range []string{
+		"bankingOf(res)", "fixtureRunsOf(res)",
+		"res.TransferHold", "res.Wildcard", "res.BenchBoost", "res.FreeHit",
+		"res.ChipPrep", "DoseFor(",
+	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("runPolicySweep does not call %s.\n\n"+
 				"The mediator is not reaching the cellRow, so its columns will be "+

@@ -179,7 +179,7 @@ func statusAt(p *Player, gw int, cutoff time.Time, o Oracles) string {
 			// A blank gameweek is left alone. His club not playing is on the
 			// published calendar, so treating it as team news would credit
 			// hindsight with a fact the model already has — and the model prices
-			// the blank through fixturesPerGameweek, not through Status.
+			// the blank through fixtureLoadFor, not through Status.
 			if g, ok := p.GWs[gw]; ok {
 				if g.Minutes > 0 {
 					return "a"
@@ -325,6 +325,24 @@ type SimResult struct {
 	// FixtureRuns is the fixture-run mediator, filled by every simulated season
 	// beside Banking and for the same reason. See FixtureRunMediator.
 	FixtureRuns FixtureRunMediator
+
+	// TransferHold, Wildcard, BenchBoost and FreeHit are the four option-value
+	// levers' mediators, and ChipPrep the preparation channel's. Values rather
+	// than pointers, beside Banking and for its reason: every season runs weekly
+	// decisions, so there is no "the axis was not requested" state.
+	//
+	// ⚠️ **What plays the pointer's role is NOT one field across all five.** For
+	// the taper and the preparation credit it is `ConsultedWeeks`, which is zero
+	// exactly when the lever was off. For the three CHIP triggers it is
+	// `OfferedWeeks`: their `ConsultedWeeks` is also zero when the lever ran and
+	// was blocked all season, which `eligible` does whenever a plan already places
+	// that chip. An earlier version of this comment asserted the single reading
+	// over all five and was wrong for three of them.
+	TransferHold TransferHoldMediator
+	Wildcard     ChipTriggerMediator
+	BenchBoost   ChipTriggerMediator
+	FreeHit      ChipTriggerMediator
+	ChipPrep     ChipPrepMediator
 }
 
 // FixtureRunMediator is what the weekly transfer decision did about fixture
@@ -425,6 +443,175 @@ type FixtureRunMediator struct {
 	// proportional to the adjustment the engine applied on either side. It is a
 	// count of fixtures and never a proxy for what those fixtures were worth.
 	Exposure int
+}
+
+// TransferHoldMediator is what the free-transfer taper did: how often it was
+// asked, how often it actually moved the charge, and how often the moved charge
+// changed the gate's answer.
+//
+// # Why three counts and not one
+//
+// The same argument the banking funnel beside it paid for. A taper arm reading
+// flat has four explanations, and they license opposite conclusions:
+//
+//   - the lever was off, so nothing ran;
+//   - it ran and the factor was 1 everywhere, so the curve is inert at this
+//     setting — which is a statement about the SETTING and not about tapering;
+//   - it moved the charge and no gate answer changed, so the charge is not the
+//     binding constraint on this policy;
+//   - it changed answers and the points did not move, which is the only one of the
+//     four that is a result about football.
+//
+// A points column cannot separate them and this can, at the cost of three integers
+// and two sums.
+//
+// ⚠️ **Flips counts GATE ANSWERS, not weeks and not moves.** A week offering a
+// funded pair and a solo swap asks the gate three times, so this can exceed
+// `ConsultedWeeks`. Read it as a rate over `GateCalls`, which is in the block for
+// exactly that reason.
+//
+// ⚠️ **A flip is not a changed transfer.** The gate is asked about candidates in
+// order and `decide` returns on a refusal, so a flip on the first call changes the
+// week and a flip on a later one may not. Counting the changed transfers honestly
+// would need a second search, which is what this project cannot afford per week.
+type TransferHoldMediator struct {
+	// ConsultedWeeks is how many decision weeks the taper was asked in. Counted
+	// rather than read off the switch, so the mediator says what ran.
+	ConsultedWeeks int
+	// PricedWeeks is how many of those the factor differed from 1.
+	//
+	// ⚠️ **It equals ConsultedWeeks by construction and is a TRIPWIRE, not a
+	// reading.** With a usable window the normalised decay is 1 at exactly one
+	// point in the season and different everywhere else, so a live taper prices
+	// every consulted week. It therefore cannot separate "the curve is inert at
+	// this setting" — the column that can is `ftv_mean_charge` read against
+	// `free_transfer_value`, which is why both are in the block. What this
+	// catches is the factor arriving as a literal 1, which is what a deleted or
+	// short-circuited join looks like.
+	PricedWeeks int
+	// GateCalls is how many times the gate was asked in consulted weeks, and Flips
+	// how many of those the shipped charge would have answered differently.
+	//
+	// The counterfactual is evaluated through `gateDecision`, which is pure, and
+	// NOT through `acceptTransfer`, which logs. Under a gate oracle `gateDecision`
+	// ignores the charge entirely, so Flips is necessarily 0 there — a true
+	// reading, and the reason the two are counted rather than assumed.
+	GateCalls, Flips int
+	// ChargeSum and LoadSum are the applied charge and the squad's forward fixture
+	// density, summed over ConsultedWeeks. Sums rather than means so a cell can be
+	// re-pooled downstream; the division happens in MeanCharge and MeanLoad alone.
+	ChargeSum, LoadSum float64
+}
+
+// MeanCharge is the average free-transfer charge a consulted week ran with, and
+// MeanLoad the average forward fixture density it was read from.
+//
+// Zero when nothing was consulted. A caller needing to tell that apart from a
+// genuine zero reads ConsultedWeeks, exactly as bankingOf does for the banking
+// funnel.
+func (m TransferHoldMediator) MeanCharge() float64 {
+	if m.ConsultedWeeks <= 0 {
+		return 0
+	}
+	return m.ChargeSum / float64(m.ConsultedWeeks)
+}
+
+// MeanLoad is the average forward fixture density. See MeanCharge.
+func (m TransferHoldMediator) MeanLoad() float64 {
+	if m.ConsultedWeeks <= 0 {
+		return 0
+	}
+	return m.LoadSum / float64(m.ConsultedWeeks)
+}
+
+// ChipTriggerMediator is what one chip's state rule did: how often it was
+// consulted, how often it had a real reading to weigh, and the week it fired in.
+//
+// # Chip preparation had NO mediator at all, and this closes that
+//
+// `PrepareBenchBoost` and `PrepareTripleCaptain` have shipped, been swept and been
+// crossed in a 2x2 with nothing counting whether the credit was ever non-zero. So
+// every one of those readings is a points column with no funnel behind it, and
+// "the credit never fired" and "it fired and bought nothing" are one number. The
+// preparation channel gets its own counters here beside the trigger's.
+//
+// ⚠️ **FiredGW is the whole deliverable for the wildcard.** The replay cannot
+// value a wildcard — it replaces all fifteen and the within-season spread swamps
+// it — so the question this lever answers is a decision count: does it fire, and
+// when. The recorded closure of the wildcard-trigger line rests on the tested
+// trigger firing at GW2, when the model has least data, so the falsifier for a
+// REPAIR-COST trigger is whether it does the same. A cells file carrying FiredGW
+// answers that; a points column never could.
+//
+// ⚠️ **BarSum is over ConsultedWeeks and is NOT a mean of the bar at the firing
+// week.** A bar that decays is a different number every week, so a single figure
+// for "the bar" does not exist; the sum plus the count is what a reader can
+// reconstruct a trajectory's level from, and the firing week's own bar is
+// FiredBar.
+type ChipTriggerMediator struct {
+	// OfferedWeeks is how many decision weeks the rule was OFFERED — before its
+	// own eligibility guards, so it counts weeks the lever was switched on
+	// regardless of whether anything let it act.
+	//
+	// ⚠️ **It exists because ConsultedWeeks == 0 does NOT mean "the lever was
+	// off".** `eligible` refuses the whole season when a plan already places that
+	// chip, so a 2x2 crossing calendar placement with a trigger reads an all-zero
+	// funnel in the planned corner — a lever that RAN and correctly declined,
+	// wearing the exact clothes of one that was never wired. Those license
+	// opposite conclusions and the funnel could not tell them apart.
+	//
+	// So the readings are: `offered = 0` is the lever off; `offered > 0` with
+	// `consulted = 0` is the lever on and blocked all season, which today means a
+	// plan owns the chip; `consulted > 0` with `weighed = 0` is the rule reaching
+	// its bar with no reading to weigh.
+	OfferedWeeks int
+	// ConsultedWeeks is how many of OfferedWeeks passed the eligibility guards and
+	// the rule was actually asked in.
+	ConsultedWeeks int
+	// WeighedWeeks is how many of those produced a finite reading to compare
+	// against the bar. It separates "the rule never had a number" from "it had one
+	// and the bar refused it", which is the banking funnel's WeighedWeeks argument
+	// applied to a chip.
+	WeighedWeeks int
+	// FiredGW is the gameweek the chip was played in, or 0 if the rule never
+	// fired. FiredValue is the reading that cleared, and FiredBar the bar it
+	// cleared — both zero when FiredGW is zero.
+	FiredGW    int
+	FiredValue float64
+	FiredBar   float64
+	// ValueSum and BarSum are the reading and the bar summed over WeighedWeeks,
+	// so a cell carries the level as well as the count.
+	ValueSum, BarSum float64
+}
+
+// ChipPrepMediator is what the chip-preparation credit did, which nothing counted
+// until now. See ChipTriggerMediator for the argument.
+//
+// ⚠️ **CreditWeeks counts weeks the credit was NON-ZERO**, which is the mediator
+// question — did the lever reach the decision — and not weeks it was switched on.
+// `chipCreditFor` returns zero whenever no prepared chip falls inside the horizon,
+// which is most of a season even with the switch set, so the two differ by a lot.
+type ChipPrepMediator struct {
+	// ConsultedWeeks is decision weeks a preparation switch was on in.
+	ConsultedWeeks int
+	// CreditWeeks is how many of those carried a non-zero credit.
+	CreditWeeks int
+	// BenchSum and CaptainSum are the credits summed over CreditWeeks.
+	//
+	// ⚠️ **They are NOT points, and multiplying by the horizon does not recover
+	// a point value.** `ChipCreditAt` sets `Bench = 1/horizon` — a dimensionless
+	// FRACTION OF THE HORIZON the chip falls in, which the objective multiplies by
+	// a squad's own bench value downstream. So `BenchSum x horizon` recovers
+	// `CreditWeeks` and nothing more, and at a fixed horizon these two columns
+	// carry no information the count beside them does not.
+	//
+	// They are kept because the horizon is NOT fixed — `effectiveHorizon` shortens
+	// it at the end of a season and `anticipate` shortens it before a chip — so a
+	// sum that diverges from `CreditWeeks/horizon` says the window moved, which is
+	// a real fact about the arm. Read them as a horizon audit, never as a level.
+	// The credit's point value is not recorded anywhere and would need the squad
+	// it was applied to.
+	BenchSum, CaptainSum float64
 }
 
 // ⚠️ **These columns describe ONE ARM's own path, and a difference between two
@@ -540,6 +727,29 @@ type weekBanking struct {
 	Consulted bool
 	Weighed   bool
 	Banked    bool
+}
+
+// weekHold is one gameweek's contribution to TransferHoldMediator and to
+// ChipPrepMediator: what the taper priced, whether the price moved a gate answer,
+// and what the preparation credit was worth.
+//
+// The two mediators share one per-week struct because both are read off the same
+// `decide` call and neither is worth a second return value. They are separate
+// mediators downstream because they are separate levers.
+//
+// ⚠️ **GateCalls and Flips count the BESPOKE search only.** `unifiedDecide` has
+// its own accept expressions and receives the tapered charge but is not counted
+// here, so a unified arm would report a live taper with zero gate calls. Unified
+// does not ship and `Simulate` already refuses it alongside the preparation
+// switches; recorded so nobody reads a zero there as inertness.
+type weekHold struct {
+	Consulted bool
+	Load      float64
+	Factor    float64
+	Charge    float64
+	GateCalls int
+	Flips     int
+	Credit    analysis.ChipCredit
 }
 
 // ChipWeek is one chip placed with hindsight: which gameweek, and what it would
@@ -938,6 +1148,20 @@ type SimConfig struct {
 	MinGainHit float64 // net points across the horizon needed to justify a -4
 	BankUpTo   int     // free transfers may accumulate to this many
 	MaxHits    int     // hits per week
+	// HitCeiling is the largest value MaxHits can MEAN. Zero takes
+	// analysis.DefaultHitCeiling, which is 1 and is what ships.
+	//
+	// The two are separate knobs because they answer different questions and
+	// because collapsing them is what hid the defect. MaxHits is how many hits
+	// this arm is willing to spend; HitCeiling is how many the search may
+	// express at all, and it clamped MaxHits **unconditionally** — so an arm at
+	// `MaxHits: 2` replayed byte-identically to shipped and read as a null.
+	//
+	// ⚠️ Raising it changes the funded-pair branch as well as the limit: the
+	// branch gated on `hitsNeeded <= 1` by a literal, which is the second half of
+	// the same clamp. Both now read this field, so an arm cannot raise one and
+	// leave the other.
+	HitCeiling int
 	// MaxMoves caps transfers in a single week, free and hit combined. Zero
 	// means the natural limit: every free transfer plus the hit allowance.
 	MaxMoves int
@@ -1217,6 +1441,35 @@ type SimConfig struct {
 	// are still one set, so that item is untouched by this field.
 	Chips2 analysis.ChipPlan
 
+	// OptionPricing is the decay and congestion curve every lever below shares.
+	// Zeroes mean the analysis package's defaults. See analysis.OptionPricing.
+	OptionPricing analysis.OptionPricing
+
+	// TaperFreeTransferValue makes FreeCost a function of the season's remaining
+	// life and the squad's forward fixture congestion rather than a constant.
+	//
+	// ⚠️ It changes what a transfer is CHARGED, which is a reluctance to spend —
+	// not a term in any forward valuation. `decide` is greedy per week and prices
+	// no future state in either arm, so a movement here means "the policy became
+	// more or less willing to act in these weeks", never "the policy started
+	// planning". See analysis.TransferHoldFactor.
+	TaperFreeTransferValue bool
+
+	// WildcardTrigger, BenchBoostTrigger and FreeHitTrigger are state rules that
+	// play a chip the plan does not name, against a bar that decays as the chip's
+	// own life runs out. Each fires at most once, only for a chip no plan places,
+	// and never in a gameweek another chip already occupies.
+	//
+	// ⚠️ **A zero bar here means a bar of zero**, unlike `config.ChipTrigger`
+	// where it means the default. There is no file to backfill from in a sweep and
+	// an arm that wanted zero would have no way to say it; the difference is
+	// deliberate and is why the two types are not shared.
+	WildcardTrigger, BenchBoostTrigger, FreeHitTrigger bool
+	// WildcardReservation is the points a repair cost must beat for the wildcard
+	// trigger to fire, before decay. BenchBoostBar and FreeHitBar are the same for
+	// the two scoring chips, in points of one week's gain.
+	WildcardReservation, BenchBoostBar, FreeHitBar float64
+
 	// StartGW is the gameweek the entry begins at, defaulting to 1.
 	//
 	// A replay is one path through a season, and one flipped transfer early
@@ -1344,7 +1597,20 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// keeps the anchoring rule in the diagnostic that is asking the question
 	// rather than putting a policy into the harness.
 	if cfg.ChipPlanner != nil {
-		cfg.Chips = cfg.ChipPlanner(cur, cfg.startGW())
+		// Routed into the sets the season granted them from, rather than dropped
+		// wholesale into the first. A planner answers "which week", and which SET
+		// that week draws from is a fact about FPL's calendar that every planner
+		// would otherwise have to know separately — which is how none of them did,
+		// and how an anchored arm silently lost every 2025-26 cell. See
+		// SplitChipSets.
+		//
+		// ⚠️ It overwrites Chips2 as well as Chips. A caller setting both a planner
+		// and a literal second set is asking two things to decide one quantity, and
+		// the planner is the one that was asked for; the alternative — merging —
+		// would let a stale literal collide with a planned week and be refused by
+		// the validator for a reason nobody wrote.
+		sch := SplitChipSets(cur.Name, cfg.ChipPlanner(cur, cfg.startGW()))
+		cfg.Chips, cfg.Chips2 = sch.First, sch.Second
 	}
 	// And the chip plan, which FPL constrains in ways a config file does not:
 	// one chip per gameweek, one set before the GW19 reset and one after it, and
@@ -1445,6 +1711,15 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// rather than one. See SimResult.Banking.
 	var banking BankingMediator
 	var fixtureRuns FixtureRunMediator
+	// The option-value levers' mediators, on the same principle: a lever that is
+	// wired and inert reports a clean null, which is indistinguishable from a real
+	// one. See TransferHoldMediator and ChipTriggerMediator.
+	var hold TransferHoldMediator
+	var prep ChipPrepMediator
+	// One state per triggered chip, so a rule fires at most once and never in a
+	// gameweek another chip already occupies. `triggered` is what makes a fired
+	// chip visible to the week's scoring switch; the mediators record why.
+	trig := newChipTriggers(cfg)
 
 	for gw := start; gw <= 38; gw++ {
 		week := Week{GW: gw}
@@ -1458,8 +1733,63 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 			pe.Recent = cfg.recentIndex(cur, gw-1)
 			pe.TeamForm = newTeamFormIndex(cur, gw-1)
 			cfg.anticipate(pe, gw)
+
+			// The two chip state rules that take the transfer decision away are
+			// consulted BEFORE the switch that would take it away, and both read
+			// the pre-deadline engine the decision itself runs on — never
+			// Week.BenchBoostGain or Week.TripleCaptainGain, which are computed
+			// after the gameweek is scored and are hindsight.
+			//
+			// Each is behind its own switch, and neither implies the other or the
+			// free-transfer taper. See chiptriggers.go for why that independence
+			// is load-bearing rather than tidy.
+			if trig.eligible(slotWildcard, gw, cfg.WildcardTrigger) {
+				// The allowance the week will actually have: the accrual below
+				// runs inside every branch of this switch, so reading `free` raw
+				// would price the repair against one transfer too few and make
+				// the rule fire more often, in exactly the early weeks the
+				// recorded closure says a bad trigger fires in.
+				avail := free
+				if avail < cfg.BankUpTo {
+					avail++
+				}
+				cost, ok := repairCost(pe, cur, w, held, gw, avail, minExp, cfg)
+				trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardReservation,
+					pe.HoldingCongestion(held, gw, cfg.OptionPricing), cost, ok)
+			}
+			if trig.eligible(slotFreeHit, gw, cfg.FreeHitTrigger) {
+				// ⚠️ **This is the most expensive line in the option-value work
+				// and it is deliberately gated hard.** `freeHitValue` calls
+				// `freeHitSquad`, which is a full `Optimize` — the expensive call
+				// in this package — and unlike the wildcard's the free-hit rule
+				// never becomes ineligible on its own, so an ungated version pays
+				// for roughly 37 rebuilds a cell. Performance is the second-ranked
+				// class in this record, so the guards matter: the rule stops on
+				// the first fire, refuses the whole season when a plan owns the
+				// chip, and the lever ships off.
+				//
+				// `blanking` is the cheap pre-filter and it is not a heuristic —
+				// a free hit's whole value is fielding a squad that plays in a
+				// round the held one does not, so a gameweek where every club the
+				// squad owns has a fixture cannot be worth the chip whatever the
+				// rebuild finds. It skips the rebuild rather than the reading, so
+				// a skipped week is not counted as weighed.
+				//
+				// The recency and team-form indexes are shared with `pe` rather
+				// than rebuilt. They are functions of `(cur, gw-1)` and `pe`
+				// already holds them, so a second construction was one quantity
+				// computed twice per week — the bench-boost site below already
+				// reused `ve`'s.
+				if squadBlanks(pe, held) {
+					fe := oneWeekEngine(pb, pf, cfg.Weights, idx, pe.Recent, pe.TeamForm)
+					v, ok := freeHitValue(fe, cur, w, held, gw, minExp, cfg)
+					trig.consult(slotFreeHit, gw, cur.Name, cfg.FreeHitBar,
+						fe.HoldingCongestion(held, gw, cfg.OptionPricing), v, ok)
+				}
+			}
+
 			switch {
-			case cfg.plays(slotWildcard, gw):
+			case trig.plays(slotWildcard, gw):
 				// A wildcard is unlimited transfers for one week at no hit cost,
 				// so it is not a transfer *decision* at all — it is the opening
 				// squad problem solved again, at whatever money the manager now
@@ -1480,7 +1810,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 				res.Transfers += n
 				week.Wildcard = true
 
-			case cfg.plays(slotFreeHit, gw):
+			case trig.plays(slotFreeHit, gw):
 				// A free hit reverts everything the following gameweek, so a
 				// *permanent* transfer cannot be made in this week at all —
 				// running the ordinary decision here would change the squad the
@@ -1493,7 +1823,29 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 			default:
 				var moves []Move
 				var wb weekBanking
-				held, free, moves, wb = decide(pe, cur, held, w, free, gw, cfg)
+				var wh weekHold
+				held, free, moves, wb, wh = decide(pe, cur, held, w, free, gw, cfg)
+				// The taper's funnel, and the preparation credit's. Both are read
+				// off the decision that was actually taken, on the engine it was
+				// taken with, and neither can change one.
+				if wh.Consulted {
+					hold.ConsultedWeeks++
+					if wh.Factor != 1 {
+						hold.PricedWeeks++
+					}
+					hold.GateCalls += wh.GateCalls
+					hold.Flips += wh.Flips
+					hold.ChargeSum += wh.Charge
+					hold.LoadSum += wh.Load
+				}
+				if cfg.PrepareBenchBoost || cfg.PrepareTripleCaptain {
+					prep.ConsultedWeeks++
+					if wh.Credit.Bench != 0 || wh.Credit.Captain != 0 {
+						prep.CreditWeeks++
+						prep.BenchSum += wh.Credit.Bench
+						prep.CaptainSum += wh.Credit.Captain
+					}
+				}
 				// The mediator, accumulated only on weeks that actually reached
 				// the decision: a wildcard or a free-hit week is one the banking
 				// rule could not have been asked in, and counting it would put a
@@ -1569,18 +1921,13 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 		// changes *which* squad is scored rather than how. Nothing here touches
 		// held or the wallet: the money is the same money, borrowed for a week.
 		fielded := held
-		if cfg.plays(slotFreeHit, gw) {
+		if trig.plays(slotFreeHit, gw) {
 			// Built on a one-gameweek horizon whatever the eleven is picked on:
 			// this squad exists for a single match round, so there is no run of
 			// fixtures to average over. Averaging one would be the same mistake
 			// as picking an eleven on a five-game view for a double this
 			// Saturday, and it is the whole reason a free hit targets a blank.
-			hw := cfg.Weights
-			hw.Horizon = 1
-			he := analysis.NewEngineFull(vb, vf, hw, analysis.Congestion{}, analysis.RoleRisk{})
-			he.Priors = idx
-			he.Recent = ve.Recent
-			he.TeamForm = ve.TeamForm
+			he := oneWeekEngine(vb, vf, cfg.Weights, idx, ve.Recent, ve.TeamForm)
 			// The error propagates, exactly as the wildcard's does above.
 			// Discarding it — which this did until 2026-08-13 — makes a failed
 			// build indistinguishable from a chip that was never worth
@@ -1621,8 +1968,38 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 		// sentence is true of every caller. It was written at `cmd` first, where
 		// it gated the one caller that was already careful and none of the sweeps,
 		// all of which build a SimConfig literal in this package.
+		// The bench boost's state rule, consulted here because this is the point
+		// the bench is known: the chip pays the four players `pickXI` just left
+		// out, and which four those are is a consequence of the week's transfers.
+		//
+		// It is deliberately AFTER the free hit above. A free-hit week fields a
+		// temporary fifteen the manager does not own, and FPL allows one chip a
+		// week regardless — `trig.anyPlays` refuses the overlap — so consulting
+		// the boost on a borrowed bench would be pricing a chip that cannot be
+		// played on a squad that is not there.
+		//
+		// ⚠️ **`gw > start` excludes the ENTRY week, and that is a choice rather
+		// than an inherited constraint.** The decision block's own `gw > start`
+		// exists because the squad was just bought and there is nothing to decide;
+		// here the bench is known and the chip could legally be played. It is
+		// excluded to keep the rule commensurable with the two above, which sit
+		// inside the decision block and cannot reach the entry week — a bench
+		// boost available in a window the other two are not would make a 2x2 over
+		// the three levers compare different windows. The cost is one candidate
+		// week per cell: 1 of 38 at a GW1 entry and **1 of 13 at GW26**, which is
+		// where it is worth knowing about.
+		if gw > start && trig.eligible(slotBenchBoost, gw, cfg.BenchBoostTrigger) {
+			be := oneWeekEngine(vb, vf, cfg.Weights, idx, ve.Recent, ve.TeamForm)
+			v, ok := benchBoostValue(be, bench)
+			// ⚠️ The load is read from gw+1, so the double the boost is being
+			// played FOR does not raise the bar it has to clear. Reading it from
+			// gw did exactly that — the reading and the bar both rose together,
+			// and the rule was hardest to satisfy in the weeks it exists for.
+			trig.consult(slotBenchBoost, gw, cur.Name, cfg.BenchBoostBar,
+				be.HoldingCongestion(held, gw, cfg.OptionPricing), v, ok)
+		}
 		switch {
-		case cfg.plays(slotBenchBoost, gw):
+		case trig.plays(slotBenchBoost, gw):
 			chip = chipBenchBoost
 			week.BenchBoost = true
 		case cfg.plays(slotTripleCaptain, gw):
@@ -1674,6 +2051,15 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	}
 	res.Banking = banking
 	res.FixtureRuns = fixtureRuns
+	res.TransferHold = hold
+	res.ChipPrep = prep
+	// Copied out rather than shared, so a caller holding a SimResult cannot reach
+	// back into the season's live trigger state. The three are read separately
+	// because the levers are switchable separately — a null on one has to be
+	// readable without reference to the others.
+	res.Wildcard = *trig.med[slotWildcard]
+	res.FreeHit = *trig.med[slotFreeHit]
+	res.BenchBoost = *trig.med[slotBenchBoost]
 	return res, nil
 }
 
@@ -1717,11 +2103,12 @@ func bandExposureDelta(e *analysis.Engine, mv Move) (int, bool) {
 // gameweeks to repay itself, not five, and a policy that ignores that will keep
 // buying form in May.
 //
-// The fourth return is the banking mediator's per-week contribution. It is
-// returned rather than accumulated through a pointer so that this function still
-// computes nothing it does not also return, and so a caller that ignores it —
-// there are none today — cannot end up with a half-filled counter.
-func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, cfg SimConfig) ([]int, int, []Move, weekBanking) {
+// The fourth and fifth returns are the banking and free-transfer-taper mediators'
+// per-week contributions. They are returned rather than accumulated through a
+// pointer so that this function still computes nothing it does not also return,
+// and so a caller that ignores one — there are none today — cannot end up with a
+// half-filled counter.
+func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, cfg SimConfig) ([]int, int, []Move, weekBanking, weekHold) {
 	bank := w.bank
 	// Prices as they stood when the decision was made, which is the end of the
 	// previous gameweek — the same point the engine's data comes from.
@@ -1821,14 +2208,65 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 	}
 	horizon := effectiveHorizon(gateHorizon, gw)
 	freeCost := cfg.FreeCost
+	// The option-value taper, off by default and byte-identical when off.
+	//
+	// It reprices what a free transfer is CHARGED, from a constant to a function
+	// of the season's remaining life and the squad's forward fixture congestion.
+	// The two channels are the reserved exit (decay) and the insurance against
+	// forced demand (congestion) — see analysis.TransferHoldFactor for which is
+	// which, and for why neither makes this search forward-looking.
+	//
+	// ⚠️ The load is read from the clubs the squad ACTUALLY HOLDS, so it is a
+	// property of the arm's own path and not of the calendar alone. Two arms in
+	// one cell can therefore read different loads in the same gameweek, which is
+	// normal for a mediator column and would be a fault in a dose column.
+	var wh weekHold
+	if cfg.TaperFreeTransferValue {
+		wh.Consulted = true
+		// Both through the one composite, so the replay and the three live sites
+		// cannot read the load over different windows. It starts at gw+1: the
+		// question is what a transfer is worth UNSPENT, and the decay half
+		// excludes this gameweek for the same reason. See TransferHoldFactorFor.
+		wh.Load = e.HoldingCongestion(held, gw, cfg.OptionPricing)
+		wh.Factor = e.TransferHoldFactorFor(held, gw, cfg.OptionPricing)
+		freeCost = cfg.FreeCost * wh.Factor
+		wh.Charge = freeCost
+	}
+	// accept is the gate, plus the taper's counterfactual.
+	//
+	// Every accept expression in this function goes through it rather than
+	// through `acceptTransfer` directly, so the flip count cannot describe a
+	// different population from the decisions actually taken. The counterfactual
+	// re-prices the SAME proposal at the untapered charge and asks
+	// `gateDecision` — which is pure, where `acceptTransfer` logs, so asking
+	// twice would otherwise double every row of the gate diagnostic's stream.
+	//
+	// ⚠️ Under a gate oracle `gateDecision` ignores the charge entirely, so the
+	// flip count is necessarily zero there. That is a true reading of an arm in
+	// which the taper cannot act, and it is why the count is measured rather
+	// than assumed.
+	accept := func(p transferProposal) bool {
+		ok := acceptTransfer(cfg, s, p)
+		if !wh.Consulted {
+			return ok
+		}
+		wh.GateCalls++
+		base := p
+		base.FreeCost = cfg.FreeCost
+		if gateDecision(cfg, s, base) != ok {
+			wh.Flips++
+		}
+		return ok
+	}
 	// What a planned chip adds to a squad's value this week. Zero unless one of
 	// the preparation switches is on and its chip falls inside the horizon, so
 	// every other arm is byte-identical.
 	credit := cfg.chipCreditFor(e, gw, horizon)
+	wh.Credit = credit
 
 	var moves []Move
 	hits := 0
-	limit := moveLimit(free, cfg.MaxHits, cfg.MaxMoves)
+	limit := moveLimit(free, cfg.MaxHits, cfg.MaxMoves, cfg.HitCeiling)
 	// The allowance the search is about to run with: after this week's accrual,
 	// before anything is spent. Captured beside moveLimit because it is the same
 	// number moveLimit is taken from — recording it anywhere later would report
@@ -1858,7 +2296,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			// only consumer is behind `BankLookahead`, which shipped off and has no
 			// banked sweep, so no recorded figure moves.
 			// TestABankedWeekAccruesExactlyOneTransfer is the pin.
-			return held, free, nil, wb
+			return held, free, nil, wb, wh
 		}
 	}
 
@@ -1873,7 +2311,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 		if free < 0 {
 			free = 0
 		}
-		return held, free, moves, wb
+		return held, free, moves, wb, wh
 	}
 
 	// A premium cannot be funded one swap at a time: the downgrade that pays for
@@ -1921,7 +2359,11 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			// the week's allowance — is a legality question and stays here. Only
 			// the *value* judgement goes through the gate, which is what an oracle
 			// over the gate is entitled to overrule.
-			ok := hitsNeeded <= 1 && n <= limit && acceptTransfer(cfg, s, transferProposal{
+			// ⚠️ `hitsNeeded <= 1` was a LITERAL here, and it is the second
+			// half of MoveLimit's clamp: lifting one without the other would
+			// widen the limit and leave the funded pair refusing anything that
+			// used the extra move. Both read cfg.HitCeiling now.
+			ok := hitsNeeded <= cfg.hitCeiling() && n <= limit && accept(transferProposal{
 				Moves: pair.moves, Gain: pair.gain, Money: pairMoney,
 				Hits: hitsNeeded, Alternative: soloValue, Strict: true,
 				GainBar: cfg.MinGain, Horizon: horizon, FreeCost: freeCost, GW: gw,
@@ -1966,21 +2408,21 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			Horizon: horizon, FreeCost: freeCost, GW: gw,
 		}
 		switch {
-		case !useHit && acceptTransfer(cfg, s, one.withBar(cfg.MinGain)):
+		case !useHit && accept(one.withBar(cfg.MinGain)):
 			free--
-		case useHit && hits < cfg.MaxHits && acceptTransfer(cfg, s, one.asHit()):
+		case useHit && hits < cfg.MaxHits && accept(one.asHit()):
 			best.Hit = true
 			hits++
 		default:
 			// Nothing left worth doing this week.
-			return held, free, moves, wb
+			return held, free, moves, wb, wh
 		}
 		best.GW = gw
 		held = applyMove(held, best)
 		settle(best)
 		moves = append(moves, best)
 	}
-	return held, free, moves, wb
+	return held, free, moves, wb, wh
 }
 
 // applyMove returns the squad with one player swapped for another.
@@ -2043,6 +2485,29 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 	horizon, freeCost float64, cfg SimConfig, sell map[int]int) (bank_ bool, weighed bool) {
 
+	// ⚠️ **`freeCost` here is the NOW-arm's charge, and the later arm is priced at
+	// the same one.** With `TaperFreeTransferValue` on, next week's charge is lower
+	// — one gameweek less window — so the later arm is charged too much and the
+	// comparison leans toward acting.
+	//
+	// ⚠️ **The bound is ABSOLUTE, not relative.** A first draft said "under 2% of
+	// the charge" and that is wrong: the per-week step is `h²/((r+h)(r+h-1))` times
+	// the normalised charge, which is small in mid-season and **100%** at `r = 1`,
+	// because next week's charge is exactly zero. What holds everywhere is the
+	// absolute size — at the shipped half-life and `FreeCost` 2.0 the largest
+	// one-week step is **0.358 points**, at GW37. Against a gate whose bar is a
+	// package's whole horizon value, that is the right order to call negligible;
+	// "2%" was the right conclusion from the wrong quantity.
+	//
+	// ⚠️ **The CONGESTION half is not bounded by that argument at all.** It reads a
+	// different five-gameweek window at `gw+1`, and a window that drops a doubling
+	// round can move the factor by a large fraction in one step. Unbounded here and
+	// unmeasured.
+	//
+	// Left uncorrected deliberately: **both arms already price on today's board**,
+	// and adding one forward-looking term to a comparison that is otherwise
+	// entirely present-tense makes the approximation harder to state rather than
+	// smaller. Named rather than fixed, so nobody reads it as an oversight.
 	if guard := analysis.BankGuardFor(free, cfg.BankUpTo, horizon); guard != analysis.BankGuardNone {
 		if cfg.bankLog != nil {
 			cfg.bankLog(bankProbe{GW: gw, Guard: guard, Free: free,
@@ -2053,7 +2518,7 @@ func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 	// The later arm is priced at *next* week's decision, so its chip credit is
 	// too: a boost one week nearer is one week less to amortise it over, which is
 	// the whole quantity this comparison turns on.
-	limitLater := moveLimit(free+1, cfg.MaxHits, cfg.MaxMoves)
+	limitLater := moveLimit(free+1, cfg.MaxHits, cfg.MaxMoves, cfg.HitCeiling)
 	pkgNow := transferPackages(e, held, bank, limit, gw, horizon, cfg, sell)
 	pkgLater := transferPackages(e, held, bank, limitLater, gw+1, horizon-1, cfg, sell)
 	bestNow, now := analysis.BestPackage(pkgNow, horizon, freeCost, cfg.MinGain)
@@ -2561,8 +3026,21 @@ func effectiveHorizon(configured, gw int) float64 {
 // ⚠️ Moved to analysis.MoveLimit and delegated, because the live transfer
 // command needs the same arithmetic to ask the same banking question. The
 // reasoning above is kept for the replay's reader; it lives with the code there.
-func moveLimit(free, maxHits, maxMoves int) int {
-	return analysis.MoveLimit(free, maxHits, maxMoves)
+//
+// ⚠️ The "plus one" is now `SimConfig.HitCeiling`, zero meaning
+// `analysis.DefaultHitCeiling` — so every existing arm is byte-identical and an
+// arm wanting the two-hit week has somewhere to set it. See MoveLimit.
+func moveLimit(free, maxHits, maxMoves, hitCeiling int) int {
+	return analysis.MoveLimit(free, maxHits, maxMoves, hitCeiling)
+}
+
+// hitCeiling resolves SimConfig.HitCeiling's zero to the shipped default, so the
+// funded-pair branch and MoveLimit cannot disagree about what an unset field means.
+func (c SimConfig) hitCeiling() int {
+	if c.HitCeiling <= 0 {
+		return analysis.DefaultHitCeiling
+	}
+	return c.HitCeiling
 }
 
 // chipCredit prices a chip planned inside this decision's horizon, per gameweek.
@@ -2832,12 +3310,27 @@ func playWildcard(e *analysis.Engine, cur *Season, w *wallet, held []int, gw int
 // describing the squad the manager still owns.
 //
 // The caller supplies a one-gameweek engine; see the call site for why.
+//
+// # Clubs that do not play are excluded, and that is a selection guard
+//
+// The chip is spent on a blank round — 2023-24 GW29 blanked twelve clubs of
+// twenty — so "who plays at all" is most of the problem. Scoring alone does not
+// answer it. `fixtureLoadFor` now takes a blanking club's Score to zero, which
+// keeps its players out of the ELEVEN, but the builder still has four bench
+// slots to fill and is indifferent between two footballers worth nothing, so it
+// takes whoever is cheapest. Pre-fix, with the load blind to blanks entirely,
+// that GW29 build held thirteen blanking players and would have fielded TWO.
+//
+// So the guard has to reach the pool, not just the objective. This is the same
+// shape as the one in `WeekViews`, which zeroes a blanking player's score *after*
+// calling Optimize — correct for the display and too late for the selection.
 func freeHitSquad(e *analysis.Engine, cur *Season, w *wallet, held []int, gw int,
 	minExp float64, cfg SimConfig) ([]int, error) {
 
 	sq, err := e.Optimize(analysis.OptimizeRequest{
 		Budget: w.value(cur, held, gw-1), MinMinutes: 600,
 		MinExpectedMinutes: minExp, BenchWeight: cfg.openingBenchWeight(),
+		ExcludeIDs: e.ElementsWithoutFixtures(),
 	})
 	if err != nil {
 		return nil, err

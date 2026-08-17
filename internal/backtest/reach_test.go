@@ -506,7 +506,7 @@ func TestDiagGroupedMoveReach(t *testing.T) {
 				if free < base.BankUpTo {
 					free++
 				}
-				limit := moveLimit(free, base.MaxHits, base.MaxMoves)
+				limit := moveLimit(free, base.MaxHits, base.MaxMoves, base.HitCeiling)
 				if limit < 1 {
 					continue
 				}

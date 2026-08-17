@@ -165,6 +165,40 @@ func isPriorProjection(line string) bool {
 	return priorProjection.MatchString(line) && !priorContainer.MatchString(line)
 }
 
+// saturatingRatio matches `x / (x + k)` — a quantity divided by itself plus
+// something else.
+//
+// That is the option-value decay with the names filed off: the curve that takes a
+// held option's worth to exactly zero at its expiry and saturates toward 1 with a
+// long window. Four levers read it — a banked transfer, a wildcard, a bench boost
+// and a free hit — and four copies of it is precisely the failure this table
+// exists for.
+//
+// Go's regexp has no backreferences, so the equality of the numerator and the
+// first term of the denominator is checked after the match rather than inside it.
+// The identifier pattern admits a selector (`w.Remaining`), because a copy written
+// against a struct field is what somebody reaching for the obvious writes.
+var saturatingRatio = regexp.MustCompile(
+	`([A-Za-z_][\w.]*)\s*/\s*\(\s*([A-Za-z_][\w.]*)\s*\+`)
+
+// goStringLiteral matches a double-quoted Go string, non-greedily, so the shape
+// can be looked for in CODE rather than in prose.
+//
+// ⚠️ **This row needs it and the other three do not**, because this shape is one a
+// diagnostic PRINTS: four `fmt.Printf` lines in this tree explain `n/(n+k)` to a
+// reader, and a scan that counted them would report a copy in a file containing
+// only a sentence. The sibling rows match shapes nobody writes in prose.
+//
+// Approximate — it does not understand escapes or raw backquoted strings — which
+// is the right trade for a tripwire: the failure it can produce is a MISSED copy
+// hidden inside a string, and a copy inside a string does not execute.
+var goStringLiteral = regexp.MustCompile(`"[^"]*"`)
+
+func isSaturatingRatio(line string) bool {
+	m := saturatingRatio.FindStringSubmatch(goStringLiteral.ReplaceAllString(line, `""`))
+	return m != nil && m[1] == m[2]
+}
+
 // TestTheCopiedExpressionsHaveOneImplementation.
 //
 // # What this guards, and why a source scan rather than a runtime check
@@ -340,6 +374,54 @@ func TestTheCopiedExpressionsHaveOneImplementation(t *testing.T) {
 				"minutes base. A transformation of a PriorPlayer rather than a " +
 				"projection of a source, and it is one function because its two " +
 				"call sites are exact mirrors."},
+		},
+	}, {
+		quantity: "the option-value decay: how much of a held option's worth " +
+			"survives, given the gameweeks of exercise window left " +
+			"(analysis.OptionDecay)",
+		cost: "Four levers price a held option — a banked transfer, a wildcard, a " +
+			"bench boost and a free hit — and every one of them was a CONSTANT " +
+			"before this curve existed. Four copies of the curve is the same " +
+			"failure one layer up, and it is worse than the usual case because " +
+			"the copies would agree on the day they were written and then be " +
+			"re-tuned separately: the whole argument for one curve is that the " +
+			"four are the same quantity, so a second implementation quietly " +
+			"withdraws the argument while the code still compiles.\n\n" +
+			"Call analysis.OptionDecay, or one of the three faces above it — " +
+			"TransferHoldFactor, ChipReservationAt, ChipBarAt — which add a base " +
+			"price and nothing else.\n\n" +
+			"This shape is a saturating ratio of ANYTHING. If yours is a share, a " +
+			"probability or a shrinkage weight rather than an option's remaining " +
+			"life, it is not this quantity: add it to `sanctioned` with that " +
+			"argument.",
+		match: isSaturatingRatio,
+		sanctioned: map[string]sanction{
+			"internal/analysis/optionvalue.go": {1,
+				"OptionDecay itself, which is where the curve lives."},
+			// The seven live shrinkage weights. They are the same ALGEBRA and a
+			// different QUANTITY: a shrinkage weight puts EVIDENCE against a
+			// prior, where the option curve puts remaining TIME against a
+			// half-life. Neither would ever be tuned by looking at the other, so
+			// folding them together would be a pun rather than a deduplication.
+			//
+			// ⚠️ Listing them is what makes this row a tripwire rather than
+			// noise: with seven known occupants accounted for, an EIGHTH anywhere
+			// fails, and that eighth is the copy this row exists to catch.
+			// (4 + 1 + 2 = 7. An earlier draft of these two lines said six and
+			// seventh, which is the count a reader would check the row against.)
+			"internal/analysis/blend.go": {4, "" +
+				"the rate blend's own weight, four times: the shrink-to-league " +
+				"arm on n, and the recency-weighted arm, the flat arm and the " +
+				"assembled result on n90. All four weigh EVIDENCE against a " +
+				"prior, on BlendRateK or LeagueShrinkK."},
+			"internal/analysis/metrics.go": {1,
+				"the same blend weight, clamped, on the metrics path."},
+			"internal/analysis/teamstrength.go": {2, "" +
+				"the club prior's two weights, on matches played against " +
+				"teamConcededK and teamScoredK. This record already notes that " +
+				"team strength wants a far heavier prior than player rates " +
+				"(k=70/35 against 8/5), which is the clearest statement that " +
+				"these are not one constant with the option curve's."},
 		},
 	}} {
 		seen := map[string]int{}

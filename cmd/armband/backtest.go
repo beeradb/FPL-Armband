@@ -127,7 +127,7 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		// fixture-load term reachable: a club playing twice this week is worth
 		// roughly twice as much, and a horizon average dilutes that to nothing.
 		// Worth +33 points a season at t = +5.74 with squad selection
-		// unchanged — see analysis.fixturesPerGameweek.
+		// unchanged — see analysis.fixtureLoadFor.
 		WeeklyXI: true,
 		// The two transfer-policy switches a user can actually set, carried onto
 		// the replay so `armband backtest` scores the policy the config describes.
@@ -141,6 +141,12 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		BankLookahead:        cfg.Review.BankTransfersLookahead,
 		PrepareBenchBoost:    cfg.Review.PrepareForChips,
 		PrepareTripleCaptain: cfg.Review.PrepareForChips,
+		// The hit ceiling, for the identical reason. `max_hits_per_week` is
+		// carried onto the replay below via `pol.maxHits`, and without this the
+		// ceiling that decides what that number can MEAN would stay at the
+		// shipped 1 — so a user raising both would get the same silent null the
+		// comment above is about, from the knob added to abolish it.
+		HitCeiling: cfg.Review.HitCeiling,
 		// Diagnostic override for sweeping what the opening fifteen credits a
 		// bench player at. See SimConfig.openingBenchWeight — the shipped 0.02
 		// is what broke when the optimiser was fixed.
@@ -157,6 +163,10 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		// inert on this path while still appearing in docs/replay.md.
 		Oracles: backtest.OraclesFromEnv(),
 	}
+	// And the four option-value levers, on the same rule and for the same reason
+	// as the two switches above: a config field with no consumer returns the
+	// shipped behaviour under a setting the user believes arrived.
+	applyOptionValue(&base, cfg.OptionValue)
 	// Diagnostic override for the 3/14/3 attack/defence bands. Zero is off.
 	if bs := envFloat("FPL_BAND_STRENGTH"); bs > 0 {
 		base.Weights.BandStrength = bs

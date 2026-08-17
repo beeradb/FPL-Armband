@@ -69,6 +69,11 @@ type Config struct {
 	// rules the agent must work within when deciding whether to act.
 	Review ReviewPolicy `json:"review_policy"`
 
+	// OptionValue prices the four things this project holds and can only spend
+	// once: a banked transfer, a wildcard, a bench boost and a free hit. Every
+	// lever in it ships off. See OptionValuePolicy.
+	OptionValue OptionValuePolicy `json:"option_value"`
+
 	// Roster is the standing set of player locks and exclusions the analysis
 	// layer has established — injuries, lost places, players the squad must be
 	// built around. These bind every solver call and survive between runs.
@@ -100,6 +105,7 @@ func Default() Config {
 		Congestion:    analysis.DefaultCongestion(),
 		RoleRisk:      analysis.DefaultRoleRisk(),
 		Review:        DefaultReviewPolicy(),
+		OptionValue:   DefaultOptionValuePolicy(),
 		Criteria: []string{
 			"Expected points only become real points if the player is on the pitch. Treat expected minutes as a first-class filter, not a tiebreaker: check expected_minutes_per_gw and rotation_risk before recommending anyone.",
 			"Never recommend a starting XI player below roughly 60 expected minutes per gameweek unless you say explicitly why the rotation risk is worth it.",
@@ -295,6 +301,42 @@ func Load(path string) (Config, error) {
 	}
 	if cfg.Review.BankUpTo <= 0 {
 		cfg.Review.BankUpTo = d.Review.BankUpTo
+	}
+	// A ceiling of zero is not "no hits" — analysis.MoveLimit reads it as the
+	// shipped default — so backfilling it changes nothing and records what is in
+	// force. See ReviewPolicy.HitCeiling.
+	if cfg.Review.HitCeiling <= 0 {
+		cfg.Review.HitCeiling = d.Review.HitCeiling
+	}
+	// The option-value curve. Every one of these reads its zero as "the package
+	// default", so a value-check backfill is safe and only records what is in
+	// force.
+	if cfg.OptionValue.Pricing.HalfLife <= 0 {
+		cfg.OptionValue.Pricing.HalfLife = d.OptionValue.Pricing.HalfLife
+	}
+	if cfg.OptionValue.Pricing.CongestionSensitivity <= 0 {
+		cfg.OptionValue.Pricing.CongestionSensitivity = d.OptionValue.Pricing.CongestionSensitivity
+	}
+	if cfg.OptionValue.Pricing.CongestionHorizon <= 0 {
+		cfg.OptionValue.Pricing.CongestionHorizon = d.OptionValue.Pricing.CongestionHorizon
+	}
+	// ⚠️ The chip bars probe for KEY PRESENCE, not for the value. A bar of zero is
+	// meaningful — "play it the first week it is worth anything at all" — so a
+	// value-check migration would silently undo a deliberate 0, and it would never
+	// fire anyway, since `cfg` starts from Default() and therefore already carries
+	// the default. Same rule, same reason, as `bonus_prior_weight` above.
+	for _, bar := range []struct {
+		key  string
+		into *float64
+		from float64
+	}{
+		{"wildcard", &cfg.OptionValue.Wildcard.Bar, d.OptionValue.Wildcard.Bar},
+		{"bench_boost", &cfg.OptionValue.BenchBoost.Bar, d.OptionValue.BenchBoost.Bar},
+		{"free_hit", &cfg.OptionValue.FreeHit.Bar, d.OptionValue.FreeHit.Bar},
+	} {
+		if !hasKey(b, "option_value", bar.key, "bar_points") {
+			*bar.into = bar.from
+		}
 	}
 	if cfg.Review.LeadHours <= 0 {
 		cfg.Review.LeadHours = d.Review.LeadHours

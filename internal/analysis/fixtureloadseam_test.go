@@ -30,6 +30,12 @@ func loadSeamSquad() []PlayerMetrics {
 		sq[i] = PlayerMetrics{
 			ID: i + 1, Position: pos[i], Score: score[i],
 			FixtureLoad: 1, ExpectedMinutes: 80, StartShare: 0.9,
+			// As Metrics sets it. xiValueForTransfer gates the multiply on this
+			// rather than on FixtureLoad > 0, because a load of exactly 0 is a
+			// club that blanks the whole window and must be multiplied by rather
+			// than skipped. Omitting it here would exempt the whole squad from
+			// the term and this test would pass on a disabled multiplier.
+			loadSet: true,
 		}
 	}
 	return sq

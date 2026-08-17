@@ -168,7 +168,7 @@ Two things that are easy to get backwards:
 **Absolute point totals are not comparable across eras of this codebase.** Fixed bugs moved them
 by up to 115 points a season, and a bug that costs points unevenly across seasons does not merely
 add noise — it invents shapes. Paired differences within a cell usually survive such a fix,
-because both arms lost the same fixtures. Absolute totals across tables do not. Three specifics,
+because both arms lost the same fixtures. Absolute totals across tables do not. The specifics,
 because surviving bullets rest on them:
 
 - The doubles fix — `loadGameweeks` assigning where it should accumulate — is worth **+115
@@ -184,6 +184,46 @@ because surviving bullets rest on them:
   flat-bench-weight verdict.
 - Making defcon visible to the replay moved 2025-26 by **−95**, but it was one of four changes in
   that block. Do not attribute the movement to visibility alone.
+- **An anchored-chip arm silently lost every 2025-26 cell, and the affected figures can only be
+  re-measured.** A chip planner's output went into the FIRST set wholesale, so in a two-set season a
+  chip at or after `ChipResetGW` was refused by `ValidateChipSets` — and `runPolicySweep` records a
+  refusal as an **infeasible cell rather than fatalling**, so the arm lost 6 of 36 cells while every
+  printed number stayed plausible. `anchoredPlan` puts 2025-26's chips at GW33 and GW34, so every
+  cell of that season was lost, not a scattering. Repaired by `backtest.SplitChipSets`, which routes
+  each chip into the set its week draws from; the census now reads **0 of 24 refused** on the
+  four-season grid where it read 6 of 24 before. ⚠️ **No anchored-chip cells are banked anywhere in
+  `stats/snapshots/*/cells/`**, so nothing that used one can be re-derived — only re-measured.
+  `stats/findings/2026-08-17-chip-placement-census.md`.
+- **The fixture-load anchor fix moves `POLICY` totals and, at shipped config, no `HOLD` one.**
+  `fixtureLoadFor` (matches per gameweek — it multiplies `Score` on a horizon-1 engine, and is
+  applied a second time inside `xiValueForTransfer`, the transfer objective, at the shipped horizon
+  of 5) windowed on a club's next *fixture* rather than the next *gameweek*. At horizon 1 that made
+  the window `[first, first]`, which holds a fixture by construction, so **the ON-vs-OFF contrast
+  that produced the recorded `+33` priced doubles and nothing else** — a fact about the anchor, not
+  about how often it bit. (That `+33` is **a season on `POLICY`, `HOLD` byte-identical, measured
+  against a fixture list the replay sees in full from GW1 and therefore optimistic** — it lives on
+  `fixtureLoadFor` and in `sweep.go`, and every figure below inherits the same hindsight.) **The
+  blank half has never been priced, so the shipped term's value is unmeasured.** `POLICY` moves in 12 of 12 cells (6 seasons × 2 entry points), by up to 77 points on
+  a cell's `policy_points` total — cells span 38 to 13 gameweeks, so that is a per-cell total and
+  not a season figure — and **in both directions**, so a contrast re-derived across the boundary is
+  contaminated unevenly. **On points the fix does not resolve, recorded so it is not re-measured**:
+  **+35.9 a season** against a season-clustered threshold of **31.0** (t 2.98) and a start-fixed one
+  of **~57** (t **1.40**, df 10 derived) — and the season component is estimated *negative* (MoM
+  −2.111, F p 0.938), which is the case `sweep_inference.R` says to read start-fixed on, so the arm
+  that clears is the one the data says not to use. Clustering runs *optimistic* here (CR2 SE 0.318
+  against a naive 0.502), and at two entry points that component is thin as well as negative.
+  `policy_xpoints` does resolve on both (+50.9 against 33.2, t_seas 3.94, t_fixd 3.90, 6 of 6 season
+  means positive, wild 0.0105 at S_eff 6, floor 0.000129) and is quoted **beside** points, never
+  instead — it is not independent, since a blanking player scores zero on both. ⚠️ **Neither arm's
+  cells are banked**, so both can be re-measured and neither re-derived. **The fix ships on
+  correctness; no points gain is claimed.** `HOLD` is untouched as a **confinement, not a null**, and the confinement is
+  conditional: `fixtureLoadWeeklyOnly` keeps the term off `Score` above horizon 1 and
+  `HoldCaptaincyWeekly` builds every engine at `cfg.Weights.Horizon`, so `hold_points`,
+  `hold_xpoints` and both captaincy rungs are byte-identical **wherever `Weights.Horizon != 1` and
+  `fixtureLoadWeeklyOnly` is on**. ⚠️ The `LOADTR` and `BANK` blocks' `SetFixtureLoadWeeklyOnly(false)`
+  arms are exactly the exception and their `HOLD` figures do not survive. The opening fifteen is
+  byte-identical too, for its own reason — it is never built at horizon 1 — which makes the whole
+  `POLICY` movement a decision-path effect.
 
 ## What each season can and cannot run
 
@@ -383,15 +423,18 @@ stand.
 
 Shipped bugs, each now covered by a regression test. Re-introducing one is easy.
 
-- **`MaxHits` above 1 is silently clamped, so an arm at `MaxHits: 2` is a comparison that never
-  ran.** `analysis.MoveLimit` does `if maxHits > 1 { maxHits = 1 }` unconditionally, `decide`
-  iterates `limit = free + 1`, and the funded-pair branch hard-codes `hitsNeeded <= 1`. So the
-  two-hit week the FPL community treats as routine is **unexpressible on this code**, and any
-  wildcard rule specified as *"more than two hits to repair"* has **no input quantity on this path**
-  — it would need a shadow statistic. ⚠️ And the 2→3+ move boundary such an arm would be reaching
-  for is **already reached at shipped config whenever `free >= 2`**, where it was measured inert in
-  94 of 94 weeks: reachable and inert, not unreachable. Verified by reading `MoveLimit` and
-  `hitsNeeded`, 2026-08-17; **no test pins the clamp**.
+- **The hit ceiling is a knob, not a clamp, and both expressions of it must move together.**
+  `analysis.MoveLimit` clamped `maxHits` to 1 **unconditionally** and the funded-pair branch carried
+  the same clamp as the literal `hitsNeeded <= 1`, so `MaxHits: 2` was byte-identical to shipped and
+  read as a null. Both now take `HitCeiling`, zero meaning `analysis.DefaultHitCeiling` = 1, so
+  every existing arm is unchanged and the routine two-hit week is expressible.
+  ⚠️ **Lifting one expression without the other is the trap**: the limit widens while the pair
+  refuses anything that spends the extra move, which no points column can see.
+  `TestTheHitCeilingIsReadByTheFundedPairBranch` is a source scan on `decide` for exactly that, and
+  `TestTheHitCeilingIsReachableAndDefaultsToOne` pins the byte-identity at the default.
+  ⚠️ **`DefaultHitCeiling` = 1 is measured at one setting on absolute totals** — three replayed
+  seasons, the two-hit policy never won — which is below this file's own twelve-cell bar. It is the
+  reason the shipped value is 1, not a resolved constant.
 - **`runPolicySweep` builds cells at `WeeklyXI: false`, and several diagnostics run at `true`.**
   `sweepConfig(cfg, start, false)` — a variant wanting the imminent-gameweek eleven must set it in
   `apply`. This is not cosmetic for anything about fixture quantity: fixture load reaches `Score`
@@ -525,6 +568,25 @@ Shipped bugs, each now covered by a regression test. Re-introducing one is easy.
   so before the fix its final nine rounds were discarded and the season scored as though it stopped
   in March — no error, a plausible-looking total. `renumberGW` maps them, and
   `hasRestartGameweeks` refuses a cache written before it existed.
+- **A fixture window must be anchored on the calendar's next GAMEWEEK, never on the club's next
+  FIXTURE.** Anchored on the fixture, a blank slides out of the window and cannot be expressed at
+  all: `fixtureLoadFor` read ≥ 1 at horizon 1 always, missing 170 blanks and no doubles across the
+  six-season grid. Three things shipped on top of it. The **free hit** — the one chip that exists
+  for a round most clubs do not play — built 13 blanking players into a fifteen at 2023-24 GW29 and
+  would have fielded two; zeroing the score is **not** enough, because a builder with four bench
+  slots is indifferent between two footballers worth nothing and takes the cheapest, so the guard
+  has to reach the **pool**. **`WeekViews`** inherited the imminent week's load in every projected
+  week, so a recommended rebuilt fifteen was chosen on already-played doubles. And once the load
+  *could* return a real 0, **`> 0` stopped meaning "was this computed"** — `xiValueForTransfer`
+  skipped the multiply for a club blanking the whole window and valued a footballer who cannot
+  appear at full score, reachable at a horizon of 2 to 4 where a planned wildcard puts it.
+  ⚠️ **The fix creates its own trap and it is the sharp one**: a rebuilt **wildcard** must NOT be
+  built on the horizon-1 week engine, because every blanking club is zeroed there and a wildcard
+  planned for a heavy blank returns a free-hit squad that is then *kept*.
+  `TestFreeHitNeverFieldsABlankingClub`, `TestWeekViewsPriceEachWeeksOwnFixtures`,
+  `TestAWildcardIsNotBuiltOnOneWeeksBlanks`, `TestATotalBlankIsWorthNothingToTheTransferSearch`
+  and `TestFixtureLoadMatchesTheArchiveOnOneSeason` pin them; the last chooses its gameweeks off
+  the archive so it cannot stop exercising blanks when the grid moves.
 - **`Optimize` is not run-to-run deterministic unless it is made so.** It ranged over a map to
   order each DP seed's bench, and returned two different fifteens from identical inputs on about
   one landscape in seventy-two. `TestSeedOrderIsDeterministic` pins it.
@@ -726,7 +788,20 @@ sits in, not a file you can open here.
   valuation.** Every trigger loses to a fixed early wildcard: the literal reading of "cannot fix it
   with free transfers" measures transfer scarcity rather than squad quality, so it fires at GW2
   when the model has least data. The replay reads the wildcard negative because this policy has
-  nothing for one to undo — unmeasurable, not refuted. → **chips**
+  nothing for one to undo — unmeasurable, not refuted.
+  ⚠️ **A repair cost priced in POINTS was built to escape that reason and does not.** Measured
+  2026-08-17, `TestDiagWildcardTrigger`, four seasons at entry GW1 and GW16 — **decision counts
+  only, no points figure, because the replay cannot value a wildcard**. At the shipped reservation
+  the rule fires in the cell's **second week in 8 of 8 cells** and weighs exactly one week in 8 of
+  8; raising the reservation to 20 delays it by one to three weeks on the GW16 cells and not at all
+  on the GW1 cells. Costs are 20/36/24/32 points at GW1 and 12/12/12/4 at GW16, which at `free` = 2
+  implies 7/11/8/10 and 5/5/5/3 players changed. **The entry-point contrast is the identification**:
+  the GW16 cells fire with fifteen gameweeks of data behind them, so information poverty is not the
+  operative mechanism for half the grid. ⚠️ **WHY it fires is a hypothesis and the diagnostic cannot
+  discriminate** — *churn* (a rate) and a *standing held-versus-fresh gap* (a level) both predict
+  firing in week two, and the rule fires once and stops, so the cost is never seen as a series on a
+  fixed squad. The one arm that observes it twice reads 12 → 16 and 12 → 24, which is the level
+  signature. The lever ships **off**. → **chips**
 - **Do not add a lock.** Both recorded locks became no-ops once the underlying bug was fixed.
   → **optimiser-and-squad**
 - **Do not use the olbauday CSV mirror** for a live weekly signal or for priors. It publishes only
@@ -990,6 +1065,12 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
 
 ### Fixtures: measured hard, priced about right, and every attempt to lean harder loses
 
+- **This section is about fixture *difficulty*. Fixture *count* is a different term and it is the
+  one thing in the fixture family that pays.** `fixtureLoadFor` scales `Score` by matches per
+  gameweek, confined to the horizon-1 view; nothing below covers it, and "do not move the fixture
+  window" means the lookahead *length*, not the window's anchor. Its doubles half was measured at
+  `+33`; its blank half is unmeasured — see the fixture-load anchor fix under *Absolute point
+  totals*.
 - **Fixtures matter hugely per match and barely per horizon.** A single fixture swings returns a
   long way and the model under-reacts everywhere — but between the 10th and 90th percentile team,
   one gameweek spans 35% on goals and five gameweeks only 13%. The model's response over a
@@ -1155,6 +1236,10 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   round-trips, but the *proportion* that are round-trips barely shifts — so a device that worked as
   intended would be destroying value, since round-trips are solidly positive. Stays at 2.0.
   **Rotating for blanks and doubles pays**: those are the best moves the policy makes.
+  ⚠️ **Rotating for DOUBLES pays; the blank half is unverified.** Those measurements ran while
+  `fixtureLoadFor` could not express an imminent blank at all at horizon 1, and above it the window
+  slid past the blank and counted a later round in its place. See the fixture-load anchor fix under
+  *Absolute point totals*.
 - **Team value compounds, and the half-of-any-rise selling rule taxes 62% of it.** Affordability
   still rises, because the squad converges on the best players. **You cannot sell at the market
   price**, and modelling it properly costs 31 points a season.
@@ -1228,18 +1313,19 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   re-pricings stop being exact. The consequence for design: **a tandem arm crossing banking at
   shipped `MaxHits` is a confinement, not a null** — read `banked_weeks = 0` as the branch never
   having executed.
-  ⚠️ **"So vary `MaxHits` with it" appeared twice here and is WITHDRAWN — there is nowhere to vary
-  it to.** `analysis.MoveLimit` clamps `maxHits` to 1 **unconditionally**, and the funded-pair branch
-  hard-codes `hitsNeeded <= 1`, so **`MaxHits: 2` is byte-identical to shipped** and the allowance can
-  only move **down**. Down is not a control either: at `MaxHits: 0` the limit is `free`, which fails
-  the `limit >= 2` guard in 132 of 226 weeks and skips `bestPair` entirely, so banking's whole effect
-  there is **re-enabling the pair search the control disabled**. ✅ **So there is no configuration on
-  this code in which banking acts for a reason attributable to banking** — except through a
-  preparation credit, which is the one live route: `transferPackages` calls `chipCreditFor`, so with
+  ⚠️ **The ground for "there is nowhere to vary `MaxHits` to" has been REMOVED, and the closure it
+  supported is reopened at one boundary.** That reason was the unconditional clamp; `HitCeiling` now
+  makes `MaxHits: 2` reachable, so the allowance moves **up** as well as down. What was measured is
+  narrower than what was concluded: the inert boundary is **2→3+**, read in 94 of 94 weeks, and the
+  boundary a two-hit arm reaches is **3→4**, which **no run has touched**. Down is still not a
+  control — at `MaxHits: 0` the limit is `free`, failing the `limit >= 2` guard in 132 of 226 weeks
+  and skipping `bestPair` entirely, so banking's whole effect there is re-enabling the pair search
+  the control disabled. **So banking now has one untested channel attributable to banking**, plus
+  the preparation credit already named: `transferPackages` calls `chipCreditFor`, so with
   `PrepareTripleCaptain` on the arms differ in package **value** rather than only in move limit, and
   a triple-captain credit favours exactly the premium upgrade the multi-downgrade branch exists for.
-  **Unrun.** ⚠️ `PrepareBenchBoost` cannot do it and biases the other way: `ChipCreditAt`'s later-arm
-  window is a strict subset of the now-arm's, so preparation can only credit acting now.
+  **Both unrun.** ⚠️ `PrepareBenchBoost` cannot do it and biases the other way: `ChipCreditAt`'s
+  later-arm window is a strict subset of the now-arm's, so preparation can only credit acting now.
 - **Reach is not the problem: 97.6% of worth-taking two-move packages are already reachable**, which
   closes the unified-search line on mechanism. The lever is the **valuation**, not the gate.
 - **The sell side is calibrated; its error is entirely availability** — −0.100 per gameweek for a
@@ -1387,7 +1473,9 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   mechanical. An interval on a bound is the only legitimate reading. Nothing has been re-measured
   under the banked schema; a re-sweep is owed.
 - **Only two of the four chips are *preparation* problems.** A free hit fields a temporary fifteen
-  and a wildcard *is* the rebuild, so what those want was already wired. `ChipCredit` adds the other
+  and a wildcard *is* the rebuild, so what those want was already wired **for the preparation
+  credit**. The free hit's own *builder* is a separate thing and needs its own blank guard — see
+  *Things that have already bitten*. `ChipCredit` adds the other
   two, off by default. **The bench channel is mechanism-real and points-unresolved**: the chip's own
   week is a paired **+7.28 points** (CR2 t +2.91, p 0.033, 27 of 36 cells positive) — **suggestive,
   not established**, since Holm over the two channels reads ≈0.066 and no leave-one-season-out

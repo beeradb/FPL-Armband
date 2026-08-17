@@ -80,22 +80,48 @@ func BestPackageValue(packages []TransferPackage, horizon, freeCost, minGain flo
 	return v
 }
 
-// MoveLimit is how many transfers may be made in one gameweek: every free
-// transfer plus one hit, unless capped.
+// DefaultHitCeiling is the largest number of hits one gameweek's search may
+// express, and it is what ships.
 //
-// The "plus one" is a single hit, and the clamp is deliberate. Two hits in a week
-// is an edge case — it needs a specific reason, usually an injury, and that is
-// the judgement layer's job rather than something a scoring model should go
-// looking for. Allowing it mostly widened the search space so the policy could
-// find expensive ways to chase noise: on three replayed seasons the two-hit
-// policy never won.
+// **Measured, at one setting and on absolute totals.** Two hits in a week is an
+// edge case — it needs a specific reason, usually an injury, and that is the
+// judgement layer's job rather than something a scoring model should go looking
+// for. Allowing it mostly widened the search space so the policy could find
+// expensive ways to chase noise: on three replayed seasons the two-hit policy
+// never won. Read that as the reason the shipped value is 1, not as a resolved
+// constant — it is three cells on totals, below this record's own twelve-cell bar.
+const DefaultHitCeiling = 1
+
+// MoveLimit is how many transfers may be made in one gameweek: every free
+// transfer plus the hits allowed, up to a ceiling.
+//
+// # The ceiling was unconditional and is now a parameter
+//
+// This read `if maxHits > 1 { maxHits = 1 }`, so `MaxHits: 2` was **byte-identical
+// to shipped** and an arm set there was a comparison that never ran. The clamp
+// itself is not the defect — it has an argument behind it, quoted on
+// DefaultHitCeiling — but a clamp nothing can reach past makes the routine two-hit
+// week the FPL community actually plays unexpressible on this code, and leaves a
+// wildcard rule phrased as *"more than two hits to repair"* with no input quantity
+// on this path at all.
+//
+// ⚠️ **A ceiling of zero means the DEFAULT, not "no hits".** That is the recorded
+// rule about an unset knob being a no-op rather than a zero: every existing caller
+// passes a struct field that starts at zero, and reading that as "ban hits" would
+// silently disable the pair search — `transferPackages` skips `bestPair` below a
+// limit of 2, which is the positive control the banking probe already measured at
+// 132 of 226 weeks. Ban hits by setting `maxHits` to 0, which is the knob that
+// means it.
 //
 // Here rather than in the replay because the banking comparison is built on it —
 // the whole question is what one more move would buy — and the live command has
 // to reach the same answer the replay does.
-func MoveLimit(free, maxHits, maxMoves int) int {
-	if maxHits > 1 {
-		maxHits = 1
+func MoveLimit(free, maxHits, maxMoves, hitCeiling int) int {
+	if hitCeiling <= 0 {
+		hitCeiling = DefaultHitCeiling
+	}
+	if maxHits > hitCeiling {
+		maxHits = hitCeiling
 	}
 	limit := free + maxHits
 	if maxMoves > 0 && maxMoves < limit {

@@ -185,7 +185,13 @@ func (c ChipCredit) benchWeekScore(p PlayerMetrics) float64 {
 		load = 1
 	}
 	base := p.Score
-	if p.FixtureLoad > 0 && (p.loadInScore || fixtureLoadTransfers) {
+	// `FixtureLoad > 0` guards the DIVISION here rather than standing in for
+	// `loadSet`, so both conditions are wanted: an unset load must not be divided
+	// by, and a real zero must not either. A player who blanks the whole window
+	// carries Score 0 when the load is in it, and this week's own count is then
+	// the only thing that can lift him — which it does not, because a club that
+	// blanks the window blanks this week too.
+	if p.loadSet && p.FixtureLoad > 0 && (p.loadInScore || fixtureLoadTransfers) {
 		base = p.Score / p.FixtureLoad
 	}
 	return base * load
@@ -205,7 +211,13 @@ func xiValueForTransfer(squad []PlayerMetrics, credit ChipCredit) float64 {
 		adj := make([]PlayerMetrics, len(squad))
 		copy(adj, squad)
 		for i := range adj {
-			if adj[i].FixtureLoad > 0 && !adj[i].loadInScore {
+			// Gated on `loadSet`, not on `FixtureLoad > 0`. The two agreed until
+			// `fixtureLoadFor` learned to return a real 0 for a club that blanks the
+			// whole window; after that, `> 0` reads a genuine blank as an unset field
+			// and SKIPS the multiply, valuing a footballer who certainly scores
+			// nothing at his full score. See PlayerMetrics.loadSet for why that is
+			// reachable at a horizon of 2 to 4 and not at 1.
+			if adj[i].loadSet && !adj[i].loadInScore {
 				adj[i].Score *= adj[i].FixtureLoad
 			}
 		}
