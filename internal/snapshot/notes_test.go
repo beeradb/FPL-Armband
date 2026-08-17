@@ -641,7 +641,30 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// measurement, which is the failure this constant exists to prevent.
 	//
 	// The `teamBands` correction in the same commit is net-neutral and did not need room.
-	const budget = 108 * 1024
+	//
+	// # 110 KB from 2026-08-17 — the record was quoting a stratum its own run disowns
+	//
+	// The claim that needed the room: AGENTS.md carried `t 3.30 pooled` and "above 1 in
+	// 6 of 6 seasons" as a live verdict, and defensive_fixture_pointintime/fit.txt heads
+	// that stratum "POOLED STRATUM -- CONTEXT ONLY, NO VERDICT" because three of its six
+	// seasons carry reconstructed xGC, so `w1` is not one construct. Both came out; the
+	// native stratum's own reading went in, and it does NOT resolve — t 4.14 against a
+	// `t_crit(G-1 = 2)` of 4.303, under both its own bar and its own MDE.
+	//
+	// **The bytes are the qualifiers, for the fourth time by this constant's own count**,
+	// and three of them were added by review after a first pass that read stronger than its
+	// sources: that the two verdict words in that bullet belong to two DIFFERENT arms
+	// (`unresolved` here, `C — UNMEASURABLE` for the hindsight arm below); that the
+	// localisation onto the defensive half is a contrast reading t 2.11 rather than an
+	// established fact; and that the "recovered fourth cluster" is native in the archive's
+	// own column but **63.6% reconstructed in the regressor**, because `w1` accumulates from
+	// GW1 — which is why `nativeXGCSeasons` excludes that season outright. An unhedged
+	// version would have swapped one over-claim for a smaller one and called it a fix.
+	//
+	// ⚠️ Raised rather than compressed, per this comment's own rule. The first pass DID fit
+	// inside 108 KB, with 222 bytes free, and it was wrong in exactly the direction the rule
+	// predicts — the hedges were what it was missing.
+	const budget = 110 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.
