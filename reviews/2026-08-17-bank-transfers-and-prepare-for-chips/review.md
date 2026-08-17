@@ -317,6 +317,30 @@ leakage, the column design is correct and would not be changed, and the placemen
 
 `go build ./... && go vet ./... && go test ./...` passes except
 `TestSnapshotCoversTheCurrentCode`, which was **already failing on `origin/main`** for
-`config.json` before this branch existed — verified by stashing the change and re-running. The
-snapshot series is published by CI and a snapshot directory must not be committed to satisfy the
-test on a branch.
+`config.json` before this branch existed — verified by stashing the change and re-running.
+
+⚠️ **Corrected 2026-08-17 by the merging session, and the sentence this replaces was false.** It
+read: *"The snapshot series is published by CI and a snapshot directory must not be committed to
+satisfy the test on a branch."* Both halves mislead. `.github/workflows/snapshot.yml` does run on
+push to `main` and publishes with `gh release create`, but it **never commits** — while
+`TestSnapshotCoversTheCurrentCode` reads the newest **committed** snapshot, and keyed snapshots are
+still committed, so `NewestKey` finds one and `FPL_SNAPSHOTS_EXTERNAL=1` does not skip. **The
+committed series therefore never advances on its own, and the guard fails permanently until someone
+commits a new snapshot.** Believing otherwise makes merge-gate condition 4 unsatisfiable by
+construction and leaves CI red.
+
+**So a snapshot was regenerated and committed** at `2026-08-17-0d34fa0`, which is the correct action
+and is what the test's own failure message instructs. The watched trees really had moved —
+`internal/analysis`, `internal/backtest` and `internal/config` — so the guard was firing on real
+content, not on a rebase. It was generated from a **private** model CSV verified to hold exactly one
+`run_id` before rendering, because `FPL_MODEL_CSV` appends to a path outside the repository and
+several sessions run concurrently on this machine; that is the recorded failure where a snapshot
+carries another checkout's numbers under this one's name. `model.present` is `true` — a cached
+re-run banks `model.present,false` and still exits 0.
+
+The review key was then re-cut with `armband reviewkey -rev HEAD`, because committing the snapshot
+moved `stats` and left this record's own key stale.
+
+**Gate state at merge:** build, vet and the whole suite pass; `gofmt -l ./internal ./cmd` empty; all
+three leak channels clean including the branch name; working tree clean; **0 behind** both
+`origin/main` and `origin/development`, re-checked immediately before merging.
