@@ -746,7 +746,31 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// reaches `Score` only through the engine `WeeklyXI` builds. That is a
 	// comparison-never-ran trap arriving through a DEFAULT rather than through an
 	// unwired knob, which is why it needs saying out loud.
-	const budget = 124 * 1024
+	// # 128 KB from 2026-08-17 — one classification dispute, and the four entries it unifies
+	//
+	// The room went to a single ⚠️ under `free_transfer_value`, and it is the cheapest
+	// kind of entry this budget exists to protect: it does not add a claim, it removes
+	// the standing of one. This file says the constant "must not taper as the season
+	// ends". That sentence has never been measured. It is a CONSEQUENCE of calling the
+	// constant a confidence threshold — noise does not shrink in May, so a threshold
+	// against noise should not either. Call the same constant an opportunity cost and
+	// tapering becomes mandatory, because the future the transfer is saved for does
+	// shrink and is empty at GW38. So the prohibition rests on a label, and the label
+	// is exactly what is in dispute. Writing that down costs bytes; leaving it costs a
+	// reader who declines a functional-form change believing it was refused on
+	// evidence.
+	//
+	// The rest of the entry is the reason it is worth the space rather than a queue
+	// note: the same shape is already sitting in four places in this file, all
+	// modelled as constants. A wildcard's reservation price against its expiry; a
+	// banked transfer whose worth is a reserved exit rather than enumeration capacity;
+	// the season's end as a free exit; and two chip bars that are fixed numbers on
+	// expiring chips. An option decaying as its exercise window shrinks accounts for
+	// all four. ⚠️ The entry says in its own text that the coherence is NOT evidence,
+	// and that qualifier is load-bearing — a story that explains four unrelated nulls
+	// at once is exactly the shape this record has been wrong about before, and the
+	// budget must not buy a narrative the way it buys a rule.
+	const budget = 128 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

@@ -489,6 +489,25 @@ Shipped bugs, each now covered by a regression test. Re-introducing one is easy.
   *below* charging nothing, because the gate stops filtering noise and starts refusing real
   improvements. `free_transfer_value` ships at 2.0 as a confidence threshold, not an opportunity
   cost, and **must not taper as the season ends**.
+  ⚠️ **"Must not taper" is a CONSEQUENCE OF THE CLASSIFICATION, not a measurement, and the
+  classification is disputed.** If the constant is a confidence threshold filtering noise, tapering
+  is meaningless — noise does not shrink in May. If it is an **opportunity cost**, tapering is
+  *required*, because the future the transfer is being saved for does shrink. Nothing here measures
+  which it is; the prohibition falls out of the label. And **`free_transfer_value` has never been
+  varied in any banked sweep** — every `*.provenance.csv` stamps it at 2, so the level is untested at
+  any value, let alone any shape.
+  ⚠️ **The competing model, recorded as a hypothesis:** the value of holding a transfer is the
+  **option value of the information not yet arrived**, so it is high early — squads are unsettled,
+  minutes unknown, promoted clubs unpriced — and **exactly zero at GW38**, where a held transfer can
+  never be spent. That is one functional form with one parameter, not a constant to re-tune, and this
+  record's own preference is to decide on **shape** over a winning level.
+  ⚠️ **It unifies four separate entries in this file, which is the strongest thing in its favour and
+  is not evidence.** A wildcard's reservation price should fall toward its expiry; a banked transfer
+  is a *reserved exit* whose worth is optionality rather than enumeration; the season's end is a free
+  exit; and `chipBarBenchBoost` 16 / `chipBarTripleCaptain` 12 are **fixed** bars on **expiring**
+  chips. All four are the same shape — **an option decaying as the window it can be exercised over
+  shrinks** — and all four are currently modelled as constants. **Unrun. Do not read the coherence as
+  support.**
 - **FPL banks 5 free transfers, not 2** — the rule changed for 2024-25. `backtest.BankLimitFor`
   keeps replays on the rule actually in force, or 2023-24 gets simulated saving transfers nobody
   could save.
