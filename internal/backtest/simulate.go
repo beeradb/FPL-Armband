@@ -343,6 +343,97 @@ type SimResult struct {
 	BenchBoost   ChipTriggerMediator
 	FreeHit      ChipTriggerMediator
 	ChipPrep     ChipPrepMediator
+
+	// RepairSeries is the held-versus-fresh distance observed every gameweek, and
+	// is nil unless SimConfig.RecordRepairCost is set. See RepairWeek.
+	//
+	// Nil rather than a zero slice for the ChipOracle reason: an empty series
+	// reads identically to "the observer ran and every week was priceable at zero
+	// changes", which is the silent-no-op shape this package keeps paying for.
+	RepairSeries []RepairWeek
+}
+
+// RepairWeek is one gameweek's reading of how far the model's optimum sits from
+// the squad in hand, on two squads at once.
+//
+// # What question it exists to settle
+//
+// `TestDiagWildcardTrigger` measured the repair cost once per cell and found it
+// large from the first week it could be taken. Two mechanisms predict that and the
+// firing rule cannot separate them, because it fires on first consultation and
+// then becomes ineligible — so the cost is never seen as a SERIES on a fixed
+// squad:
+//
+//   - **churn**, a rate. The model has just re-scored everyone, so its preferences
+//     move a long way each week and the gap should SHRINK as data accumulates;
+//   - **a standing gap**, a level. Any held fifteen differs from a fresh
+//     unconstrained argmax over the whole pool at every cutoff, because the argmax
+//     is not constrained by what is already owned. Non-zero and roughly FLAT.
+//
+// The two squads discriminate them. On the frozen fifteen the squad is constant
+// while the football is not, so decay accumulates and a rising series is decay. On
+// the evolving fifteen the policy is repairing every week, so a persistent
+// non-zero level is the standing gap. ⚠️ **They answer different questions and
+// must not be pooled.**
+//
+// # Nothing acts on it
+//
+// This is an observation, never an input. It is recorded after the point-in-time
+// engine is built and before any decision, it is written to the result and read by
+// no branch, and `TestTheRepairSeriesChangesNoDecision` pins that by replaying a
+// cell with the observer on and off and requiring every point, every transfer and
+// every weekly fifteen to be identical. A repair cost that could trigger, transfer
+// or rebuild would be the wildcard state trigger again, which is a closed line.
+//
+// # Pricing, stated rather than assumed
+//
+// `Budget` and `FrozenBudget` are `wallet.value`, the squad's SELLING value — so
+// FPL's half-of-any-rise rule is already charged, exactly as a wildcard would pay
+// it. `FrozenGrossBudget` prices the same frozen fifteen at market instead, and
+// `FrozenGrossChanges` is the change count that budget buys. The gap between the
+// two frozen change counts BOUNDS how much of the frozen series is the
+// selling-price friction rather than football — bounds, not subtracts: the two
+// pricings also differ in budget size (the gross budget is larger by the
+// accumulated tax), so the fresh optimum there solves a larger knapsack, and a
+// negative gap means the extra budget upgraded away from the frozen squad. The
+// friction itself grows all season on a squad that never sells, which is why the
+// bound is needed.
+type RepairWeek struct {
+	GW int
+
+	// Changes, Free and Cost are the EVOLVING squad — the fifteen the policy
+	// actually holds entering this gameweek's decision.
+	//
+	// Free is the allowance the decision will actually have, with this week's
+	// accrual applied, which is what `repairCost` is priced against at the trigger
+	// site. Cost is `4 x max(0, Changes - Free)`.
+	Changes int
+	Free    int
+	Cost    float64
+	// Budget is the selling value the fresh optimum was given, in tenths.
+	Budget int
+	// OK is false when the rebuild failed — an empty pool, a budget that cannot be
+	// established — which is NO READING rather than a repair cost of zero. The two
+	// license opposite conclusions.
+	OK bool
+
+	// FrozenChanges, FrozenFree, FrozenCost and FrozenBudget are the same four
+	// against the OPENING fifteen, held all season and never sold: the squad the
+	// `HOLD` arm scores. FrozenFree is the allowance an arm that never transfers
+	// would carry, accruing weekly to the bank limit.
+	FrozenChanges int
+	FrozenFree    int
+	FrozenCost    float64
+	FrozenBudget  int
+	FrozenOK      bool
+
+	// FrozenGrossChanges is the frozen fifteen re-read at its MARKET value, so the
+	// half-of-any-rise selling tax is not charged. FrozenGrossBudget is that
+	// budget. See the type comment: the gap between this and FrozenChanges bounds
+	// the friction channel — it is not a clean subtraction.
+	FrozenGrossChanges int
+	FrozenGrossBudget  int
+	FrozenGrossOK      bool
 }
 
 // FixtureRunMediator is what the weekly transfer decision did about fixture
@@ -1470,6 +1561,23 @@ type SimConfig struct {
 	// the two scoring chips, in points of one week's gain.
 	WildcardReservation, BenchBoostBar, FreeHitBar float64
 
+	// RecordRepairCost fills SimResult.RepairSeries: the held-versus-fresh
+	// distance, observed every gameweek on the evolving fifteen and on the frozen
+	// opening one.
+	//
+	// ⚠️ **It is NOT a fifth option-value lever and must never become one.** The
+	// four above change what the season does; this changes only what the season
+	// reports, and `TestTheRepairSeriesChangesNoDecision` fails if that stops being
+	// true. It sits here rather than in the lever block for that reason, and it is
+	// deliberately absent from `TestTheOptionValueLeversAreIndependent`'s table,
+	// which is about levers implying one another.
+	//
+	// It is behind a switch rather than filled unconditionally like the banking and
+	// fixture-run mediators because it costs THREE `Optimize` calls a gameweek —
+	// the expensive call in this package — where those cost arithmetic. Read the
+	// per-week cost before turning it on in anything that is not a diagnostic.
+	RecordRepairCost bool
+
 	// StartGW is the gameweek the entry begins at, defaulting to 1.
 	//
 	// A replay is one path through a season, and one flipped transfer early
@@ -1704,6 +1812,19 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 		w.bought[id] = buy(id)
 	}
 	free := 1
+	// The frozen arm the repair-cost observer reads: the opening fifteen, the
+	// wallet as it stood before a single transfer, and an allowance that accrues
+	// and is never spent. All three are snapshots taken HERE, where the opening
+	// state exists, rather than reconstructed later from a result — a second
+	// construction of the opening squad is this package's most-repeated bug.
+	//
+	// `frozenFree` starts at 1 beside `free` and takes the same accrual rule
+	// `decide` applies, one line below where the week's decision would apply it.
+	var frozenWallet *wallet
+	frozenFree := free
+	if cfg.RecordRepairCost {
+		frozenWallet = w.clone()
+	}
 	// The armband oracle's mediator, counted rather than inferred. See
 	// SimResult.Armband.
 	armbandWeeks, armbandChanged := 0, 0
@@ -1733,6 +1854,23 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 			pe.Recent = cfg.recentIndex(cur, gw-1)
 			pe.TeamForm = newTeamFormIndex(cur, gw-1)
 			cfg.anticipate(pe, gw)
+
+			// The repair-cost observer, read off the same pre-deadline engine the
+			// decision itself runs on and BEFORE anything decides anything. It
+			// writes to `res` and to nothing else; no branch below reads it. See
+			// RepairWeek for what the two squads discriminate, and
+			// TestTheRepairSeriesChangesNoDecision for the pin.
+			if cfg.RecordRepairCost {
+				// The accrual `decide` applies, applied here first because the
+				// frozen arm never reaches `decide` — it makes no transfers, so
+				// nothing else would ever advance its allowance.
+				if frozenFree < cfg.BankUpTo {
+					frozenFree++
+				}
+				res.RepairSeries = append(res.RepairSeries,
+					observeRepair(pe, cur, w, frozenWallet, held, res.OpeningSquad,
+						gw, free, frozenFree, minExp, cfg))
+			}
 
 			// The two chip state rules that take the transfer decision away are
 			// consulted BEFORE the switch that would take it away, and both read

@@ -287,8 +287,37 @@ func triggerWindow(season string, gw int) analysis.OptionWindow {
 func repairCost(e *analysis.Engine, cur *Season, wal *wallet, held []int, gw, free int,
 	minExp float64, cfg SimConfig) (cost float64, ok bool) {
 
+	changes, ok := repairChanges(e, held, wal.value(cur, held, gw-1), minExp, cfg)
+	if !ok {
+		return 0, false
+	}
+	return repairCostOf(changes, free), true
+}
+
+// repairChanges is how many of the held fifteen a fresh unconstrained optimum
+// would replace, at a stated budget.
+//
+// Split out of `repairCost` because the change count and the hit price are two
+// different quantities and the observer that reports the repair cost as a time
+// series wants both — a cost is `max(0, changes - free)` clipped and scaled, so a
+// series in cost alone cannot be told from a series in the allowance. One
+// implementation rather than two: `repairCost` is this plus the price, and
+// nothing else counts held-versus-fresh distance.
+//
+// The BUDGET is a parameter rather than derived here, for the one reason a caller
+// would legitimately want a different one: `wallet.value` is the squad's SELLING
+// value, so FPL's half-of-any-rise rule is already charged on every held player,
+// and an observer asking how much of a standing gap is that friction has to be
+// able to price the same squad at market. That is a diagnostic's question and it
+// must not become a second definition of what the trigger reads.
+//
+// ⚠️ It is an argmax over the whole pool, so `analysis.Engine.Optimize` is the
+// expensive call — one per invocation, never nested inside a per-candidate loop.
+func repairChanges(e *analysis.Engine, held []int, budget int, minExp float64,
+	cfg SimConfig) (int, bool) {
+
 	sq, err := e.Optimize(analysis.OptimizeRequest{
-		Budget: wal.value(cur, held, gw-1), MinMinutes: 600,
+		Budget: budget, MinMinutes: 600,
 		MinExpectedMinutes: minExp, BenchWeight: cfg.openingBenchWeight(),
 	})
 	if err != nil {
@@ -304,11 +333,75 @@ func repairCost(e *analysis.Engine, cur *Season, wal *wallet, held []int, gw, fr
 			changes++
 		}
 	}
+	return changes, true
+}
+
+// repairCostOf prices a change count in points: the hits, and only the hits.
+func repairCostOf(changes, free int) float64 {
 	hits := changes - free
 	if hits < 0 {
 		hits = 0
 	}
-	return HitCost * float64(hits), true
+	return HitCost * float64(hits)
+}
+
+// observeRepair takes one gameweek's reading of the held-versus-fresh distance,
+// on the evolving fifteen and on the frozen opening one, and prices the frozen
+// one a second time with the selling tax off.
+//
+// **It decides nothing.** It is handed the engine the decision will run on and
+// returns a struct; the caller appends it to the result and no branch reads it.
+// That is the whole design point — a repair cost that could act is the wildcard
+// state trigger, which is a closed line.
+//
+// Three `Optimize` calls, one per reading, none nested: `Optimize` is the
+// expensive call in this package and a per-candidate loop around it is what makes
+// a diagnostic unaffordable. The three differ only in the BUDGET they are given,
+// so they cannot be shared — a different budget is a different knapsack.
+//
+// `evolveFree` is the allowance the week's decision will actually hold and
+// `frozenFree` the allowance an arm that never transfers would carry. Both are
+// passed in rather than derived, because the accrual rule lives in `decide` and a
+// second expression of it here is the drift this package keeps paying for.
+func observeRepair(e *analysis.Engine, cur *Season, wal, frozenWal *wallet,
+	held, opening []int, gw, evolveFree, frozenFree int, minExp float64,
+	cfg SimConfig) RepairWeek {
+
+	// The allowance the week will actually have. Reading `free` raw would price
+	// the repair against one transfer too few — the same correction the trigger
+	// site carries, and for the same reason.
+	avail := evolveFree
+	if avail < cfg.BankUpTo {
+		avail++
+	}
+	obs := RepairWeek{GW: gw, Free: avail, FrozenFree: frozenFree}
+
+	obs.Budget = wal.value(cur, held, gw-1)
+	obs.Changes, obs.OK = repairChanges(e, held, obs.Budget, minExp, cfg)
+	if obs.OK {
+		obs.Cost = repairCostOf(obs.Changes, obs.Free)
+	}
+
+	obs.FrozenBudget = frozenWal.value(cur, opening, gw-1)
+	obs.FrozenChanges, obs.FrozenOK = repairChanges(e, opening, obs.FrozenBudget, minExp, cfg)
+	if obs.FrozenOK {
+		obs.FrozenCost = repairCostOf(obs.FrozenChanges, obs.FrozenFree)
+	}
+
+	// The same frozen fifteen at MARKET value: what the budget would be if a sale
+	// raised the headline price rather than what was paid plus half of any rise.
+	// The gap between this change count and the one above is the friction channel,
+	// and it is the obvious confound for a frozen series that rises — the tax on a
+	// squad that never sells grows all season.
+	obs.FrozenGrossBudget = frozenWal.bank
+	for _, id := range opening {
+		if cur.Players[id] != nil {
+			obs.FrozenGrossBudget += marketPrice(cur, id, gw-1)
+		}
+	}
+	obs.FrozenGrossChanges, obs.FrozenGrossOK =
+		repairChanges(e, opening, obs.FrozenGrossBudget, minExp, cfg)
+	return obs
 }
 
 // squadBlanks reports whether any club the squad holds plays no match in this
