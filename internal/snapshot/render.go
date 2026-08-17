@@ -9,11 +9,29 @@ import (
 )
 
 // Inputs is everything a snapshot is built from.
+//
+// # There is deliberately no branch field
+//
+// A snapshot used to stamp the branch it was run on. That row was removed because
+// a branch name is the one piece of provenance here that nobody writes and nobody
+// reviews: the generator reads it from git and renders it, so whatever a branch
+// happens to be called ends up in a banked artefact with no human in the loop.
+// Prose review does not catch it, because there is no prose to review.
+//
+// Nothing was lost by removing it. The commit SHA identifies the code exactly,
+// and a branch is a mutable label — it can be renamed, deleted, or reused for
+// unrelated work — so it never identified anything the commit did not already
+// identify better. It was convenience provenance, and it was the only convenience
+// here that wrote an unreviewed string into a published file.
+//
+// ⚠️ Do not restore it, and do not "fix" it with an allowlist or a rejected-name
+// check: either has to spell the names being screened in a tracked file, which
+// discloses more than it protects. The field's absence is the guard, and
+// TestTheSnapshotStampCarriesNoBranchName is what holds it absent.
 type Inputs struct {
 	Date   time.Time
 	Commit string
 	Dirty  bool
-	Branch string
 	Sweeps []Sweep
 	// One entry per cells file. Plural because the minimum detectable effect is a
 	// property of the *comparison*, not of the harness — see renderHeadline — so a
@@ -417,9 +435,6 @@ func renderStamp(b *strings.Builder, in Inputs, v *Values) {
 	p("| | |\n|---|---|\n")
 	p("| snapshot taken | %s |\n", in.Date.Format("2006-01-02 15:04 MST"))
 	p("| commit | `%s`%s |\n", shortSHA(in.Commit), dirty)
-	if in.Branch != "" {
-		p("| branch | `%s` |\n", in.Branch)
-	}
 	p("| cells file | `%s` |\n", orDash(in.CellsPath))
 	p("| model file | `%s` |\n", orDash(in.ModelPath))
 	for _, inf := range in.Inference {

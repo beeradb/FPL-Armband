@@ -265,7 +265,7 @@ func runSnapshot(cfg config.Config, args []string) error {
 	}
 
 	md, values := snapshot.Render(snapshot.Inputs{
-		Date: now, Commit: sha, Dirty: dirty, Branch: gitBranch(),
+		Date: now, Commit: sha, Dirty: dirty,
 		Sweeps: sweeps, Inference: infs, Model: model,
 		ModelPath: *modelCSV, CellsPath: strings.Join(usable, ", "),
 		Notes:    append(notes, problems...),
@@ -396,14 +396,6 @@ func sanitise(name string) string {
 		return "cells"
 	}
 	return string(out)
-}
-
-func gitBranch() string {
-	out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
 }
 
 // stringList collects a repeatable flag.
