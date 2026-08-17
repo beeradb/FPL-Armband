@@ -218,7 +218,7 @@ sequenceDiagram
     end
 
     M-->>U: final answer + per-request usage
-    U->>R: sum usage, estimate cost, write transcript
+    U->>R: sum usage, estimate cost, write report
 ```
 
 Two things in that loop cost real money and are easy to miss. Tool results are **replayed

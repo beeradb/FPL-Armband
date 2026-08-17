@@ -79,7 +79,8 @@ func TestRejectFlagsAfterCommand(t *testing.T) {
 	// breaks `capture -list` and `snapshot -constants`.
 	//
 	// ⚠️ Iterate the MAP, never a hand-written copy of it. This loop used to list
-	// {"snapshot", "capture", "ask"} by hand — it had already drifted from the map
+	// {"snapshot", "capture", "ask"} by hand (`ask` has since been retired) — it
+	// had already drifted from the map
 	// by one entry (`backfill`), and when `reviewkey` was added to the map's
 	// intended membership but not to the map, nothing failed: the command shipped
 	// unusable, because every documented invocation of it was rejected here and no
@@ -105,7 +106,7 @@ func TestEverySelfParsingCommandIsDispatchedBeforeTheGuard(t *testing.T) {
 	// would silently stop covering a real command that was renamed.
 	known := map[string]bool{
 		"snapshot": true, "reviewkey": true, "capture": true,
-		"backfill": true, "ask": true,
+		"backfill": true,
 	}
 	for cmd := range commandsThatParseTheirOwnFlags {
 		if !known[cmd] {

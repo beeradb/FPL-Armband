@@ -126,7 +126,7 @@ func cmdDue(ctx context.Context, cfg config.Config, cfgPath string,
 	fmt.Printf("Due: %s. Running the review.\n", v.Reason)
 	return cmdAgent(ctx, cfg, cfgPath, client, engine,
 		advicePrompt(engine), fmt.Sprintf("FPL Review — GW%d", v.Gameweek),
-		writeReport, false)
+		writeReport)
 }
 
 // cmdSchedule prints a crontab line for the current binary.

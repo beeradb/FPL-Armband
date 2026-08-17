@@ -502,8 +502,8 @@ Or use an OAuth profile, which the SDK picks up automatically with no env var:
 brew install anthropics/tap/ant && ant auth login
 ```
 
-Only `review`, `advise`, `chat`, `ask` and `due` need an Anthropic credential. Everything else
-— `brief`, `squad`, `transfers`, `fixtures`, `chips`, `congestion`, `nations`, `backtest`, `snapshot`,
-`capture`, `priors`, `verify-competitions`, `auth` and `schedule` — runs without one.
+Only `review`, `advise` and `due` need an Anthropic credential. Every other command — the
+optimiser, the briefing, the fixture and chip tables, the replay, and the capture, backfill,
+priors and snapshot tooling — runs without one.
 
 There is no FPL credential. This program reads the public FPL API only — it never authenticates, never issues a POST, and cannot change your team on the site. Selling prices are reconstructed from public data and checked against FPL's own team value, which is both credential-free and verifiable.

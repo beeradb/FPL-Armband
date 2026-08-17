@@ -30,7 +30,7 @@ flowchart LR
     api["public FPL API<br/>read-only, unauthenticated"]
     engine["quantitative scoring model<br/>deterministic, never calls the LLM"]
     freecmds["free commands<br/>squad · transfers · fixtures · chips · brief"]
-    agentloop["LLM agent<br/>review · advise · ask · chat"]
+    agentloop["LLM agent<br/>review · advise · due"]
     search["web search<br/>team news, press conferences"]
     you["you make the transfers<br/>no authenticated write path back to FPL"]
 
@@ -209,8 +209,6 @@ optimiser, the fixture model, the chip validator and the replay are all free.
 | `schedule` | Print a crontab line for `due` | — |
 | `review` | Weekly decision: competitions → chips → transfers → news → verdict | yes |
 | `advise` | Full pre-deadline analysis, written to a report | yes |
-| `ask "<q>"` | One-off question | yes |
-| `chat` | Interactive session with follow-ups | yes |
 | `due` | Run `advise`, but only if a deadline is near (for cron) — a one-shot prompt, not the `review` protocol | yes, when it fires |
 
 **Flags go before the command** — `armband -html squad.html squad`, never

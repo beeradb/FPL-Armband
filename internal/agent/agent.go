@@ -13,8 +13,9 @@ import (
 	"armband/internal/fpl"
 )
 
-// Agent runs a Claude conversation over the FPL toolset, keeping history so the
-// user can ask follow-up questions.
+// Agent runs a Claude conversation over the FPL toolset. Each command issues a
+// single Ask; history is kept because the tool loop inside one Ask is itself a
+// conversation, not because anything asks a follow-up.
 type Agent struct {
 	client  anthropic.Client
 	toolbox *Toolbox
@@ -26,8 +27,6 @@ type Agent struct {
 
 	// LastUsage reports the token spend of the most recent Ask.
 	LastUsage Usage
-	// TotalUsage accumulates across every Ask in the session.
-	TotalUsage Usage
 }
 
 // New builds an agent. The Anthropic client resolves credentials from the
@@ -150,14 +149,6 @@ func (a *Agent) Ask(ctx context.Context, prompt string) (string, error) {
 		}
 		runner = resumed
 	}
-
-	a.TotalUsage.Model = a.cfg.Model
-	a.TotalUsage.Iterations += a.LastUsage.Iterations
-	a.TotalUsage.Input += a.LastUsage.Input
-	a.TotalUsage.Output += a.LastUsage.Output
-	a.TotalUsage.CacheWrite += a.LastUsage.CacheWrite
-	a.TotalUsage.CacheRead += a.LastUsage.CacheRead
-	a.TotalUsage.WebSearches += a.LastUsage.WebSearches
 
 	// The runner accumulates the whole exchange — assistant turns, tool_use and
 	// tool_result blocks, and the final message — onto Params.Messages. Adopt it

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -29,8 +28,6 @@ const usage = `armband — an AI Fantasy Premier League analyst
 Usage:
   armband review            Weekly decision: chips, transfers, injuries, then a verdict
   armband advise            Full pre-deadline analysis, written to a Markdown report
-  armband chat              Interactive session; ask follow-up questions
-  armband ask "<question>"  One-off question
   armband brief             Full deterministic briefing as Markdown (no AI, no API cost)
   armband squad             Run the optimiser only (no AI, no API cost)
   armband transfers         Best transfers for the squad you own, as a team sheet
@@ -112,9 +109,6 @@ Examples:
   armband capture -list             audit the capture series for gaps
   armband backfill -coverage all    report what is on disk without fetching
 
-  ask is exempt from the ordering check for a different reason: its question is
-  free text and may legitimately begin with a dash.
-
 The agent reads Anthropic credentials from the environment: ANTHROPIC_API_KEY,
 ANTHROPIC_AUTH_TOKEN, or a profile created with ` + "`ant auth login`" + `.
 `
@@ -127,9 +121,7 @@ func main() {
 }
 
 // globalFlags are the flags every command shares, as distinct from the ones
-// capture, backfill, snapshot and reviewkey register on their own FlagSet. (ask
-// is the fifth entry in commandsThatParseTheirOwnFlags and registers nothing —
-// it is exempt because its question is free text that may begin with a dash.)
+// capture, backfill, snapshot and reviewkey register on their own FlagSet.
 type globalFlags struct {
 	cfgPath  *string
 	noReport *bool
@@ -432,21 +424,13 @@ func run() error {
 	case "chips":
 		return cmdChips(engine, cfg)
 	case "advise":
-		return cmdAgent(ctx, cfg, *cfgPath, client, engine, advicePrompt(engine), "FPL Advice", !*noReport, false)
+		return cmdAgent(ctx, cfg, *cfgPath, client, engine, advicePrompt(engine), "FPL Advice", !*noReport)
 	case "due":
 		return cmdDue(ctx, cfg, *cfgPath, client, engine, !*noReport)
 	case "schedule":
 		return cmdSchedule(cfg)
-	case "ask":
-		q := strings.TrimSpace(strings.Join(flag.Args()[1:], " "))
-		if q == "" {
-			return fmt.Errorf("ask needs a question, e.g. armband ask \"who should I captain?\"")
-		}
-		return cmdAgent(ctx, cfg, *cfgPath, client, engine, q, truncateTitle(q), !*noReport, false)
 	case "review":
-		return cmdAgent(ctx, cfg, *cfgPath, client, engine, reviewPrompt(engine), "Weekly Review", !*noReport, false)
-	case "chat":
-		return cmdAgent(ctx, cfg, *cfgPath, client, engine, "", "FPL Chat", !*noReport, true)
+		return cmdAgent(ctx, cfg, *cfgPath, client, engine, reviewPrompt(engine), "Weekly Review", !*noReport)
 	default:
 		return fmt.Errorf("unknown command %q — run `armband help`", cmd)
 	}
@@ -698,9 +682,16 @@ explicit "no move this week", plus the one thing that would change your mind bef
 the deadline.`, gw)
 }
 
-// cmdAgent runs one prompt, or an interactive loop when chat is true.
+// cmdAgent runs one prompt and writes its answer to a report.
 func cmdAgent(ctx context.Context, cfg config.Config, configPath string, client *fpl.Client, engine *analysis.Engine,
-	prompt, title string, writeReport, chat bool) error {
+	prompt, title string, writeReport bool) error {
+
+	if prompt == "" {
+		// Every caller passes a canned prompt. An empty one would ask the model
+		// nothing, print nothing and write no report — the silent no-op this
+		// package guards against everywhere else.
+		return fmt.Errorf("cmdAgent: empty prompt for %q", title)
+	}
 
 	if !hasCredentials() {
 		return fmt.Errorf("no Anthropic credentials found.\n" +
@@ -728,66 +719,19 @@ func cmdAgent(ctx context.Context, cfg config.Config, configPath string, client 
 		meta["deadline"] = next.DeadlineTime.Format("Mon 2 Jan 2006 15:04 MST")
 	}
 
-	var transcript strings.Builder
-
-	askAndPrint := func(q string) error {
-		fmt.Fprintf(os.Stderr, "\n%s\n", dim("Thinking..."))
-		start := time.Now()
-		answer, err := a.Ask(ctx, q)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(os.Stderr, "%s\n\n", dim(fmt.Sprintf("(%.0fs)", time.Since(start).Seconds())))
-		fmt.Println(answer)
-		fmt.Fprintf(os.Stderr, "\n%s\n", dim(a.LastUsage.Summary()))
-
-		if transcript.Len() > 0 {
-			transcript.WriteString("\n\n---\n\n")
-		}
-		if chat {
-			fmt.Fprintf(&transcript, "## Q: %s\n\n", q)
-		}
-		transcript.WriteString(answer)
-		return nil
+	fmt.Fprintf(os.Stderr, "\n%s\n", dim("Thinking..."))
+	start := time.Now()
+	answer, err := a.Ask(ctx, prompt)
+	if err != nil {
+		return err
 	}
+	fmt.Fprintf(os.Stderr, "%s\n\n", dim(fmt.Sprintf("(%.0fs)", time.Since(start).Seconds())))
+	fmt.Println(answer)
+	fmt.Fprintf(os.Stderr, "\n%s\n", dim(a.LastUsage.Summary()))
 
-	if prompt != "" {
-		if err := askAndPrint(prompt); err != nil {
-			return err
-		}
-	}
-
-	if chat {
-		fmt.Fprintf(os.Stderr, "\n%s\n", dim("Ask a question, or type 'exit' to finish. Ctrl-C also works."))
-		sc := bufio.NewScanner(os.Stdin)
-		sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-		for {
-			fmt.Fprint(os.Stderr, "\n\033[1m> \033[0m")
-			if !sc.Scan() {
-				break
-			}
-			q := strings.TrimSpace(sc.Text())
-			if q == "" {
-				continue
-			}
-			if q == "exit" || q == "quit" {
-				break
-			}
-			if err := askAndPrint(q); err != nil {
-				if ctx.Err() != nil {
-					break
-				}
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			}
-		}
-	}
-
-	if chat && a.TotalUsage.Iterations > a.LastUsage.Iterations {
-		fmt.Fprintf(os.Stderr, "\n%s\n", dim("session total — "+a.TotalUsage.Summary()))
-	}
-
-	if writeReport && transcript.Len() > 0 {
-		path, err := report.Write(cfg.ReportDir, title, transcript.String(), meta)
+	// No emptiness check: Ask errors rather than returning an empty answer.
+	if writeReport {
+		path, err := report.Write(cfg.ReportDir, title, answer, meta)
 		if err != nil {
 			return fmt.Errorf("writing report: %w", err)
 		}
@@ -1136,14 +1080,6 @@ func hasCredentials() bool {
 	return false
 }
 
-func truncateTitle(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) > 50 {
-		s = s[:50]
-	}
-	return s
-}
-
 // warn is deliberately not dim. An unverified budget is the one condition that
 // must not blend into the loading chatter: it is silent, plausible and wrong.
 func warn(s string) string {
@@ -1305,7 +1241,7 @@ func cmdVerifyCompetitions(cfg config.Config, cfgPath string, e *analysis.Engine
 	}
 	fmt.Printf("\nStamped as verified today (%s) and saved to %s.\n", today, cfgPath)
 	fmt.Println("Run this after checking competition status against the web with nothing to correct — " +
-		"it costs nothing. Use `update_competition_status` (via review/ask/chat) when a window actually needs changing.")
+		"it costs nothing. Use `update_competition_status` (via review or advise) when a window actually needs changing.")
 	return nil
 }
 
@@ -1463,7 +1399,6 @@ var commandsThatParseTheirOwnFlags = map[string]bool{
 	"reviewkey": true, // runReviewKey takes -out and -rev
 	"capture":   true, // cmdCapture takes -list and friends
 	"backfill":  true, // cmdBackfill takes -coverage, -per-gameweek and friends
-	"ask":       true, // free text, which may legitimately begin with a dash
 }
 
 // rejectFlagsAfterCommand turns a silent no-op into an error.

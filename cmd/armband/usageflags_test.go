@@ -125,9 +125,8 @@ func TestTheUsageExamplesPutFlagsBeforeTheCommand(t *testing.T) {
 
 		// The guard exempts the self-parsing subcommands, so it says nothing
 		// about their arguments. Their own FlagSet has the same stop-at-the-
-		// first-positional rule, and `ask` is exempt from that too because its
-		// question is free text that may begin with a dash.
-		if commandsThatParseTheirOwnFlags[cmd] && cmd != "ask" {
+		// first-positional rule, so the examples must still respect it.
+		if commandsThatParseTheirOwnFlags[cmd] {
 			var seenPositional string
 			for _, a := range rest {
 				if len(a) > 1 && strings.HasPrefix(a, "-") {
@@ -165,10 +164,12 @@ var selfParsingSentence = regexp.MustCompile(`(?s)parse their own flags, which t
 // (the reviewkey omission, which made every documented invocation of a new
 // command error while go build, go vet and go test stayed clean).
 //
-// `ask` is deliberately excluded from the sentence and asserted separately: it
-// registers no FlagSet and is in the map because its question is free text that
-// may begin with a dash. Four commands parse flags; five are exempt from the
-// ordering check.
+// The sentence and the map are now exactly equal. They were not while `ask` was
+// a command: it registered no FlagSet and sat in the map only because its
+// question was free text that could begin with a dash, so it had to be excluded
+// here and asserted separately. Retiring `ask` removed that exception, and this
+// test is stronger for it — every exemption must now be a command that really
+// does parse its own flags.
 func TestTheUsageTextNamesExactlyTheSelfParsingCommands(t *testing.T) {
 	m := selfParsingSentence.FindStringSubmatch(sectionOfUsage(t, "Examples:", "The agent reads"))
 	if m == nil {
@@ -185,21 +186,13 @@ func TestTheUsageTextNamesExactlyTheSelfParsingCommands(t *testing.T) {
 
 	var want []string
 	for cmd := range commandsThatParseTheirOwnFlags {
-		if cmd != "ask" {
-			want = append(want, cmd)
-		}
+		want = append(want, cmd)
 	}
 	sort.Strings(want)
 
 	if strings.Join(named, ",") != strings.Join(want, ",") {
 		t.Errorf("the usage text and commandsThatParseTheirOwnFlags disagree.\n"+
-			"usage names: %v\nthe map has (excluding ask): %v", named, want)
-	}
-	if !commandsThatParseTheirOwnFlags["ask"] {
-		t.Error("ask is no longer exempt; the Examples block still says it is")
-	}
-	if !strings.Contains(usage, "ask is exempt") {
-		t.Error("the usage text no longer explains why ask is exempt but parses no flags")
+			"usage names: %v\nthe map has: %v", named, want)
 	}
 }
 
