@@ -689,45 +689,23 @@ func TestTheBankingColumnsSeparateOffFromNeverFired(t *testing.T) {
 
 	// FreeHeld is chosen so the mean is exact in binary and so that dividing by
 	// `weeks` (38, from sampleRow's start of 1) would give a different number.
-	for _, c := range []struct {
-		variant string
-		row     func(cellRow) cellRow
-		banked  string
-		free    string
-	}{{
-		variant: "block-not-recorded",
-		row:     func(r cellRow) cellRow { return r },
-		banked:  "", free: "",
-	}, {
-		variant: "banking-off",
-		row: func(r cellRow) cellRow {
-			r.HasBanking = true
-			r.BankingMediator = BankingMediator{DecisionWeeks: 30, FreeHeld: 45}
-			return r
+	// Every count differs from every other, so a permutation of two same-typed
+	// columns fails rather than agreeing by coincidence.
+	rowsIn := map[string]BankingMediator{
+		"banking-off": {DecisionWeeks: 30, FreeHeld: 45},
+		"banking-on-never-fired": {
+			DecisionWeeks: 30, ConsultedWeeks: 29, WeighedWeeks: 18, FreeHeld: 60,
 		},
-		banked: "", free: "1.5",
-	}, {
-		variant: "banking-on-never-fired",
-		row: func(r cellRow) cellRow {
-			r.HasBanking = true
-			r.BankingMediator = BankingMediator{
-				DecisionWeeks: 30, ConsultedWeeks: 30, FreeHeld: 60,
-			}
-			return r
+		"banking-on-fired": {
+			DecisionWeeks: 30, ConsultedWeeks: 28, WeighedWeeks: 19,
+			BankedWeeks: 7, FreeHeld: 90,
 		},
-		banked: "0", free: "2",
-	}, {
-		variant: "banking-on-fired",
-		row: func(r cellRow) cellRow {
-			r.HasBanking = true
-			r.BankingMediator = BankingMediator{
-				DecisionWeeks: 30, ConsultedWeeks: 30, BankedWeeks: 7, FreeHeld: 90,
-			}
-			return r
-		},
-		banked: "7", free: "3",
-	}} {
-		sink.cell(c.row(sampleRow(sweep, sink.run(), c.variant, 0, "2025-26", 1)))
+	}
+	sink.cell(sampleRow(sweep, sink.run(), "block-not-recorded", 0, "2025-26", 1))
+	for _, v := range []string{"banking-off", "banking-on-never-fired", "banking-on-fired"} {
+		r := sampleRow(sweep, sink.run(), v, 0, "2025-26", 1)
+		r.HasBanking, r.BankingMediator = true, rowsIn[v]
+		sink.cell(r)
 	}
 	sink.close()
 
@@ -735,26 +713,30 @@ func TestTheBankingColumnsSeparateOffFromNeverFired(t *testing.T) {
 	if len(rows) != 4 {
 		t.Fatalf("want 4 rows, got %d", len(rows))
 	}
-	want := map[string][2]string{
-		"block-not-recorded":     {"", ""},
-		"banking-off":            {"", "1.5"},
-		"banking-on-never-fired": {"0", "2"},
-		"banking-on-fired":       {"7", "3"},
+	// decision, consulted, weighed, banked, free_at_decision.
+	want := map[string][5]string{
+		"block-not-recorded":     {"", "", "", "", ""},
+		"banking-off":            {"30", "0", "", "", "1.5"},
+		"banking-on-never-fired": {"30", "29", "18", "0", "2"},
+		"banking-on-fired":       {"30", "28", "19", "7", "3"},
+	}
+	cols := [5]string{
+		"decision_weeks", "consulted_weeks", "weighed_weeks",
+		"banked_weeks", "free_at_decision",
 	}
 	for _, r := range rows {
 		w, ok := want[r["variant"]]
 		if !ok {
 			t.Fatalf("unexpected variant %q", r["variant"])
 		}
-		if got := r["banked_weeks"]; got != w[0] {
-			t.Fatalf("%s: banked_weeks is %q, want %q — blank must mean the arm "+
-				"never consulted the rule and 0 must mean it consulted it and it "+
-				"never fired", r["variant"], got, w[0])
-		}
-		if got := r["free_at_decision"]; got != w[1] {
-			t.Fatalf("%s: free_at_decision is %q, want %q — it is a mean over "+
-				"decision weeks, and the row's `weeks` is deliberately not that "+
-				"number", r["variant"], got, w[1])
+		for i, col := range cols {
+			if got := r[col]; got != w[i] {
+				t.Fatalf("%s: %s is %q, want %q — the two columns the rule owns go "+
+					"blank when it was never consulted, the two the decision loop "+
+					"owns are written whenever it ran, and free_at_decision is a "+
+					"mean over decision weeks rather than over `weeks`",
+					r["variant"], col, got, w[i])
+			}
 		}
 	}
 
@@ -778,7 +760,10 @@ func TestTheBankingColumnsSeparateOffFromNeverFired(t *testing.T) {
 // stale-header chain removes it first — an entry that stopped being where this
 // says would silently re-label every build in that chain.
 func TestTheBankingBlockIsBeforeTheChipBlockAndCounted(t *testing.T) {
-	want := []string{"banked_weeks", "free_at_decision"}
+	want := []string{
+		"decision_weeks", "consulted_weeks", "weighed_weeks",
+		"banked_weeks", "free_at_decision",
+	}
 	if bankingCols != len(want) {
 		t.Fatalf("bankingCols is %d and the block is %d columns", bankingCols, len(want))
 	}
@@ -1771,8 +1756,15 @@ func withoutXPointsBlock() []string {
 }
 
 // withoutChipOracleBlock is this build's header with the chip-week oracle's
-// columns removed from the middle — literally the header the predecessor build
-// wrote.
+// columns removed from the middle.
+//
+// ⚠️ It is **no longer the predecessor** — the banking block went in after it and
+// earlier in the schema — so the stale-header chain removes that one first. Same
+// demotion the xPoints helper above already carries, and recorded for the same
+// reason: this test's own comments say its entries have three times failed to
+// name the build they describe, and an uncorrected "literally the predecessor"
+// is how the fourth happens. This function is still what the chip-oracle block's
+// position assertion is written against.
 func withoutChipOracleBlock() []string {
 	return headerWithout(cellHeader, chipOracleBlockAt(), chipOracleCols)
 }

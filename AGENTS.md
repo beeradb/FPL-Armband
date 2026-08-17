@@ -1088,12 +1088,19 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   ⚠️ **That null is a simple-effect null** (the standing rule, above) **and it was not taken at
   shipped config**: both the `BANK` sweep and the reach map set `WeeklyXI = true`, which
   `runPolicySweep` does not. `shouldBank` prices both arms on **today's board**, so `MinGain`,
-  `FreeCost`, `BankUpTo` and the horizon are its whole bar. **The null predates its mediator**: the
-  cells file now carries `banked_weeks` and `free_at_decision` (blank means the arm never consulted
-  the rule, 0 means it consulted it and it never fired), so the zero is checkable — but **no banked
-  sweep carries them**, and the reach map's "weeks with a transfer banked" is a declared condition
-  rather than a measurement. Any banking arm reading 0 everywhere is a comparison that never ran,
-  and its deliverable is the count. No cross against team news is banked here.
+  `FreeCost`, `BankUpTo` and the horizon are its whole bar. **The null predates any count of its
+  mediator, and no banked sweep carries one**: the cells file records the funnel
+  `decision_weeks / consulted_weeks / weighed_weeks / banked_weeks` plus `free_at_decision`, so the
+  recorded zero is **unchecked** rather than checked, and the reach map's "weeks with a transfer
+  banked" is a declared condition rather than a measurement. A banking arm reading 0 in every cell
+  made no intervention at all — the banked branch is a pure early return, so its points columns are
+  byte-identical to the greedy arm **by construction**, a confinement rather than a null — and its
+  deliverable is the count. ⚠️ **"Never banks" is a claim about `Week.Free`, what survived each
+  decision; `free_at_decision` is what the search ran with, and on 2025-26 from GW1 they read 0.55
+  and 1.46.** ⚠️ **The arm the null was measured on no longer exists**: the banked branch granted a
+  second free transfer on top of the weekly accrual, so it climbed to `BankUpTo` at double speed and
+  the ceiling guard then refused every later week. Fixed, unmeasured, and reachable from user config
+  as `bank_transfers_lookahead`. No cross against team news is banked here.
 - **Reach is not the problem: 97.6% of worth-taking two-move packages are already reachable**, which
   closes the unified-search line on mechanism. The lever is the **valuation**, not the gate.
 - **The sell side is calibrated; its error is entirely availability** — −0.100 per gameweek for a
@@ -1173,7 +1180,8 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
 - **The scoring-chip timing `+0.000` is a declared invariance, not a result.**
   `mustNotMoveForAxis(AxisChipWeek)` returns all eight of `cellMetricColumns` — the eight columns
   every sweep collects a comparable series for, which is **not** every column in the cells file,
-  since the ten chip-reading columns and `oracle_kind` are required to differ by arm — and the harness checks
+  since the ten chip-reading columns, the five banking-mediator columns and `oracle_kind` are
+  required to differ by arm — and the harness checks
   them cell by cell on every run. The axis reads a finished season's per-week gains and plays no
   chip, so a byte-identical `POLICY` is what it is *required* to produce. It says the argmax never
   reached the simulation, and nothing whatever about timing.

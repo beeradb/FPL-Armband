@@ -179,9 +179,9 @@ One row per (sweep, variant, season, start point).
 | `policy_points`, `hold_points` | raw season totals |
 | `policy_per_gw`, `hold_per_gw` | the same, divided by `weeks` |
 | `moves`, `hits` | transfer counts, from the policy arm |
-| `banked_weeks`, `free_at_decision` | the transfer-banking mediator (below): how many decision weeks the banking rule declined a move in, and the mean free-transfer allowance a decision week ran with. **Blank `banked_weeks` means the arm never consulted the rule**, `0` means it consulted it and it never fired |
 | `frozen_*`, `frozen_captain_*`, `weekly_*` | the variance decomposition's intermediate layers, in which the eleven is frozen at the day-one pick; blank for an ordinary sweep |
 | `hold_fixedcap_*`, `hold_nocap_*` | the captaincy rungs (below); blank for the variance decomposition |
+| `decision_weeks`, `consulted_weeks`, `weighed_weeks`, `banked_weeks`, `free_at_decision` | the transfer-banking mediator (below): a funnel from weeks that reached the transfer decision down to weeks the banking rule said wait, plus the mean allowance a decision week ran with. Blank for the variance decomposition and for any row that does not populate the block |
 | `bench_boost_gw`, `bench_boost_pts`, `triple_captain_gw`, `triple_captain_pts` | what each scoring chip returned in the week the arm actually played it, and which week that was. Zero week means the arm did not play that chip in this cell. The standard sweep config plans no chips, so both pairs are `0` in an ordinary sweep; only a diagnostic that sets a chip plan populates them |
 | `hold_xpoints`, `hold_xpoints_per_gw`, `policy_xpoints`, `policy_xpoints_per_gw` | accumulated **expected** points — realised points with four channels swapped for their expected value (`internal/analysis/xpoints.go`). **Blank, not zero,** for the variance decomposition, which builds its own row, and absent entirely from cells banked before 2026-08-15 |
 | `setting`, `min_expected_minutes`, `squad_hash` | what the arm actually **did**, rather than what its label says: the swept value read back off the applied `SimConfig`, the resolved opening-squad pool floor, and a fingerprint of the opening fifteen as a set — so "the squad moved" is checkable off a banked file rather than asserted |
@@ -196,36 +196,86 @@ inflation this record has paid for before.
 
 ### The transfer-banking mediator
 
-`shouldBank` lets the weekly decision decline a move because a bigger package is
-affordable next week. It is only reachable when `SimConfig.BankLookahead` is on,
-which the shipped arm does not set — so on an ordinary sweep the honest reading is
-"the question was never asked" rather than "the answer was never yes". These two
-columns are what tells those apart, and they must be read together:
+`shouldBank` lets the weekly decision decline this week's search because next
+week's larger transfer allowance buys a better package. It is only reachable when
+`SimConfig.BankLookahead` is on, which the shipped arm does not set — so on an
+ordinary sweep the honest reading is "the question was never asked" rather than
+"the answer was never yes". The block is a **funnel**, and each step removes one
+explanation for a zero:
 
-| `banked_weeks` | `free_at_decision` | reading |
+| column | what it counts |
+|---|---|
+| `decision_weeks` | gameweeks that reached the transfer decision at all — every week but the first, minus any the arm spent on a wildcard or free hit |
+| `consulted_weeks` | of those, weeks the banking rule was asked in |
+| `weighed_weeks` | of those, weeks it had a real choice to weigh: past both guards, with at least one arm worth something |
+| `banked_weeks` | of those, weeks it answered *wait* |
+| `free_at_decision` | the mean allowance a decision week ran with |
+
+Each count is a subset of the one above, which is an invariant you can check on
+any row. `consulted < decision` says a guard appeared in front of the rule;
+`weighed < consulted` says it refused without comparing anything; `banked <
+weighed` is the rule genuinely preferring to act now.
+
+Read together they give:
+
+| `banked_weeks` | `consulted_weeks` | reading |
 |---|---|---|
-| blank | blank | this sweep did not record the block at all |
-| blank | a number | banking was off in this arm; the number is the allowance it would have had to bank out of |
-| `0` | a number | banking was on and never fired |
-| `n` | a number | banking was on and fired `n` times |
+| blank | blank | the block was not recorded for this row — an infeasible cell, or a sweep that does not populate it |
+| blank | `0` | the rule was never consulted; today that means `bank_lookahead` was off |
+| `0` | `n` | the rule ran `n` times and never fired |
+| `m` | `n` | the rule ran `n` times and fired `m` |
 
 **The pre-registered rule: any banking arm whose `banked_weeks` is 0 in every cell
 is a comparison that never ran, and its deliverable is the mediator count, not a
-null.** This record's standing rule is that a byte-identical result is not a tie
-until its mediator has been checked, and until these columns existed the recorded
-verdict that the policy never banks a transfer had no mediator to check.
+null.**
 
-`free_at_decision` is the other half of the reading, because `shouldBank` refuses
-outright once the allowance already sits at `bank_up_to` — an arm whose decisions
-all run at the ceiling would report zero banked weeks for a reason that has nothing
-to do with the comparison being made.
+That is the pre-registration as written, and one word of it is looser than this
+record's own vocabulary — worth stating, because the precise claim is *stronger*.
+"A comparison that never ran" here means a setting that never reached its
+consumer, and a non-blank `0` refutes exactly that. What a zero everywhere really
+says is that the banked branch of `decide` is a pure early return, so the arm took
+every decision the greedy arm took and its points columns are **byte-identical by
+construction** — a confinement rather than a null, cross-checkable against
+`squad_hash`. The count is what carries information.
 
-Two things it is not. It is **a mean over decision weeks, not over `weeks`**: a
-wildcard or free-hit week plays football and makes no transfer decision, so it is
-outside the denominator, and neither column may be divided by `weeks` or multiplied
-by 38. And the allowance is measured **after the week's accrual and before anything
-is spent**, which is the number the search actually ran with — not `Week.Free`,
-which is what survived the decision.
+**A dose is not an effect.** An arm firing in fewer than four of the six seasons
+is *unmeasurable* rather than null: the season-clustered t is capped by
+construction, as this record already records for the minutes floor. Quote no p, no
+interval and no threshold; report the per-cell and per-season fire counts instead.
+
+### Reading the two that are easiest to get wrong
+
+**The four counts are counts, not rates.** Cells run 38, 33, 28, 23, 18 and 13
+gameweeks, so `banked_weeks` pooled across entry points weights the earliest
+regime nearly three times as heavily. `decision_weeks` is the denominator, and it
+is in the file precisely because it is **not** recoverable as `weeks - 1` on any
+arm that plays a wildcard or a free hit — those weeks make no transfer decision
+and the file records no column for them.
+
+**`free_at_decision` is measured after the week's accrual and before anything is
+spent** — the number the search actually ran with, and the number `shouldBank`
+compares against `bank_up_to`. It is *not* `Week.Free`, which is what survived the
+decision; on 2025-26 from GW1 the two read 1.46 and 0.55, a factor of 2.6. Both
+are real and they answer different questions.
+
+Three cautions on it:
+
+- **In an arm that actually banks it is post-treatment.** Banking raises the
+  allowance it then measures, so a between-arm difference is an *effect* of
+  banking rather than a covariate held constant. The feedback vanishes exactly
+  when `banked_weeks` is 0, which is the case it exists to diagnose.
+- **It bounds the ceiling guard in one direction only.** The accrual guarantees at
+  least 1 every week, so by Markov on `free - 1` the share of weeks at the ceiling
+  is at most `(mean - 1)/(bank_up_to - 1)` — at `bank_up_to` 5, a mean of 1.05
+  caps it at 1.25%. A low mean exonerates that guard outright; a high one convicts
+  nothing. And the rule's *other* guard, a horizon of one gameweek, is invisible
+  to it entirely.
+- **Quote it with `bank_up_to`.** Every sweep cell pins the bank limit at 5
+  regardless of season, which is historically wrong for 2022-23 and 2023-24, so
+  the ceiling the mean is read against is a sweep artefact rather than the rule
+  that season played under.
+
+Neither the counts nor the mean may be divided by `weeks` or multiplied by 38.
 
 ### The chip-week oracle's readings
 
@@ -385,8 +435,10 @@ silently:
 Blank versus zero is load-bearing where a column could be averaged: an *unmeasured
 layer* and a layer measured at zero are different facts, so the layer columns are
 blank when a sweep did not measure them. It is not a blanket rule — an infeasible
-row's integer columns are zero, and safe only because the `infeasible` flag beside
-them means nothing reads them.
+row zeroes `weeks`, `policy_points`, `hold_points`, `moves` and `hits`, and that
+is safe only because the `infeasible` flag beside them means nothing reads them.
+The chip block and the banking block are the exceptions and go **blank** on such a
+row, because a zero there is a plausible reading of a season that ran.
 
 ## What the script reports
 

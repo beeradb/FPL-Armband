@@ -17,6 +17,7 @@ package backtest
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"armband/internal/analysis"
@@ -35,14 +36,22 @@ import (
 // is that a byte-identical result is not a tie until its mediator has been
 // checked.
 //
+// The reader's half of that rule, including the correction to its own wording
+// and the dose bar that decides when an arm is unmeasurable rather than null,
+// is in stats/README.md under "The transfer-banking mediator". It is stated
+// there rather than a fourth time here, because nothing checks prose for drift
+// and this sentence already appears in three files.
+//
 // One function rather than a few lines at each construction site, on the rule
 // this package is named for: two expressions of one quantity end with the
 // measured one not being the one that runs. chipReadingsOf is the same shape for
 // the same reason.
 //
 // It gates on DecisionWeeks rather than on a flag, so a SimResult assembled by
-// hand — the variance decomposition builds cellRows from one — reports the block
-// as absent instead of reporting a season that decided nothing.
+// hand reports the block as absent instead of reporting a season that decided
+// nothing. ⚠️ That is the gate's justification and not a description of the
+// variance decomposition, which builds its rows from a real Simulate result and
+// simply never calls this — its blanks come from HasBanking defaulting false.
 func bankingOf(res *SimResult) (BankingMediator, bool) {
 	if res == nil || res.Banking.DecisionWeeks <= 0 {
 		return BankingMediator{}, false
@@ -170,6 +179,133 @@ func TestAChippedWeekIsNotADecisionWeek(t *testing.T) {
 	}
 }
 
+// TestTheSweepWritesTheBankingBlock closes the join nothing else covers.
+//
+// The liveness test above covers decide → Simulate → SimResult. The CSV tests
+// cover a hand-built cellRow → file. **The one line that connects them —
+// `row.BankingMediator, row.HasBanking = bankingOf(res)` in runPolicySweep — was
+// covered by neither**, and a review proved it: deleting that line and running
+// the whole package returned ok. Both columns would then be blank in every cell
+// of every sweep for ever, and the sweep would still print and bank normally.
+//
+// That is the exact silent no-op this block exists to detect, arriving in the
+// block's own wiring. runPolicySweep is reachable only under DIAG, so this
+// asserts the join at the level a gate test can afford: a real SimResult put
+// through bankingOf and the sink, which is what the sweep does with it.
+func TestTheSweepWritesTheBankingBlock(t *testing.T) {
+	cur, prior, base := chipSim(t)
+	base.BankLookahead = true
+	res, err := Simulate(cur, prior, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	path := filepath.Join(t.TempDir(), "cells.csv")
+	sink, err := openCellSink(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := cellRow{
+		Sweep: sink.sweepLabel("T"), RunID: sink.run(), Variant: "bank lookahead",
+		Season: "2025-26", PriorSeason: "2024-25", StartGW: 1, Weeks: len(res.Weeks),
+	}.under(base.Oracles)
+	row.BankingMediator, row.HasBanking = bankingOf(res)
+	sink.cell(row)
+	sink.close()
+
+	_, rows := readCells(t, path)
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row, got %d", len(rows))
+	}
+	r := rows[0]
+	// Every column of the block populated from a real replayed season. A blank in
+	// any of them is the join having gone silent.
+	for _, col := range []string{
+		"decision_weeks", "consulted_weeks", "weighed_weeks",
+		"banked_weeks", "free_at_decision",
+	} {
+		if r[col] == "" {
+			t.Errorf("%s is blank on a real banking arm — the sweep's cellRow is "+
+				"not being filled from the SimResult, which is silent everywhere "+
+				"else in this package", col)
+		}
+	}
+	if got := atoiOrFail(t, r["decision_weeks"]); got != res.Banking.DecisionWeeks {
+		t.Errorf("decision_weeks is %d and the season decided %d",
+			got, res.Banking.DecisionWeeks)
+	}
+	if got := atoiOrFail(t, r["consulted_weeks"]); got != res.Banking.DecisionWeeks {
+		t.Errorf("consulted_weeks is %d over %d decision weeks — a banking arm "+
+			"consults the rule every week", got, res.Banking.DecisionWeeks)
+	}
+}
+
+// TestTheBankingFunnelNests pins the invariant that makes a zero attributable.
+//
+// decision >= consulted >= weighed >= banked, on any row. Each step removes one
+// explanation for a zero, and that reading only holds while each really is a
+// subset of the one above it — a counter incremented in the wrong branch would
+// break the nesting and quietly turn the block back into an ambiguous count.
+func TestTheBankingFunnelNests(t *testing.T) {
+	cur, prior, base := chipSim(t)
+	for _, c := range []struct {
+		name string
+		on   bool
+	}{{"greedy", false}, {"bank lookahead", true}} {
+		sc := base
+		sc.BankLookahead = c.on
+		res, err := Simulate(cur, prior, sc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b := res.Banking
+		if b.DecisionWeeks < b.ConsultedWeeks ||
+			b.ConsultedWeeks < b.WeighedWeeks ||
+			b.WeighedWeeks < b.BankedWeeks {
+			t.Errorf("%s: funnel does not nest — decision %d, consulted %d, "+
+				"weighed %d, banked %d", c.name, b.DecisionWeeks,
+				b.ConsultedWeeks, b.WeighedWeeks, b.BankedWeeks)
+		}
+	}
+}
+
+// TestABankedWeekAccruesExactlyOneTransfer pins the arithmetic that was wrong.
+//
+// The banked branch of `decide` used to increment `free` a second time, on top
+// of the weekly accrual, so a banked week ended two transfers up where FPL grants
+// one. It was self-defeating rather than merely generous: shouldBank's first
+// guard refuses once the allowance is at BankUpTo, so an arm that manufactured
+// allowance climbed to the ceiling at double speed and could then never bank
+// again — and every later week's free_at_decision carried the inflation with
+// nothing recording where it came from.
+//
+// Asserted as an invariant over the replay rather than as a unit test on
+// `decide`, which needs an engine, a wallet and a season. The allowance may never
+// rise by more than one across a gameweek, whatever the policy did, because one
+// per gameweek is the whole of FPL's rule.
+func TestABankedWeekAccruesExactlyOneTransfer(t *testing.T) {
+	cur, prior, base := chipSim(t)
+	base.BankLookahead = true
+	res, err := Simulate(cur, prior, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moves := map[int]int{}
+	for _, mv := range res.Moves {
+		moves[mv.GW]++
+	}
+	for i := 1; i < len(res.Weeks); i++ {
+		prev, wk := res.Weeks[i-1], res.Weeks[i]
+		// Week.Free is what survived each decision, so a week that spent nothing
+		// can only have accrued. A rise of two is the double grant.
+		if moves[wk.GW] == 0 && wk.Free-prev.Free > 1 {
+			t.Fatalf("GW%d made no transfer and the allowance rose from %d to %d — "+
+				"FPL grants one free transfer a gameweek, so banking must decline "+
+				"to spend rather than grant a second", wk.GW, prev.Free, wk.Free)
+		}
+	}
+}
+
 func TestDiagBanking(t *testing.T) {
 	if os.Getenv("DIAG") == "" {
 		t.Skip("set DIAG=1")
@@ -181,6 +317,7 @@ func TestDiagBanking(t *testing.T) {
 	freeHist := map[int]int{}
 	movesHist := map[int]int{}
 	weeks, totalMoves := 0, 0
+	heldSum, decisions := 0, 0
 
 	for _, pair := range pairs {
 		prior := loadSeason(t, cfg, pair[0])
@@ -194,6 +331,11 @@ func TestDiagBanking(t *testing.T) {
 			freeHist[w.Free]++
 			weeks++
 		}
+		// The mediator's own figure, beside the histogram rather than instead of
+		// it. They are different quantities and the histogram was labelled as this
+		// one for as long as it existed — see Week.Free.
+		heldSum += res.Banking.FreeHeld
+		decisions += res.Banking.DecisionWeeks
 		byGW := map[int]int{}
 		for _, mv := range res.Moves {
 			byGW[mv.GW]++
@@ -204,15 +346,32 @@ func TestDiagBanking(t *testing.T) {
 		}
 	}
 
-	fmt.Printf("\nFree transfers in hand when each weekly decision was made,\n")
+	// ⚠️ **This histogram is Week.Free, which is what SURVIVED each decision** —
+	// not what the search had. It said "in hand when the decision was made" and
+	// that was wrong: `decide` spends before Week.Free is written, so a week that
+	// made two moves is counted at what was left. It also includes the opening
+	// week, which makes no decision at all. The allowance the search actually ran
+	// with is printed underneath, from the mediator.
+	//
+	// Both are kept because both are real. The residue is what a manager carries
+	// into next week; the mediator's figure is what this week could spend. The
+	// greedy reading below — that the policy spends every transfer as soon as
+	// anything clears the gate — is about the residue, and is only about the
+	// residue.
+	fmt.Printf("\nFree transfers left AFTER each weekly decision (Week.Free),\n")
 	fmt.Printf("%s from GW1, bank limit %d:\n\n", seasonsLabel(len(pairs)), sweepBankLimit)
-	fmt.Printf("%-14s %8s %8s\n", "in hand", "weeks", "share")
+	fmt.Printf("%-14s %8s %8s\n", "left after", "weeks", "share")
 	for f := 0; f <= sweepBankLimit; f++ {
 		if freeHist[f] == 0 {
 			continue
 		}
 		fmt.Printf("%-14d %8d %7.0f%%\n", f, freeHist[f],
 			100*float64(freeHist[f])/float64(weeks))
+	}
+
+	if decisions > 0 {
+		fmt.Printf("\nAllowance the search actually ran with, mean over %d decision\n", decisions)
+		fmt.Printf("weeks (BankingMediator.FreeAtDecision): %.3f\n", float64(heldSum)/float64(decisions))
 	}
 
 	fmt.Printf("\nMoves made in one gameweek, when any were made:\n\n")

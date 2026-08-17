@@ -271,7 +271,14 @@ func briefTask(b *strings.Builder, cfg config.Config, gwName string) {
 	fmt.Fprintf(b, "| Min net gain across the horizon to justify a -4 | %.2f pts |\n", p.MinGainForHit)
 	fmt.Fprintf(b, "| Bank transfers up to | %d |\n", p.BankUpTo)
 	fmt.Fprintf(b, "| Max hits per week | %d |\n", p.MaxHitsPerWeek)
-	fmt.Fprintf(b, "| Always act on a ruled-out starter | %v |\n\n", p.AlwaysActOnInjury)
+	fmt.Fprintf(b, "| Always act on a ruled-out starter | %v |\n", p.AlwaysActOnInjury)
+	// Both settings are stated whether on or off, because the agent's job here is
+	// to reason inside the standing policy and "the policy does not do this" is as
+	// binding as "the policy does this". A row that appeared only when enabled
+	// would leave the off state unwritten, and an unwritten constraint is one the
+	// agent will talk past.
+	fmt.Fprintf(b, "| Bank a transfer when next week buys more | %v |\n", p.BankTransfersLookahead)
+	fmt.Fprintf(b, "| Prepare the squad for a planned chip | %v |\n\n", p.PrepareForChips)
 	for _, r := range p.Rules {
 		fmt.Fprintf(b, "- %s\n", r)
 	}

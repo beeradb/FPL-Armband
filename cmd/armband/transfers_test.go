@@ -4,7 +4,59 @@ import (
 	"testing"
 
 	"armband/internal/analysis"
+	"armband/internal/config"
+	"armband/internal/fpl"
 )
+
+// TestTheBankingSwitchReachesTheRule is the reachability guard for the whole
+// capability.
+//
+// Banking existed for a long time as a replay-only field: wired, correct, and
+// unreachable from any command a user runs. A config knob that does not arrive
+// at its consumer is this project's signature failure — a byte-identical result
+// that looks exactly like a knob that does nothing — so what has to be pinned is
+// not the decision but the fact that the switch is consulted at all.
+//
+// Asserted on adviseBanking's second return value, which is precisely "the rule
+// was asked". No network and no squad: both refusals are checked before the
+// engine is touched, which is also why a nil engine is safe here.
+func TestTheBankingSwitchReachesTheRule(t *testing.T) {
+	cfg := config.Default()
+	if cfg.Review.BankTransfersLookahead {
+		t.Fatal("the setting ships off; this test's off-arm would be vacuous")
+	}
+	// Off: the rule is not consulted, and the command must therefore print
+	// nothing about a decision nobody made.
+	if _, consulted := adviseBanking(cfg, nil, analysis.SquadState{}, nil, 0, 1, 10); consulted {
+		t.Error("the rule was consulted with the setting off")
+	}
+	// On, but before the first deadline: unlimited transfers is not a bankable
+	// state, since there is no allowance to accumulate.
+	cfg.Review.BankTransfersLookahead = true
+	if _, consulted := adviseBanking(cfg, nil, analysis.SquadState{}, nil,
+		0, fpl.UnlimitedTransfers, 1); consulted {
+		t.Error("the rule was consulted on an unlimited allowance")
+	}
+}
+
+// TestChipPreparationIsOffUntilAsked pins the switch on the other half.
+//
+// The credit is the only channel by which a chip can be prepared for, and
+// switched off it must credit nothing however the chips are planned. A version
+// that fired on the chip plan alone would reprice every transfer for a chip the
+// manager never asked to prepare for.
+func TestChipPreparationIsOffUntilAsked(t *testing.T) {
+	cfg := config.Default()
+	if cfg.Review.PrepareForChips {
+		t.Fatal("the setting ships off; this test's off-arm would be vacuous")
+	}
+	cfg.Chips.First.BenchBoost = 12
+	// Compared field by field: ChipCredit carries a map, so it is not comparable,
+	// and the fields are what the search actually reads.
+	if cr := chipCreditNow(cfg, nil, 10); cr.Bench != 0 || cr.Captain != 0 || cr.WeekLoad != nil {
+		t.Errorf("preparation off must credit nothing even with a chip planned: %+v", cr)
+	}
+}
 
 // TestPlanSquadPicksTheViceLikeTheModelDoes pins the one piece of judgement in
 // the transfers command: a Plan carries a captain but no vice, and the pitch

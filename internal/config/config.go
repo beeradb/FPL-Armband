@@ -299,6 +299,19 @@ func Load(path string) (Config, error) {
 	if cfg.Review.LeadHours <= 0 {
 		cfg.Review.LeadHours = d.Review.LeadHours
 	}
+	// BankTransfersLookahead and PrepareForChips need no backfill, and that is a
+	// fact worth stating rather than an omission.
+	//
+	// The standing rule is that a new field gets one so an existing config file
+	// stays valid. It exists because a missing key unmarshals to the zero value,
+	// which for most fields here is not the default. For these two it is: both
+	// default OFF and both are booleans, so a file written before they existed
+	// loads with exactly the behaviour it had. A value-check backfill would be a
+	// no-op and a `hasKey` probe would be worse — it would make an explicit
+	// `false` indistinguishable from an absent key while both mean the same
+	// thing. ⚠️ If either default ever moves to true, this comment stops being
+	// true and a `hasKey` migration becomes mandatory, because at that point a
+	// deliberate `false` and an absent key are different facts.
 	if len(cfg.Review.Rules) == 0 {
 		cfg.Review.Rules = d.Review.Rules
 	}

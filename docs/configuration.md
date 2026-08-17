@@ -404,6 +404,8 @@ them.
 | `free_transfer_value` | `2.0` | Points a free transfer is charged before it will be made, per move. Not an opportunity cost — a confidence threshold. Deliberately below a hit's 4, which measured *worse than charging nothing* because it starts refusing real improvements. |
 | `bank_transfers_up_to` | `5` | Accumulate this many before spending without a specific reason. FPL banks five, not two — the rule changed for 2024-25. |
 | `max_hits_per_week` | `1` | Zero means never take a hit. |
+| `bank_transfers_lookahead` | `false` | Decline this week's move when one more free transfer next week buys a better package, valued over a horizon one gameweek shorter. See below. |
+| `prepare_squad_for_chips` | `false` | Let the transfer search value a bench boost or triple captain planned inside its horizon, so the squad can be assembled for it. Does nothing unless a chip is set in `chip_plan`. |
 | `scheduled_run_lead_hours` | `6` | How long before a deadline a scheduled run fires. The point of running late is team news: press conferences land one to two days out, confirmed line-ups only at the deadline. |
 | `always_act_on_ruled_out_starter` | `true` | Forces a move regardless of thresholds — an unavailable player scores zero. |
 | `rules` | five shipped | Free-text policy, passed to the agent verbatim exactly like `criteria`. The defaults cover churn, hits, chip-adjacent transfers and fixture-chasing. |
@@ -411,6 +413,36 @@ them.
 Writing these down matters because they bind the agent in the weeks when a move feels
 tempting. "Only transfer for a real gain" is easy to agree with in the abstract and easy to
 abandon after a bad gameweek.
+
+### Banking a transfer, and preparing for a chip
+
+The weekly decision is otherwise **greedy**: it spends a free transfer the moment any move
+clears the gate. That is usually right and is wrong in one specific shape — a premium upgrade
+needs the money freed as well as the slot, so buying him means selling a forward *and* funding
+the gap, and a policy that spends every week never has two transfers in hand to do it with.
+
+`bank_transfers_lookahead` adds the missing comparison. It asks only what today's board can
+answer: **what is the best package I could afford with one more transfer, and is it worth more
+than the best I can afford now, even after losing a gameweek of it?** Waiting is charged
+honestly — next week's package earns over a horizon one shorter — so banking has to win on the
+size of what it unlocks rather than on optimism about timing. When it fires, `armband transfers`
+says so and prints both numbers, because a policy that declines a move silently is
+indistinguishable from one that found nothing worth doing, and those are opposite
+recommendations.
+
+`prepare_squad_for_chips` is what makes the two work together. With a bench boost or triple
+captain planned inside the horizon, the chip's value is credited to a transfer made now — so the
+bench a boost will pay for is worth something *before* the chip week. The credit is amortised
+over the same horizon the gate multiplies it back by, so it prices what the chip pays once
+rather than once per gameweek, and a wildcard between now and the chip closes the window because
+that squad will not survive to play it. A free hit does not close it: the permanent squad comes
+straight back.
+
+Both ship **off**, and that is a statement about evidence rather than about the mechanism. The
+recorded verdict is that the policy never banks a transfer and that banking is not the fix — and
+it turns out nothing was counting whether the rule ever fired, so the replay now records that
+and no sweep has yet run under it. Turning either on is supported and explained in the output;
+no points claim is made for it.
 
 ---
 
