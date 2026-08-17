@@ -15,9 +15,9 @@ package backtest
 //
 // So the dose is emitted per cell, as a covariate. ⚠️ **Nothing here fits a
 // slope**, and a dose-response is a separate act needing its own pre-registration
-// against the two traps below.
+// against the three traps below.
 //
-// # The two traps, and either one manufactures a slope
+// # Three traps, and any one of them manufactures a slope
 //
 //   - **92% of doubles fall after GW19.** A late-entry cell therefore has more
 //     dose per gameweek AND fewer gameweeks, so dose and denominator move
@@ -27,6 +27,18 @@ package backtest
 //     around 4.4, because cells within a season are nested and share nearly all
 //     their doubles. A standard error computed as though 36 rows were independent
 //     is wrong by roughly that ratio.
+//   - **The dose is HINDSIGHT.** It reads `cur.Fixtures` in full, so it knows every
+//     double from GW1 where a real manager learns of one as cup rounds resolve —
+//     realistically two to six gameweeks ahead. This record already flags the same
+//     leak on `fixtureLoadFor` and calls its `+33` optimistic for it. As a
+//     *covariate* that is defensible and is why the columns are computed this way:
+//     the dose is identical across the arms of a cell, so it cannot flatter one arm
+//     over another, and a covariate is allowed to know things the policy does not.
+//     It is **not** defensible as a description of what a manager could have
+//     planned for, and a dose-response quoted as "a policy that targets doubles is
+//     worth X per double" would be making exactly that claim. Nothing derives an
+//     announcement-lag-corrected dose, and the archive carries no announcement
+//     dates to derive one from.
 //
 // # Counted from the fixture list, never from player rows
 //
@@ -52,12 +64,13 @@ type FixtureDose struct {
 	ActDoubles, ActBlanks int
 
 	// LateDoubles and LateBlanks count the window beyond the opening squad's own
-	// horizon, [start+H+1, 38].
+	// horizon, [start+H, 38].
 	//
 	// This is the sharper quantity and the one nobody had defined. The opening
-	// fifteen is built on a horizon of H gameweeks, so every double inside
-	// [start+1, start+H] was already visible to and priced by the squad build.
-	// What is left for the TRANSFER POLICY to add is what falls beyond it.
+	// fifteen is built on a horizon of H gameweeks anchored at the entry week, so
+	// its window is `[start, start+H-1]` and every double inside `[start+1,
+	// start+H-1]` was already visible to and priced by the squad build. What is
+	// left for the TRANSFER POLICY to add is `[start+H, 38]`.
 	//
 	// ⚠️ It is a subset of the actionable pair by construction, so
 	// `LateDoubles <= ActDoubles` always. A row where it is not is a bug in this
@@ -112,7 +125,13 @@ func doseOver(doubling, blanking map[int]int, start, horizon int) FixtureDose {
 	for gw := start + 1; gw <= 38; gw++ {
 		d.ActDoubles += doubling[gw]
 		d.ActBlanks += blanking[gw]
-		if gw > start+horizon {
+		// ⚠️ **The opening engine's window is `[start, start+H-1]`, so the first
+		// UNSEEN week is `start+H`.** This read `gw > start+horizon`, which dropped
+		// `start+H` from the late dose — off by one, systematic, of fixed sign, and
+		// with 92% of doubles falling after GW19 the dropped week is a late week for
+		// the later entries. The test asserting it enshrined the same error. Found
+		// in review.
+		if gw >= start+horizon {
 			d.LateDoubles += doubling[gw]
 			d.LateBlanks += blanking[gw]
 		}

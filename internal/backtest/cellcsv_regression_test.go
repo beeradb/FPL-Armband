@@ -477,7 +477,7 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 		cols int
 		last string
 	}{
-		{"predecessor (no dose columns)", 85, "oracle_kind"},
+		{"predecessor (no dose columns)", 88, "oracle_kind"},
 		{"two builds back (no option funnels either)", 60, "oracle_kind"},
 		{"three builds back (no fixture-run either)", 55, "oracle_kind"},
 		{"four builds back (no banking either)", 50, "oracle_kind"},

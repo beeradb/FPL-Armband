@@ -554,9 +554,12 @@ var cellHeader = []string{
 	"band_exposure",
 	"ftv_weeks", "ftv_priced_weeks", "ftv_gate_calls", "ftv_flips",
 	"ftv_mean_charge", "ftv_mean_load",
-	"wc_trig_weeks", "wc_trig_weighed", "wc_trig_gw", "wc_trig_value", "wc_trig_bar",
-	"bb_trig_weeks", "bb_trig_weighed", "bb_trig_gw", "bb_trig_value", "bb_trig_bar",
-	"fh_trig_weeks", "fh_trig_weighed", "fh_trig_gw", "fh_trig_value", "fh_trig_bar",
+	"wc_trig_offered", "wc_trig_weeks", "wc_trig_weighed", "wc_trig_gw",
+	"wc_trig_value", "wc_trig_bar",
+	"bb_trig_offered", "bb_trig_weeks", "bb_trig_weighed", "bb_trig_gw",
+	"bb_trig_value", "bb_trig_bar",
+	"fh_trig_offered", "fh_trig_weeks", "fh_trig_weighed", "fh_trig_gw",
+	"fh_trig_value", "fh_trig_bar",
 	"prep_weeks", "prep_credit_weeks", "prep_bench_sum", "prep_captain_sum",
 	"dose_act_doubles", "dose_act_blanks",
 	"dose_late_doubles", "dose_late_blanks",
@@ -643,8 +646,10 @@ const (
 	//	                               the untapered charge would have reversed
 	//	ftv_mean_charge / ftv_mean_load the applied charge and the squad's forward
 	//	                               fixture density, averaged over ftv_weeks
-	//	<chip>_trig_weeks / _weighed   the chip state rule's consulted and weighed
-	//	                               weeks, per chip: wc, bb, fh
+	//	<chip>_trig_offered            weeks the chip rule was OFFERED, before its
+	//	                               own eligibility guards
+	//	<chip>_trig_weeks / _weighed   of those, weeks it was consulted and weeks it
+	//	                               had a reading to weigh: wc, bb, fh
 	//	<chip>_trig_gw / _value / _bar the week it fired in, the reading that
 	//	                               cleared, and the bar it cleared
 	//	prep_weeks / prep_credit_weeks the chip-preparation credit's funnel, which
@@ -664,13 +669,20 @@ const (
 	// for exactly that reason. And a flip is not a changed transfer — `decide`
 	// returns on a refusal, so a flip on a later candidate may change nothing.
 	//
+	// ⚠️ **`_trig_offered` is what tells a lever that was OFF from one that ran and
+	// was blocked all season.** `eligible` refuses the whole season when a plan
+	// already places that chip, so a 2x2 crossing calendar placement with a trigger
+	// reads an all-zero funnel in the planned corner — a lever that ran and
+	// correctly declined, wearing the clothes of one that was never wired. Read
+	// `offered = 0` as off, `offered > 0` with `weeks = 0` as blocked.
+	//
 	// ⚠️ **`wc_trig_gw` is the wildcard lever's whole deliverable.** The replay
 	// cannot value a wildcard — it replaces all fifteen and the within-season
 	// spread swamps it — so the question is a decision count, and the recorded
 	// closure of the wildcard-trigger line rests on the tested trigger firing at
 	// GW2. Reading this column tells you whether a repair-cost trigger does the
 	// same. Do not quote a points figure from that arm.
-	optionCols = 25
+	optionCols = 28
 	// doseCols is the per-cell fixture dose, and it is NOT a mediator: it is a
 	// function of the season and the entry gameweek alone, identical on every arm
 	// of a cell, and it exists so a doubles or blanks arm can be read as a
@@ -679,7 +691,7 @@ const (
 	//	dose_act_doubles / dose_act_blanks   club-gameweeks in the ACTIONABLE
 	//	                                     window [start+1, 38]
 	//	dose_late_doubles / dose_late_blanks club-gameweeks beyond the opening
-	//	                                     squad's own horizon, [start+H+1, 38]
+	//	                                     squad's own horizon, [start+H, 38]
 	//
 	// # Why the actionable window and not the played one
 	//
@@ -691,7 +703,7 @@ const (
 	// # And why a second, sharper pair
 	//
 	// The opening squad is built on a horizon of H gameweeks, so every double
-	// inside [start+1, start+H] was already visible to and priced by the squad
+	// inside [start+1, start+H-1] was already visible to and priced by the squad
 	// build. What is left for the TRANSFER POLICY to add is what falls beyond it,
 	// which is the `dose_late_*` pair. That is the quantity nobody had defined.
 	//
@@ -715,6 +727,12 @@ const (
 	// opening fifteen actually owns — is deliberately not the one taken. It varies
 	// by arm, which would make this a mediator rather than a dose, and a covariate
 	// that moves with the treatment is not a covariate.
+	//
+	// ⚠️ **A THIRD trap: the dose is hindsight.** It reads the whole fixture list,
+	// so it knows every double from GW1 where a real manager learns of one as cup
+	// rounds resolve. As a covariate that is fine — identical across a cell's arms,
+	// so it cannot flatter one — and it is fatal to reading a fitted slope as "what
+	// targeting doubles is worth". See dose.go.
 	doseCols = 4
 	// chipWeekCols is the chip block: two gameweeks and two one-off point
 	// totals. Four rather than eight because there are no per-gw columns here —
@@ -1109,10 +1127,10 @@ func (s *cellSink) cell(r cellRow) {
 	// read as a bar that was measured.
 	for _, m := range []ChipTriggerMediator{r.WildcardTrig, r.BenchBoostTrig, r.FreeHitTrig} {
 		if r.HasBanking && r.DecisionWeeks > 0 {
-			rec = append(rec,
+			rec = append(rec, strconv.Itoa(m.OfferedWeeks),
 				strconv.Itoa(m.ConsultedWeeks), strconv.Itoa(m.WeighedWeeks))
 		} else {
-			rec = append(rec, "", "")
+			rec = append(rec, "", "", "")
 		}
 		if r.HasBanking && m.FiredGW > 0 {
 			rec = append(rec, strconv.Itoa(m.FiredGW),

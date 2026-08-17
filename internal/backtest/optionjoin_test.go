@@ -65,9 +65,20 @@ func TestTheTaperReachesTheTransferDecision(t *testing.T) {
 		t.Errorf("the taper counted %d gate calls; the counting wrapper is not on "+
 			"the path the decision takes", m.GateCalls)
 	}
-	if c := m.MeanCharge(); c >= base.FreeCost {
-		t.Errorf("the mean applied charge is %v against a shipped %v — the taper "+
-			"decays toward zero, so it must come out below", c, base.FreeCost)
+	// ⚠️ **The mean charge must come out CLOSE to the flat one, not below it.**
+	// The curve is normalised to average 1 over the option's whole window — see
+	// analysis.MeanOptionDecay — precisely so that a taper arm is a shape contrast
+	// rather than a level cut, so a mean well under `FreeCost` would mean the
+	// normaliser is missing and every half-life rung is moving the level too.
+	//
+	// The band is wide because this cell is one entry point and the congestion
+	// factor is not exactly mean-1 on any particular squad; what it refuses is the
+	// un-normalised case, which reads about 0.62 x FreeCost.
+	if c := m.MeanCharge(); c < 0.8*base.FreeCost || c > 1.4*base.FreeCost {
+		t.Errorf("the mean applied charge is %v against a shipped %v. The curve is "+
+			"mean-preserving, so these should be close; a mean near %v is the "+
+			"un-normalised curve, which confounds every taper arm with a level cut.",
+			c, base.FreeCost, 0.62*base.FreeCost)
 	}
 	// And the shipped arm did NOT run it, which is what makes the comparison a
 	// comparison rather than two readings of one policy.

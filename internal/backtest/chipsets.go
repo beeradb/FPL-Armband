@@ -122,12 +122,24 @@ func SplitChipSets(season string, p analysis.ChipPlan) analysis.ChipSchedule {
 			set = 2
 		}
 		// The slot names carry no suffix here — see chipSlot — so the set is
-		// appended rather than assumed. `Set` returns an error only for a name that
-		// does not resolve or a week outside 1..38, and both are impossible on the
-		// literals above given the `n.week <= 0` guard, so a failure here would be a
-		// change to ChipSchedule rather than bad input from a caller.
+		// appended rather than assumed.
+		//
+		// ⚠️ **An out-of-range week is DROPPED, not panicked on.** `Set` rejects
+		// anything outside 0..38 and the guard above covers only the lower end, so
+		// a planner returning 39 crashed here — in a two-set season only — under a
+		// comment arguing it was impossible while naming just the lower bound. No
+		// shipped planner does that (`sightedWeeks` and `controlWeeks` both bound
+		// at 38), so the defect was the argument rather than the behaviour, and the
+		// fix is to make the behaviour match what this function is: a ROUTER.
+		// Judging a plan is `ValidateChipSets`'s job, and a planner emitting a week
+		// nobody can play has a bug of its own that a panic here would mislabel.
+		if n.week > 38 {
+			continue
+		}
 		if err := out.Set(fmt.Sprintf("%s%d", n.k, set), n.week); err != nil {
-			panic("SplitChipSets: " + err.Error())
+			// Unreachable given both bounds, and a dropped chip rather than a
+			// panic for the same reason: this routes, it does not validate.
+			continue
 		}
 	}
 	return out

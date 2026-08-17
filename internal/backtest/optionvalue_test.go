@@ -81,8 +81,9 @@ func TestTheOptionValueLeversAreOffByDefault(t *testing.T) {
 //
 // The end state this build is aimed at is **chip placement on and banking off**,
 // arrived at by measurement. Chip placement rests on near-arithmetic mechanism —
-// the fixed-offset control lands a chip on an ordinary week about 78% of the time,
-// so the gap between good and bad placement is large — while banking's case rests
+// the fixed-offset control lands a chip on an ordinary week **83% of the time**
+// pooled, 83/92/67 by chip, measured in
+// `stats/findings/2026-08-17-chip-placement-census.md` — while banking's case rests
 // on the reserved-exit and forced-move arguments, both unmeasured, in a harness
 // this record says has no configuration where banking acts for a reason
 // attributable to banking. A master switch would make that end state
@@ -146,9 +147,12 @@ func TestTheOptionBlockSitsBetweenTheFixtureRunsAndTheDose(t *testing.T) {
 	want := []string{
 		"ftv_weeks", "ftv_priced_weeks", "ftv_gate_calls", "ftv_flips",
 		"ftv_mean_charge", "ftv_mean_load",
-		"wc_trig_weeks", "wc_trig_weighed", "wc_trig_gw", "wc_trig_value", "wc_trig_bar",
-		"bb_trig_weeks", "bb_trig_weighed", "bb_trig_gw", "bb_trig_value", "bb_trig_bar",
-		"fh_trig_weeks", "fh_trig_weighed", "fh_trig_gw", "fh_trig_value", "fh_trig_bar",
+		"wc_trig_offered", "wc_trig_weeks", "wc_trig_weighed", "wc_trig_gw",
+		"wc_trig_value", "wc_trig_bar",
+		"bb_trig_offered", "bb_trig_weeks", "bb_trig_weighed", "bb_trig_gw",
+		"bb_trig_value", "bb_trig_bar",
+		"fh_trig_offered", "fh_trig_weeks", "fh_trig_weighed", "fh_trig_gw",
+		"fh_trig_value", "fh_trig_bar",
 		"prep_weeks", "prep_credit_weeks", "prep_bench_sum", "prep_captain_sum",
 	}
 	if optionCols != len(want) {
@@ -235,16 +239,23 @@ func TestTheOptionFunnelsNest(t *testing.T) {
 		{"flips beyond weeks is fine", cellRow{
 			TransferHold: TransferHoldMediator{ConsultedWeeks: 3, GateCalls: 9, Flips: 5}}, false},
 		{"weighed beyond consulted", cellRow{
-			WildcardTrig: ChipTriggerMediator{ConsultedWeeks: 2, WeighedWeeks: 3}}, true},
+			WildcardTrig: ChipTriggerMediator{OfferedWeeks: 3, ConsultedWeeks: 2,
+				WeighedWeeks: 3}}, true},
+		{"consulted beyond offered", cellRow{
+			WildcardTrig: ChipTriggerMediator{OfferedWeeks: 1, ConsultedWeeks: 2}}, true},
+		{"offered with nothing consulted is fine", cellRow{
+			WildcardTrig: ChipTriggerMediator{OfferedWeeks: 37}}, false},
 		{"fired without weighing", cellRow{
-			WildcardTrig: ChipTriggerMediator{ConsultedWeeks: 2, WeighedWeeks: 0, FiredGW: 7}}, true},
+			WildcardTrig: ChipTriggerMediator{OfferedWeeks: 2, ConsultedWeeks: 2,
+				WeighedWeeks: 0, FiredGW: 7}}, true},
 		{"credit beyond consulted", cellRow{
 			ChipPrep: ChipPrepMediator{ConsultedWeeks: 1, CreditWeeks: 2}}, true},
 		{"an ordinary row", cellRow{
 			TransferHold: TransferHoldMediator{ConsultedWeeks: 30, PricedWeeks: 30,
 				GateCalls: 61, Flips: 4},
-			WildcardTrig: ChipTriggerMediator{ConsultedWeeks: 30, WeighedWeeks: 30, FiredGW: 12},
-			ChipPrep:     ChipPrepMediator{ConsultedWeeks: 30, CreditWeeks: 5}}, false},
+			WildcardTrig: ChipTriggerMediator{OfferedWeeks: 30, ConsultedWeeks: 30,
+				WeighedWeeks: 30, FiredGW: 12},
+			ChipPrep: ChipPrepMediator{ConsultedWeeks: 30, CreditWeeks: 5}}, false},
 	} {
 		if got := optionFunnelBroken(c.row); got != c.bad {
 			t.Errorf("%s: broken=%v, want %v", c.name, got, c.bad)
@@ -265,6 +276,9 @@ func optionFunnelBroken(r cellRow) bool {
 		return true
 	}
 	for _, m := range []ChipTriggerMediator{r.WildcardTrig, r.BenchBoostTrig, r.FreeHitTrig} {
+		if m.ConsultedWeeks > m.OfferedWeeks {
+			return true
+		}
 		if m.WeighedWeeks > m.ConsultedWeeks {
 			return true
 		}
@@ -316,6 +330,63 @@ func TestTheOptionValueCurveHasTheShapeItClaims(t *testing.T) {
 	if got := analysis.CongestionFactor(0, 4); got != 0 {
 		t.Errorf("congestion at a total blank with sensitivity 4 is %v, want 0 — "+
 			"floored, not negative", got)
+	}
+}
+
+// TestTheCurveIsMeanPreservingAcrossTheHalfLifeLadder is invariant 4: a taper arm
+// must be a SHAPE contrast, not a level cut wearing a schedule.
+//
+// # What it refuses, and the number it refuses
+//
+// `OptionDecay` is monotone decreasing and bounded by 1, so **no half-life
+// reproduces the flat constant** — the un-normalised mean over a season is 0.62 at
+// the shipped half-life and slides from 0.78 to 0.35 across a 3-to-30 ladder. Every
+// rung would therefore move the AVERAGE charge by up to a factor of 2.3, and the
+// flat level has never been varied in any banked sweep — so the level is the
+// untested prior question and a taper arm run this way would be confounded with it.
+//
+// Normalising by the season mean fixes it. This is what fails if the normaliser is
+// ever removed as a "simplification": the arms would still run, the mediators would
+// still populate, and every figure would silently be a level result.
+//
+// ⚠️ **It is exact only over the option's whole window.** A late-entry cell decides
+// in a sub-window where the normalised curve still averages below 1, so a residual
+// remains and is entry-point dependent — the reason an arm on this is read against
+// the entry gameweek rather than pooled. Asserted here on the whole window, which is
+// what the normaliser is defined over.
+func TestTheCurveIsMeanPreservingAcrossTheHalfLifeLadder(t *testing.T) {
+	w := analysis.TransferExpiry()
+	for _, h := range []float64{3, 5, 8, 16, 30} {
+		p := analysis.OptionPricing{HalfLife: h}
+		sum := 0.0
+		for gw := 1; gw <= w.Expiry; gw++ {
+			// Load pinned at 1.0 — an ordinary run — so this measures the DECAY
+			// half alone. The congestion half is already mean-1 by construction on
+			// a full season, since every club plays 38 matches in 38 gameweeks.
+			sum += analysis.TransferHoldFactor(w, gw, 1, p)
+		}
+		mean := sum / float64(w.Expiry)
+		if mean < 0.999 || mean > 1.001 {
+			t.Errorf("at half-life %v the factor averages %.4f over the season, "+
+				"want 1.\n\n"+
+				"An un-normalised curve averages 0.62 at h=8 and slides 0.78 to "+
+				"0.35 across a 3-to-30 ladder, so every rung would move the mean "+
+				"charge by up to 2.3x and a taper arm would be confounded with a "+
+				"level the project has never swept. See analysis.MeanOptionDecay.",
+				h, mean)
+		}
+	}
+	// And the boundary survives normalising: exactly zero in the last week, which
+	// is the one thing the model is confident about.
+	if got := analysis.TransferHoldFactor(w, w.Expiry, 1, analysis.OptionPricing{}); got != 0 {
+		t.Errorf("the charge at GW%d is %v, want exactly 0", w.Expiry, got)
+	}
+	// The factor must exceed 1 early. That is not incidental — it is what mean
+	// preservation means, and a curve that only ever fell would be a discount with
+	// a schedule attached.
+	if got := analysis.TransferHoldFactor(w, 1, 1, analysis.OptionPricing{}); got <= 1 {
+		t.Errorf("the charge factor at GW1 is %v, want above 1 — holding is worth "+
+			"more early, and the mean is held by the late weeks paying it back", got)
 	}
 }
 
@@ -454,16 +525,29 @@ func TestTheDoseWindowsAreTheOnesTheyClaim(t *testing.T) {
 	if got.ActBlanks != 3+8 {
 		t.Errorf("actionable blanks are %d, want %d", got.ActBlanks, 3+8)
 	}
-	// The opening squad is built on a 5-gameweek horizon from GW3, so GW4 to GW8
-	// were already visible to it. What is left for the transfer policy is GW9
-	// onward.
+	// The opening engine's window is [start, start+H-1], so at start 3 and H 5 it
+	// sees GW3 to GW7 and the first UNSEEN week is GW8.
+	//
+	// This asserted GW4-GW8 visible, which enshrined an off-by-one in `doseOver`:
+	// both were wrong the same way, so the test passed while the column was short
+	// by one week. With 92% of doubles after GW19 the dropped week is a late week
+	// for the later entries, so the error was systematic and of fixed sign. Found
+	// in review.
 	if got.LateDoubles != 6 {
-		t.Errorf("late doubles are %d, want 6 — the window is [start+H+1, 38] and "+
+		t.Errorf("late doubles are %d, want 6 — the window is [start+H, 38] and "+
 			"GW4 and GW6 were priced by the opening squad's own horizon",
 			got.LateDoubles)
 	}
 	if got.LateBlanks != 8 {
 		t.Errorf("late blanks are %d, want 8", got.LateBlanks)
+	}
+	// The boundary itself, asserted directly rather than left to the sums above:
+	// a double in start+H is LATE and one in start+H-1 is not.
+	boundary := doseOver(map[int]int{7: 1, 8: 1}, nil, 3, 5)
+	if boundary.LateDoubles != 1 {
+		t.Errorf("the late window took %d of {GW7, GW8} at start 3, horizon 5; "+
+			"want exactly GW8 — GW7 is the last week the opening engine saw",
+			boundary.LateDoubles)
 	}
 	// Late is always a subset of actionable, which is the invariant a reader
 	// checks a banked row against.
@@ -487,10 +571,14 @@ func TestTheCellWriterEmitsEveryNewColumn(t *testing.T) {
 		TransferHold: TransferHoldMediator{
 			ConsultedWeeks: 37, PricedWeeks: 37, GateCalls: 51, Flips: 6,
 			ChargeSum: 37, LoadSum: 37},
-		WildcardTrig: ChipTriggerMediator{ConsultedWeeks: 9, WeighedWeeks: 9,
-			FiredGW: 12, FiredValue: 16, FiredBar: 8},
-		BenchBoostTrig: ChipTriggerMediator{ConsultedWeeks: 20, WeighedWeeks: 18},
-		FreeHitTrig:    ChipTriggerMediator{ConsultedWeeks: 20, WeighedWeeks: 20},
+		WildcardTrig: ChipTriggerMediator{OfferedWeeks: 12, ConsultedWeeks: 9,
+			WeighedWeeks: 9, FiredGW: 12, FiredValue: 16, FiredBar: 8},
+		BenchBoostTrig: ChipTriggerMediator{OfferedWeeks: 22, ConsultedWeeks: 20,
+			WeighedWeeks: 18},
+		// The blocked reading: offered all season, never consulted, because a plan
+		// owns the chip. An all-zero funnel here would be indistinguishable from
+		// the lever being off, which is what the offered column exists for.
+		FreeHitTrig: ChipTriggerMediator{OfferedWeeks: 37},
 		ChipPrep: ChipPrepMediator{ConsultedWeeks: 37, CreditWeeks: 4,
 			BenchSum: 0.8, CaptainSum: 0.4},
 		HasDose:    true,
@@ -504,10 +592,12 @@ func TestTheCellWriterEmitsEveryNewColumn(t *testing.T) {
 		{"ftv_weeks", "37"}, {"ftv_priced_weeks", "37"},
 		{"ftv_gate_calls", "51"}, {"ftv_flips", "6"},
 		{"ftv_mean_charge", "1"}, {"ftv_mean_load", "1"},
-		{"wc_trig_weeks", "9"}, {"wc_trig_weighed", "9"}, {"wc_trig_gw", "12"},
-		{"wc_trig_value", "16"}, {"wc_trig_bar", "8"},
-		{"bb_trig_weeks", "20"}, {"bb_trig_weighed", "18"}, {"bb_trig_gw", ""},
-		{"fh_trig_weeks", "20"}, {"fh_trig_weighed", "20"}, {"fh_trig_gw", ""},
+		{"wc_trig_offered", "12"}, {"wc_trig_weeks", "9"}, {"wc_trig_weighed", "9"},
+		{"wc_trig_gw", "12"}, {"wc_trig_value", "16"}, {"wc_trig_bar", "8"},
+		{"bb_trig_offered", "22"}, {"bb_trig_weeks", "20"},
+		{"bb_trig_weighed", "18"}, {"bb_trig_gw", ""},
+		{"fh_trig_offered", "37"}, {"fh_trig_weeks", "0"},
+		{"fh_trig_weighed", "0"}, {"fh_trig_gw", ""},
 		{"prep_weeks", "37"}, {"prep_credit_weeks", "4"},
 		{"prep_bench_sum", "0.8"}, {"prep_captain_sum", "0.4"},
 		{"dose_act_doubles", "31"}, {"dose_act_blanks", "22"},

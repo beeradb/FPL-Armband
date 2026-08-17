@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"armband/internal/analysis"
 	"armband/internal/config"
 	"armband/internal/fpl"
 )
@@ -252,7 +253,14 @@ half an answer.
 		"    clears it is a reason to roll the transfer, not to make it.\n", cfg.Review.FreeTransferValue)
 	fmt.Fprintf(&b, "  - Minimum net gain across the horizon to justify a -4 hit: %.2f pts\n", cfg.Review.MinGainForHit)
 	fmt.Fprintf(&b, "  - Bank free transfers up to: %d before spending without a specific reason\n", cfg.Review.BankUpTo)
-	fmt.Fprintf(&b, "  - Maximum hits per week: %d\n", cfg.Review.MaxHitsPerWeek)
+	// The EFFECTIVE cap, not the raw setting. `analysis.MoveLimit` clamps the hit
+	// allowance to the ceiling, so at `max_hits_per_week: 2` with the shipped
+	// ceiling of 1 every solver enforces 1 while this line said 2 — the agent
+	// reasoning inside a policy no code implements. That configuration was
+	// unreachable while the ceiling was a hard-coded 1 and is a legitimate one now,
+	// which is what makes it worth stating correctly.
+	fmt.Fprintf(&b, "  - Maximum hits per week: %d\n",
+		analysis.MoveLimit(0, cfg.Review.MaxHitsPerWeek, 0, cfg.Review.HitCeiling))
 
 	overrideGW := 1
 	if next := boot.NextEvent(); next != nil {

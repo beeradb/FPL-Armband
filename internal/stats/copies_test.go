@@ -398,19 +398,22 @@ func TestTheCopiedExpressionsHaveOneImplementation(t *testing.T) {
 		sanctioned: map[string]sanction{
 			"internal/analysis/optionvalue.go": {1,
 				"OptionDecay itself, which is where the curve lives."},
-			// The six live shrinkage weights. They are the same ALGEBRA and a
+			// The seven live shrinkage weights. They are the same ALGEBRA and a
 			// different QUANTITY: a shrinkage weight puts EVIDENCE against a
 			// prior, where the option curve puts remaining TIME against a
 			// half-life. Neither would ever be tuned by looking at the other, so
 			// folding them together would be a pun rather than a deduplication.
 			//
 			// ⚠️ Listing them is what makes this row a tripwire rather than
-			// noise: with six known occupants accounted for, a SEVENTH anywhere
-			// fails, and that seventh is the copy this row exists to catch.
+			// noise: with seven known occupants accounted for, an EIGHTH anywhere
+			// fails, and that eighth is the copy this row exists to catch.
+			// (4 + 1 + 2 = 7. An earlier draft of these two lines said six and
+			// seventh, which is the count a reader would check the row against.)
 			"internal/analysis/blend.go": {4, "" +
-				"the rate blend's own weight, four times: the shrink-to-league arm, the recency-weighted " +
-				"arm, the flat arm and the assembled result. All three are " +
-				"n90/(n90+k) on BlendRateK, which is evidence against a prior."},
+				"the rate blend's own weight, four times: the shrink-to-league " +
+				"arm on n, and the recency-weighted arm, the flat arm and the " +
+				"assembled result on n90. All four weigh EVIDENCE against a " +
+				"prior, on BlendRateK or LeagueShrinkK."},
 			"internal/analysis/metrics.go": {1,
 				"the same blend weight, clamped, on the metrics path."},
 			"internal/analysis/teamstrength.go": {2, "" +

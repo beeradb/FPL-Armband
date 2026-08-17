@@ -39,14 +39,22 @@ func oneWeekEngine(b *fpl.Bootstrap, fx []fpl.Fixture, w analysis.Weights,
 // so does the free-transfer taper in `decide`. None implies another and none is
 // gated on a block-level bool. That is not tidiness: the likely end state has
 // **chip placement on and banking off**, because the placement mechanism is close
-// to arithmetic — the census measured the fixed-offset control landing a chip on
-// an ordinary week about 78% of the time, so the gap between good and bad
-// placement is large — while banking's case rests on the reserved-exit and
-// forced-move arguments, both unmeasured, in a harness this record says has **no
-// configuration in which banking acts for a reason attributable to banking**. A
-// future default that moves one lever and not the others is only expressible if
-// the switches are independent, and a sweep that isolates one is only possible for
-// the same reason.
+// to arithmetic while banking's case rests on the reserved-exit and forced-move
+// arguments, both unmeasured, in a harness this record says has **no configuration
+// in which banking acts for a reason attributable to banking**. A future default
+// that moves one lever and not the others is only expressible if the switches are
+// independent, and a sweep that isolates one is only possible for the same reason.
+//
+// ⚠️ **The placement figure behind that sentence was ASSERTED and is now measured,
+// and it was wrong.** An earlier draft said the fixed-offset control lands a chip
+// on an ordinary week "about 78% of the time" with nothing having been run. The
+// census, four seasons at six entry points, gives **83% pooled** over the three
+// chips it places — and by chip **83% / 92% / 67%**, a spread this record would
+// call a separate finding. `stats/findings/2026-08-17-chip-placement-census.md`.
+// ⚠️ It is a **floor on how often the control is badly placed**, not an estimate
+// of what better placement pays: "on the feature" asks only whether the round
+// carries any doubling or blanking club, and the recorded verdict on calendar
+// anchoring is still a clean null with an MDE of 34-37 per season-path.
 //
 // Everything still ships OFF. `TestTheOptionValueLeversAreIndependent` fails if a
 // lever starts implying another.
@@ -156,6 +164,13 @@ func (t *chipTriggers) eligible(k chipSlot, gw int, on bool) bool {
 	if t == nil || !on {
 		return false
 	}
+	// Counted BEFORE every guard below, which is the whole point of the column:
+	// `ConsultedWeeks == 0` is also what a lever that ran and was blocked all
+	// season looks like, and a plan owning the chip blocks it all season. See
+	// ChipTriggerMediator.OfferedWeeks.
+	if m := t.med[k]; m != nil {
+		m.OfferedWeeks++
+	}
 	if t.fired[k] != 0 {
 		return false
 	}
@@ -239,11 +254,19 @@ func triggerWindow(season string, gw int) analysis.OptionWindow {
 //
 // ⚠️ **That did not rescue it. Measured 2026-08-17, the trigger still fires in the
 // cell's second week in 8 of 8 cells** at the shipped reservation, over four
-// seasons and two entry points (`TestDiagWildcardTrigger`). The magnitude it
-// measures is **model churn, not squad decay**: one gameweek after the fifteen is
-// bought at the model's own optimum, that optimum has moved by five to nine
-// players, so the cost reads 20 to 36 points in exactly the week the model knows
-// least. The recorded closure of the wildcard-trigger line stands.
+// seasons and two entry points (`TestDiagWildcardTrigger`). Costs are 20/36/24/32
+// points at a GW1 entry and 12/12/12/4 at GW16 — points, and `free` is 2 at the
+// firing week, so `cost/4 + 2` puts the implied player changes at 7/11/8/10 and
+// 5/5/5/3. The recorded closure of the wildcard-trigger line stands.
+//
+// ⚠️ **WHY it fires is a hypothesis this diagnostic cannot settle.** Churn (a rate:
+// the model has just re-scored everyone) and a standing held-versus-fresh gap (a
+// level: any constrained fifteen sits some distance from an unconstrained argmax)
+// both predict firing in week two, and the rule fires once and stops, so the cost is
+// never observed as a series on a fixed squad. The level reading is the better
+// supported — the GW16 cells fire with fifteen gameweeks behind them, and the one
+// arm that sees the cost twice reads flat-to-rising — and it is what the prescription
+// below assumes.
 //
 // ⚠️ **Do not raise the reservation to compensate** — at 20 it still fires within
 // four weeks, because the cost being measured does not fall. What the mechanism
@@ -286,6 +309,34 @@ func repairCost(e *analysis.Engine, cur *Season, wal *wallet, held []int, gw, fr
 		hits = 0
 	}
 	return HitCost * float64(hits), true
+}
+
+// squadBlanks reports whether any club the squad holds plays no match in this
+// gameweek.
+//
+// The free-hit rule's pre-filter. It is a **necessary condition** rather than a
+// heuristic: the chip fields a temporary fifteen for one round and hands the
+// permanent squad straight back, so its entire value is having players who play
+// where the held squad's do not. In a round where every owned club has a fixture,
+// no rebuild can be worth a chip — the held squad is already eleven playing
+// footballers, and a marginally better eleven is what ordinary transfers are for.
+//
+// It exists for cost. `freeHitValue` runs a full `Optimize`, the expensive call in
+// this package, and the free-hit rule never becomes ineligible on its own — so
+// without this the lever pays for roughly 37 rebuilds a cell. Read off
+// `fixtureLoadAfter` at the club level, which is the same fixture-count machinery
+// the scoring path uses, so it inherits the anchor fix that made a blank
+// expressible at all.
+//
+// ⚠️ **It skips the REBUILD, not the reading**, so a filtered week is not counted
+// as weighed and the mediator's `consulted > weighed` gap says how often this
+// fired. Reporting a filtered week as weighed-and-refused would claim a reading
+// nobody computed.
+// It delegates to `analysis.Engine.SquadHasABlank` rather than counting fixtures
+// here: which round is imminent is the engine's own idea, and a second one in this
+// package would disagree with it the first time a skip set was set.
+func squadBlanks(e *analysis.Engine, held []int) bool {
+	return e.SquadHasABlank(held)
 }
 
 // benchBoostValue is what playing the boost this gameweek is worth by the model's
@@ -340,6 +391,17 @@ func benchBoostValue(e *analysis.Engine, bench []int) (float64, bool) {
 // fifteens the manager might field, and it is NOT a points prediction: it
 // over-states a week by roughly one captain. Both sides carry it, so the
 // difference is unaffected; a level read off this would not be.
+//
+// ⚠️ **The default bar of 16 is inherited from the bench boost across a DIFFERENT
+// QUANTITY, and whether it lies in a live region is unknown.** `benchBoostValue`
+// sums four benched players' `Score` — a bounded thing, roughly 8 to 14 — while
+// this is a fresh argmax over the whole pool less the held squad, which is the same
+// held-versus-fresh gap the wildcard diagnostic found dominating the repair cost.
+// There is no reason the two live on one scale, and "carrying 16 across keeps the
+// level constant so the change under test is the SHAPE" holds for the bench boost
+// and **not** for this. `fh_trig_weighed` and `fh_trig_value` answer it the first
+// time the lever runs: a bar far below the readings fires in week one, one far
+// above never fires, and the mediator says which happened.
 //
 // `ok` is false when the temporary squad cannot be built, for the reason
 // `freeHitSquad`'s own caller documents: a swallowed build failure makes a chip

@@ -892,6 +892,26 @@ type FixtureBrief struct {
 // a club playing both reads 1.0 rather than 0.4. At horizon 1 — the shipped
 // scoring path — it is always 1.
 func (e *Engine) fixtureLoadFor(teamID, horizon int) float64 {
+	return e.fixtureLoadAfter(teamID, horizon, 0)
+}
+
+// fixtureLoadAfter is fixtureLoadFor over a window that starts strictly after
+// gameweek `after`, which is what a HOLDING question needs.
+//
+// `after` of 0 is fixtureLoadFor exactly, and every scoring caller passes it —
+// scoring asks what the club plays in the rounds ahead INCLUDING the imminent one,
+// because that is the football being scored.
+//
+// Option value asks the opposite: what a held option insures against is the run it
+// might be spent into, which begins next week. `OptionWindow.Remaining` already
+// excludes the current gameweek for that reason, and a congestion factor that
+// included it disagreed with the decay inside the same product — so for a chip,
+// the very double the chip was being played for raised the bar it had to clear.
+//
+// Parameterised rather than copied. A second density function would be one
+// quantity with two implementations at the smallest scale, which is the scale this
+// project's copies actually appear at.
+func (e *Engine) fixtureLoadAfter(teamID, horizon, after int) float64 {
 	all := e.byTeamUpcoming[teamID]
 	if len(all) == 0 {
 		// No remaining fixtures at all is *unknown*, not a blank, and the two
@@ -899,7 +919,7 @@ func (e *Engine) fixtureLoadFor(teamID, horizon int) float64 {
 		return 1
 	}
 	skip := e.skipSet()
-	first, last, weeks := e.loadWindow(horizon, skip)
+	first, last, weeks := e.loadWindow(horizon, skip, after)
 	if weeks == 0 {
 		return 1
 	}
@@ -927,12 +947,14 @@ func (e *Engine) fixtureLoadFor(teamID, horizon int) float64 {
 //
 // `weeks` is 0 when the season has no rounds left, which callers read as
 // "unknown" for the same reason an empty fixture list is.
-func (e *Engine) loadWindow(horizon int, skip map[int]bool) (first, last, weeks int) {
+func (e *Engine) loadWindow(horizon int, skip map[int]bool, after int) (first, last, weeks int) {
 	if horizon < 1 {
 		horizon = 1
 	}
 	for _, gw := range e.upcomingGWs {
-		if skip[gw] {
+		// `after` of 0 admits everything, since gameweeks start at 1 — so the
+		// scoring callers are unchanged and this cannot alter a scored number.
+		if skip[gw] || gw <= after {
 			continue
 		}
 		if weeks == 0 {
@@ -973,7 +995,7 @@ func (e *Engine) skipSet() map[int]bool {
 // different facts and only the first is a blank.
 func (e *Engine) ElementsWithoutFixtures() []int {
 	skip := e.skipSet()
-	first, last, weeks := e.loadWindow(e.Weights.Horizon, skip)
+	first, last, weeks := e.loadWindow(e.Weights.Horizon, skip, 0)
 	if weeks == 0 {
 		return nil
 	}

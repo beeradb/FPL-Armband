@@ -1057,7 +1057,19 @@ func (t *Toolbox) suggestTransfersFor(ctx context.Context, in suggestTransfersIn
 	// churned — twelve round-trips, players sold and bought back weeks
 	// later — and charging for the move removed them. See
 	// config.Review.FreeTransferValue for why the charge is not 4.
-	freeCost := t.Cfg.Review.FreeTransferValue
+	//
+	// Tapered when `option_value.taper_free_transfer_value` is on: the charge
+	// then falls with the season's remaining life and rises into a congested run.
+	// Through config.OptionValuePolicy.FreeTransferCharge, which delegates to the
+	// same analysis.TransferHoldFactorFor the replay's `decide` calls — so this
+	// tool, the live banking rule and the replayed policy cannot disagree about
+	// what a transfer costs. A no-op returning exactly 1 when the lever is off.
+	chargeGW := 1
+	if ev := t.Engine.Boot.NextEvent(); ev != nil {
+		chargeGW = ev.ID
+	}
+	freeCost := t.Cfg.OptionValue.FreeTransferCharge(
+		t.Cfg.Review.FreeTransferValue, t.Engine, squadIDs, chargeGW)
 
 	type swap struct {
 		Out          playerRow `json:"out"`

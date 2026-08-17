@@ -117,7 +117,7 @@ type censusRow struct {
 
 	// The same window narrowed again, to what falls BEYOND the opening squad's
 	// own horizon — the dose the transfer policy can actually add, since
-	// everything inside [start+1, start+H] was already visible to the squad
+	// everything inside [start+1, start+H-1] was already visible to the squad
 	// build. Both pairs come from `DoseFor`, which the cells file's `dose_*`
 	// columns also read, so the census checks the shipped quantity rather than
 	// restating it.
@@ -256,7 +256,7 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 	fmt.Printf("this is the dose to weight or regress on: a double in the entry week cannot\n")
 	fmt.Printf("be transferred into, because the opening fifteen is chosen at that deadline.\n")
 	fmt.Printf("anch-D/anch-B are the same window at or above minAnchorClubs — the chip axis.\n")
-	fmt.Printf("late-D/late-B narrow the actionable window again, to [start+H+1, 38] —\n")
+	fmt.Printf("late-D/late-B narrow the actionable window again, to [start+H, 38] —\n")
 	fmt.Printf("what falls BEYOND the opening squad's own horizon, which is the dose the\n")
 	fmt.Printf("transfer policy can add rather than inherit. act-* and late-* both come\n")
 	fmt.Printf("from DoseFor, the same function the cells file's dose_* columns read.\n")

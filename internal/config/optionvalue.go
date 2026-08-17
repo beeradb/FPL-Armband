@@ -59,14 +59,22 @@ type OptionValuePolicy struct {
 	// ⚠️ **IT IS NOT, AND THE FALSIFIER FIRED.** Measured 2026-08-17 by
 	// `TestDiagWildcardTrigger`, four seasons at entry GW1 and GW16: at this bar
 	// the rule fires in the cell's **second week in 8 of 8 cells**, weighing
-	// exactly one week in seven of them. Raising the reservation to 20 delays it by
-	// one to three weeks on the GW16 cells and not at all on the GW1 cells.
+	// exactly one week in **8 of 8**. Raising the reservation to 20 delays it by one
+	// to three weeks on the GW16 cells and not at all on the GW1 cells.
 	//
-	// The magnitude is real and it is **model churn rather than squad decay**: one
-	// gameweek after the fifteen is bought at the model's own optimum, that optimum
-	// has moved by five to nine players, so the repair cost reads 20 to 36 points
-	// in exactly the week the model knows least. **The closure stands unaltered**,
-	// and this lever ships off and should stay off.
+	// The costs are **20/36/24/32 points at a GW1 entry** and **12/12/12/4 at GW16**
+	// — points, not players. `free` is 2 at the firing week, so the implied number
+	// of players the model would replace is `cost/4 + 2`: 7, 11, 8, 10 and 5, 5, 5,
+	// 3. **The closure stands unaltered**, and this lever ships off and stays off.
+	//
+	// ⚠️ **The MECHANISM is a hypothesis and the diagnostic cannot establish it.**
+	// Two readings fit: *churn*, a rate — the model has just re-scored everyone and
+	// the optimum has moved — and a *standing gap*, a level — any held fifteen sits
+	// some distance from a fresh unconstrained argmax, at every cutoff. Both predict
+	// firing in week two, and the rule fires once and stops, so the cost is never
+	// seen as a series on a fixed squad. What evidence there is favours the level:
+	// the GW16 cells fire with fifteen gameweeks of data behind them, and the only
+	// arm that observes the cost twice reads 12 → 16 and 12 → 24, flat-to-rising.
 	//
 	// It is kept, rather than deleted, because a refuted lever with a diagnostic
 	// beside it is what stops the argument being rebuilt — and because the rule the
@@ -171,11 +179,67 @@ func DefaultOptionValuePolicy() OptionValuePolicy {
 
 // Any reports whether any lever in the block is on.
 //
-// Used where a caller wants to skip the whole apparatus rather than ask four
-// questions — and, more importantly, where a mediator needs to distinguish "the
-// block was off" from "the block ran and nothing fired". Those license opposite
-// conclusions and a zero count pools them.
+// ⚠️ **It must never GATE a lever.** The four switches are independent by design —
+// see the type comment — so a caller that asked this before running one would
+// re-introduce the master switch the design refuses. Its callers are reporting: a
+// command that cannot honour a lever says so, which is the point below.
 func (p OptionValuePolicy) Any() bool {
 	return p.TaperFreeTransferValue || p.Wildcard.Enabled ||
 		p.BenchBoost.Enabled || p.FreeHit.Enabled
+}
+
+// ChipTriggersOn lists the chip state rules that are switched on, by name.
+//
+// It exists so a command with no chip-decision surface can say WHICH lever it is
+// unable to honour rather than going quiet. A user who writes
+// `"option_value": {"wildcard": {"enabled": true}}` and runs a live command must
+// not get the shipped behaviour and silence — that is the byte-identical null this
+// whole block is about, arriving through the feature written to price it.
+func (p OptionValuePolicy) ChipTriggersOn() []string {
+	var out []string
+	for _, c := range []struct {
+		name string
+		t    ChipTrigger
+	}{
+		{"wildcard", p.Wildcard},
+		{"bench_boost", p.BenchBoost},
+		{"free_hit", p.FreeHit},
+	} {
+		if c.t.Enabled {
+			out = append(out, c.name)
+		}
+	}
+	return out
+}
+
+// ChargeFactor is what a free transfer's charge is multiplied by in this
+// gameweek, or 1 when the taper is off.
+//
+// ⚠️ **The arithmetic is not here.** This resolves the SWITCH and delegates to
+// `analysis.TransferHoldFactorFor`, which is the one implementation the replay
+// also calls — so the live recommendation and the replayed policy cannot disagree
+// about what a transfer costs, exactly as they already cannot disagree about what
+// a package is worth (`analysis.BestPackageValue`) or which way a tie goes
+// (`analysis.PreferWaiting`).
+//
+// `held` is the squad the charge is being read for; an empty one gives an
+// ordinary-run load and therefore the decay alone.
+func (p OptionValuePolicy) ChargeFactor(e *analysis.Engine, held []int, gw int) float64 {
+	if !p.TaperFreeTransferValue || e == nil {
+		return 1
+	}
+	return e.TransferHoldFactorFor(held, gw, p.Pricing)
+}
+
+// FreeTransferCharge is `base` scaled by ChargeFactor: what one free transfer is
+// charged in this gameweek.
+//
+// Named so the three live consumers read the same sentence rather than each
+// multiplying by hand. `base` is `Review.FreeTransferValue`, kept a parameter
+// because the two constants live in different blocks and a method reaching across
+// to fetch it would hide which one moved.
+func (p OptionValuePolicy) FreeTransferCharge(base float64, e *analysis.Engine,
+	held []int, gw int) float64 {
+
+	return base * p.ChargeFactor(e, held, gw)
 }

@@ -313,6 +313,13 @@ func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Clie
 		return analysis.BuildPlans(st, pool, e.WeekEngine(), bank, limit, 5)
 	}
 
+	// A lever this command cannot honour says so rather than going quiet. See
+	// noteUnhonouredLevers: the taper reaches every live consumer, the three chip
+	// state rules reach none, and a setting that silently means nothing is
+	// indistinguishable from one that means what it says.
+	if n := noteUnhonouredLevers(cfg.OptionValue); n != "" {
+		notes2 = append(notes2, n)
+	}
 	b := &transferBoard{
 		Bank: bank, GW: gw, Free: free,
 		Value: picks.EntryHistory.Value, Notes: append(notes, notes2...),
@@ -437,8 +444,21 @@ func adviseBanking(cfg config.Config, e *analysis.Engine, state analysis.SquadSt
 			packages = append(packages,
 				analysis.TransferPackage{Gain: p.GainPerGW, Moves: p.Transfers})
 		}
+		// The charge, tapered when the lever is on. Through
+		// config.OptionValuePolicy.FreeTransferCharge, which resolves the switch
+		// and delegates to analysis.TransferHoldFactorFor — the same call the
+		// replay's `decide` makes — so the live recommendation and the replayed
+		// policy cannot disagree about what a transfer costs, exactly as they
+		// already cannot disagree about what a package is worth.
+		//
+		// ⚠️ Priced at `atGW`, so the later arm gets NEXT week's charge rather
+		// than this week's. That is the asymmetry the replay's shouldBank names
+		// and does not correct; here the arms are already valued at their own
+		// gameweeks, so charging them at their own gameweeks costs nothing.
+		charge := cfg.OptionValue.FreeTransferCharge(
+			cfg.Review.FreeTransferValue, e, heldIDs(state), atGW)
 		return analysis.BestPackageValue(packages, over,
-			cfg.Review.FreeTransferValue, cfg.Review.MinGainForTransfer)
+			charge, cfg.Review.MinGainForTransfer)
 	}
 	now := value(liveMoveLimit(cfg, free), gw, horizon)
 	later := value(liveMoveLimit(cfg, free+1), gw+1, horizon-1)
@@ -516,4 +536,18 @@ func movesLine(p analysis.Plan) string {
 		s += fmt.Sprintf("%s → %s", m.Out.Name, m.In.Name)
 	}
 	return s
+}
+
+// heldIDs is the element ids of a squad state, for the congestion read.
+//
+// `SquadState` carries `Players` and an `Owned` set, and neither is a slice of
+// ids — the search never needed one. Ranging `Owned` would be a map walk, which
+// this package has already made an optimiser non-deterministic once; `Players` is
+// ordered, so it is the side to read.
+func heldIDs(st analysis.SquadState) []int {
+	out := make([]int, 0, len(st.Players))
+	for _, p := range st.Players {
+		out = append(out, p.ID)
+	}
+	return out
 }

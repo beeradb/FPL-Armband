@@ -24,28 +24,56 @@ package backtest
 //
 // That was an argument. **It is refuted. The trigger still fires immediately.**
 //
-// Run 2026-08-17 on four seasons at entry GW1 and GW16, reservations 0/4/8/12/20:
-// at the shipped reservation of 12 it fires in the cell's SECOND week in **8 of 8
-// cells** — GW2 from a GW1 entry, GW17 from a GW16 entry — with repair costs of
-// 20/36/24/32 points at GW1 and 12/12/12/4 at GW16. It weighed exactly one week in
-// seven of the eight, because it fires the first time it is asked. Only the
+// Run 2026-08-17 on four seasons at entry GW1 and GW16, reservations 0/4/8/12/20.
+// At the shipped reservation of 12 it fires in the cell's SECOND week in **8 of 8
+// cells** — GW2 from a GW1 entry, GW17 from a GW16 entry — and **weighed exactly
+// one week in 8 of 8**, because it fires the first time it is asked. Only the
 // reservation of 20 moves anything, and only on the GW16 cells, by one to three
 // weeks.
 //
-// **So the closure stands, and the reason transports after all.** The repair cost
-// IS a magnitude rather than a move count — that part of the argument was right —
-// but the magnitude it measures is **model churn, not squad decay**. One gameweek
-// after the opening fifteen is bought at the model's own optimum, that optimum has
-// moved by five to nine players, because the engine has re-scored everyone with one
-// more round of data. So the cost is large in exactly the week the record warns
-// about, for exactly the reason it warns about: the model has least information
-// then, and the trigger reads the resulting instability as a broken squad.
+// The repair costs are **20/36/24/32 points at a GW1 entry** and **12/12/12/4 at a
+// GW16 entry**. ⚠️ **Those are POINTS, not player counts.** The cost is
+// `4 x max(0, changes - free)` and `free` is 2 at the firing week — the weekly
+// accrual runs before the search — so the implied number of players the model would
+// replace is `cost/4 + 2`: **7, 11, 8 and 10** at GW1 and **5, 5, 5 and 3** at GW16.
+// An earlier draft quoted "five to nine players", which was the HIT count read as a
+// player count, and quoted the GW1 column as if it were general when the mid-season
+// column is roughly half the size. Both corrected in review.
+//
+// **The closure stands. The mechanism is a HYPOTHESIS and this diagnostic cannot
+// establish it.**
+//
+// The repair cost IS a magnitude rather than a move count — that part of the
+// original argument was right, and it is not what fails. What fails is that the
+// magnitude is large from the first week it is measured, and there are two readings
+// of why:
+//
+//   - **Churn.** The model has just re-scored everyone with one more round of data,
+//     so the optimum has moved a long way from the fifteen bought last week. This is
+//     a RATE, and it predicts the cost falling as the season settles.
+//   - **A standing gap.** Any held fifteen sits some distance from a fresh
+//     unconstrained argmax over the whole pool, because the held squad is a
+//     constrained solution to last week's problem and the argmax is not. This is a
+//     LEVEL, non-zero at every cutoff, and it predicts the cost staying put.
+//
+// ⚠️ **This diagnostic cannot separate them, by construction**: the rule fires on
+// first consultation and then stops, so the cost is never observed as a series on a
+// fixed squad. The only place it is seen twice is the bar-20 arm, and there it goes
+// **12 → 16 over four weeks and 12 → 24 over two** — flat-to-rising, which is the
+// standing-gap signature rather than the churn one. And the GW16 cells fire at GW17
+// with fifteen gameweeks of data behind them, so information poverty cannot be the
+// operative mechanism for half the grid.
+//
+// The reading that survives both is the weaker and sufficient one: **the quantity
+// is dominated by held-versus-fresh distance rather than by squad quality**, which
+// is what the recorded closure says a wildcard trigger must not measure.
 //
 // ⚠️ **Do not "fix" this by raising the reservation.** The 20-point column shows
 // what that buys: the rule still fires within four weeks, because the cost it is
 // measuring does not fall. What would have to change is the QUANTITY — a repair
 // cost measured against a squad the model still endorses, rather than against a
-// fresh argmax over the whole pool. That is a different lever and it is unbuilt.
+// fresh argmax over the whole pool. Note that this is the standing-gap reading
+// written as a prescription, which is why the two must agree.
 //
 // The lever ships off and stays off. This diagnostic remains so the next session
 // re-runs it rather than re-deriving the argument.
@@ -70,8 +98,23 @@ func TestDiagWildcardTrigger(t *testing.T) {
 	}
 	cfg := loadConfig(t)
 	pairs := loadPairs(t, cfg)
+	starts := sweepStarts()
 
 	fmt.Printf("\n=== the wildcard state trigger: does it fire, and when\n")
+	// The grid, stamped rather than described in prose. The recorded result is a
+	// FOUR-season, two-entry-point figure and needs
+	// `FPL_SWEEP_SEASONS=default FPL_SWEEP_STARTS=1,16` — at the shipped default
+	// `sweepPairNames` returns SIX seasons including 2019-20, whose `POLICY` path
+	// is not a sample of the same process (FPL granted unlimited free transfers
+	// before the GW30+ deadline). A reader running this bare would get a different
+	// grid under the same heading, which is how "8 of 8" stops meaning anything.
+	fmt.Printf("%s\n", gridLabel(len(pairs), len(starts)))
+	for _, p := range pairs {
+		if !TransferPathComparable(p.Name) {
+			fmt.Printf("⚠️  %s is in this grid and its transfer path is NOT "+
+				"comparable — read its row as a decision count only.\n", p.Name)
+		}
+	}
 	fmt.Printf("Repair cost is 4 x max(0, changes - free), where `changes` is how many\n")
 	fmt.Printf("of the fifteen the model's own optimum would replace. It is compared\n")
 	fmt.Printf("against a reservation that decays to exactly 0 in the last week the\n")
@@ -93,7 +136,7 @@ func TestDiagWildcardTrigger(t *testing.T) {
 	early := 0
 	total := 0
 	for _, p := range pairs {
-		for _, start := range sweepStarts() {
+		for _, start := range starts {
 			sc := sweepConfig(cfg, start, false)
 			fmt.Printf("%-9s GW%-4d", p.Name, start)
 			for _, b := range bars {
@@ -121,7 +164,8 @@ func TestDiagWildcardTrigger(t *testing.T) {
 		}
 	}
 	fmt.Printf("\nat the shipped reservation of 12: fired in the cell's SECOND week in\n")
-	fmt.Printf("%d of %d cells. That is the recorded defect's signature — a rule that\n", early, total)
+	fmt.Printf("%d of %d cells, on %s.\n", early, total, gridLabel(len(pairs), len(starts)))
+	fmt.Printf("That is the recorded defect's signature — a rule that\n")
 	fmt.Printf("fires immediately is reading transfer scarcity, not squad quality.\n")
 	fmt.Printf("A high count here does NOT reopen the line; it confirms the closure.\n")
 }

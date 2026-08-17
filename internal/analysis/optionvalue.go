@@ -251,7 +251,12 @@ func (p OptionPricing) Horizon() int {
 type OptionValue struct {
 	// Remaining is the gameweeks of exercise window left after this one.
 	Remaining float64
-	// Decay is OptionDecay(Remaining, ...), in [0, 1].
+	// Decay is OptionDecay(Remaining, ...) divided by its own season mean.
+	//
+	// ⚠️ **NOT in [0, 1].** It is exactly 0 at expiry and above 1 early, because it
+	// is normalised to average 1 over the option's whole window — see
+	// MeanOptionDecay. An un-normalised curve would make every taper arm a level
+	// cut as well as a schedule, and every half-life ladder a level ladder.
 	Decay float64
 	// Load is the forward fixture density the congestion factor was read from,
 	// in matches per club per gameweek. 1.0 is an ordinary run.
@@ -265,6 +270,64 @@ type OptionValue struct {
 	// reading — a term that could only ever discount would be a taper with a name
 	// on it rather than an option value.
 	Factor float64
+}
+
+// MeanOptionDecay is the average of [OptionDecay] over every gameweek the option
+// exists in, `[1, Expiry]`.
+//
+// # It exists because taper-versus-flat was NOT a shape contrast without it
+//
+// `OptionDecay` is monotone decreasing and bounded by 1, so its mean over a season
+// is strictly below 1 and **no half-life reproduces the flat constant** — as
+// `h → ∞` the curve tends to 0, not 1. So switching the taper on lowered the
+// AVERAGE charge as well as giving it a schedule, and every rung of a half-life
+// ladder moved the average too. At `FreeCost` 2.0 over a full season the mean
+// charge reads:
+//
+//	h = 3    1.561
+//	h = 8    1.241
+//	h = 16   0.957
+//	h = 30   0.693
+//
+// A factor of 2.3 across the ladder, all of it level. And the flat level has
+// **never been varied in any banked sweep** — every `*.provenance.csv` stamps
+// `free_transfer_value` at 2 — so the level is the untested prior question and a
+// taper arm run without this would be confounded with it. Found in review before
+// any arm was run.
+//
+// Dividing by this mean makes the taper **mean-preserving**: the same average
+// charge as flat, redistributed across the season. That is what makes a
+// taper-versus-flat difference attributable to the SHAPE.
+//
+// ⚠️ **The consequence is that the factor now EXCEEDS 1 early**, which is not a
+// side effect to be tidied away — it is what mean preservation means. A charge that
+// only ever fell would be a discount with a schedule attached, and the option
+// reading says holding is worth more early *and* less late.
+//
+// ⚠️ **De-confounding is exact only over the whole window.** A cell entering at
+// GW26 decides in `[27, 38]`, where the normalised curve still averages below 1, so
+// its mean charge remains lower than flat. The residual is entry-point dependent
+// and is the reason an arm on this must be read against the entry gameweek rather
+// than pooled — which is the same argument the dose columns make. Anchoring at the
+// season's start instead would fix the first week and not the mean, so it does not
+// discharge this.
+//
+// ⚠️ **The reference window is `[1, Expiry]`, not the cell's own.** One number per
+// half-life, identical for the replay and for the live path, so the two cannot
+// disagree about what a transfer costs in a given gameweek — which they would if
+// the normaliser moved with a cell's entry point.
+func MeanOptionDecay(w OptionWindow, halfLife float64) float64 {
+	if !w.Usable() {
+		return 1
+	}
+	sum := 0.0
+	for gw := 1; gw <= w.Expiry; gw++ {
+		sum += OptionDecay(w.Remaining(gw), halfLife)
+	}
+	if sum <= 0 {
+		return 1
+	}
+	return sum / float64(w.Expiry)
 }
 
 // OptionValueAt prices one held option. This is the single implementation the
@@ -285,7 +348,10 @@ func OptionValueAt(w OptionWindow, gw int, load float64, p OptionPricing) Option
 		return OptionValue{}
 	}
 	v := OptionValue{Remaining: w.Remaining(gw), Load: load}
-	v.Decay = OptionDecay(v.Remaining, p.HalfLife)
+	// Mean-preserving, so a taper-versus-flat difference is a SHAPE difference and
+	// not a level cut wearing a schedule. See MeanOptionDecay for the arithmetic
+	// and for the residual this does not remove.
+	v.Decay = OptionDecay(v.Remaining, p.HalfLife) / MeanOptionDecay(w, p.HalfLife)
 	v.Congestion = CongestionFactor(load, p.CongestionSensitivity)
 	v.Factor = v.Decay * v.Congestion
 	return v
@@ -373,6 +439,88 @@ func ChipReservationAt(base float64, w OptionWindow, gw int, load float64, p Opt
 // not fall toward the expiry refuses weeks that were the best remaining offer.
 func ChipBarAt(base float64, w OptionWindow, gw int, load float64, p OptionPricing) float64 {
 	return ChipReservationAt(base, w, gw, load, p)
+}
+
+// TransferHoldFactorFor is [TransferHoldFactor] with the squad's own congestion
+// read for it: the whole quantity in one call.
+//
+// It exists because four sites want it — the replay's `decide`, the live banking
+// rule, the agent's swap tool and the live transfer command — and each of them
+// composing `SquadCongestion`, `Horizon()` and `TransferHoldFactor` by hand is
+// three chances to read the load over a different window. That is this project's
+// signature failure at the smallest possible scale, and the smallest scale is
+// where it actually happens.
+//
+// ⚠️ **The load window starts at `gw+1`, not at `gw`.** The two halves of the
+// factor have to agree about whether this gameweek is inside the window, and
+// [OptionWindow.Remaining] excludes it — correctly, since the question is what the
+// option is worth UNSPENT and an option exercisable only this week has no holding
+// value. Reading the load from `gw` disagreed, and for a chip the consequence was
+// perverse: the very double the chip is being played for raised the bar it had to
+// clear. Found in review.
+//
+// The shift goes through `fixtureLoadAfter`, which is `fixtureLoadFor` with the
+// window's lower bound parameterised — one density function, not two.
+func (e *Engine) TransferHoldFactorFor(held []int, gw int, p OptionPricing) float64 {
+	return TransferHoldFactor(TransferExpiry(), gw, e.HoldingCongestion(held, gw, p), p)
+}
+
+// HoldingCongestion is the forward fixture density relevant to HOLDING an option
+// in gameweek `gw`: the squad's clubs over `[gw+1, gw+horizon]`.
+//
+// See TransferHoldFactorFor for why the window excludes `gw` itself. Separate from
+// SquadCongestion because a caller asking "how congested is the run I am about to
+// play" wants the window that includes now, and a caller asking "how much forced
+// demand am I insuring against" does not.
+func (e *Engine) HoldingCongestion(held []int, gw int, p OptionPricing) float64 {
+	if e == nil || e.Boot == nil {
+		return 1
+	}
+	teams := make([]int, 0, len(held))
+	for _, id := range held {
+		if el := e.Boot.ElementByID(id); el != nil {
+			teams = append(teams, el.Team)
+		}
+	}
+	if len(teams) == 0 {
+		return 1
+	}
+	sum := 0.0
+	for _, t := range teams {
+		sum += e.fixtureLoadAfter(t, p.Horizon(), gw)
+	}
+	return sum / float64(len(teams))
+}
+
+// SquadHasABlank reports whether any club the squad holds plays no match in this
+// engine's imminent gameweek.
+//
+// The free-hit rule's pre-filter, exported because the rule lives in
+// `internal/backtest` and this is a fixture-count question the scoring path
+// already answers. It reads `fixtureLoadFor` at a horizon of 1, so it inherits the
+// anchor fix that made a blank expressible at all — anchored on the club's next
+// FIXTURE the window slides past a blank and the answer is always false.
+//
+// ⚠️ **"This engine's imminent gameweek" is whatever round the engine's fixture
+// list says is next**, so a caller reconstructing at `gw-1` gets `gw`. There is no
+// gameweek parameter on purpose: one would be a second idea of which round is
+// imminent, sitting beside `upcomingGWs`, and disagreeing with it silently.
+func (e *Engine) SquadHasABlank(held []int) bool {
+	if e == nil || e.Boot == nil {
+		return false
+	}
+	seen := map[int]bool{}
+	for _, id := range held {
+		el := e.Boot.ElementByID(id)
+		if el == nil || seen[el.Team] {
+			continue
+		}
+		seen[el.Team] = true
+		if e.fixtureLoadFor(el.Team, 1) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // FixtureCongestion is the forward fixture density a set of clubs faces: matches
