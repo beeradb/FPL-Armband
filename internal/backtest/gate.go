@@ -31,11 +31,11 @@ package backtest
 //
 // # What is deliberately NOT routed through here
 //
-// `bestPackageValue`, which prices what banking a transfer would buy. It is a
-// *valuation* rather than an accept — it answers "what is the best package worth"
-// and never says yes or no — and folding it in would make the oracle able to
-// change what shouldBank compares, which is a second axis. It ships off in any
-// case.
+// `analysis.BestPackage`, which prices what banking a transfer would buy over the
+// candidates `transferPackages` enumerated. It is a *valuation* rather than an
+// accept — it answers "what is the best package worth" and never says yes or no —
+// and folding it in would make the oracle able to change what shouldBank
+// compares, which is a second axis. It ships off in any case.
 
 import "math"
 

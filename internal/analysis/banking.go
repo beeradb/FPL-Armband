@@ -51,15 +51,33 @@ func PackageValue(p TransferPackage, horizon, freeCost, minGain float64) float64
 	return v
 }
 
-// BestPackageValue is the most valuable of several packages, floored at zero.
-func BestPackageValue(packages []TransferPackage, horizon, freeCost, minGain float64) float64 {
-	best := 0.0
+// BestPackage is the most valuable of several packages and what it is worth,
+// floored at zero.
+//
+// The package comes back beside the value because "how many moves does the
+// winner spend" is the question the banking comparison turns on — the whole
+// hypothesis about whether waiting can ever pay is about package SIZE — and a
+// caller reconstructing the winner from the value would be a second argmax over
+// the same list, which is this project's signature failure in miniature.
+//
+// A zero-move package is returned when nothing clears the floor, since "do
+// nothing" is always available and is what a floored zero means.
+func BestPackage(packages []TransferPackage, horizon, freeCost, minGain float64) (TransferPackage, float64) {
+	var best TransferPackage
+	value := 0.0
 	for _, p := range packages {
-		if v := PackageValue(p, horizon, freeCost, minGain); v > best {
-			best = v
+		if v := PackageValue(p, horizon, freeCost, minGain); v > value {
+			best, value = p, v
 		}
 	}
-	return best
+	return best, value
+}
+
+// BestPackageValue is what the most valuable of several packages is worth,
+// floored at zero.
+func BestPackageValue(packages []TransferPackage, horizon, freeCost, minGain float64) float64 {
+	_, v := BestPackage(packages, horizon, freeCost, minGain)
+	return v
 }
 
 // MoveLimit is how many transfers may be made in one gameweek: every free

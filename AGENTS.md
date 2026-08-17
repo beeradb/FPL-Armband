@@ -383,6 +383,24 @@ stand.
 
 Shipped bugs, each now covered by a regression test. Re-introducing one is easy.
 
+- **`MaxHits` above 1 is silently clamped, so an arm at `MaxHits: 2` is a comparison that never
+  ran.** `analysis.MoveLimit` does `if maxHits > 1 { maxHits = 1 }` unconditionally, `decide`
+  iterates `limit = free + 1`, and the funded-pair branch hard-codes `hitsNeeded <= 1`. So the
+  two-hit week the FPL community treats as routine is **unexpressible on this code**, and any
+  wildcard rule specified as *"more than two hits to repair"* has **no input quantity on this path**
+  — it would need a shadow statistic. ⚠️ And the 2→3+ move boundary such an arm would be reaching
+  for is **already reached at shipped config whenever `free >= 2`**, where it was measured inert in
+  94 of 94 weeks: reachable and inert, not unreachable. Verified by reading `MoveLimit` and
+  `hitsNeeded`, 2026-08-17; **no test pins the clamp**.
+- **`runPolicySweep` builds cells at `WeeklyXI: false`, and several diagnostics run at `true`.**
+  `sweepConfig(cfg, start, false)` — a variant wanting the imminent-gameweek eleven must set it in
+  `apply`. This is not cosmetic for anything about fixture quantity: fixture load reaches `Score`
+  **only** through the horizon-1 engine the replay builds for the fielded eleven when a cell sets
+  `WeeklyXI`, or for a free-hit squad. So at sweep default a double is a 1/5-diluted bump in a
+  five-week average rather than two matches this Saturday, and **an arm testing doubles or blanks
+  that leaves `WeeklyXI` false has switched off the fielding half of its own mechanism.** A
+  reachability or mediator finding taken at one setting does not transport to the other — pin it in
+  `apply` and stamp it.
 - **Never compare a replayed float for exact equality: a banked total is reproducible from a
   commit AND a machine, and only the commit is recorded.** Go's `math` is not bit-identical across
   machines — `Exp` has per-architecture assembly, `Log` has it on amd64 only, and amd64's `Exp`
@@ -471,6 +489,25 @@ Shipped bugs, each now covered by a regression test. Re-introducing one is easy.
   *below* charging nothing, because the gate stops filtering noise and starts refusing real
   improvements. `free_transfer_value` ships at 2.0 as a confidence threshold, not an opportunity
   cost, and **must not taper as the season ends**.
+  ⚠️ **"Must not taper" is a CONSEQUENCE OF THE CLASSIFICATION, not a measurement, and the
+  classification is disputed.** If the constant is a confidence threshold filtering noise, tapering
+  is meaningless — noise does not shrink in May. If it is an **opportunity cost**, tapering is
+  *required*, because the future the transfer is being saved for does shrink. Nothing here measures
+  which it is; the prohibition falls out of the label. And **`free_transfer_value` has never been
+  varied in any banked sweep** — every `*.provenance.csv` stamps it at 2, so the level is untested at
+  any value, let alone any shape.
+  ⚠️ **The competing model, recorded as a hypothesis:** the value of holding a transfer is the
+  **option value of the information not yet arrived**, so it is high early — squads are unsettled,
+  minutes unknown, promoted clubs unpriced — and **exactly zero at GW38**, where a held transfer can
+  never be spent. That is one functional form with one parameter, not a constant to re-tune, and this
+  record's own preference is to decide on **shape** over a winning level.
+  ⚠️ **It unifies four separate entries in this file, which is the strongest thing in its favour and
+  is not evidence.** A wildcard's reservation price should fall toward its expiry; a banked transfer
+  is a *reserved exit* whose worth is optionality rather than enumeration; the season's end is a free
+  exit; and `chipBarBenchBoost` 16 / `chipBarTripleCaptain` 12 are **fixed** bars on **expiring**
+  chips. All four are the same shape — **an option decaying as the window it can be exercised over
+  shrinks** — and all four are currently modelled as constants. **Unrun. Do not read the coherence as
+  support.**
 - **FPL banks 5 free transfers, not 2** — the rule changed for 2024-25. `backtest.BankLimitFor`
   keeps replays on the rule actually in force, or 2023-24 gets simulated saving transfers nobody
   could save.
@@ -509,6 +546,50 @@ sits in, not a file you can open here.
   at **2178** against shipped **2152** — so zeroing the defensive response entirely *gains* 20
   points. That is inside-noise wobble and not a case for zeroing: the ladder has no shape either
   way, and the totals are 3 cells at one entry point with no threshold ever computed.
+  ⚠️ **The convergence argument is CAPACITY-CONDITIONAL and wrong as stated, and the line closes
+  anyway on a harder constraint.** A manager who can transfer experiences a *selected subsequence*
+  rather than a drawn run, so the governing spread is the **one-gameweek 35%** and not the
+  five-gameweek 13%. What binds instead is **throughput**: 37 free transfers plus a free hit's eleven
+  give at most **~51 targeted matches against 38 × 11 = 418 fielded player-matches**, so **at most
+  ~12% are re-pointable at all, and chips do not create transfers.** At the recorded 21-41%
+  per-match uplift the perfect-hindsight, zero-cost ceiling is **~30-82 a season**, which straddles a
+  `POLICY` threshold of 50-70; attenuating by the ~2-in-3 ex-ante band accuracy and charging the
+  displaced alternative use of the same transfers leaves it below, before the argmax penalty that has
+  flipped five such signs. Arithmetic off recorded counts, **no cells spent** — a bound, not a
+  measurement.
+  ⚠️ **A first draft counted a wildcard's rebuild as ~10 of those targeted matches. That is
+  backwards, and the correction matters more than the arithmetic it fixes.** The wildcard is not a
+  *source* of fixture targeting — it is the **exit**: transfer into the doublers with ordinary
+  transfers, then wildcard out into the best players. Its role is to delete the **unwind cost**,
+  which is the largest term in the charge above: transfers spent chasing fixtures leave you holding
+  worse players and are normally billed a second time to reverse. A chip that resets the squad makes
+  that bill zero, and the free hit does the same by construction because it reverts on its own. So
+  **chips do not raise the throughput ceiling; they lower the price of using it**, and the deduction
+  above is too harsh for any window that ends in a reset.
+  ⚠️ **That mechanism is UNMEASURABLE on this policy rather than refuted, and the reason is a code
+  fact**: `decide` is greedy per week and never prices a future unwind **in either arm**, so a cost
+  absent from both cannot be removed from one. Pricing it needs a valuation that scores a move over
+  the weeks it will actually be held — **a model change, not a sweep** — and until then no arm here
+  can express *"buy the fixture, then reset"*. **Do not read the bound above as covering it.**
+  ⚠️ **The exit need not be a chip — a BANKED TRANSFER is one too, and what matters is holding one
+  at all.** Wildcard, free hit and banked transfer are three implementations of the same thing, so
+  the strategy needs *an* exit rather than all three. That reframes what banking is **for**, and it
+  is a better explanation of the measured inertness than anything the probe found: `shouldBank`
+  prices the extra transfer as **enumeration capacity** — can a larger funded package be built — and
+  the answer is no, identical candidate lists in 224 of 226. But the strategy wants it as a
+  **reserved exit**, which `PackageValue` has no term for. **The rule is not failing to find value;
+  it is pricing a different quantity.** Hypothesis, unrun, and it shares the unmeasurability above:
+  a reserved exit is worth something only to a valuation that looks past this week.
+  ⚠️ **The season's end is a third exit, and it is free.** Chase a double late enough and there is no
+  unwind at all, so the holding cost falls monotonically toward GW38. That is a **shape** prediction
+  rather than a level, and it collides with a recorded one: *nothing clears the gain threshold at any
+  price after GW28*. Either that quiet is the converged squad the record says it is, or the objective
+  cannot see that the holding cost has gone to zero. **Unresolved; do not assume the first.**
+  ⚠️ **And the 21-41% is not a deployable magnitude.** It is an uplift on a term the model
+  *already prices* through `defenceMultiplier`/`attackMultiplier`, so the deployable quantity is the
+  **residual** after that — and this file's own verdict is that the five-game response is about right
+  and only the single match is wrong. It is also unnamed as to estimator, conditional on appearing,
+  and almost certainly ex-post band membership.
   → **fixtures-and-difficulty**
 - **Do not extend recency to rates.** It predicts better out of sample and loses in the replay at
   every setting, because it buys accuracy on the average player and pays in noise at the top.
@@ -1104,10 +1185,61 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   ⚠️ **The banked branch used to grant a second free transfer on top of the weekly accrual.** Fixed
   on correctness — FPL grants one — and **inert on every banked cell**, since the arm banks in 0 of
   8 so the branch never executed. Reachable from user config as `bank_transfers_lookahead`, shipped
-  off. **Hypothesis, unmeasured:** the rule may be near-unreachable *by construction* at shipped
-  config, because `MoveLimit` is `free + hits` so the hit allowance already grants the extra move
-  while waiting costs a flat 1/horizon — setting `MaxHits: 0` takes banked weeks from 0 to 5 on one
-  season. No cross against team news is banked here.
+  off. No cross against team news is banked here.
+- **The waiting arm did not fire in any of 226 unguarded weeks, and the only channel that could
+  make it fire is inert in all of them — the responsible channel is the MOVE LIMIT, not the horizon
+  haircut.** Settled 2026-08-17 by `TestDiagBankingReachability` on the same 8 cells (four seasons,
+  entry GW1 and GW16, `WeeklyXI` true, `BankUpTo` 5, decision horizon 5, `min_gain` 0.4,
+  `free_transfer_value` 2.0, no chips, no chip preparation, no oracles).
+  `shouldBank` prices the later arm at `gw+1` over `horizon-1` with `free+1`, so its only two
+  differences from acting now are **one extra move** and **one fewer gameweek of gain**; with the
+  preparation switches off the chip credit is identically zero, so the two package sets differ
+  *only* by the move limit and the probe separates the channels by re-pricing each set at the
+  other's horizon, with no extra transfer search.
+  Over 226 unguarded weeks of 236 consulted (guards: 3 ceiling, 7 horizon) the extra transfer buys
+  no extra package value — `(no_haircut − now)/now` is 0.0000 at the min, median, p90 **and max**,
+  a `%.4f` print so read it as below 1e-4 — and the later arm's winning package spends more moves
+  in **0 of 226**. ⚠️ **So "the horizon haircut accounts for it" is WRONG**: `NoHaircut ≥ Later`
+  by arithmetic, so `NoHaircut ≤ Now` in 226 of 226 is *sufficient* to rule the haircut out — with
+  the haircut removed entirely the arm still fires in 0 of 226. The haircut is the visible margin
+  (`later/now` median 0.6304, max 0.7743) and it is not load-bearing.
+  ✅ **Why the channel is inert is IDENTIFIED, and it is structural.** The two arms enumerated the
+  **identical candidate list in 224 of 226** weeks: `RankPairs` builds a multi-downgrade set only
+  for upgrades no single funding sale can reach (`if single || maxDowns < 2 { continue }`), so
+  raising `maxDowns` from `free` to `free+1` finds nothing new. The rival reading — that the wider
+  search found something which topped the **gain** ranking `bestPair` sorts on and then lost on
+  value — is separately excluded: `no_haircut < now` in **0 of 226**.
+  ⚠️ **`limit_now ≥ 2` at shipped `MaxHits` is FORCED, not measured**: the weekly accrual runs
+  before the search so `free ≥ 1`, and `MoveLimit = free + hits` adds the hit. Same for
+  `limit_later > limit_now` with `max_moves` unset. Neither is evidence about football — which is
+  what makes the conclusion hold off this grid.
+  ✅ **The positive control is in the same run and is read at the right boundary.** At `MaxHits: 0`
+  the now-arm's limit is `free` (mean 1.566) and falls below 2 in **132 of 226** weeks, where
+  `transferPackages` skips `bestPair` outright; waiting unlocks the pair in **132 of those 132**,
+  the extra move alone flips the comparison in **72 of 226**, and the arm banks **30**. ⚠️ But that
+  is the **1→2** boundary, which shipped `MaxHits` can never reach. Restricted to the **2→3+**
+  boundary shipped config actually lives on, the same arm reads **94 weeks, identical candidate
+  list in 94, and 0 flips** — so across both arms the extra move is inert at that boundary in
+  **318 of 320** weeks. Everything banking buys comes from the single hit already granting the
+  paired downgrade-and-upgrade the rule exists to reach.
+  ⚠️ **Counts and distributions only** — no threshold, no p, no points figure. ⚠️ **Simple-effect,
+  at `min_gain` 0.4 / `free_transfer_value` 2.0 / `BankUpTo` 5 / horizon 5**: those enter
+  `PackageValue` directly and were not varied, and with either preparation switch on the two
+  re-pricings stop being exact. The consequence for design: **a tandem arm crossing banking at
+  shipped `MaxHits` is a confinement, not a null** — read `banked_weeks = 0` as the branch never
+  having executed.
+  ⚠️ **"So vary `MaxHits` with it" appeared twice here and is WITHDRAWN — there is nowhere to vary
+  it to.** `analysis.MoveLimit` clamps `maxHits` to 1 **unconditionally**, and the funded-pair branch
+  hard-codes `hitsNeeded <= 1`, so **`MaxHits: 2` is byte-identical to shipped** and the allowance can
+  only move **down**. Down is not a control either: at `MaxHits: 0` the limit is `free`, which fails
+  the `limit >= 2` guard in 132 of 226 weeks and skips `bestPair` entirely, so banking's whole effect
+  there is **re-enabling the pair search the control disabled**. ✅ **So there is no configuration on
+  this code in which banking acts for a reason attributable to banking** — except through a
+  preparation credit, which is the one live route: `transferPackages` calls `chipCreditFor`, so with
+  `PrepareTripleCaptain` on the arms differ in package **value** rather than only in move limit, and
+  a triple-captain credit favours exactly the premium upgrade the multi-downgrade branch exists for.
+  **Unrun.** ⚠️ `PrepareBenchBoost` cannot do it and biases the other way: `ChipCreditAt`'s later-arm
+  window is a strict subset of the now-arm's, so preparation can only credit acting now.
 - **Reach is not the problem: 97.6% of worth-taking two-move packages are already reachable**, which
   closes the unified-search line on mechanism. The lever is the **valuation**, not the gate.
 - **The sell side is calibrated; its error is entirely availability** — −0.100 per gameweek for a
@@ -1143,6 +1275,42 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   whole sweep by construction**, and only `POLICY` rows could move. A textbook instance of the trap:
   a byte-identical result that was a comparison which never ran.
   ⚠️ `FPL_NO_XGC_REPAIR` bears on **18 of 36 cells**, not the 6 an earlier note claimed.
+- **The fixture mediator's canary is `band_strength` 2, and `band_ready_weeks` is not a canary at
+  all.** `TestDiagBandCanary`, 2026-08-17: the dose ladder 0 / 0.25 / 0.5 / 1 / 2 / 4 on 8 cells
+  (four seasons, entry GW1 and GW16, `WeeklyXI` true, `BankUpTo` 5, no chips, no banking,
+  `FPL_MAGNITUDE` unset — which the diagnostic refuses to run without, since the magnitude path
+  returns before consulting the bands). `band_ready_weeks` is **220 at every dose**, as it must be:
+  `BandChannelLive` reads `teamBands().ready` and the magnitude switch and neither depends on the
+  dose, so the funnel's first step can never respond and a sweep that checked only it would learn
+  nothing. The four move columns do respond. Cells whose mediator differs from the same cell at
+  dose 0: **6 of 8** at 0.25 and 0.5, **8 of 8** from 1 upward; cells whose *opening fifteen*
+  differs: 1, 1, 2, **4**, 4. `band_exposure` reads **+68 / +75 / +95 / +93 / +160 / +267**.
+  **1 and 2 both move the mediator in 8 of 8 cells; 2 is taken as a margin**, because it also
+  reaches the opening fifteen in 4 of 8 rather than 2 of 8 and its exposure sits outside the whole
+  0-to-1 range. ⚠️ **Those two criteria are post-hoc** — the diagnostic's own printed reading rule
+  is "the lowest dose whose mediator column is the full cell count", which selects **1**, and 1 did
+  not fail the mediator test. ⚠️ **It is a readability threshold and NOT a recommended setting**;
+  nothing here scored any dose and choosing one on points would be the argmax trap.
+  ⚠️ **The exposure ladder's DIRECTION is forced by construction and carries no information, and
+  the ladder is not in fact monotone** — +95 at 0.5 against +93 at 1 — nor is `better`, which falls
+  11 → 9 across the dose on the single season the gate test replays. Raising the dose raises the
+  score of players with target-band runs so the policy buys them, but the replay is a *path* and
+  one changed transfer re-routes every later decision. Read the size, never the direction.
+  ⚠️ And `band_run_moves` is "the move changed band exposure", never "the bands caused the move".
+  ⚠️ **The canary licenses a null at doses ≥ 2 only.** At 0.25 — the deciding arm this record still
+  calls unrun — the mediator moves in 6 of 8 and the fifteen in 1 of 8, so a flat tandem result
+  there stays unreadable in 2 cells. ⚠️ **And it is a four-season figure**: `sweepPairNames` returns
+  the six-season grid unless `FPL_SWEEP_SEASONS=default` is set, so "8 of 8" does not transport to
+  12 cells. ✅ Arrival is checked on **two** surfaces, the mediator and the opening fifteen, which
+  is what distinguishes this from the recorded `FPL_BAND_STRENGTH` trap two bullets above, where
+  the lever reached only the transfer `SimConfig` and the hold baseline was byte-identical by
+  construction. `TestTheBandDoseCanaryDiscriminates` pins the dose against the mediator on one
+  season, so the gate suite executes "an effect this size must move the arm" rather than
+  remembering it — but it pins "responds somewhere", not "responds in 8 of 8".
+  ⚠️ **It is a simple-effect canary**: it was established with banking off and no chips, so it
+  licenses reading a null in the fixture arm of a tandem sweep and says nothing about the tandem
+  corner, where the other two levers move the same decisions. A tandem cell wanting a readable null
+  needs the dose re-checked in the corner it is read in.
 - **`teamBands` was not run-to-run deterministic, and is now pinned.** `bands.go` ranged a map
   into a slice and sorted it with the non-stable `sort.Slice`, so a tie at a band boundary
   resolved by map order. Fixed by building the slice in club-id order and breaking both sort

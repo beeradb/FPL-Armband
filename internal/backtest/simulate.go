@@ -1269,6 +1269,24 @@ type SimConfig struct {
 	// diagnostic has recorded owing this statistic since its first re-run.
 	gateLog func(gatePackage)
 
+	// bankLog is called once for every week shouldBank is consulted in, with the
+	// two arms it compared and the two counterfactuals that attribute the answer
+	// to a channel. Nil — every ordinary arm and every shipped path — means
+	// nothing is recorded.
+	//
+	// Unexported for the same reason gateLog is: it is an instrument for one
+	// measurement rather than a setting, and it may not change a decision.
+	// `shouldBank` calls it *after* its answer is fixed, and computes nothing for
+	// it that the comparison did not already compute.
+	//
+	// It exists because the banking mediator's `banked_weeks` cannot say WHY the
+	// rule declined. On the one banked arm the rule weighed a real choice in 169
+	// of 236 consulted weeks and chose to act every time, and a count of zero is
+	// equally consistent with "waiting is worth nothing here" and with "waiting is
+	// unreachable at this configuration by construction" — which license opposite
+	// readings of any tandem sweep built on top of it.
+	bankLog func(bankProbe)
+
 	// ChipPlanner derives the chip plan from the season, for a rule that depends
 	// on the fixture calendar rather than on a week number. Nil takes Chips as
 	// given, which is every ordinary arm.
@@ -2004,7 +2022,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 //
 // Two are guards — the allowance already at its ceiling, and a horizon of one
 // gameweek — and the third is `later > now` simply coming out false. That third
-// exit hides a degenerate case: `bestPackageValue` returns 0 when nothing clears
+// exit hides a degenerate case: the package valuation returns 0 when nothing clears
 // MinGain, so `0 > 0` is a refusal by a rule that had nothing to weigh, and it
 // counts identically to a rule that weighed a real choice and preferred acting
 // now. This record already holds that nothing clears the gain threshold at any
@@ -2025,33 +2043,159 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 	horizon, freeCost float64, cfg SimConfig, sell map[int]int) (bank_ bool, weighed bool) {
 
-	if analysis.BankGuardFor(free, cfg.BankUpTo, horizon) != analysis.BankGuardNone {
+	if guard := analysis.BankGuardFor(free, cfg.BankUpTo, horizon); guard != analysis.BankGuardNone {
+		if cfg.bankLog != nil {
+			cfg.bankLog(bankProbe{GW: gw, Guard: guard, Free: free,
+				Limit: limit, Horizon: horizon})
+		}
 		return false, false
 	}
 	// The later arm is priced at *next* week's decision, so its chip credit is
 	// too: a boost one week nearer is one week less to amortise it over, which is
 	// the whole quantity this comparison turns on.
-	now := bestPackageValue(e, held, bank, limit, gw, horizon, freeCost, cfg, sell)
-	later := bestPackageValue(e, held, bank,
-		moveLimit(free+1, cfg.MaxHits, cfg.MaxMoves), gw+1, horizon-1, freeCost, cfg, sell)
+	limitLater := moveLimit(free+1, cfg.MaxHits, cfg.MaxMoves)
+	pkgNow := transferPackages(e, held, bank, limit, gw, horizon, cfg, sell)
+	pkgLater := transferPackages(e, held, bank, limitLater, gw+1, horizon-1, cfg, sell)
+	bestNow, now := analysis.BestPackage(pkgNow, horizon, freeCost, cfg.MinGain)
+	bestLater, later := analysis.BestPackage(pkgLater, horizon-1, freeCost, cfg.MinGain)
 	a := analysis.AdviseBank(free, cfg.BankUpTo, horizon, now, later)
+	if cfg.bankLog != nil {
+		cfg.bankLog(bankProbe{
+			GW: gw, Free: free, Limit: limit, LimitLater: limitLater,
+			Horizon: horizon, Now: now, Later: later,
+			NowMoves: bestNow.Moves, LaterMoves: bestLater.Moves,
+			// The two channels the comparison is made of, each with the other
+			// held off. Both re-price package sets this call already enumerated,
+			// so the probe costs no extra transfer search — which is what makes
+			// it affordable to ask on every decision week.
+			//
+			// Each re-prices the OTHER arm's horizon onto a package set whose chip
+			// credit was amortised over its own, so both carry the same caveat and
+			// both are exact with the preparation switches off. See the field docs.
+			NoHaircut:    analysis.BestPackageValue(pkgLater, horizon, freeCost, cfg.MinGain),
+			NoExtraMove:  analysis.BestPackageValue(pkgNow, horizon-1, freeCost, cfg.MinGain),
+			SamePackages: samePackages(pkgNow, pkgLater),
+			Banked:       a.Bank,
+			Weighed:      a.Weighed(),
+		})
+	}
 	return a.Bank, a.Weighed()
 }
 
-// bestPackageValue is what the best set of moves up to `limit` is worth, in
-// points across the horizon, after paying for the transfers it spends.
+// bankProbe is one week's banking comparison, opened up far enough to attribute
+// its answer to a channel. Nothing branches on it and nothing is computed for it
+// that the decision did not already compute.
+//
+// # Why the two counterfactual arms are here rather than in a test
+//
+// The shipped comparison differs from its own alternative in exactly two ways —
+// the later arm gets ONE MORE MOVE and ONE FEWER GAMEWEEK of gain — and a count
+// of how often it fired cannot say which of the two decided it. Reconstructing
+// them outside `shouldBank` would mean a second copy of the enumeration, in the
+// one place this package least wants one: a diagnostic is what everything else is
+// checked against.
+type bankProbe struct {
+	// GW is the gameweek the decision was taken in.
+	GW int
+	// Guard is why the comparison was never made, or BankGuardNone.
+	//
+	// ⚠️ **A guarded probe still carries Free, Limit and Horizon** — those are the
+	// state the guard was applied to and they cost nothing — and only the priced
+	// fields below are zero, because a guard refuses before any package is valued.
+	// The reachability diagnostic depends on that: it sums the allowance over the
+	// unguarded weeks and would silently average in zeros if this literal were
+	// trimmed to match a comment claiming everything is blank.
+	Guard analysis.BankGuard
+	// Free is the allowance the search ran with, and Limit/LimitLater the move
+	// limits the two arms received — `MoveLimit`'s output, which is what the
+	// hypothesis about `free + hits` is about.
+	Free, Limit, LimitLater int
+	// Horizon is what the now-arm was valued over; the later arm got one fewer.
+	Horizon float64
+	// Now and Later are the two arms as AdviseBank saw them.
+	Now, Later float64
+	// NowMoves and LaterMoves are how many transfers each arm's winning package
+	// spends, or 0 where nothing cleared the floor.
+	NowMoves, LaterMoves int
+	// NoHaircut is the later arm with the horizon cost removed: next week's
+	// package set, priced over the full horizon. It isolates what the EXTRA MOVE
+	// buys, so `NoHaircut > Now` is the weeks where waiting would win if it were
+	// free.
+	//
+	// NoExtraMove is the mirror: this week's package set priced over the short
+	// horizon, isolating the haircut. It can never exceed Now — same packages,
+	// less horizon, and PackageValue is increasing in horizon — so it sizes the
+	// haircut rather than testing it.
+	//
+	// ⚠️ **NoHaircut is NOT sign-constrained against Now.** `bestPair` returns
+	// `RankPairs(...)[0]`, an argmax over **gain**, while `PackageValue` charges
+	// `freeCost` per **move** — so a wider limit can substitute a higher-gain,
+	// costlier package that is worth less once charged. `NoHaircut < Now` is a
+	// real observation and the diagnostic counts it rather than assuming it away.
+	//
+	// ⚠️ **The chip caveat applies to BOTH, not only to NoHaircut.** Each
+	// re-prices a package set whose gains carry a chip credit amortised over the
+	// other arm's horizon, so with either preparation switch on both are off by
+	// one week's amortisation. With both off — every arm this probe has been run
+	// on — `chipCreditFor` returns zero and both re-pricings are exact.
+	NoHaircut, NoExtraMove float64
+	// SamePackages is whether the two arms enumerated the identical candidate
+	// list, which separates the two ways the extra-move channel can read zero.
+	//
+	// ⚠️ **This is the distinction the counterfactual on its own cannot make.**
+	// `RankPairs` builds a multi-downgrade set only for upgrades that no single
+	// funding sale can reach (`if single || maxDowns < 2 { continue }`), and
+	// `bestPair` returns `pairs[0]` ranked on **gain** before the caller prices it
+	// on value. So a wider limit can enumerate nothing new at all, or enumerate
+	// something that tops the gain ranking and then loses on value — and those are
+	// a *structural* inertness and a *football* one. Without this field an
+	// extra-move channel of zero pools them.
+	SamePackages bool
+	// Banked and Weighed are what shouldBank returned.
+	Banked, Weighed bool
+}
+
+// samePackages reports whether two enumerations produced the identical candidate
+// list. Order matters and is stable: `transferPackages` appends the solo swap
+// then the pair, so a difference is a difference in what was found.
+func samePackages(a, b []analysis.TransferPackage) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// transferPackages is what the best set of moves up to `limit` could be, as
+// candidate packages — the enumeration on its own, without the valuation.
 //
 // The enumeration is this package's — it prices sales through the wallet, which
 // knows what each player was bought for — and the *valuation* is
-// analysis.BestPackageValue, which the live transfer command shares. Splitting it
+// analysis.BestPackage, which the live transfer command shares through its
+// BestPackageValue face. Splitting it
 // that way is deliberate: the two callers legitimately find their candidates by
 // different routes, and the thing they must not disagree about is what a
 // candidate is worth once found.
-func bestPackageValue(e *analysis.Engine, held []int, bank, limit, gw int,
-	horizon, freeCost float64, cfg SimConfig, sell map[int]int) float64 {
+//
+// It returns the packages rather than the winning value because the banking probe
+// needs to price ONE package set over two different horizons, which is the only
+// way to separate the horizon channel from the move-limit channel without
+// enumerating twice. A wrapper folding the two back together would either cost a
+// second full transfer search per decision week — the search is the expensive part
+// of a replay — or put a second copy of the enumeration in a diagnostic, which is
+// the thing a diagnostic may least carry.
+//
+// The `horizon` argument reaches the packages only through the chip credit, which
+// is amortised over it. Everything else about a candidate is horizon-free.
+func transferPackages(e *analysis.Engine, held []int, bank, limit, gw int,
+	horizon float64, cfg SimConfig, sell map[int]int) []analysis.TransferPackage {
 
 	if limit < 1 {
-		return 0
+		return nil
 	}
 	credit := cfg.chipCreditFor(e, gw, horizon)
 	var packages []analysis.TransferPackage
@@ -2068,7 +2212,7 @@ func bestPackageValue(e *analysis.Engine, held []int, bank, limit, gw int,
 				analysis.TransferPackage{Gain: pair.gain, Moves: len(pair.moves)})
 		}
 	}
-	return analysis.BestPackageValue(packages, horizon, freeCost, cfg.MinGain)
+	return packages
 }
 
 func applyMove(held []int, mv Move) []int {
