@@ -479,9 +479,14 @@ func reportCalendarCensus(t *testing.T, seasons []*seasonMatches) {
 	t.Log("`clubs>=1` is clubs blanking exactly once — the dragged-in heuristic; " +
 		"`clubs>=2` is repeated blankers, the cup-runner heuristic.")
 	t.Log("")
-	t.Log("⚠️ EVERY POOLED DOUBLES-AGAINST-SINGLES TABLE BELOW IS SEASON-CONFOUNDED. Roughly")
-	t.Log("half of all double club-gameweeks fall in 2020-21 and 2021-22, against a singles")
-	t.Log("column drawn from all eight seasons, so any such difference carries a COVID-era")
+	// The season count is DERIVED, never written down: this diagnostic drops any
+	// season the archive publishes no calendar for, so a literal here would go
+	// stale the moment the archive gains or loses one — which is exactly what
+	// TestPrintedGridLabelsAreDerived exists to catch, and it caught this line.
+	t.Logf("⚠️ EVERY POOLED DOUBLES-AGAINST-SINGLES TABLE BELOW IS SEASON-CONFOUNDED. Roughly")
+	t.Logf("half of all double club-gameweeks fall in 2020-21 and 2021-22, against a singles")
+	t.Logf("column drawn from all %d seasons above, so any such difference carries a COVID-era",
+		len(seasons))
 	t.Log("contrast as well as the double. Only the within-player table controls for it, and")
 	t.Log("the per-season headline at the end is where concentration can be read directly.")
 }
