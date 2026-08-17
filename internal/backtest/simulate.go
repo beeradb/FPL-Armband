@@ -321,7 +321,126 @@ type SimResult struct {
 	// when no week reached `decide`, which is what a SimResult assembled by hand
 	// carries and is why bankingOf gates on it.
 	Banking BankingMediator
+
+	// FixtureRuns is the fixture-run mediator, filled by every simulated season
+	// beside Banking and for the same reason. See FixtureRunMediator.
+	FixtureRuns FixtureRunMediator
 }
+
+// FixtureRunMediator is what the weekly transfer decision did about fixture
+// runs: how often the 3/14/3 band distinction existed at all, how many moves
+// were made while it did, and whether those moves went toward the better run.
+//
+// # Why this is counted rather than inferred
+//
+// "Do not build a custom fixture-difficulty rating, do not target the worst
+// defences" is a closed line, and the mechanism behind it is real: you never buy
+// a fixture, you buy a run of them, and runs converge. But every recorded arm in
+// that family ran one lever at a time, and this project's standing rule is that a
+// one-at-a-time null is a *simple-effect* null — true of the shipped
+// configuration and silent about any other. So the tandem case (banking plus chip
+// preparation plus the bands) is untested rather than refuted, and it is about to
+// be run.
+//
+// A flat result from that run has at least three explanations:
+//
+//   - the bands were never computed, because too few fixtures had been played;
+//   - they were computed and the policy made no transfers to express them with;
+//   - it made transfers and they went nowhere in particular on the bands.
+//
+// Those license opposite conclusions, and points columns cannot tell them apart.
+// The banking funnel that landed beside this made exactly that argument and paid
+// for itself immediately: it showed the banking rule had a real choice in 169 of
+// 236 weeks and declined every time, which is a completely different statement
+// from "nothing ever cleared the bar".
+//
+// # What it deliberately does NOT contain
+//
+// There is no "would the decision have differed with the bands off" column. That
+// is the counterfactual a reader most wants, and getting it honestly costs a
+// second full transfer search every week — the search is the expensive part of a
+// replay, and what is affordable to run is the binding constraint on this whole
+// enterprise. The decision-level arrival question is answered once, by a test
+// (TestTheFixtureRunLeverReachesTheTransferDecision), rather than per week by a
+// column. ⚠️ So `RunMoves` is "the move changed band exposure", NOT "the bands
+// caused the move". Do not quote it as the second.
+type FixtureRunMediator struct {
+	// ReadyWeeks is how many of BankingMediator.DecisionWeeks the bands existed
+	// in. It shares that denominator deliberately: both mediators are counted on
+	// weeks that reached `decide`, so the two funnels are commensurable and a
+	// tandem arm can be read across them without a second denominator.
+	//
+	// It is NOT a configuration fact. The bands need bandMinMatches played by
+	// enough clubs, so this is zero for the opening five or six gameweeks of every
+	// cell however the lever is set — which is a real constraint on a GW1 cell and
+	// was invisible before this column.
+	//
+	// ⚠️ **It counts weeks the band channel could REACH SCORING, not weeks the
+	// ratings existed**, and the two come apart under `FPL_MAGNITUDE`, where the
+	// bands compute and `fixtureMultipliersFor` returns before consulting them.
+	// See analysis.BandChannelLive: counting readiness alone would report a
+	// live-looking mediator off a bypassed lever, which is the precise inversion
+	// this block exists to prevent.
+	ReadyWeeks int
+	// Moves is how many transfers with a RESOLVABLE pair of players were made in
+	// those ready weeks. The denominator for RunMoves and WorseMoves, and the
+	// column that separates "the policy never acted" from "the policy acted and
+	// the bands did not show up in what it chose".
+	//
+	// ⚠️ It is **not** the season's `moves` column, which counts every transfer in
+	// every week including the ones before any rating existed. The two names are
+	// one word apart and the denominators are different; on one 2025-26 cell they
+	// read 36 and 31.
+	Moves int
+	// RunMoves and WorseMoves are how many of Moves raised and lowered the
+	// incoming player's banded exposure against the outgoing player's. Moves that
+	// did neither — both clubs mid-band, which "runs converge" predicts is the
+	// modal case — are `Moves - RunMoves - WorseMoves`.
+	//
+	// ⚠️ **WorseMoves is what gives RunMoves a null**, and it is the reason there
+	// are two counts rather than one. With only RunMoves, `Moves - RunMoves` pools
+	// "traded the run away" with "the bands had nothing to say about this move",
+	// and those license opposite conclusions: 11 of 31 reads as a third against an
+	// implied half, where the honest statement may be 11 better, 0 worse and 20
+	// ties. Exposure bounds that mixture and does not identify it — 11 positives
+	// summing +2 with 20 ties, and 11 summing +14 against 6 summing −12, are the
+	// same two numbers.
+	//
+	// ⚠️ **Counts of MOVES, not of weeks**, unlike every column in the banking
+	// funnel. A week can carry several. Read them against Moves, never against
+	// ReadyWeeks.
+	RunMoves, WorseMoves int
+	// Exposure is the signed sum, over Moves, of the incoming player's run less
+	// the outgoing player's, in banded fixtures. See analysis.FixtureRun.Net.
+	//
+	// The magnitude beside the counts: 30 moves that each buy one extra banded
+	// fixture and 30 that trade one for one are the same RunMoves-over-Moves ratio
+	// and very different interventions. Signed, so a negative sum is a normal
+	// reading rather than a fault.
+	//
+	// ⚠️ **Unweighted.** The model's own band coefficients are deliberately
+	// asymmetric on the attacking side — attackBandTarget 0.23 against
+	// attackBandAvoid 0.15 — and the clean sheet enters through `exp(-x)`, so a
+	// count of target opponents less a count of avoid opponents is not
+	// proportional to the adjustment the engine applied on either side. It is a
+	// count of fixtures and never a proxy for what those fixtures were worth.
+	Exposure int
+}
+
+// ⚠️ **These columns describe ONE ARM's own path, and a difference between two
+// arms is a POLICY-metric difference like any other.**
+//
+// The first thing a tandem sweep invites is subtracting these columns between a
+// band-on and a band-off arm. That difference carries the full transfer-path
+// divergence — the two arms stop holding the same squad after their first
+// disagreement — with no pairing at the move level, no standard error, and of
+// order thirty observations a cell. It needs a threshold exactly as a points
+// column does, and this project's recorded floor for the transfer path is 303
+// points of spread.
+//
+// One 2025-26 cell shows the shape: RunMoves went 11 -> 9 while Exposure went
+// +2 -> +9, two counts moving in opposite directions. That is what n around 31
+// on two divergent paths looks like, and it is not a finding.
 
 // ArmbandOracle counts how often hindsight disagreed with the model about who
 // should wear the armband.
@@ -1307,6 +1426,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// The transfer-banking mediator, on the same principle and for every arm
 	// rather than one. See SimResult.Banking.
 	var banking BankingMediator
+	var fixtureRuns FixtureRunMediator
 
 	for gw := start; gw <= 38; gw++ {
 		week := Week{GW: gw}
@@ -1370,6 +1490,33 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 				}
 				if wb.Banked {
 					banking.BankedWeeks++
+				}
+				// The fixture-run mediator, on the same weeks and the same engine
+				// the decision was actually taken with. `pe` is the transfer
+				// engine, so the bands read here are the bands that scored the
+				// candidates — not a second opinion computed from the archive.
+				//
+				// Read after `decide` rather than inside it, which keeps `decide`'s
+				// signature alone: everything this needs is the engine, the moves
+				// and the horizon, and all three are in scope here. It is
+				// read-only — no branch below can change a decision — which is what
+				// makes it safe to run on every arm rather than behind a switch.
+				if pe.BandChannelLive() {
+					fixtureRuns.ReadyWeeks++
+					for _, mv := range moves {
+						d, ok := bandExposureDelta(pe, mv)
+						if !ok {
+							continue
+						}
+						fixtureRuns.Moves++
+						fixtureRuns.Exposure += d
+						switch {
+						case d > 0:
+							fixtureRuns.RunMoves++
+						case d < 0:
+							fixtureRuns.WorseMoves++
+						}
+					}
 				}
 				for _, mv := range moves {
 					res.Moves = append(res.Moves, mv)
@@ -1508,7 +1655,38 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 		res.Armband = &ArmbandOracle{Weeks: armbandWeeks, Changed: armbandChanged}
 	}
 	res.Banking = banking
+	res.FixtureRuns = fixtureRuns
 	return res, nil
+}
+
+// bandExposureDelta is what one move did to the squad's banded fixture exposure:
+// the incoming player's run less the outgoing player's, over the horizon the
+// engine scored them on.
+//
+// Reports `ok` false when either element cannot be resolved, so an unresolvable
+// move is left out of the count rather than entered as a zero. Those are
+// different facts, and a zero delta is a real and common observation — most
+// transfers are between two mid-band clubs — so silently folding failures into it
+// would put a data gap inside the measurement.
+//
+// ⚠️ The two players may be different positions, in a funded pair. Each side is
+// read on its own position's band, which is the right comparison: the question is
+// what the squad's exposure did, and a defender's exposure is to the opponent's
+// attack while a forward's is to its defence.
+func bandExposureDelta(e *analysis.Engine, mv Move) (int, bool) {
+	out := e.Boot.ElementByID(mv.OutID)
+	in := e.Boot.ElementByID(mv.InID)
+	if out == nil || in == nil {
+		return 0, false
+	}
+	// e.Weights.Horizon, not cfg's: this must be the window Metrics scored the
+	// candidates over, and ApplyChipPlan may already have shortened it for a week
+	// before a chip. Reading the configured horizon here would report on a run
+	// nobody was scored against.
+	h := e.Weights.Horizon
+	outRun := e.FixtureRunFor(out.Team, h, out.ElementType)
+	inRun := e.FixtureRunFor(in.Team, h, in.ElementType)
+	return inRun.Net() - outRun.Net(), true
 }
 
 // decide applies the review policy for one gameweek.

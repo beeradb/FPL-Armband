@@ -182,6 +182,7 @@ One row per (sweep, variant, season, start point).
 | `frozen_*`, `frozen_captain_*`, `weekly_*` | the variance decomposition's intermediate layers, in which the eleven is frozen at the day-one pick; blank for an ordinary sweep |
 | `hold_fixedcap_*`, `hold_nocap_*` | the captaincy rungs (below); blank for the variance decomposition |
 | `decision_weeks`, `consulted_weeks`, `weighed_weeks`, `banked_weeks`, `free_at_decision` | the transfer-banking mediator (below): a funnel from weeks that reached the transfer decision down to weeks the banking rule said wait, plus the mean allowance a decision week ran with. Blank for the variance decomposition and for any row that does not populate the block |
+| `band_ready_weeks`, `band_moves`, `band_run_moves`, `band_worse_moves`, `band_exposure` | the fixture-run mediator (below): weeks the 3/14/3 bands existed, the transfers made in them, and which way those moved the squad's banded fixture exposure. Shares the banking block's gate, so the two are recorded together or not at all |
 | `bench_boost_gw`, `bench_boost_pts`, `triple_captain_gw`, `triple_captain_pts` | what each scoring chip returned in the week the arm actually played it, and which week that was. Zero week means the arm did not play that chip in this cell. The standard sweep config plans no chips, so both pairs are `0` in an ordinary sweep; only a diagnostic that sets a chip plan populates them |
 | `hold_xpoints`, `hold_xpoints_per_gw`, `policy_xpoints`, `policy_xpoints_per_gw` | accumulated **expected** points — realised points with four channels swapped for their expected value (`internal/analysis/xpoints.go`). **Blank, not zero,** for the variance decomposition, which builds its own row, and absent entirely from cells banked before 2026-08-15 |
 | `setting`, `min_expected_minutes`, `squad_hash` | what the arm actually **did**, rather than what its label says: the swept value read back off the applied `SimConfig`, the resolved opening-squad pool floor, and a fingerprint of the opening fifteen as a set — so "the squad moved" is checkable off a banked file rather than asserted |
@@ -317,6 +318,84 @@ Three cautions on it:
   that season played under.
 
 Neither the counts nor the mean may be divided by `weeks` or multiplied by 38.
+
+### The fixture-run mediator
+
+The second funnel in the same region of the file, and it exists for the same
+reason: the reopened question is whether banking, chip preparation and the
+fixture bands do something **together** that none does alone, and a flat tandem
+result has several explanations that points columns cannot separate.
+
+| column | what it counts |
+|---|---|
+| `band_ready_weeks` | of `decision_weeks`, weeks the 3/14/3 attack/defence bands existed at all |
+| `band_moves` | transfers made in those weeks, with both players resolvable |
+| `band_run_moves` | of those, moves that raised the incoming player's banded exposure |
+| `band_worse_moves` | of those, moves that lowered it |
+| `band_exposure` | the signed sum of the exposure change, in banded fixtures |
+
+Exposure is a count of banded opponents in the player's club's next
+`Weights.Horizon` fixtures — bottom-three band minus top-three band — read on the
+opponent's **attack** for keepers and defenders and on its **defence** for
+midfielders and forwards.
+
+Four things to get right, three of which are traps.
+
+**The nesting is two chains, not one.** `decision_weeks >= band_ready_weeks`
+counts weeks; `band_moves >= band_run_moves + band_worse_moves` counts **moves**,
+and one week can carry several. There is no four-deep funnel here.
+
+**`band_run_moves` and `band_worse_moves` do not sum to `band_moves`.** The
+remainder is moves the bands had nothing to say about — both clubs mid-band —
+which "runs converge" predicts is the modal case. That is why both directions are
+recorded: with only the favourable count, `band_moves - band_run_moves` pools
+ties with reversals, and `11 of 31` gets read against an implied half when the
+honest statement may be *11 better, 0 worse, 20 tied*. `band_exposure` bounds
+that mixture and does not identify it — 11 positives summing +2 with 20 ties, and
+11 summing +14 against 6 summing −12, give the same two numbers.
+
+**`band_moves` is not the `moves` column**, and the names are one word apart.
+`moves` is every transfer the season made; `band_moves` is only those in weeks the
+bands existed. On one 2025-26 cell they read 36 and 31. Computing
+`band_run_moves / moves` uses the wrong denominator.
+
+⚠️ **`band_ready_weeks` counts weeks the band channel could reach SCORING, not weeks the ratings
+existed**, and the two come apart under `FPL_MAGNITUDE`. There `fixtureMultipliersFor` returns the
+magnitude multipliers and never consults the bands, so `band_strength` reaches nothing at any
+value while the ratings compute perfectly well. The whole block therefore reads **0 ready weeks and
+four blanks** in such a run — which is the honest report, and is the reading to check first if a
+band arm comes back flat. Counting readiness alone would have shown a live-looking mediator off a
+bypassed lever.
+
+**`band_ready_weeks` is close to a calendar fact rather than an arm property.**
+The bands need five matches played by enough clubs, so it is roughly GW6 onward
+whatever the setting — 33 of 37 decision weeks on a GW1 cell, on both arms. At
+start points 11 and later it will equal `decision_weeks` in every cell, and the
+first funnel step is then uninformative rather than broken.
+
+**These are counts, not rates**, exactly as the banking block's are, and
+`band_exposure` is the worst of them because it has no natural denominator in the
+file at all. Pool as within-cell ratios — `ready/decision`, `run/moves`,
+`exposure/moves` — never as raw sums across cells of 38 and 13 gameweeks.
+
+⚠️ **A difference in these columns between two arms is a `POLICY` difference and
+needs a threshold like any other.** The two arms stop holding the same squad after
+their first disagreement, so a between-arm difference carries the whole
+transfer-path divergence, with no pairing at the move level and of order thirty
+observations a cell. The recorded floor for the transfer path is **303 points of
+spread**. One cell shows the shape: `band_run_moves` went 11 → 9 while
+`band_exposure` went +2 → +9 — two counts moving in opposite directions, which is
+what n ≈ 31 on two divergent paths looks like, and is not a finding.
+
+⚠️ **The block reports eligibility and expression, never attribution.**
+`band_run_moves` says a move changed exposure, **not** that the bands caused it.
+Attribution needs the counterfactual — would this move have been made with the
+bands off — and that costs a second full transfer search every week, which is not
+affordable. The arrival question is answered once by
+`TestTheFixtureRunLeverReachesTheTransferDecision` instead. A cheaper per-move
+"band component of the chosen pair's score delta" would be **worse than nothing**:
+it describes the pair the argmax already picked, so it inherits that selection and
+reads as attribution while being a property of the winner.
 
 ### The chip-week oracle's readings
 

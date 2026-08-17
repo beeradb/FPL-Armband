@@ -316,6 +316,10 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 				// at all — see bankingOf — and it is free, since Simulate has
 				// already counted it.
 				row.BankingMediator, row.HasBanking = bankingOf(res)
+				// And the fixture-run funnel beside it, on every arm and for the
+				// same reason: it is what makes a fixture-run arm's null readable,
+				// and Simulate has already counted it.
+				row.FixtureRuns = fixtureRunsOf(res)
 				row.HasChipWeeks = true
 				for _, w := range res.Weeks {
 					if w.BenchBoost {
