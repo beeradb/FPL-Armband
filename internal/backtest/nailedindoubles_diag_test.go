@@ -103,6 +103,9 @@ type eligibleWeek struct {
 	GW      int
 	Value   int
 
+	// seasonKey distinguishes clubs and gameweeks across seasons, so a cluster
+	// count cannot merge 2020-21's club 3 with 2024-25's.
+	seasonKey    int
 	ClubFixtures int // 1 single, 2+ double; blanks are not eligible weeks
 	Nailed       float64
 	Legs         []matchRow
@@ -164,6 +167,14 @@ func (w eligibleWeek) appearancePointsBanked() float64 {
 
 // eligibleWeeks builds every (player, gameweek) the season can speak about.
 func eligibleWeeks(sm *seasonMatches, news *TeamNewsTable) []eligibleWeek {
+	// The season's own index into appearanceFloorSeasons, so every week carries a
+	// key that is unique across the grid rather than only within its season.
+	seasonKey := 0
+	for i, name := range appearanceFloorSeasons {
+		if name == sm.Name {
+			seasonKey = i + 1
+		}
+	}
 	if !sm.HasCalendar {
 		return nil
 	}
@@ -229,8 +240,8 @@ func eligibleWeeks(sm *seasonMatches, news *TeamNewsTable) []eligibleWeek {
 			}
 			w := eligibleWeek{
 				Element: el, Code: p.Code, Club: c, Pos: p.Type, GW: gw,
-				Value: lastValue, ClubFixtures: n, Nailed: nailed,
-				Legs: legs[el][gw],
+				Value: lastValue, seasonKey: seasonKey, ClubFixtures: n,
+				Nailed: nailed, Legs: legs[el][gw],
 			}
 			if news != nil && news.Covers(sm.Name, gw) {
 				st, _, ok := news.FlagAt(sm.Name, gw, p.Code)
@@ -512,8 +523,12 @@ func reportPerGameweekRates(t *testing.T, all []seasonWeeks) {
 	t.Log("== per-GAMEWEEK 'cleared 60 at least once', doubles against singles ==")
 	t.Log("Diversification predicts the gap between nailed and not narrows in the double")
 	t.Log("column. Read the rotation reference, not the fringe one — see the note below the table.")
-	t.Logf("%-18s %8s %9s   %8s %9s   %8s", "nailedness",
-		"S weeks", "S >=1x60", "D weeks", "D >=1x60", "diff")
+	t.Log("`if indep` is what the double would pay if its two legs were independent draws at")
+	t.Log("the same bucket's observed per-match rate in doubles; `shortfall` is observed minus")
+	t.Log("that. A negative shortfall means the two legs are positively correlated — the same")
+	t.Log("player tends to do both or neither — which is the opposite of a hedge.")
+	t.Logf("%-18s %8s %9s   %8s %9s %9s %9s   %8s", "nailedness",
+		"S weeks", "S >=1x60", "D weeks", "D >=1x60", "if indep", "shortfall", "diff")
 	sRate := map[string]float64{}
 	dRate := map[string]float64{}
 	for _, b := range nailedBuckets {
@@ -523,8 +538,16 @@ func reportPerGameweekRates(t *testing.T, all []seasonWeeks) {
 		}
 		sr, dr := rate(s.WeekSixty, s.Weeks), rate(d.WeekSixty, d.Weeks)
 		sRate[b.Label], dRate[b.Label] = sr, dr
-		t.Logf("%-18s %8d %9.4f   %8d %9.4f   %+8.4f",
-			b.Label, s.Weeks, sr, d.Weeks, dr, dr-sr)
+		// What a double WOULD pay if its two legs were independent draws at the
+		// bucket's own observed per-match rate in doubles. Printing the benchmark
+		// rather than the raw rise, because the rise on its own is uninterpretable:
+		// the gain from a second draw is p(1-p), so it is largest in the middle
+		// buckets and near zero at both ends whatever the football does. An
+		// inverted U across the buckets is arithmetic, not a finding.
+		pm := rate(d.Sixty, d.Matches)
+		indep := 1 - (1-pm)*(1-pm)
+		t.Logf("%-18s %8d %9.4f   %8d %9.4f %9.4f %+9.4f   %+8.4f",
+			b.Label, s.Weeks, sr, d.Weeks, dr, indep, dr-indep, dr-sr)
 	}
 
 	// Two reference buckets, because the choice of reference decides the answer
@@ -578,6 +601,15 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 		startBoth, startKnown  int
 		startOne, startNoneAcc int
 		appearPts              float64
+		sixtyLegs, legs        int
+		// clusters counts the distinct (season, club, gameweek) doubles behind
+		// the cell. Ten nailed players at one club in one double week are ONE
+		// manager's team-selection decision, not ten draws, so a rate over 222
+		// player-weeks has far fewer independent units than its denominator
+		// suggests. Printed rather than turned into a standard error: this file
+		// reports counts, and a reader who wants an interval needs the count more
+		// than he needs my choice of estimator.
+		clusters map[[3]int]bool
 	}
 	raw := map[string]*acc{}
 	avail := map[string]*acc{}
@@ -599,6 +631,12 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 	}
 	add := func(a *acc, w eligibleWeek) {
 		a.weeks++
+		a.sixtyLegs += w.sixtyLegs()
+		a.legs += w.ClubFixtures
+		if a.clusters == nil {
+			a.clusters = map[[3]int]bool{}
+		}
+		a.clusters[[3]int{w.seasonKey, w.Club, w.GW}] = true
 		switch w.sixtyLegs() {
 		case 0:
 			a.none++
@@ -657,10 +695,9 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 
 	print := func(title string, m, against map[string]*acc) {
 		t.Log(title)
-		t.Logf("%-18s %8s %8s %8s %8s   %9s %9s %7s   %8s %8s %8s %8s",
-			"bucket", "dbl weeks", "both60", "one60", "none",
-			"mean appPts", "single wk", "added", "n starts", "startBoth",
-			"startOne", "startNone")
+		t.Logf("%-18s %8s %8s %8s %8s %8s %8s   %9s %9s %7s   %8s %8s",
+			"bucket", "dbl weeks", "doubles", "both60", "if indep", "one60", "none",
+			"mean appPts", "single wk", "added", "n starts", "startBoth")
 		for _, k := range order {
 			a := m[k]
 			if a == nil || a.weeks == 0 {
@@ -671,11 +708,14 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 			if b := against[k]; b != nil && b.weeks > 0 {
 				sgl = b.appearPts / float64(b.weeks)
 			}
-			t.Logf("%-18s %8d %8.4f %8.4f %8.4f   %9.3f %9.3f %7.3f   %8d %8.4f %8.4f %8.4f",
-				k, a.weeks, rate(a.both, a.weeks), rate(a.one, a.weeks),
-				rate(a.none, a.weeks), dbl, sgl, dbl-sgl,
-				a.startKnown, rate(a.startBoth, a.startKnown),
-				rate(a.startOne, a.startKnown), rate(a.startNoneAcc, a.startKnown))
+			// Independent legs at the cell's own observed per-match rate. The
+			// gap between this and `both60` is what says whether a double is
+			// two lotteries or one decision taken twice.
+			pm := rate(a.sixtyLegs, a.legs)
+			t.Logf("%-18s %8d %8d %8.4f %8.4f %8.4f %8.4f   %9.3f %9.3f %7.3f   %8d %8.4f",
+				k, a.weeks, len(a.clusters), rate(a.both, a.weeks), pm*pm,
+				rate(a.one, a.weeks), rate(a.none, a.weeks), dbl, sgl, dbl-sgl,
+				a.startKnown, rate(a.startBoth, a.startKnown))
 		}
 	}
 
@@ -685,6 +725,11 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 	t.Log("elite player banks close to four. `single wk` is the same bucket's mean appearance")
 	t.Log("points in its SINGLE weeks and `added` is the difference — what the double was")
 	t.Log("really worth on the floor, against a theoretical 2.000.")
+	t.Log("`doubles` is the distinct (season, club, gameweek) doubles behind the cell — the")
+	t.Log("independent-unit count, which is far below `dbl weeks` because a club's ten nailed")
+	t.Log("players in one double week are one team-selection decision. `if indep` is what")
+	t.Log("both60 would be if the two legs were independent draws at the cell's own per-match")
+	t.Log("rate; both60 above it means the legs are positively correlated.")
 	print("-- raw, injuries included. This is the deployable figure: at the moment of "+
 		"a transfer you do not know he will stay fit. --", raw, base)
 	if haveNews {
@@ -784,6 +829,23 @@ func clubRotation(sm *seasonMatches, club int) (float64, int) {
 	when := map[int]int{}
 	for _, r := range sm.Rows {
 		if r.Club != club || !r.Sixty() {
+			continue
+		}
+		// ⚠️ **Doubled gameweeks are excluded from the measure entirely**, and
+		// this is a correction rather than a refinement.
+		//
+		// The split this feeds asks whether a nailed player's hour-clearing rate
+		// falls in doubles at rotation-heavy clubs. Counting the double's own two
+		// matches into the churn makes the label partly a function of the outcome:
+		// a club that rotated in its double scores higher churn, is more likely
+		// labelled "rotating", and then reads a lower double rate in the split it
+		// caused. That is selection on the outcome inside the cell, and it biases
+		// the rotating-minus-settled gap in exactly the direction the congestion
+		// story predicts.
+		//
+		// "Used only to split, never as a predictor" does not cover it. What does
+		// is measuring the club's habits on the weeks the comparison never reads.
+		if sm.clubGWFixtures(club, r.GW) >= 2 {
 			continue
 		}
 		if byFixture[r.Fixture] == nil {
@@ -905,6 +967,16 @@ func reportClubSplits(t *testing.T, all []seasonWeeks) {
 // coin toss. It is a floor on a paired estimator, not a fitted value.
 const minWeeksEitherSide = 2
 
+// withinPlayerWindow is how many gameweeks either side of one of his own doubles
+// a player's single week must fall to serve as its control.
+//
+// **Asserted.** Three is wide enough that most players clear
+// `minWeeksEitherSide` on the control side and narrow enough that the two arms
+// sit in the same phase of the season. Nothing was swept; a wider window buys
+// sample and gives back the calendar match it exists for, which is the trade this
+// number names rather than optimises.
+const withinPlayerWindow = 3
+
 // reportWithinPlayer is the same player's doubles against his own singles.
 //
 // This removes every player-level and club-level confound that does not vary
@@ -923,21 +995,45 @@ func reportWithinPlayer(t *testing.T, all []seasonWeeks) {
 	}
 	for _, l := range all {
 		top30 := topByPoints(l.sm, 30)
+		// A player's doubles fall late in a season and his singles span all of
+		// it, so a within-player difference still compares two different points
+		// in the calendar — which is where cumulative load, dead rubbers and
+		// title-race squad management live. The single arm is therefore
+		// restricted to gameweeks within `withinPlayerWindow` of one of that
+		// player's own doubles. Same footballer, same club, same part of the
+		// season, one thing different.
+		doubleWeeks := map[int][]int{}
+		for _, w := range l.weeks {
+			if w.ClubFixtures >= 2 {
+				doubleWeeks[w.Element] = append(doubleWeeks[w.Element], w.GW)
+			}
+		}
+		near := func(el, gw int) bool {
+			for _, d := range doubleWeeks[el] {
+				if gw-d <= withinPlayerWindow && d-gw <= withinPlayerWindow {
+					return true
+				}
+			}
+			return false
+		}
+
 		per := map[int]*armPair{}
 		nailedWeeks := map[int]int{}
 		for _, w := range l.weeks {
 			if per[w.Element] == nil {
 				per[w.Element] = &armPair{}
 			}
-			if w.ClubFixtures >= 2 {
+			switch {
+			case w.ClubFixtures >= 2:
 				per[w.Element].d.add(w)
-			} else {
+			case near(w.Element, w.GW):
 				per[w.Element].s.add(w)
+			default:
+				continue // too far from any of his doubles to be a fair control
 			}
 			if w.Nailed >= 0.85 {
 				nailedWeeks[w.Element]++
 			}
-
 		}
 		for el, p := range per {
 			if p.d.Weeks < minWeeksEitherSide || p.s.Weeks < minWeeksEitherSide {
@@ -955,7 +1051,12 @@ func reportWithinPlayer(t *testing.T, all []seasonWeeks) {
 	}
 	sort.Strings(order)
 	t.Log("== within-player: the same footballer's 60+ rate per match, doubles minus singles ==")
-	t.Logf("Players need at least %d weeks of each kind in one season.", minWeeksEitherSide)
+	t.Logf("Players need at least %d weeks of each kind in one season, and the single weeks are",
+		minWeeksEitherSide)
+	t.Logf("restricted to within %d gameweeks of one of his own doubles so the two arms sit in",
+		withinPlayerWindow)
+	t.Log("the same part of the season. Read the MEDIAN beside the mean: they have disagreed in")
+	t.Log("sign here, which means a left tail of players rather than a shift in the typical one.")
 	t.Logf("%-20s %8s %9s %9s %9s %9s", "population", "players", "mean", "median", "P(<0)", "sd")
 	for _, k := range order {
 		xs := buckets[k]
@@ -1008,8 +1109,12 @@ func reportPostDoubleLoad(t *testing.T, all []seasonWeeks) {
 		// looked up, and by element so a player's absence is distinguishable from
 		// a week his club did not play.
 		byKey := map[[2]int]eligibleWeek{}
+		doubling := map[int]bool{}
 		for _, w := range l.weeks {
 			byKey[[2]int{w.Element, w.GW}] = w
+			if w.ClubFixtures >= 2 {
+				doubling[w.Club] = true
+			}
 		}
 		for _, w := range l.weeks {
 			// The third arm is the matched control, and it is the one to read.
@@ -1032,6 +1137,18 @@ func reportPostDoubleLoad(t *testing.T, all []seasonWeeks) {
 			case w.ClubFixtures == 1 && w.sixtyLegs() == 1:
 				arm = "after a full single"
 			default:
+				continue
+			}
+			// ⚠️ Both arms are restricted to clubs that had a double THIS season.
+			//
+			// The control matches the load — two matches cleared at sixty minutes
+			// — and without this it matches nothing else. Doubling clubs are
+			// congested clubs whose players are fielded more, so an unrestricted
+			// control differs in club, season and calendar position at once, and
+			// the five-minute gap on the later minutes columns is composition
+			// rather than any effect of the double. This does not fix the
+			// calendar; it fixes the club.
+			if !doubling[w.Club] {
 				continue
 			}
 			blanks := clubBlanks(l.sm, w.Club)
@@ -1069,6 +1186,9 @@ func reportPostDoubleLoad(t *testing.T, all []seasonWeeks) {
 	t.Log("== the second-order cost: what happens in the three gameweeks after ==")
 	t.Log("`absent` is no matchday-squad row at all in that gameweek — the archive's only")
 	t.Log("proxy for unavailability, and it also catches a straight omission.")
+	t.Log("Every arm is restricted to clubs that doubled in that season, so the control matches")
+	t.Log("the club as well as the load. It does NOT match the point in the season, which is")
+	t.Log("where the remaining difference between the arms lives.")
 	t.Logf("%-38s %7s   %s", "arm", "events",
 		"gw+1 absent/60+/mins   gw+2 absent/60+/mins   gw+3 absent/60+/mins")
 	for _, k := range order {

@@ -472,6 +472,7 @@ func TestDiagAppearanceFloor(t *testing.T) {
 
 	reportDecompositionReconciles(t, seasons)
 	reportAppearanceShare(t, seasons)
+	reportAppearanceShareBySeason(t, seasons)
 	reportComponentsByPosition(t, seasons)
 	reportExtraMatchSpread(t, seasons)
 	reportSixtyRate(t, seasons)
@@ -617,6 +618,9 @@ func reportAppearanceShare(t *testing.T, seasons []*seasonMatches) {
 	head := fmt.Sprintf("%-18s %8s %9s %9s    %6s %6s %6s  %6s",
 		"bucket", "matches", "pts/match", "pooled", "Q1", "med", "Q3", "players")
 	t.Log("== appearance points as a share of realised return, per match played ==")
+	t.Log("⚠️ `top N by points` selects on season total points — the share's own DENOMINATOR —")
+	t.Log("so its figure is depressed by construction and is not what an ex-ante elite player's")
+	t.Log("share would be. The 10.0+ price bracket is the prior-information counterpart.")
 	t.Log("`pooled` is the ratio of summed appearance to summed points; Q1/med/Q3 are the")
 	t.Logf("distribution of the same ratio computed per player-season, over players with >= %d matches.",
 		minMatchesForAShare)
@@ -638,6 +642,46 @@ func reportAppearanceShare(t *testing.T, seasons []*seasonMatches) {
 			t.Log(line(b, s, b))
 		}
 	}
+}
+
+// reportAppearanceShareBySeason is the mixture check the pooled share needs.
+//
+// The ten seasons span three bonus regimes, the introduction of defensive
+// contribution and the goalkeeper-goal rule change. Every one of those moves the
+// DENOMINATOR of an appearance share and none of them moves the numerator, so a
+// pooled decimal over the whole archive is a mixture whose composition nobody has
+// looked at. Ownership of that reading belongs with the reader, so the per-season
+// column is printed rather than argued about.
+func reportAppearanceShareBySeason(t *testing.T, seasons []*seasonMatches) {
+	t.Log("== the same share, per season, so the mixture is visible ==")
+	t.Logf("%-9s   %9s %9s %9s   %9s %9s   %9s",
+		"season", "matches", "pts/match", "everyone", "top100", "top30", "10.0m+")
+	for _, sm := range seasons {
+		top30 := topByPoints(sm, 30)
+		top100 := topByPoints(sm, 100)
+		var all, t100, t30, prem share
+		for _, r := range sm.Rows {
+			if !r.Appeared() {
+				continue
+			}
+			all.add(r)
+			if top100[r.Element] {
+				t100.add(r)
+			}
+			if top30[r.Element] {
+				t30.add(r)
+			}
+			if r.Value >= 100 {
+				prem.add(r)
+			}
+		}
+		t.Logf("%-9s   %9d %9.3f %9.3f   %9.3f %9.3f   %9.3f",
+			sm.Name, all.Matches, all.Total/math.Max(1, float64(all.Matches)),
+			all.Pooled(), t100.Pooled(), t30.Pooled(), prem.Pooled())
+	}
+	t.Log("`top30` selects on season total points, which is the share's own DENOMINATOR, so")
+	t.Log("it is depressed by construction and is not an ex-ante elite share. `10.0m+` is the")
+	t.Log("prior-information counterpart — a price is set before the deadline.")
 }
 
 // reportComponentsByPosition decomposes an appeared match into every channel FPL
@@ -698,7 +742,9 @@ func reportComponentsByPosition(t *testing.T, seasons []*seasonMatches) {
 	sort.Strings(order)
 	t.Log("== realised points per match, decomposed, conditional on 60+ minutes ==")
 	t.Log("Every column is a mean per such match. `appear` is deterministic given selection;")
-	t.Log("every other column is stochastic. `det` is appear/points.")
+	t.Log("every other column is stochastic. `det` is appear/points — and since `appear` is")
+	t.Log("exactly 2 under this conditioning, `det` is 2/points and carries no information the")
+	t.Log("points column does not. It is printed as a reading aid, not as a second statistic.")
 	t.Logf("%-11s %7s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s  %6s %6s %5s",
 		"bucket", "n", "appear", "goals", "assist", "cs", "conc", "saves",
 		"defcon", "bonus", "cards", "other", "points", "sd", "det")
