@@ -548,6 +548,27 @@ func reportPerGameweekRates(t *testing.T, all []seasonWeeks) {
 	}
 }
 
+// headlineKeys is which buckets a week belongs to, and it is one function because
+// the headline table reports a double week against the SAME bucket's single weeks.
+// Two spellings of this rule would let the two arms drift into different
+// populations while still printing a difference.
+func headlineKeys(w eligibleWeek, top30, top100 map[int]bool) []string {
+	keys := []string{nailedBucket(w.Nailed)}
+	if top100[w.Element] {
+		keys = append(keys, "top100 by points")
+	}
+	if top30[w.Element] {
+		keys = append(keys, "top30 by points")
+	}
+	if w.Value >= 100 {
+		keys = append(keys, "price 10.0m+")
+	}
+	if w.Nailed >= 0.85 && top30[w.Element] {
+		keys = append(keys, "nailed AND top30")
+	}
+	return keys
+}
+
 // reportBothLegs is the headline: given the club doubled, how often did he do the
 // whole week?
 func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
@@ -560,6 +581,16 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 	}
 	raw := map[string]*acc{}
 	avail := map[string]*acc{}
+	// The same buckets' SINGLE weeks, so the table can print what the double
+	// actually ADDED rather than only what it banked. Two appearance points is the
+	// theoretical increment and it is not the realised one, because a single week
+	// is not worth two either: a nailed player misses some of those too.
+	base := map[string]*acc{}
+	// And the availability-restricted baseline, because the restricted double
+	// table must not be differenced against an unrestricted single one: filtering
+	// on "FPL said he was fit" raises the single-week mean too, so subtracting the
+	// raw baseline would credit the double with the filter's own effect.
+	baseAvail := map[string]*acc{}
 	touch := func(m map[string]*acc, k string) *acc {
 		if m[k] == nil {
 			m[k] = &acc{}
@@ -595,26 +626,20 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 		top100 := topByPoints(l.sm, 100)
 		for _, w := range l.weeks {
 			if w.ClubFixtures < 2 {
+				// The single-week baselines, over exactly the same buckets.
+				for _, k := range headlineKeys(w, top30, top100) {
+					add(touch(base, k), w)
+					if w.NewsKnown && w.Available {
+						add(touch(baseAvail, k), w)
+					}
+				}
 				continue
 			}
 			newsTotal++
 			if w.NewsKnown {
 				newsCovered++
 			}
-			keys := []string{nailedBucket(w.Nailed)}
-			if top100[w.Element] {
-				keys = append(keys, "top100 by points")
-			}
-			if top30[w.Element] {
-				keys = append(keys, "top30 by points")
-			}
-			if w.Value >= 100 {
-				keys = append(keys, "price 10.0m+")
-			}
-			if w.Nailed >= 0.85 && top30[w.Element] {
-				keys = append(keys, "nailed AND top30")
-			}
-			for _, k := range keys {
+			for _, k := range headlineKeys(w, top30, top100) {
 				add(touch(raw, k), w)
 				if w.NewsKnown && w.Available {
 					add(touch(avail, k), w)
@@ -630,19 +655,25 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 	order = append(order, "top100 by points", "top30 by points", "price 10.0m+",
 		"nailed AND top30")
 
-	print := func(title string, m map[string]*acc) {
+	print := func(title string, m, against map[string]*acc) {
 		t.Log(title)
-		t.Logf("%-18s %8s %8s %8s %8s   %9s   %8s %8s %8s %8s",
+		t.Logf("%-18s %8s %8s %8s %8s   %9s %9s %7s   %8s %8s %8s %8s",
 			"bucket", "dbl weeks", "both60", "one60", "none",
-			"mean appPts", "n starts", "startBoth", "startOne", "startNone")
+			"mean appPts", "single wk", "added", "n starts", "startBoth",
+			"startOne", "startNone")
 		for _, k := range order {
 			a := m[k]
 			if a == nil || a.weeks == 0 {
 				continue
 			}
-			t.Logf("%-18s %8d %8.4f %8.4f %8.4f   %9.3f   %8d %8.4f %8.4f %8.4f",
+			dbl := a.appearPts / float64(a.weeks)
+			sgl := math.NaN()
+			if b := against[k]; b != nil && b.weeks > 0 {
+				sgl = b.appearPts / float64(b.weeks)
+			}
+			t.Logf("%-18s %8d %8.4f %8.4f %8.4f   %9.3f %9.3f %7.3f   %8d %8.4f %8.4f %8.4f",
 				k, a.weeks, rate(a.both, a.weeks), rate(a.one, a.weeks),
-				rate(a.none, a.weeks), a.appearPts/float64(a.weeks),
+				rate(a.none, a.weeks), dbl, sgl, dbl-sgl,
 				a.startKnown, rate(a.startBoth, a.startKnown),
 				rate(a.startOne, a.startKnown), rate(a.startNoneAcc, a.startKnown))
 		}
@@ -651,15 +682,17 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 	t.Log("== the headline: given his CLUB doubled, did he do both legs? ==")
 	t.Log("`mean appPts` is the appearance floor actually banked that week. Four is both")
 	t.Log("legs at sixty minutes; two is one full leg; the claim under test is that a nailed")
-	t.Log("elite player banks close to four.")
+	t.Log("elite player banks close to four. `single wk` is the same bucket's mean appearance")
+	t.Log("points in its SINGLE weeks and `added` is the difference — what the double was")
+	t.Log("really worth on the floor, against a theoretical 2.000.")
 	print("-- raw, injuries included. This is the deployable figure: at the moment of "+
-		"a transfer you do not know he will stay fit. --", raw)
+		"a transfer you do not know he will stay fit. --", raw, base)
 	if haveNews {
 		t.Logf("point-in-time team news covers %d of %d double-gameweek player-weeks",
 			newsCovered, newsTotal)
-		print("-- restricted to weeks FPL was publishing status 'a' at the deadline. "+
-			"This answers 'does congestion cause rotation' and is NOT the deployable figure. --",
-			avail)
+		print("-- restricted to weeks FPL was publishing status 'a' at the deadline, on "+
+			"BOTH sides of `added`. This answers 'does congestion cause rotation' and is "+
+			"NOT the deployable figure. --", avail, baseAvail)
 	}
 }
 
