@@ -168,3 +168,40 @@ func TestMoveLimitClampsToOneHit(t *testing.T) {
 		t.Errorf("no transfers and no hits is %d, want 0", got)
 	}
 }
+
+// TestBestPackageAndItsValueAreOneSelection pins the two entry points to one
+// argmax.
+//
+// `BestPackageValue` answers "what is the best worth" and `BestPackage` answers
+// "which one is it, and what does it spend". They are the same selection asked
+// two ways, and a caller reconstructing the winner by re-scanning the list would
+// be a second argmax over the same values — this project's signature failure in
+// miniature. The list is built so the two disagree if they ever diverge: the
+// highest-GAIN package is not the winner, because it spends enough transfers to
+// give the difference away.
+func TestBestPackageAndItsValueAreOneSelection(t *testing.T) {
+	packages := []TransferPackage{
+		{Gain: 0.3, Moves: 1}, // below minGain, worth nothing
+		{Gain: 1.0, Moves: 1}, // 1.0*5 - 2*1 = 3.0, the winner
+		{Gain: 1.6, Moves: 3}, // 1.6*5 - 2*3 = 2.0, the highest gain and not the winner
+	}
+	const horizon, freeCost, minGain = 5.0, 2.0, 0.4
+
+	best, value := BestPackage(packages, horizon, freeCost, minGain)
+	if want := BestPackageValue(packages, horizon, freeCost, minGain); value != want {
+		t.Errorf("BestPackage valued the winner at %v and BestPackageValue at %v",
+			value, want)
+	}
+	if best.Moves != 1 || best.Gain != 1.0 {
+		t.Errorf("the winner is %+v; the one-move package is worth 3.0 against the "+
+			"three-move package's 2.0, so a selection made on gain rather than on "+
+			"value picks the wrong one", best)
+	}
+	// Nothing clearing the floor returns the zero package beside the zero value,
+	// so a caller reading Moves gets "do nothing" rather than a stale winner.
+	empty, v := BestPackage([]TransferPackage{{Gain: 0.3, Moves: 1}}, horizon, freeCost, minGain)
+	if v != 0 || empty.Moves != 0 {
+		t.Errorf("nothing cleared the floor and BestPackage returned (%+v, %v), "+
+			"want the zero package and 0", empty, v)
+	}
+}

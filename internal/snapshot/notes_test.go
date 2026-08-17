@@ -667,7 +667,51 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// the arm banks 0 times, so the buggy branch never executed and nothing climbed. The
 	// accrual fix ships on correctness alone. Recording the replacement cost bytes; the
 	// erroneous version would have cost a retraction.
-	const budget = 110 * 1024
+	// # 120 KB from 2026-08-17 — two mediators became readable instruments
+	//
+	// Two claims needed the room, and they are the same shape: an instrument that a
+	// tandem sweep was about to be read through cannot be trusted until someone has
+	// shown it can respond.
+	//
+	// The first: **the banking rule's waiting arm cannot fire at shipped config, and
+	// the responsible channel is the MOVE LIMIT rather than the horizon haircut.**
+	// The entry above turned an unchecked zero into a checked one; this one says why
+	// the zero is there. Over 226 unguarded weeks of the same 8 cells, the extra free
+	// transfer buys exactly zero extra package value — 0.0000 at the median, the p90
+	// *and the maximum* — so removing the horizon cost entirely still banks nothing.
+	// The natural reading, that a 20% haircut at horizon 5 is what refuses, is
+	// **wrong**, and saying so plainly is most of the entry's cost. `MoveLimit` is
+	// `free + hits`, so the shipped single hit already grants the pair search the
+	// move waiting would have bought; at `MaxHits: 0` the same 226 weeks bank 30.
+	// The consequence a sweep designer needs is one sentence and could not be
+	// inferred from the previous entry: a tandem arm crossing banking at shipped
+	// `MaxHits` is a confinement, not a null.
+	//
+	// The second: **`band_ready_weeks` is not a canary, and the fixture mediator's
+	// canary is `band_strength` 2.** The first half is the load-bearing half and is a
+	// code fact: `BandChannelLive` reads no dose, so the funnel's first column is
+	// identical at every setting (220 of 220 here) and a sweep checking only it would
+	// learn nothing about whether the lever could act. The dose that does move the
+	// mediator in every cell had to be measured, and the qualifiers are again the
+	// entry — it is a readability threshold and not a recommended setting, its
+	// exposure ladder's direction is forced by construction while the ladder itself
+	// is not even monotone, `band_run_moves` is "the move changed exposure" and
+	// never "the bands caused the move", and it is a simple-effect canary
+	// established with the other two levers off and on four seasons rather than six.
+	//
+	// Both bullets grew again under review, and both times the addition was a
+	// qualifier rather than a figure. The banking bullet gained the sentence that
+	// makes it attributable at all — the two arms enumerated the **identical
+	// candidate list** in 224 of 226 weeks, which separates "the wider limit found
+	// nothing" from "it found something that lost on value", two causes of one zero
+	// that generalise differently — plus the restriction of its own positive control
+	// to the boundary shipped config actually lives on, since the control's 132
+	// flips all sit at a boundary `MaxHits: 1` can never reach. The band bullet
+	// gained the admission that dose 1 also moves the mediator in 8 of 8 and that
+	// the two criteria selecting 2 over it are post-hoc. Both corrections make the
+	// claims weaker and the record truer, which is exactly the trade this budget is
+	// not allowed to refuse.
+	const budget = 120 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

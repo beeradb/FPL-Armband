@@ -1104,10 +1104,52 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   ⚠️ **The banked branch used to grant a second free transfer on top of the weekly accrual.** Fixed
   on correctness — FPL grants one — and **inert on every banked cell**, since the arm banks in 0 of
   8 so the branch never executed. Reachable from user config as `bank_transfers_lookahead`, shipped
-  off. **Hypothesis, unmeasured:** the rule may be near-unreachable *by construction* at shipped
-  config, because `MoveLimit` is `free + hits` so the hit allowance already grants the extra move
-  while waiting costs a flat 1/horizon — setting `MaxHits: 0` takes banked weeks from 0 to 5 on one
-  season. No cross against team news is banked here.
+  off. No cross against team news is banked here.
+- **The waiting arm did not fire in any of 226 unguarded weeks, and the only channel that could
+  make it fire is inert in all of them — the responsible channel is the MOVE LIMIT, not the horizon
+  haircut.** Settled 2026-08-17 by `TestDiagBankingReachability` on the same 8 cells (four seasons,
+  entry GW1 and GW16, `WeeklyXI` true, `BankUpTo` 5, decision horizon 5, `min_gain` 0.4,
+  `free_transfer_value` 2.0, no chips, no chip preparation, no oracles).
+  `shouldBank` prices the later arm at `gw+1` over `horizon-1` with `free+1`, so its only two
+  differences from acting now are **one extra move** and **one fewer gameweek of gain**; with the
+  preparation switches off the chip credit is identically zero, so the two package sets differ
+  *only* by the move limit and the probe separates the channels by re-pricing each set at the
+  other's horizon, with no extra transfer search.
+  Over 226 unguarded weeks of 236 consulted (guards: 3 ceiling, 7 horizon) the extra transfer buys
+  no extra package value — `(no_haircut − now)/now` is 0.0000 at the min, median, p90 **and max**,
+  a `%.4f` print so read it as below 1e-4 — and the later arm's winning package spends more moves
+  in **0 of 226**. ⚠️ **So "the horizon haircut accounts for it" is WRONG**: `NoHaircut ≥ Later`
+  by arithmetic, so `NoHaircut ≤ Now` in 226 of 226 is *sufficient* to rule the haircut out — with
+  the haircut removed entirely the arm still fires in 0 of 226. The haircut is the visible margin
+  (`later/now` median 0.6304, max 0.7743) and it is not load-bearing.
+  ✅ **Why the channel is inert is IDENTIFIED, and it is structural.** The two arms enumerated the
+  **identical candidate list in 224 of 226** weeks: `RankPairs` builds a multi-downgrade set only
+  for upgrades no single funding sale can reach (`if single || maxDowns < 2 { continue }`), so
+  raising `maxDowns` from `free` to `free+1` finds nothing new. The rival reading — that the wider
+  search found something which topped the **gain** ranking `bestPair` sorts on and then lost on
+  value — is separately excluded: `no_haircut < now` in **0 of 226**.
+  ⚠️ **`limit_now ≥ 2` at shipped `MaxHits` is FORCED, not measured**: the weekly accrual runs
+  before the search so `free ≥ 1`, and `MoveLimit = free + hits` adds the hit. Same for
+  `limit_later > limit_now` with `max_moves` unset. Neither is evidence about football — which is
+  what makes the conclusion hold off this grid.
+  ✅ **The positive control is in the same run and is read at the right boundary.** At `MaxHits: 0`
+  the now-arm's limit is `free` (mean 1.566) and falls below 2 in **132 of 226** weeks, where
+  `transferPackages` skips `bestPair` outright; waiting unlocks the pair in **132 of those 132**,
+  the extra move alone flips the comparison in **72 of 226**, and the arm banks **30**. ⚠️ But that
+  is the **1→2** boundary, which shipped `MaxHits` can never reach. Restricted to the **2→3+**
+  boundary shipped config actually lives on, the same arm reads **94 weeks, identical candidate
+  list in 94, and 0 flips** — so across both arms the extra move is inert at that boundary in
+  **318 of 320** weeks. Everything banking buys comes from the single hit already granting the
+  paired downgrade-and-upgrade the rule exists to reach.
+  ⚠️ **Counts and distributions only** — no threshold, no p, no points figure. ⚠️ **Simple-effect,
+  at `min_gain` 0.4 / `free_transfer_value` 2.0 / `BankUpTo` 5 / horizon 5**: those enter
+  `PackageValue` directly and were not varied, and with either preparation switch on the two
+  re-pricings stop being exact. The consequence for design: **a tandem arm crossing banking at
+  shipped `MaxHits` is a confinement, not a null**, so vary `MaxHits` with it or read
+  `banked_weeks = 0` as the branch never having executed. ⚠️ **Counts and
+  distributions only** — no threshold, no p, no points figure. The consequence for design: **a
+  tandem arm crossing banking at shipped `MaxHits` is a confinement, not a null**, so vary `MaxHits`
+  with it or read `banked_weeks = 0` as the branch never having executed.
 - **Reach is not the problem: 97.6% of worth-taking two-move packages are already reachable**, which
   closes the unified-search line on mechanism. The lever is the **valuation**, not the gate.
 - **The sell side is calibrated; its error is entirely availability** — −0.100 per gameweek for a
@@ -1143,6 +1185,42 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   whole sweep by construction**, and only `POLICY` rows could move. A textbook instance of the trap:
   a byte-identical result that was a comparison which never ran.
   ⚠️ `FPL_NO_XGC_REPAIR` bears on **18 of 36 cells**, not the 6 an earlier note claimed.
+- **The fixture mediator's canary is `band_strength` 2, and `band_ready_weeks` is not a canary at
+  all.** `TestDiagBandCanary`, 2026-08-17: the dose ladder 0 / 0.25 / 0.5 / 1 / 2 / 4 on 8 cells
+  (four seasons, entry GW1 and GW16, `WeeklyXI` true, `BankUpTo` 5, no chips, no banking,
+  `FPL_MAGNITUDE` unset — which the diagnostic refuses to run without, since the magnitude path
+  returns before consulting the bands). `band_ready_weeks` is **220 at every dose**, as it must be:
+  `BandChannelLive` reads `teamBands().ready` and the magnitude switch and neither depends on the
+  dose, so the funnel's first step can never respond and a sweep that checked only it would learn
+  nothing. The four move columns do respond. Cells whose mediator differs from the same cell at
+  dose 0: **6 of 8** at 0.25 and 0.5, **8 of 8** from 1 upward; cells whose *opening fifteen*
+  differs: 1, 1, 2, **4**, 4. `band_exposure` reads **+68 / +75 / +95 / +93 / +160 / +267**.
+  **1 and 2 both move the mediator in 8 of 8 cells; 2 is taken as a margin**, because it also
+  reaches the opening fifteen in 4 of 8 rather than 2 of 8 and its exposure sits outside the whole
+  0-to-1 range. ⚠️ **Those two criteria are post-hoc** — the diagnostic's own printed reading rule
+  is "the lowest dose whose mediator column is the full cell count", which selects **1**, and 1 did
+  not fail the mediator test. ⚠️ **It is a readability threshold and NOT a recommended setting**;
+  nothing here scored any dose and choosing one on points would be the argmax trap.
+  ⚠️ **The exposure ladder's DIRECTION is forced by construction and carries no information, and
+  the ladder is not in fact monotone** — +95 at 0.5 against +93 at 1 — nor is `better`, which falls
+  11 → 9 across the dose on the single season the gate test replays. Raising the dose raises the
+  score of players with target-band runs so the policy buys them, but the replay is a *path* and
+  one changed transfer re-routes every later decision. Read the size, never the direction.
+  ⚠️ And `band_run_moves` is "the move changed band exposure", never "the bands caused the move".
+  ⚠️ **The canary licenses a null at doses ≥ 2 only.** At 0.25 — the deciding arm this record still
+  calls unrun — the mediator moves in 6 of 8 and the fifteen in 1 of 8, so a flat tandem result
+  there stays unreadable in 2 cells. ⚠️ **And it is a four-season figure**: `sweepPairNames` returns
+  the six-season grid unless `FPL_SWEEP_SEASONS=default` is set, so "8 of 8" does not transport to
+  12 cells. ✅ Arrival is checked on **two** surfaces, the mediator and the opening fifteen, which
+  is what distinguishes this from the recorded `FPL_BAND_STRENGTH` trap two bullets above, where
+  the lever reached only the transfer `SimConfig` and the hold baseline was byte-identical by
+  construction. `TestTheBandDoseCanaryDiscriminates` pins the dose against the mediator on one
+  season, so the gate suite executes "an effect this size must move the arm" rather than
+  remembering it — but it pins "responds somewhere", not "responds in 8 of 8".
+  ⚠️ **It is a simple-effect canary**: it was established with banking off and no chips, so it
+  licenses reading a null in the fixture arm of a tandem sweep and says nothing about the tandem
+  corner, where the other two levers move the same decisions. A tandem cell wanting a readable null
+  needs the dose re-checked in the corner it is read in.
 - **`teamBands` was not run-to-run deterministic, and is now pinned.** `bands.go` ranged a map
   into a slice and sorted it with the non-stable `sort.Slice`, so a tie at a band boundary
   resolved by map order. Fixed by building the slice in club-id order and breaking both sort
