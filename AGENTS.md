@@ -383,6 +383,31 @@ stand.
 
 Shipped bugs, each now covered by a regression test. Re-introducing one is easy.
 
+- **Never compare a replayed float for exact equality: a banked total is reproducible from a
+  commit AND a machine, and only the commit is recorded.** Go's `math` is not bit-identical across
+  machines — `Exp` has per-architecture assembly, `Log` has it on amd64 only, and amd64's `Exp`
+  branches at run time on `cpu.X86.HasAVX && cpu.X86.HasFMA`, so two amd64 CPUs can disagree from
+  one binary. `Log` is reached only through `Pow`. Live on `Score`: `cleanSheetProb`, the Poisson
+  saves and concede blocks, the sixty-minute sigmoid, `defconCleanFactor`, `reliabilityFrom` **for
+  midfielders only** (the other three positions ship an exponent of exactly 1), and the recency
+  index. **Priors and team strength are not** — `BlendPriors` gets an integer exponent at
+  `prior_half_life` 0 and `Pow` takes those exactly, and both team-strength sites ship off behind
+  `FPL_MAGNITUDE`/`FPL_TEAM_FORM`. Measured: `math.Pow(0.5, 0.25)` is one ulp high on arm64,
+  making a recency-weighted 90 minutes read **90 on arm64 and 90.00000000000001 on amd64**. Two
+  tests compared exactly, so **CI was red on eight consecutive commits on those two assertions
+  while green on every arm64 machine the work was done on** — the instrument was disabled by what
+  it should have caught. (A snapshot-staleness failure is red alongside them and is unrelated.)
+  Fixed with a tolerance (`sameMinutes`); **no test guards the spelling, so this is a convention
+  rather than a guard.** Not fixed in production: swapping the transcendental would move every
+  banked `xpoints` cell for no football, and the points columns by an unmeasured amount.
+  ⚠️ **`hold_xpoints`/`policy_xpoints` are banked at full float64 and will not reproduce across
+  machines**; the points columns are integers and `squad_hash` is a digest of the fifteen, so both
+  reproduce unless a decision flips, **at a rate unmeasured, not unmeasurable — CI runs amd64, so
+  one sweep there against a banked arm measures it.** The transfer search is an argmax and
+  `cutByExpectedMinutes` is a cliff. Paired differences within a run share the machine, so the
+  architecture channel cannot bias a comparison, though it does not make the difference's value
+  portable. A byte-identity that is a *confinement* — a code fact that the path cannot carry the
+  effect — is architecture-invariant; an empirical zero is not. Provenance records no `GOARCH`.
 - **The doubles guard must key on `(element, fixture)`, never `(element, gameweek)`.** A real
   double gameweek has the identical shape to the archive's duplicate rows, so a gameweek-keyed
   guard would re-introduce the +115/season doubles bug while fixing the duplicates. `season.go`
@@ -1104,10 +1129,18 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   whole sweep by construction**, and only `POLICY` rows could move. A textbook instance of the trap:
   a byte-identical result that was a comparison which never ran.
   ⚠️ `FPL_NO_XGC_REPAIR` bears on **18 of 36 cells**, not the 6 an earlier note claimed.
-- **`teamBands` is not run-to-run deterministic** — a map-ranged slice and a non-stable sort, moving
-  **3 of 36 cells** on its own deciding column, worth about 0.7 a season. Latent in the replay, but
-  `FPL_WEIGHT=band=1` reaches a live `armband review`, so it is reachable by a user rather than
-  only by a sweep. **Unfixed.** `Optimize` had the identical defect and it is pinned by
+- **`teamBands` is not run-to-run deterministic** — `bands.go` ranges a map into a slice and
+  sorts it with the non-stable `sort.Slice`, so a tie at a band boundary resolves by map order.
+  Two banked runs at one commit and one constants digest differ, at `band_strength 1`, in **3 of
+  36 `hold_points` cells, 12 of 36 `policy_points`, 13 `policy_xpoints`, 6 `hold_xpoints`, and 7
+  each on `moves` and `hits`** — decisions, not only scores. **`squad_hash` moves in 1 cell
+  against `hold_points`'s 3**, so two cells re-scored an unchanged fifteen: squad-hash identity
+  is weaker evidence than points identity, which matters wherever this file leans on it. **No
+  per-season magnitude is available** — one repeat gives an occurrence count, not an effect size.
+  **Inert at the shipped `band_strength` of 0 as a code fact**: `attackBandAdj` and
+  `defenceBandAdj` return 1 *before* calling `teamBands`, and the run agrees at 0 of 36 in every
+  column. Latent in the replay, but `FPL_WEIGHT=band=1` reaches a live `armband review`, so a
+  user can reach it. **Unfixed.** `Optimize` had the identical defect and is pinned by
   `TestSeedOrderIsDeterministic`; this path has no equivalent.
 - **`BlendRateK` is banked and nothing resolves.** The ladder is **non-monotone** over 3/5/12/16/24
   — −4.1, +1.8, −11.6, +11.6, +12.6 a season, Holm 1.000 — and **8 ships unchanged**. The low side
