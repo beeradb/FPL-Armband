@@ -374,6 +374,13 @@ type FixtureRunMediator struct {
 	// enough clubs, so this is zero for the opening five or six gameweeks of every
 	// cell however the lever is set — which is a real constraint on a GW1 cell and
 	// was invisible before this column.
+	//
+	// ⚠️ **It counts weeks the band channel could REACH SCORING, not weeks the
+	// ratings existed**, and the two come apart under `FPL_MAGNITUDE`, where the
+	// bands compute and `fixtureMultipliersFor` returns before consulting them.
+	// See analysis.BandChannelLive: counting readiness alone would report a
+	// live-looking mediator off a bypassed lever, which is the precise inversion
+	// this block exists to prevent.
 	ReadyWeeks int
 	// Moves is how many transfers with a RESOLVABLE pair of players were made in
 	// those ready weeks. The denominator for RunMoves and WorseMoves, and the
@@ -1494,7 +1501,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 				// and the horizon, and all three are in scope here. It is
 				// read-only — no branch below can change a decision — which is what
 				// makes it safe to run on every arm rather than behind a switch.
-				if pe.BandsReady() {
+				if pe.BandChannelLive() {
 					fixtureRuns.ReadyWeeks++
 					for _, mv := range moves {
 						d, ok := bandExposureDelta(pe, mv)

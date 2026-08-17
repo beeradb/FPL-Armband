@@ -24,13 +24,28 @@ ships at 0.
 | reviewer | ran | why |
 |---|---|---|
 | **fpl-stats-review** | yes | the change touches `internal/analysis` (scoring) and `internal/backtest` (harness), and its whole output is an instrument whose columns will be read by someone who was not here |
-| fpl-code-review | **skipped** | triage lists it for `internal/analysis`. Declined deliberately: the two failure modes it exists to catch here are covered by invariants that run every time — the determinism fix has a positive control that fails without it, and the mediator join has a source scan that fails when the line is deleted. The gate's own preamble says invariants beat reviewers for exactly these failure modes. Recorded as a decision, not an omission |
+| **fpl-code-review** | **yes, on a second pass** | Skipped on the first pass on the argument that invariants cover the failure modes it exists to catch. **That was the wrong call and the record says so**: it ran over `4cf601b` and found a live inversion the invariants could not see (Finding 1 below), plus three documentation defects. The invariants argument holds for the bugs already *known* to this codebase; it says nothing about a bypass path nobody had connected to the mediator |
 | fpl-findings-audit | **skipped** | triage lists it for `AGENTS.md` edits. The `AGENTS.md` change is a single verdict correction (`teamBands` "Unfixed" → fixed) plus one stale enumeration, both of which the statistics reviewer checked directly and corrected. No new finding was recorded and no figure was added |
 | fpl-security-review | not applicable | no change to `internal/agent`, `internal/fpl`, or config persistence |
 
-## Findings, applied
+## Findings from the code review, applied
 
-Ranked by how misleading the state would have been.
+Ranked by how misleading the state would have been. All four were reproduced before being acted
+on.
+
+0. **`FPL_MAGNITUDE` made `band_strength` inert while the mediator still reported the bands as
+   live** — the exact inversion the block exists to prevent, delivered by the block itself.
+   `fixtureMultipliersFor` returns the magnitude multipliers and **returns before `attackBandAdj`
+   or `defenceBandAdj` is ever called**, so `BandStrength` reaches nothing at any value; but the
+   bands still compute from finished fixtures, so all five columns populated with plausible
+   counts. A tandem sweep run with that variable set would have shown "33 of 37 weeks ready, 31
+   moves, 11 better / 10 worse" and been read as *the policy had every opportunity and declined*.
+   **Applied**: the mediator now gates on `analysis.BandChannelLive`, which requires both that the
+   ratings exist and that the scoring path consults them, and `FixtureRunFor` reports not-ready
+   under the same condition. `TestTheBandChannelIsNotLiveUnderMagnitudeDifficulty` pins it.
+
+   What the code review saw and the invariants could not: nothing in this repository connected
+   `FPL_MAGNITUDE` to the bands, so no existing guard was watching that seam.
 
 1. **`band_run_moves` had no null to be read against.** With only the favourable count,
    `band_moves - band_run_moves` pooled "traded the run away" with "the bands had nothing to say
@@ -76,11 +91,35 @@ Ranked by how misleading the state would have been.
 11. **A stale enumeration in `AGENTS.md`** — the `mustNotMoveForAxis` bullet listed the column
     families required to differ by arm and did not include the new block. Applied.
     (`cellMetricColumns` is unchanged at eight, so no invariance falsely covers the new columns.)
+12. **`FixtureRunFor` reads one of the two band channels a defender is scored on, and only the
+    midfielder half was documented.** `fixtureAdjustedXP90` passes BOTH multipliers to
+    `fixtureSensitiveAt` for every position, so a defender's goals and assists are re-priced by
+    the opponent's defence band and this counter cannot see it — and that omitted channel is
+    larger than the midfielder one the comment did discuss. **Applied as documentation**, since
+    the block is a count of fixtures and never a proxy for their worth, plus a correspondence pin
+    (`TestFixtureRunReadsTheSameBandSideTheEngineDoes`) so the half that *is* modelled cannot
+    drift out of step — the desynchronised-mirror shape this repository has paid for twice on
+    `baseXP90`/`fixtureSensitivePart`.
+13. **Five comments said the block was four columns; it is five** — residue from adding
+    `band_worse_moves`, and not cosmetic in `cellcsv_regression_test.go`, whose own header warns
+    about a synthesised predecessor whose width does not match the build it names. Applied.
+    (`cellcsv_test.go:573` was checked and was about the *banking* block being extended, so it was
+    corrected to five for a different reason; its neighbouring "the last four of these count
+    MOVES" is correct as written and was left.)
+14. **The `AGENTS.md` jitter figure read as pre-fix → post-fix and both numbers are pre-fix.**
+    +0.339 and +0.357 are two repeats of one sweep at one commit, and +0.357 is the headline quoted
+    two bullets above. Applied: reworded as a spread between two pre-fix draws, with the post-fix
+    value stated as unmeasured.
 
 ## What was declined
 
-**Nothing from the review was declined.** Two things the reviewer suggested for *later* are
-recorded here rather than done:
+**Nothing from either review was declined.** One thing was applied as documentation rather than as
+code — Finding 12, the defender's unobserved attacking channel — because closing it properly means
+the mediator carrying two signed counts per position, and the block is explicitly a count of
+fixtures rather than a proxy for their worth. The omission is now stated in the place a reader of
+the column will meet it, and the modelled half is pinned.
+
+Two things the statistics reviewer suggested for *later* are recorded here rather than done:
 
 - **A canary arm** — a `band_strength` large enough that the mediator must move — before any
   tandem sweep is banked, so a flat result can be told from a mediator that cannot respond. Agreed
@@ -114,4 +153,31 @@ seen to fire is not evidence:
   found in the banking block one commit earlier. `TestTheSweepAssignsBothMediators` fails on it,
   and watches the older banking join too, which had the same gap.
 
-`go build ./... && go vet ./... && go test ./...` — all packages ok.
+## Two tests that were written vacuous, and were caught by running the control
+
+Both were found by deliberately breaking the thing the test watches and confirming it went red.
+Recorded because in each case the test *passed* when first written, which is the failure mode that
+does not announce itself.
+
+- **The correspondence pin passed with the band map inverted, twice, for two different reasons.**
+  First, its fixtures coupled the two ratings — every club scored a constant rate, so goals
+  conceded was a strictly decreasing function of goals scored and both band sides gave the same
+  answer. `bandSplitFixtures` decouples them (club *i* scores `i + 2j` against club *j*), with a
+  guard asserting the decoupling so the construction cannot silently regress. Second, even then it
+  looked the band up in `bands` using **its own copy** of `FixtureRunFor`'s position rule — a
+  diagnostic carrying a copy of the thing it checks, which this project's standing rules forbid
+  outright. It now reads `FixtureRunFor`'s own `Target`/`Avoid` through a one-fixture window. With
+  the map inverted it fails on all four cases.
+- The mediator join test, as noted below, asserts a composition rather than the sweep's line; the
+  source scan is what closes that, and it was verified by deleting the line.
+
+## Build and test
+
+`go build ./...` ok. `go vet ./...` ok. `go test ./...` — **every package ok except
+`internal/snapshot`, where `TestSnapshotCoversTheCurrentCode` fails.**
+
+⚠️ An earlier version of this record claimed all packages passed. That was false, and the code
+review caught it. The failure is expected and is not this branch's to fix: the accuracy snapshot is
+regenerated by the repository owner before merging, and this project's standing practice is never
+to commit a snapshot directory to satisfy that test. The base commit `b4e2b61` passes it, so this
+branch did open the gap — it is a snapshot that has not been regenerated, not a broken test.

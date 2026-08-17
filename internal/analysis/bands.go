@@ -98,10 +98,15 @@ func (e *Engine) teamBands() bands {
 		// reproduce it from four numbers; the derivation is in
 		// TestBandStrengthIsDeterministicAtTheShippedSetting's comment.
 		//
+		// ⚠️ **The map range was the ONLY source of run-to-run variation, and that
+		// is sharper than "sort.Slice is unstable".** `sort.Slice` is deterministic
+		// for a given input slice — pdqsort's pattern-breaking is seeded from the
+		// slice length rather than randomised — so identical input always produced
+		// identical output. What differed between runs was the input. Which is why
 		// `sort.SliceStable` alone would NOT have fixed it: stability preserves the
-		// input order, and the input order was already the random one. The ordering
-		// has to be a total order on a key that is itself stable, which is the club
-		// id. This is the same class as `Optimize`'s map-ordered bench, pinned by
+		// input order, and the input order was the random one. The ordering has to
+		// be a total order on a key that is itself stable, which is the club id.
+		// This is the same class as `Optimize`'s map-ordered bench, pinned by
 		// TestSeedOrderIsDeterministic, and `newTeamFormIndex`.
 		ids := make([]int, 0, len(by))
 		for id := range by {
@@ -296,15 +301,37 @@ func (r FixtureRun) Net() int { return r.Target - r.Avoid }
 // equally. And the defensive band enters the clean sheet through `exp(-x)`, which
 // is convex, so equal-weighted counts are not proportional there either.
 //
-// ⚠️ It is also a REPORTING choice at the edges: a midfielder earns clean sheets
-// too, and this counts only his attacking channel. His clean sheet pays 1 against
-// 5 or 6 for a goal, so the simplification costs a reader precision and cannot
-// invert a reading. Nothing is scored from any of it.
+// ⚠️ **Each position is scored on BOTH bands and this counts ONE, so the omitted
+// channel is the larger one for a defender, not the smaller one for a
+// midfielder.** `fixtureAdjustedXP90` passes both multipliers to
+// `fixtureSensitiveAt` for *every* position, so a defender's goals and assists are
+// re-priced by the opponent's **defence** band and nothing here sees it. Concretely:
+// a defender moving to five opponents who are all bottom-three attacks and
+// top-three defences counts `Target +5` and is entered in `band_run_moves`, while
+// the engine also applied `1 - attackBandAvoid*s` to his attacking returns on all
+// five — so on that channel the mediator's sign is the opposite of the model's.
+//
+// The midfielder case is the mirror and is milder: his clean sheet pays 1 against
+// 5 or 6 for a goal, so dropping it costs precision rather than sign. The defender
+// case is not obviously mild — the clean sheet is 26-45% of a defender's score, so
+// the attacking remainder is a real share of him.
+//
+// This is documented rather than fixed because the block is instrumentation: it is
+// a count of fixtures, never a proxy for what they were worth, and nothing is
+// scored from any of it. A reader wanting the full picture must read the two
+// channels off the engine, not off this column.
+// TestFixtureRunReadsTheSameBandSideTheEngineDoes pins the side each position
+// reads against `attackBandAdj`/`defenceBandAdj`, so the half that IS modelled
+// cannot drift out of step silently.
 func (e *Engine) FixtureRunFor(teamID, horizon, position int) FixtureRun {
-	b := e.teamBands()
-	if !b.ready {
+	// BandChannelLive rather than teamBands().ready, so a run counted here is
+	// always a run the engine could actually have priced. Under FPL_MAGNITUDE the
+	// bands compute and reach nothing, and a non-ready FixtureRun is the honest
+	// report of that. See BandChannelLive.
+	if !e.BandChannelLive() {
 		return FixtureRun{}
 	}
+	b := e.teamBands()
 	// Keepers (1) and defenders (2) read the opponent's attack; midfielders and
 	// forwards read the opponent's defence. See above. Bare element types because
 	// that is this package's idiom — defconThreshold spells it the same way.
@@ -325,15 +352,36 @@ func (e *Engine) FixtureRunFor(teamID, horizon, position int) FixtureRun {
 	return run
 }
 
-// BandsReady reports whether the 3/14/3 ratings exist yet at this cutoff.
+// BandChannelLive reports whether the 3/14/3 bands can reach what the engine
+// scores — which is a stronger question than whether the ratings exist.
 //
-// False before bandMinMatches have been played by enough clubs, which is the
-// opening five or six gameweeks of every season. Exported for the replay's
-// fixture-run mediator, which has to tell "the bands said nothing" apart from
-// "there were no bands" — those are the first two of the three explanations a
-// flat fixture-run arm has, and pooling them licenses opposite conclusions.
+// Two things have to hold, and only the first is about the bands:
 //
-// It is a *reading* of the bands and never a gate on them: nothing on the
-// scoring path consults it, because attackBandAdj and defenceBandAdj already
-// return 1 when the rating is absent.
-func (e *Engine) BandsReady() bool { return e.teamBands().ready }
+//   - the ratings exist, which needs bandMinMatches played by enough clubs, so
+//     it is false through the opening five or six gameweeks of every season;
+//   - `fixtureMultipliersFor` actually consults them.
+//
+// ⚠️ **The second is why this is not simply `teamBands().ready`, and getting it
+// wrong would have inverted the mediator this exists for.** Under
+// `FPL_MAGNITUDE`, `fixtureMultipliersFor` returns `magnitudeAttack` and
+// `magnitudeDefence` and **returns before `attackBandAdj` or `defenceBandAdj` is
+// ever called** — so `BandStrength` reaches nothing at all, at any value. The
+// bands themselves still compute perfectly well from finished fixtures, so a
+// mediator asking only "are the ratings ready" would report a live-looking count
+// off a lever that was bypassed one function above it.
+//
+// The failure that makes concrete: a tandem sweep runs with `FPL_MAGNITUDE` set,
+// the band arm comes back flat, and the analyst reads "33 of 37 weeks ready, 31
+// moves, 11 better / 10 worse" as *the policy had every opportunity and declined*
+// — when the truth is the lever could not act. That is the exact inversion the
+// mediator was built to prevent, delivered by the mediator.
+//
+// It is a *reading* and never a gate on scoring: nothing on the scoring path
+// consults it, because attackBandAdj and defenceBandAdj already return 1 when the
+// rating is absent, and the magnitude path never reaches them.
+func (e *Engine) BandChannelLive() bool {
+	if magnitudeDifficulty {
+		return false
+	}
+	return e.teamBands().ready
+}

@@ -1152,12 +1152,15 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   rather than depending on whichever ties a season happens to hold;
   `TestBandTiesBreakTowardTheLowerClubID` pins which total order was chosen.
   ⚠️ **Every `BandStrength` figure recorded before the fix carries that jitter and cannot be
-  re-derived from its own cells. Its size is known and small: it moved the s=1 arm's mean from
-  +0.339 to +0.357 pts/gw — 0.7 points a season, about a tenth of that contrast's own CR2
-  standard error — and concentrated in the GW1 and GW6 entries rather than the GW26 column that
-  carries most of the estimate. So it widens an interval and cannot overturn a null**; had the arm
-  resolved, the defect would have been disqualifying. One repeat is a single draw, not a variance
-  estimate. Two banked runs at one commit
+  re-derived from its own cells. Its size is known and small: two PRE-FIX repeats of one sweep at
+  one commit read +0.339 and +0.357 pts/gw for the s=1 arm — a spread of 0.7 points a season,
+  about a tenth of that contrast's own CR2 standard error — concentrated in the GW1 and GW6
+  entries rather than the GW26 column that carries most of the estimate. So it widens an interval
+  and cannot overturn a null**; had the arm resolved, the defect would have been disqualifying.
+  ⚠️ **Both are pre-fix draws and neither is the corrected value** — +0.357 is the figure quoted
+  two bullets above, so reading the pair as "moved from X to Y" would present one draw as a
+  post-fix measurement. **The post-fix value is UNMEASURED.** Two draws bound the jitter; they do
+  not estimate its variance. Two banked runs at one commit
   and one constants digest differed, at `band_strength 1`, in **3 of 36 `hold_points` cells, 12 of
   36 `policy_points`, 13 `policy_xpoints`, 6 `hold_xpoints`, and 7 each on `moves` and `hits`** —
   decisions, not only scores. **`squad_hash` moved in 1 cell against `hold_points`'s 3**, so two

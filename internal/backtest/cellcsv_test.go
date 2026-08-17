@@ -570,7 +570,7 @@ const (
 	// only the favourable count, `band_moves - band_run_moves` would pool ties
 	// with reversals and `band_run_moves` would have no null to be read against.
 	//
-	// A separate counted block rather than four more banking columns, because the
+	// A separate counted block rather than five more banking columns, because the
 	// two funnels have different denominators — the banking one counts weeks all
 	// the way down, and the last four of these count MOVES. Merging them into one
 	// `bankingCols` would put a moves count under a header block whose own

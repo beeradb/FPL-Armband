@@ -792,7 +792,7 @@ func TestTheBankingBlockIsBeforeTheChipBlockAndCounted(t *testing.T) {
 	}
 	// The banking block's right-hand neighbour is the fixture-run block, not the
 	// chip block: the two mediators sit together in one decision-mediator region,
-	// and the chip columns moved four to the right when the second funnel landed.
+	// and the chip columns moved five to the right when the second funnel landed.
 	if after := cellHeader[at+bankingCols]; after != "band_ready_weeks" {
 		t.Fatalf("the column after the banking block is %q, want the fixture-run "+
 			"block's first column", after)
@@ -1755,7 +1755,7 @@ func bankingBlockAt() int { return bankingBlockAtIn(cellHeader) }
 // bankingBlockAtIn now chains through this rather than through chipWeekCols
 // directly — the banking block stopped being the chip block's neighbour when this
 // one went in between them, and an offset that still subtracted only chipWeekCols
-// would have silently re-labelled four banking columns as fixture-run ones.
+// would have silently re-labelled banking columns as fixture-run ones.
 func fixtureRunBlockAtIn(h []string) int {
 	return chipOracleBlockAtIn(h) - chipWeekCols - fixtureRunCols
 }
@@ -1813,7 +1813,7 @@ func withoutBankingBlock() []string {
 	return headerWithout(cellHeader, bankingBlockAt(), bankingCols)
 }
 
-// withoutFixtureRunBlock is this build's header with the four fixture-run columns
+// withoutFixtureRunBlock is this build's header with the five fixture-run columns
 // removed from the middle — literally the header the predecessor build wrote,
 // since the fixture-run block is the newest and it too went in mid-header.
 func withoutFixtureRunBlock() []string {

@@ -135,6 +135,194 @@ func TestBandAssignmentIsDeterministic(t *testing.T) {
 	}
 }
 
+// bandSplitFixtures is a round robin whose two ratings are DECOUPLED: the worst
+// three attacks and the worst three defences are disjoint sets of clubs.
+//
+// ⚠️ **That decoupling is the whole point, and bandTieFixtures cannot substitute
+// for it.** There every club scores a constant rate, so goals conceded is a
+// strictly decreasing function of goals scored and the two orderings are exact
+// mirrors — club 1 is simultaneously the worst attack and the worst defence.
+// A test asking "does FixtureRunFor read the right SIDE" over those fixtures
+// passes whichever side it reads, because both sides give the same answer. This
+// was written that way first and confirmed vacuous by flipping the map and
+// watching the test still pass.
+//
+// Here club i scores `i + 2j` against club j, so the two channels come apart:
+// goals for work out to `5i + 72` and goals against to `36 + 13i`, both ascending
+// in i. Clubs 1-3 are therefore the worst attacks and the BEST defences, and
+// clubs 6-8 the best attacks and the WORST defences.
+func bandSplitFixtures() []fpl.Fixture {
+	var fx []fpl.Fixture
+	id := 0
+	for h := 1; h <= 8; h++ {
+		for a := h + 1; a <= 8; a++ {
+			id++
+			hs, as := h+2*a, a+2*h
+			fx = append(fx, fpl.Fixture{
+				ID: id, Finished: true,
+				TeamH: h, TeamA: a,
+				TeamHScore: &hs, TeamAScore: &as,
+			})
+		}
+	}
+	return fx
+}
+
+// TestFixtureRunReadsTheSameBandSideTheEngineDoes pins the correspondence between
+// the mediator's position-to-band-side map and the one the scoring path applies.
+//
+// # The shape this guards
+//
+// `FixtureRunFor` picks `b.attack` for keepers and defenders and `b.defence` for
+// everyone else. `attackBandAdj` reads `b.defence` (an attacker wants a leaky
+// defence) and `defenceBandAdj` reads `b.attack` (a defender wants a blunt
+// attack). Those are two expressions of one mapping, in two files, with nothing
+// forcing them to agree — the desynchronised-mirror shape this repository has
+// already paid for twice on `baseXP90` and `fixtureSensitivePart`.
+//
+// A drift here is silent in the worst way: the mediator would report moves toward
+// the better run while the engine priced the opposite, and the column would look
+// entirely healthy.
+//
+// # What it does NOT claim
+//
+// It pins WHICH side each position reads, not that the mediator sees everything
+// the engine does. It does not, and `FixtureRunFor`'s own comment says so:
+// `fixtureAdjustedXP90` applies BOTH multipliers to EVERY position through
+// `fixtureSensitiveAt`, so a defender's goals and assists are re-priced by the
+// opponent's defence band and this counter cannot see that channel at all.
+func TestFixtureRunReadsTheSameBandSideTheEngineDoes(t *testing.T) {
+	e := &Engine{Fixtures: bandSplitFixtures()}
+	e.Weights.Horizon = 8
+	b := e.teamBands()
+	if !b.ready {
+		t.Fatal("no bands from the constructed fixtures")
+	}
+
+	// The positive control for the decoupling. Club 1 must be a WORST attack and a
+	// BEST defence, and club 8 the reverse — otherwise the two band sides agree and
+	// this test passes whichever one FixtureRunFor reads, which is exactly how it
+	// was first written and exactly why it proved nothing.
+	if b.attack[1] != bandWorst || b.defence[1] != bandBest ||
+		b.attack[8] != bandBest || b.defence[8] != bandWorst {
+		t.Fatalf("the two band ratings are not decoupled: club 1 is attack %d / "+
+			"defence %d and club 8 is attack %d / defence %d, want worst/best and "+
+			"best/worst. With them coupled, both sides give the same answer and this "+
+			"test cannot detect a swapped map.",
+			b.attack[1], b.defence[1], b.attack[8], b.defence[8])
+	}
+	for _, c := range []struct {
+		name     string
+		position int
+		// adj is the engine's multiplier for a player of this position facing the
+		// opponent; wantTarget says the mediator should count that opponent as a
+		// target, which is the fixture the player wants.
+		adj        func(opponent int) float64
+		opponent   int
+		wantTarget bool
+	}{
+		// Clubs 6-8 are the leakiest defences AND the best attacks; clubs 1-3 the
+		// meanest defences AND the bluntest attacks. So the forward and the defender
+		// want OPPOSITE opponents here, which is the whole reason these fixtures
+		// decouple the two ratings and bandTieFixtures does not.
+		{"forward facing the leakiest defence", 4,
+			func(o int) float64 { return e.attackBandAdj(o, 1) }, 8, true},
+		{"forward facing the meanest defence", 4,
+			func(o int) float64 { return e.attackBandAdj(o, 1) }, 1, false},
+		{"defender facing the bluntest attack", 2,
+			func(o int) float64 { return e.defenceBandAdj(o, 1) }, 1, true},
+		{"defender facing the sharpest attack", 2,
+			func(o int) float64 { return e.defenceBandAdj(o, 1) }, 8, false},
+	} {
+		// The engine's verdict, as a direction. attackBandAdj scales returns UP for
+		// a good fixture; defenceBandAdj scales goals conceded DOWN for one — so
+		// "the engine likes this fixture" is `> 1` for an attacker and `< 1` for a
+		// defender, which is exactly the asymmetry a naive mirror gets backwards.
+		m := c.adj(c.opponent)
+		engineLikes := m > 1
+		if c.position == 1 || c.position == 2 {
+			engineLikes = m < 1
+		}
+		if engineLikes != c.wantTarget {
+			t.Errorf("%s: the engine's multiplier is %.4f, which reads as "+
+				"favourable=%v, but the case expects %v", c.name, m, engineLikes,
+				c.wantTarget)
+		}
+
+		// And the mediator's verdict on the same opponent, read THROUGH
+		// FixtureRunFor rather than by re-deriving its map here.
+		//
+		// ⚠️ That distinction is the test. An earlier version looked the band up in
+		// `b` with a copy of FixtureRunFor's position rule, and it passed with the
+		// real rule inverted — a diagnostic carrying its own copy of the thing it
+		// checks, which this project's standing rules forbid outright. Verified by
+		// swapping the sides in bands.go and watching it stay green.
+		//
+		// The club is given exactly one upcoming fixture, against the opponent under
+		// test, so Target/Avoid read out as a clean 1/0.
+		const club = 5
+		e.byTeamUpcoming = map[int][]FixtureBrief{
+			club: {{Event: 10, OpponentID: c.opponent, Difficulty: 3}},
+		}
+		run := e.FixtureRunFor(club, 1, c.position)
+		if run.Fixtures != 1 {
+			t.Fatalf("%s: the run window held %d fixtures, want exactly 1 — the "+
+				"assertion below reads Target and Avoid as a 1/0 flag", c.name, run.Fixtures)
+		}
+		if got := run.Target == 1; got != c.wantTarget {
+			t.Errorf("%s: FixtureRunFor reports target=%v (Target %d, Avoid %d) where "+
+				"the engine's multiplier %.4f says %v.\n\n"+
+				"FixtureRunFor's position-to-band-side map has drifted from "+
+				"attackBandAdj/defenceBandAdj. The mediator would then report moves "+
+				"toward the better run while the engine priced the opposite, and the "+
+				"column would look healthy throughout.",
+				c.name, got, run.Target, run.Avoid, m, c.wantTarget)
+		}
+	}
+}
+
+// TestTheBandChannelIsNotLiveUnderMagnitudeDifficulty pins the guard that stops
+// the mediator reporting a bypassed lever as a live one.
+//
+// `fixtureMultipliersFor` returns the magnitude multipliers and never calls
+// attackBandAdj or defenceBandAdj when `magnitudeDifficulty` is set, so
+// `BandStrength` reaches nothing at any value — while the bands themselves still
+// compute from finished fixtures. A mediator gated on "are the ratings ready"
+// would therefore populate all five columns with plausible counts off a lever
+// that could not act, which is the inversion the block exists to prevent.
+//
+// The package var is restored with a defer rather than left set, because it is
+// process-global and every other test in this package scores through the path it
+// governs.
+func TestTheBandChannelIsNotLiveUnderMagnitudeDifficulty(t *testing.T) {
+	e := &Engine{Fixtures: bandTieFixtures()}
+	e.Weights.Horizon = 8
+
+	if !e.BandChannelLive() {
+		t.Fatal("the band channel is not live on the constructed fixtures, so this " +
+			"test cannot show the magnitude switch turning it off")
+	}
+	if run := e.FixtureRunFor(1, 8, 4); !run.Ready {
+		t.Fatal("FixtureRunFor reports not-ready before the switch is set")
+	}
+
+	defer func(prev bool) { magnitudeDifficulty = prev }(magnitudeDifficulty)
+	magnitudeDifficulty = true
+
+	if e.BandChannelLive() {
+		t.Error("BandChannelLive is true under magnitudeDifficulty, where " +
+			"fixtureMultipliersFor returns before consulting the bands at all. The " +
+			"fixture-run mediator gates on this, so every one of its columns would " +
+			"populate off a lever that reaches nothing — a flat band arm would then " +
+			"read as 'the policy had the opportunity and declined'.")
+	}
+	if run := e.FixtureRunFor(1, 8, 4); run.Ready || run.Fixtures != 0 {
+		t.Errorf("FixtureRunFor returned ready=%v with %d fixtures under "+
+			"magnitudeDifficulty; a run the engine could not price must report "+
+			"not-ready", run.Ready, run.Fixtures)
+	}
+}
+
 // TestBandTiesBreakTowardTheLowerClubID pins the tie-break itself, which is the
 // one part of the ordering a reader cannot infer from the band sizes.
 //

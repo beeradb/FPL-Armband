@@ -359,6 +359,14 @@ that mixture and does not identify it — 11 positives summing +2 with 20 ties, 
 bands existed. On one 2025-26 cell they read 36 and 31. Computing
 `band_run_moves / moves` uses the wrong denominator.
 
+⚠️ **`band_ready_weeks` counts weeks the band channel could reach SCORING, not weeks the ratings
+existed**, and the two come apart under `FPL_MAGNITUDE`. There `fixtureMultipliersFor` returns the
+magnitude multipliers and never consults the bands, so `band_strength` reaches nothing at any
+value while the ratings compute perfectly well. The whole block therefore reads **0 ready weeks and
+four blanks** in such a run — which is the honest report, and is the reading to check first if a
+band arm comes back flat. Counting readiness alone would have shown a live-looking mediator off a
+bypassed lever.
+
 **`band_ready_weeks` is close to a calendar fact rather than an arm property.**
 The bands need five matches played by enough clubs, so it is roughly GW6 onward
 whatever the setting — 33 of 37 decision weeks on a GW1 cell, on both arms. At

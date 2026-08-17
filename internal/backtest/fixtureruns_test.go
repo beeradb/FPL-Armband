@@ -35,7 +35,7 @@ func fixtureRunsOf(res *SimResult) FixtureRunMediator {
 // Every block in this header gets its own position test because a column dropped
 // between two counted blocks is invisible to a test that indexes from either end.
 // This one also pins the seam it created: the banking block used to touch the
-// chip block, and four columns went in between them.
+// chip block, and five columns went in between them.
 func TestTheFixtureRunBlockSitsBetweenBankingAndTheChips(t *testing.T) {
 	want := []string{
 		"band_ready_weeks", "band_moves", "band_run_moves", "band_worse_moves",
@@ -66,7 +66,7 @@ func TestTheFixtureRunBlockSitsBetweenBankingAndTheChips(t *testing.T) {
 //
 // ⚠️ **It is two nestings, not one chain.** `decision_weeks >= band_ready_weeks`
 // counts weeks; `band_moves >= band_run_moves` counts MOVES, and a week can carry
-// several. Asserting one four-deep chain would be wrong on any cell that made two
+// several. Asserting one single chain all the way down would be wrong on any cell that made two
 // transfers in a ready week, and would fail for a reason that is not a defect —
 // which is how a test gets deleted instead of read.
 func TestTheFixtureRunFunnelNests(t *testing.T) {
@@ -186,7 +186,7 @@ func TestTheSweepWritesTheFixtureRunBlock(t *testing.T) {
 				"the sweep's cellRow is not being filled from the SimResult.\n\n"+
 				"Look for `row.FixtureRuns = fixtureRunsOf(res)` in runPolicySweep. "+
 				"That join is one line, nothing else in the package executes it, and "+
-				"without it every cell of every sweep carries four empty columns "+
+				"without it every cell of every sweep carries five empty columns "+
 				"while the sweep prints and banks normally. This is the failure the "+
 				"banking block found the hard way.", col, res.FixtureRuns.ReadyWeeks)
 		}
@@ -419,7 +419,7 @@ func TestTheFixtureRunMediatorReadsTheEngineHorizon(t *testing.T) {
 
 	se, _ := EngineAt(cur, prior, 11, short)
 	le, _ := EngineAt(cur, prior, 11, long)
-	if !se.BandsReady() || !le.BandsReady() {
+	if !se.BandChannelLive() || !le.BandChannelLive() {
 		t.Skip("the bands are not ready at this cutoff, so there is nothing to count")
 	}
 
@@ -448,7 +448,7 @@ func TestTheFixtureRunMediatorReadsTheEngineHorizon(t *testing.T) {
 // TestTheSweepWritesTheFixtureRunBlock puts a real SimResult through
 // `fixtureRunsOf` and the sink, which is what the sweep does with it — but it
 // performs that composition itself. So deleting the sweep's own assignment leaves
-// it passing, and every cell of every sweep would carry four blanks while the
+// it passing, and every cell of every sweep would carry five blanks while the
 // package stayed green. That is precisely the hole a review found in the banking
 // block one commit earlier, and TestTheSweepWritesTheBankingBlock has the same
 // shape and therefore the same gap.
