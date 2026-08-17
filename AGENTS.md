@@ -11,7 +11,7 @@ repository. Design proposals and research notes do not belong there.
 This file holds the **verdicts**: one line per conclusion that has been paid for, plus the rules
 that keep the next measurement honest. The evidence behind each verdict lives in the **research
 vault** — the private Obsidian store reached through `~/.claude/bin/research-worktree` — and the
-`→ name` at the end of an entry names the vault note that carries it (`notes/<name>.md` unless
+`→ **name**` at the end of an entry names the vault note that carries it (`notes/<name>.md` unless
 it says otherwise). The user-facing docs never reference the vault; this file and the other
 agent-facing surfaces may. Three things in the tree are also evidence: `stats/findings/` holds a
 narrative and a pre-registration per run, `stats/cells/` holds the banked cells two R screens
@@ -172,7 +172,7 @@ intervention could not run.**
 | 2020-21, 2021-22 | xG natively; `starts` is recorded, from the Understat harvest | nothing on the **replay's** scoring path reads `Starts` (byte-identical at shipped config — a **simple-effect null**, untested under `FPL_NO_UNIFIED_APPEARANCE` or `FPL_RELIABILITY_SPLIT`). It *is* live on the agent path (`tournamentAbsence`) and in `OracleLineups` |
 | 2022-23 | xG and `starts` for GW1-15 — FPL added fields mid-season | GW7 has no rows and GW8 is partial. Real football, not a hole |
 | every season but 2025-26 | defensive contribution ("defcon") | 6 live cells in 36, so widening the grid makes defcon *harder* to measure |
-| all archived seasons | the full five-change 2026/27 bonus figure — no season carries both the modern saves baseline and a `tackled` column | the individual channels **are** measurable; the joint CBI-plus-tackled arm is measurable on 2016-19 and unrun. The four shipped seasons span three bonus regimes, so `Bonus90`'s *level* is not comparable across them, though paired comparisons are |
+| all archived seasons | the full five-change 2026/27 bonus figure — no season carries both the modern saves baseline and a `tackled` column | the individual channels **are** measurable; the joint CBI-plus-tackled arm is measurable on 2016-19 and unrun. The four shipped seasons span three bonus regimes, so `Bonus90`'s (the blended per-90 bonus rate a player is scored on) *level* is not comparable across them, though paired comparisons are |
 
 The earliest season that is recognisably the same game is **2013-14** — the introduction of the
 Bonus Points System. → **archive-and-data**
@@ -395,12 +395,16 @@ in the vault; the lesson and the pinning test here. → **harness-and-inference*
   guard, `WeekViews` pricing each week's own fixtures, and `> 0` no longer meaning "computed"
   in `xiValueForTransfer`), and ⚠️ **the sharp trap**: a rebuilt **wildcard** must NOT be built
   on the horizon-1 week engine, because every blanking club is zeroed there and a wildcard
-  planned for a heavy blank returns a free-hit squad that is then *kept*. Five pinning tests
-  including `TestFreeHitNeverFieldsABlankingClub` and
-  `TestAWildcardIsNotBuiltOnOneWeeksBlanks`. The fix ships on correctness; on points it does
-  not resolve. → **fixtures-and-difficulty**
+  planned for a heavy blank returns a free-hit squad that is then *kept*. Five pinning tests:
+  `TestFreeHitNeverFieldsABlankingClub`, `TestWeekViewsPriceEachWeeksOwnFixtures`,
+  `TestAWildcardIsNotBuiltOnOneWeeksBlanks`,
+  `TestATotalBlankIsWorthNothingToTheTransferSearch`, and
+  `TestFixtureLoadMatchesTheArchiveOnOneSeason` (the last chooses its gameweeks off the archive
+  so it cannot stop exercising blanks when the grid moves). The fix ships on correctness; on
+  points it does not resolve. → **fixtures-and-difficulty**
 - **An anchored-chip arm silently lost every 2025-26 cell**: a chip planner's output went into
-  the FIRST set wholesale, so in a two-set season a chip at or after `ChipResetGW` was refused,
+  the FIRST set wholesale, so in a two-set season a chip at or after `ChipResetGW` (the gameweek
+  where chip sets reset for the second half) was refused,
   and `runPolicySweep` records a refusal as an **infeasible cell rather than fatalling**.
   Repaired by `backtest.SplitChipSets`; the census reads 0 of 24 refused. ⚠️ No anchored-chip
   cells are banked anywhere, so nothing that used one can be re-derived — only re-measured. →
@@ -409,10 +413,14 @@ in the vault; the lesson and the pinning test here. → **harness-and-inference*
   order each DP seed's bench. `TestSeedOrderIsDeterministic` pins it. `teamBands` had the same
   defect (map range plus non-stable sort; fixed by club-id order with club-id tie-breaks —
   `sort.SliceStable` alone would **not** have worked) and is pinned by
-  `TestBandAssignmentIsDeterministic`. ⚠️ Every `BandStrength` figure recorded pre-fix carries
+  `TestBandAssignmentIsDeterministic`; `TestBandTiesBreakTowardTheLowerClubID` pins which total
+  order was chosen. ⚠️ Every `BandStrength` figure recorded pre-fix carries
   that jitter (~0.7 points a season spread across two draws — widens an interval, cannot
-  overturn a null; had the arm resolved, the defect would have been disqualifying). The post-fix
-  value is UNMEASURED. → **constants-and-sweeps**
+  overturn a null; had the arm resolved, the defect would have been disqualifying): two banked
+  runs at one commit differed in 3 of 36 `hold_points` cells, 12 of 36 `policy_points`, and
+  **`squad_hash` moved in 1 cell against `hold_points`'s 3** — two cells re-scored an unchanged
+  fifteen, so squad-hash identity is weaker evidence than points identity, which matters
+  wherever this record leans on it. The post-fix value is UNMEASURED. → **constants-and-sweeps**
 
 ## Closed lines — do not rebuild these
 
@@ -464,7 +472,8 @@ the vault note the evidence sits in.
 - **Do not penalise a squad for holding two players from the same club, and do not build a
   "talisman" rule.** Refuted on **arithmetic**: dependence of any sign is a property of the
   pair's *variance*, never its mean — `E[B_i+B_j] = E[B_i]+E[B_j]` exactly. `Bonus90` is a
-  realised marginal; `xiValueShrunk` sums deterministic point predictions; ownership is not
+  realised marginal; `xiValueShrunk` (the eleven's shrunk value on the transfer and replay path)
+  sums deterministic point predictions; ownership is not
   causal on the pitch. The variance reading is separately closed (a risk-adjusted objective is
   closed for the expected-points manager, unmeasurable for a top-10k one). Measurability is not
   a reason to measure what the objective cannot consume. A talisman's level channel is already
@@ -536,7 +545,7 @@ the vault note the evidence sits in.
   no arm — and **could not have been a repair whatever the size** (the counterfactual conditions
   on the outcome; the term exists to price exactly the assists xA does not count). Bounded by
   the thin-sample floor, not the clamp. ⚠️ `Simulate` rebuilds this engine every gameweek, so a
-  figure quoted over the six entry deadlines is the wrong denominator. → **scoring-model**
+  figure quoted over the six entry deadlines is the wrong denominator. → **xppilot**
 - **The underlying criterion recovers 0.64 of a perfect points gate, Fieller upper limit 0.813**
   — an information statement about the criterion, not a bar any constant must clear. Interval
   [0.325, 0.813]; rejects 0.89 (t −3.96) and 1.00 (t −5.87); rejects neither 0.50 nor the
@@ -546,7 +555,7 @@ the vault note the evidence sits in.
   and clean sheets, so the stripped residual returns through realised bonus — corr 0.606, slope
   0.252 for attackers (n 12,104); 0.479/0.156 for defenders. Quote the leak beside the
   fraction. Not fixable here — modelling expected bonus is a closed line (double-counts by
-  construction). Arithmetic off banked cells, no sweep. → **transfer-policy**
+  construction). Arithmetic off banked cells, no sweep. → **xppilot**
 - **A gate on the residual alone buys realised points, but its underlying gain is consistently
   negative — `suggestive`, not established.** Residual arm −0.828 pts/gw (−31.5 a season), CR2
   t −2.04, p 0.0971, wild 0.0598, against its own threshold of 39.7; negative in 5 of 6 season
@@ -614,7 +623,8 @@ nothing checks it stays complete.
 - **The defcon term is about half redundant for defenders — quote 50%.** One estimate, no
   uncertainty attached, 87 defenders, one cutoff, the only season with the category. **Never
   quote the midfielder figure** (its denominator collapses when the prior is wired).
-  `DefConCleanCoupling` stands on mechanism at 0.3. **No archived prior season carries defcon**,
+  `DefConCleanCoupling` (the defcon/clean-sheet coupling factor) stands on mechanism at 0.3.
+  **No archived prior season carries defcon**,
   so every defcon figure was produced under a rate blended toward zero — unmeasured, not
   unmeasurable. → **scoring-model**
 - **Four findings that change nothing shipped**: defcon has a small opponent effect
@@ -856,7 +866,8 @@ nothing checks it stays complete.
   worth nothing" is not established** — MDE 34-37 per season-path, sign resting entirely on the
   GW1 column. `fullSight` is the realistic arm. → **chips**
 - **A bench-boost PLACEMENT contrast is measurable at a threshold of 2.65 — the comparison, not
-  the effect.** The chip is path-invariant (consult after pickXI; `BenchBoostGain` recorded
+  the effect.** The chip is path-invariant (consult after pickXI; `BenchBoostGain` (what the
+  chip would have been worth, per week) recorded
   against the unchipped week; confinement checked 36 of 36), so the paired SE contains only
   football. The decaying-option rule beats a fixed entry+6 by **+5.778** (t 5.60, wild 0.0096,
   6 of 6 seasons positive); perfect placement is +16.139 (mechanical t), recovered fraction
@@ -865,8 +876,15 @@ nothing checks it stays complete.
   the anchored comparator is unrun and owed), the control is an average week not a bad one, the
   ceiling is a mixture of six argmax problems, the levels against no chip are ≥ 0 by
   construction, and nothing weighs the chip against its opportunity cost. Two bar-16 rules exist
-  (`firstClearing` realised vs `BenchBoostTrigger` projection; levels 17.9 vs 9.5, agreeing 6 of
+  (`firstClearing` realised vs `BenchBoostTrigger` (the projection-based trigger) projection;
+  levels 17.9 vs 9.5, agreeing 6 of
   36) and the bar is two literals with no reference between them. → **chips**
+- **`OptionPricing.CongestionSensitivity = 0` means the DEFAULT of 1.0, not off** —
+  `CongestionFactor` (what scales a chip's bar by fixture congestion) reads `if sensitivity <= 0
+  { sensitivity = DefaultCongestionSensitivity }`, the struct's correct unset-means-default
+  convention and a trap for an arm meaning to hold the channel still: the default is the
+  *strongest* setting, so a zero reports a confounded contrast as a clean one. Say `1e-12`.
+  `TestCongestionSensitivityZeroIsTheDefaultNotOff` pins both halves. → **chips**
 - **The scoring-chip timing `+0.000` is a declared invariance, not a result.**
   `mustNotMoveForAxis(AxisChipWeek)` returns the eight `cellMetricColumns` and the harness
   checks them cell by cell; the axis reads a finished season's gains and plays no chip, so a
@@ -880,7 +898,8 @@ nothing checks it stays complete.
   banked schema; a re-sweep is owed. → **chips**
 - **Only two of the four chips are *preparation* problems** (free hit and wildcard were already
   wired for the preparation credit; the free hit's own *builder* needs its own blank guard — see
-  *Things that have already bitten*). `ChipCredit` adds the other two, off by default. **The
+  *Things that have already bitten*). `ChipCredit` (the preparation-credit config for bench
+  boost and triple captain) adds the other two, off by default. **The
   bench channel is mechanism-real and points-unresolved**: chip's own week +7.28 (t 2.91, p
   0.033, 27 of 36 positive) — **suggestive, not established** (Holm ≈0.066, no LOSO subset
   under 0.05). The season figure +13.3 (against this comparison's own threshold of 17.7-24.5,
