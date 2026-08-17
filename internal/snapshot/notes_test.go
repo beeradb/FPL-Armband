@@ -711,7 +711,42 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// the two criteria selecting 2 over it are post-hoc. Both corrections make the
 	// claims weaker and the record truer, which is exactly the trade this budget is
 	// not allowed to refuse.
-	const budget = 120 * 1024
+	// # 124 KB from 2026-08-17 — three closures earned by arithmetic, not by cells
+	//
+	// The room went to claims that CLOSE questions rather than open them, which is
+	// the cheapest kind of entry this file can carry: each one stops a sweep.
+	//
+	// The first is a **withdrawal, and it retracts advice this file gave one entry
+	// earlier.** The banking bullet twice said "so vary `MaxHits` with it". There is
+	// nowhere to vary it to: `MoveLimit` clamps `maxHits` to 1 unconditionally and
+	// the funded-pair branch hard-codes `hitsNeeded <= 1`, so `MaxHits: 2` is
+	// byte-identical to shipped, and `MaxHits: 0` fails the `limit >= 2` guard in 132
+	// of 226 weeks and skips `bestPair` outright — so banking "working" there is the
+	// control being re-enabled, not banking. The conclusion is worth its bytes
+	// because it is absolute: there is **no** configuration on this code in which
+	// banking acts for a reason attributable to banking, except a preparation credit.
+	// Deleting the withdrawn sentence and leaving the rest would have been the
+	// cheaper edit and the wrong one — a reader who had already acted on it needs to
+	// find the retraction where the claim was.
+	//
+	// The second closes the fixture line on **throughput**, and it matters because
+	// the user's objection to the recorded closure was correct. Convergence really is
+	// capacity-conditional: a manager who can transfer experiences a selected
+	// subsequence, so the governing spread is the one-gameweek 35% and not the
+	// five-gameweek 13%. Replacing a wrong reason with a right one is not a
+	// reopening, and the right one binds harder — 37 free transfers plus a free hit's
+	// eleven plus a wildcard's rebuild is ~58 targeted matches against 418 fielded
+	// player-matches, so at most 14% are re-pointable and chips redistribute
+	// transfers in time without creating any. The ceiling straddles the threshold and
+	// the deployable figure does not reach it. No cells were spent to learn this,
+	// which is the point: the entry exists so nobody spends them later.
+	//
+	// The third records that `runPolicySweep` runs at `WeeklyXI: false` while the
+	// diagnostics that justified these designs ran at true, and that fixture load
+	// reaches `Score` only through the engine `WeeklyXI` builds. That is a
+	// comparison-never-ran trap arriving through a DEFAULT rather than through an
+	// unwired knob, which is why it needs saying out loud.
+	const budget = 124 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

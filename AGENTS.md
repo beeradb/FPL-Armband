@@ -383,6 +383,24 @@ stand.
 
 Shipped bugs, each now covered by a regression test. Re-introducing one is easy.
 
+- **`MaxHits` above 1 is silently clamped, so an arm at `MaxHits: 2` is a comparison that never
+  ran.** `analysis.MoveLimit` does `if maxHits > 1 { maxHits = 1 }` unconditionally, `decide`
+  iterates `limit = free + 1`, and the funded-pair branch hard-codes `hitsNeeded <= 1`. So the
+  two-hit week the FPL community treats as routine is **unexpressible on this code**, and any
+  wildcard rule specified as *"more than two hits to repair"* has **no input quantity on this path**
+  — it would need a shadow statistic. ⚠️ And the 2→3+ move boundary such an arm would be reaching
+  for is **already reached at shipped config whenever `free >= 2`**, where it was measured inert in
+  94 of 94 weeks: reachable and inert, not unreachable. Verified by reading `MoveLimit` and
+  `hitsNeeded`, 2026-08-17; **no test pins the clamp**.
+- **`runPolicySweep` builds cells at `WeeklyXI: false`, and several diagnostics run at `true`.**
+  `sweepConfig(cfg, start, false)` — a variant wanting the imminent-gameweek eleven must set it in
+  `apply`. This is not cosmetic for anything about fixture quantity: fixture load reaches `Score`
+  **only** through the horizon-1 engine the replay builds for the fielded eleven when a cell sets
+  `WeeklyXI`, or for a free-hit squad. So at sweep default a double is a 1/5-diluted bump in a
+  five-week average rather than two matches this Saturday, and **an arm testing doubles or blanks
+  that leaves `WeeklyXI` false has switched off the fielding half of its own mechanism.** A
+  reachability or mediator finding taken at one setting does not transport to the other — pin it in
+  `apply` and stamp it.
 - **Never compare a replayed float for exact equality: a banked total is reproducible from a
   commit AND a machine, and only the commit is recorded.** Go's `math` is not bit-identical across
   machines — `Exp` has per-architecture assembly, `Log` has it on amd64 only, and amd64's `Exp`
@@ -509,6 +527,22 @@ sits in, not a file you can open here.
   at **2178** against shipped **2152** — so zeroing the defensive response entirely *gains* 20
   points. That is inside-noise wobble and not a case for zeroing: the ladder has no shape either
   way, and the totals are 3 cells at one entry point with no threshold ever computed.
+  ⚠️ **The convergence argument is CAPACITY-CONDITIONAL and wrong as stated, and the line closes
+  anyway on a harder constraint.** A manager who can transfer experiences a *selected subsequence*
+  rather than a drawn run, so the governing spread is the **one-gameweek 35%** and not the
+  five-gameweek 13%. What binds instead is **throughput**: 37 free transfers, a free hit's eleven and
+  a wildcard's rebuild give at most **~58 targeted matches against 38 × 11 = 418 fielded
+  player-matches**, so **at most 14% are re-pointable at all, and chips redistribute transfers in
+  time without creating any.** At the recorded 21-41% per-match uplift the perfect-hindsight,
+  zero-cost ceiling is **34-93 a season (central 59)**, which merely *straddles* a `POLICY` threshold
+  of 50-70; attenuating by the ~2-in-3 ex-ante band accuracy and charging the displaced alternative
+  use of the same transfers leaves **+2 to +25**, before the argmax penalty that has flipped five
+  such signs. Arithmetic off recorded counts, **no cells spent** — a bound, not a measurement.
+  ⚠️ **And the 21-41% is not a deployable magnitude.** It is an uplift on a term the model
+  *already prices* through `defenceMultiplier`/`attackMultiplier`, so the deployable quantity is the
+  **residual** after that — and this file's own verdict is that the five-game response is about right
+  and only the single match is wrong. It is also unnamed as to estimator, conditional on appearing,
+  and almost certainly ex-post band membership.
   → **fixtures-and-difficulty**
 - **Do not extend recency to rates.** It predicts better out of sample and loses in the replay at
   every setting, because it buys accuracy on the average player and pays in noise at the top.
@@ -1145,11 +1179,20 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   at `min_gain` 0.4 / `free_transfer_value` 2.0 / `BankUpTo` 5 / horizon 5**: those enter
   `PackageValue` directly and were not varied, and with either preparation switch on the two
   re-pricings stop being exact. The consequence for design: **a tandem arm crossing banking at
-  shipped `MaxHits` is a confinement, not a null**, so vary `MaxHits` with it or read
-  `banked_weeks = 0` as the branch never having executed. ⚠️ **Counts and
-  distributions only** — no threshold, no p, no points figure. The consequence for design: **a
-  tandem arm crossing banking at shipped `MaxHits` is a confinement, not a null**, so vary `MaxHits`
-  with it or read `banked_weeks = 0` as the branch never having executed.
+  shipped `MaxHits` is a confinement, not a null** — read `banked_weeks = 0` as the branch never
+  having executed.
+  ⚠️ **"So vary `MaxHits` with it" appeared twice here and is WITHDRAWN — there is nowhere to vary
+  it to.** `analysis.MoveLimit` clamps `maxHits` to 1 **unconditionally**, and the funded-pair branch
+  hard-codes `hitsNeeded <= 1`, so **`MaxHits: 2` is byte-identical to shipped** and the allowance can
+  only move **down**. Down is not a control either: at `MaxHits: 0` the limit is `free`, which fails
+  the `limit >= 2` guard in 132 of 226 weeks and skips `bestPair` entirely, so banking's whole effect
+  there is **re-enabling the pair search the control disabled**. ✅ **So there is no configuration on
+  this code in which banking acts for a reason attributable to banking** — except through a
+  preparation credit, which is the one live route: `transferPackages` calls `chipCreditFor`, so with
+  `PrepareTripleCaptain` on the arms differ in package **value** rather than only in move limit, and
+  a triple-captain credit favours exactly the premium upgrade the multi-downgrade branch exists for.
+  **Unrun.** ⚠️ `PrepareBenchBoost` cannot do it and biases the other way: `ChipCreditAt`'s later-arm
+  window is a strict subset of the now-arm's, so preparation can only credit acting now.
 - **Reach is not the problem: 97.6% of worth-taking two-move packages are already reachable**, which
   closes the unified-search line on mechanism. The lever is the **valuation**, not the gate.
 - **The sell side is calibrated; its error is entirely availability** — −0.100 per gameweek for a
