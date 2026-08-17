@@ -806,7 +806,15 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// dispute on the other — so the merged file carries both sets and neither branch's
 	// ceiling covers it. Raising to 136 is the arithmetic of that merge, not a licence
 	// for more prose: the next entry pays the usual price.
-	const budget = 136 * 1024
+	// # 140 KB from 2026-08-17 — the free_transfer_value ladder verdict
+	//
+	// The first banked variation of the constant. Its entry replaces the withdrawn
+	// "never been varied" claim with the sweep's figures, thresholds and null verdict,
+	// and the kink identity it surfaced (the shipped charge IS min_gain times the
+	// horizon) joins the min_gain bullet as a clause rather than a second entry. The
+	// competing option-value model rides along as a labelled hypothesis, and the
+	// transfer-gate closure's support count moves to accommodate four new ties.
+	const budget = 140 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

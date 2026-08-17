@@ -1,0 +1,169 @@
+replay: slot 1/3, MemoryHigh=2G MemoryMax=4G, started 14:32:32
+=== RUN   TestDiagFreeTransferValue
+
+=== FREEVALUE. free_transfer_value, flat ladder. Metric: POLICY.
+Shipped 2.0. HOLD must not move — FreeCost is read only inside the
+weekly transfer decision, so a moved HOLD means the constant leaked.
+
+variant                     gw1      gw6     gw11     gw16     gw21     gw26    POLICY |      HOLD   moves
+free_value=2.0 (ships)    13264    11366     9828     8232     6565     4603     53858 |     47105     950
+free_value=1.0            13400    11560     9823     8199     6561     4612     54155 |     47105    1012
+free_value=1.5            13400    11464     9822     8213     6565     4612     54076 |     47105     977
+free_value=3.0            13202    11357     9848     8113     6417     4509     53446 |     47105     884
+free_value=4.0            13210    11383     9749     8214     6508     4574     53638 |     47105     752
+
+--- POLICY (the weekly transfer decision) ---
+Paired against "free_value=2.0 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+free_value=1.0           +0.231       36
+    early (prior-led)    +0.788       12
+    middle               -0.134       12
+    late (season-led)    +0.039       12
+free_value=1.5           +0.172       36
+    early (prior-led)    +0.546       12
+    middle               -0.087       12
+    late (season-led)    +0.058       12
+free_value=3.0           -0.606       36
+    early (prior-led)    -0.159       12
+    middle               -0.372       12
+    late (season-led)    -1.288       12
+free_value=4.0           -0.275       36
+    early (prior-led)    -0.075       12
+    middle               -0.300       12
+    late (season-led)    -0.450       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- POLICY on accumulated xPoints (instrument; read beside POLICY) ---
+Paired against "free_value=2.0 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+free_value=1.0           -0.001       36
+    early (prior-led)    +0.202       12
+    middle               -0.135       12
+    late (season-led)    -0.070       12
+free_value=1.5           +0.102       36
+    early (prior-led)    +0.304       12
+    middle               -0.097       12
+    late (season-led)    +0.099       12
+free_value=3.0           -0.585       36
+    early (prior-led)    -0.240       12
+    middle               -0.503       12
+    late (season-led)    -1.011       12
+free_value=4.0           -0.336       36
+    early (prior-led)    -0.384       12
+    middle               +0.036       12
+    late (season-led)    -0.659       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD (the opening fifteen; use this for scoring constants) ---
+Paired against "free_value=2.0 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+free_value=1.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=1.5           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=3.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=4.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD on accumulated xPoints (instrument; read beside HOLD) ---
+Paired against "free_value=2.0 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+free_value=1.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=1.5           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=3.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=4.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with the armband pinned to the day-one pick (diagnostic instrument) ---
+Paired against "free_value=2.0 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+free_value=1.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=1.5           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=3.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=4.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with nobody doubled (diagnostic instrument; not what FPL pays) ---
+Paired against "free_value=2.0 (ships)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+free_value=1.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=1.5           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=3.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+free_value=4.0           +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+Cells written. Now: Rscript stats/sweep_inference.R <the FPL_CELLS path>
+
+--- churn census (counts; no threshold is claimed for these) ---
+value         moves    trips trips/move pair weeks    cells
+1.0            1012      248     0.2451        296       36
+1.5             977      222     0.2272        282       36
+2.0             950      212     0.2232        272       36
+3.0             884      191     0.2161        274       36
+4.0             752      143     0.1902        235       36
+
+A move count that does not differ across the ladder means the constant
+never reached the decision — a comparison that did not run, not a tie.
+`pair weeks` separates the two channels: below the shipped value the
+single-swap bar is pinned by min_gain and only the funded pair can move.
+--- PASS: TestDiagFreeTransferValue (756.08s)
+PASS
+replay: exit=0 peak_rss=125 MB elapsed=12:32.63

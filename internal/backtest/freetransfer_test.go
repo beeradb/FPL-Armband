@@ -1,16 +1,18 @@
 package backtest
 
-// The flat `free_transfer_value` ladder — the level this constant has never been
-// swept at.
+// The flat `free_transfer_value` ladder — measured and unresolved.
 //
 //	EXP=FREEVALUE FPL_SWEEP_SEASONS=extended FPL_CELLS=/tmp/freevalue.csv \
 //	    scripts/replay -run TestDiagFreeTransferValue -v -timeout 3h
 //
 // `free_transfer_value` is what a free transfer is charged, in points across the
 // decision horizon, and it reaches the simulation as `SimConfig.FreeCost`. It
-// ships at 2.0 and **has never been varied in any banked sweep**: every
-// `stats/snapshots/*/cells/*.provenance.csv` stamps it at 2 as an ambient
-// constant, so the level is an untested prior question rather than a re-tune.
+// ships at 2.0, and until this block ran it had never been varied in any banked
+// sweep — every `stats/snapshots/*/cells/*.provenance.csv` stamped it at 2 as an
+// ambient constant, so the level was an untested prior question rather than a
+// re-tune. It is now measured and **unresolved**: nothing clears its own
+// threshold and the ladder has no shape. See
+// stats/findings/2026-08-17-free-transfer-value-ladder.md.
 //
 // Two things want it established. The option-value taper multiplies this same
 // constant by a decay-and-congestion factor, so it moves the *mean* charge as
@@ -61,6 +63,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -83,14 +86,20 @@ func roundTrips(moves []Move) int {
 // multiMoveWeeks counts gameweeks in which the policy spent more than one
 // transfer.
 //
-// It separates the two channels the charge acts through, which is the whole
-// reason it is collected. Below the shipped value the single-swap bar does not
-// move at all — see TestTheFreeTransferChargeIsInertOnSinglesBelowTheKink — so
-// every difference the low rungs can produce arrives through the funded pair,
-// whose bar is the pair's value against the best single's. A ladder whose low
-// half moves only this column is varying a different mechanism from its high
-// half, and a monotone points column across the whole ladder would be two
-// readings rather than one shape.
+// ⚠️ **It does NOT isolate the funded pair, and an earlier version of this
+// comment claimed it did.** `useHit` is `free == 0` in `decide`, so a hit is
+// only ever taken after the week's free transfers are spent — which makes
+// **every hit week a multi-move week by construction**. This column is the
+// funded pair, the multi-free-move week and the hit channel added together, and
+// attributing a movement in it to any one of them needs `hits` beside it, which
+// the census prints for exactly that reason. `MaxHitsPerWeek` ships at 1, so
+// `hits` is also a count of hit *weeks* and the subtraction is exact at shipped
+// config.
+//
+// It is collected because the charge acts through more than one channel and a
+// points column cannot see which. What licenses the two-mechanism reading of the
+// ladder is the *arithmetic* — see
+// TestTheFreeTransferChargeIsInertOnSinglesBelowTheKink — not this count.
 func multiMoveWeeks(moves []Move) int {
 	byGW := map[int]int{}
 	for _, m := range moves {
@@ -112,7 +121,7 @@ func multiMoveWeeks(moves []Move) int {
 // the policy did, and turning it into a paired difference would invent a second
 // inference path beside the one in stats/sweep_inference.R.
 type churn struct {
-	trips, moves, pairWeeks, cells int
+	trips, moves, multiWeeks, hits, cells int
 }
 
 // freeValueRungs is the ladder's non-shipped arms, in one place.
@@ -165,16 +174,23 @@ func TestDiagFreeTransferValue(t *testing.T) {
 			setting: func(sc SimConfig) float64 { return sc.FreeCost },
 			// The churn census. It may not touch the simulation — the season is
 			// already played by the time this runs.
-			// ⚠️ Both readings come off `res.Moves`, never `res.Transfers`.
-			// `res.Transfers` also counts a wildcard's replacements, which never
-			// enter `res.Moves`, so a ratio taken across the two would have its
-			// numerator and denominator from different populations. Inert today —
-			// `sweepConfig` plans no chips — and latent the moment this block is
-			// run with one.
+			// ⚠️ Every count comes off `res.Moves`, never `res.Transfers`.
+			// `Simulate`'s wildcard branch does `res.Transfers += n` with no
+			// append, so a ratio taken across the two would draw numerator and
+			// denominator from different populations. Inert today — `sweepConfig`
+			// plans no chips, and the two were verified equal on this grid — and
+			// latent the moment this block is run with one.
+			//
+			// ⚠️ The grid table `runPolicySweep` prints above carries its own
+			// `moves` column and that one IS `res.Transfers`: two counts under one
+			// word in one printout, equal only while no chip is played.
+			// `roundTrips` has the same boundary — it cannot see a player
+			// wildcarded out and transferred back in.
 			observe: func(_ seasonPair, _ int, res *SimResult) {
 				c.trips += roundTrips(res.Moves)
 				c.moves += len(res.Moves)
-				c.pairWeeks += multiMoveWeeks(res.Moves)
+				c.multiWeeks += multiMoveWeeks(res.Moves)
+				c.hits += res.Hits
 				c.cells++
 			},
 		})
@@ -189,8 +205,8 @@ func TestDiagFreeTransferValue(t *testing.T) {
 	// are what the recorded claim is about: raising the charge is expected to cut
 	// moves, and the question is whether the round-trip *share* moves with it.
 	fmt.Printf("\n--- churn census (counts; no threshold is claimed for these) ---\n")
-	fmt.Printf("%-10s %8s %8s %10s %10s %8s\n",
-		"value", "moves", "trips", "trips/move", "pair weeks", "cells")
+	fmt.Printf("%-10s %8s %8s %10s %8s %6s %8s %6s\n",
+		"value", "moves", "trips", "trips/move", "multi-wk", "hits", "residual", "cells")
 	keys := make([]float64, 0, len(census))
 	for fc := range census {
 		keys = append(keys, fc)
@@ -202,13 +218,17 @@ func TestDiagFreeTransferValue(t *testing.T) {
 		if c.moves > 0 {
 			share = float64(c.trips) / float64(c.moves)
 		}
-		fmt.Printf("%-10.1f %8d %8d %10.4f %10d %8d\n",
-			fc, c.moves, c.trips, share, c.pairWeeks, c.cells)
+		fmt.Printf("%-10.1f %8d %8d %10.4f %8d %6d %8d %6d\n",
+			fc, c.moves, c.trips, share, c.multiWeeks, c.hits,
+			c.multiWeeks-c.hits, c.cells)
 	}
 	fmt.Printf("\nA move count that does not differ across the ladder means the constant\n")
 	fmt.Printf("never reached the decision — a comparison that did not run, not a tie.\n")
-	fmt.Printf("`pair weeks` separates the two channels: below the shipped value the\n")
-	fmt.Printf("single-swap bar is pinned by min_gain and only the funded pair can move.\n")
+	fmt.Printf("⚠️ `multi-wk` does NOT isolate the funded pair: `useHit` is `free == 0`,\n")
+	fmt.Printf("so every hit week is a multi-move week. `residual` nets the hit channel\n")
+	fmt.Printf("out, exact while MaxHitsPerWeek is 1. Attribute on `residual`, not `multi-wk`.\n")
+	fmt.Printf("⚠️ `trips/move` is a ratio of pooled totals over cells of 38 to 13\n")
+	fmt.Printf("gameweeks, so the long cells dominate it. Both arms share the cells.\n")
 }
 
 // TestTheFreeTransferLadderBracketsTheShippedValue pins the design defect the
@@ -300,15 +320,41 @@ func TestTheFreeTransferChargeReachesTheDecision(t *testing.T) {
 // is therefore two readings and not one shape, and an interior optimum at 2.0 is
 // confounded with `MinGain x DecisionHorizon`.
 //
-// The one exception is the end of the season, where `effectiveHorizon` shortens:
-// at H = 2 a charge of 1.0 demands 0.5 and does bind. That is GW37 onward for
-// 1.0 and GW36 onward for 1.5, which is why the test walks the horizon.
+// The one exception is the end of the season, where `effectiveHorizon` shortens.
+// ⚠️ **It starts at GW35, not GW36/GW37**, and getting that wrong is easy: the
+// binding condition is not when a rung's OWN bar clears `MinGain` (`r/H > 0.4`)
+// but when it differs from SHIPPED's, and shipped's own bar `2/H` rises above
+// `MinGain` the moment `H < 5`. `effectiveHorizon(5, gw)` is `min(5, 39-gw)`, so
+// `H = 4` at GW35 and both low rungs are live from there — four end-of-season
+// weeks per cell, not two and three. The liveness half below pins that boundary
+// rather than merely asserting one exists.
+//
+// ⚠️ **Three switches make the identity false and none of them ships**, so this
+// test refuses to run under them rather than asserting something untrue:
+// `budgetWeight` puts a non-zero `Money` in `value()`, the option-value taper
+// makes the charge a per-week quantity rather than `FreeCost`, and the unified
+// search does not reach the singles branch at all.
 func TestTheFreeTransferChargeIsInertOnSinglesBelowTheKink(t *testing.T) {
 	cfg := loadConfig(t)
 	shipped := cfg.Review.FreeTransferValue
 	minGain := cfg.Review.MinGainForTransfer
+	// The data state the identity holds in, asserted rather than assumed. A
+	// prose caveat cannot fail; this can.
+	if budgetWeight > 0 {
+		t.Fatalf("budgetWeight is %v: Money enters value(), so the bar is "+
+			"max(MinGain, (FreeCost-Money)/H) and this test's identity is false",
+			budgetWeight)
+	}
+	if unifiedTransfers {
+		t.Fatal("the unified search is on: it does not reach the singles branch, " +
+			"so there is no bar of this shape to pin")
+	}
 	sc := SimConfig{
 		MinGain: minGain, MinGainHit: cfg.Review.MinGainForHit, Weights: cfg.Weights,
+	}
+	if sc.TaperFreeTransferValue {
+		t.Fatal("the option-value taper is on: the charge is FreeCost*factor per " +
+			"week, so a single constant does not sit on the kink")
 	}
 	full := float64(sc.decisionHorizon())
 
@@ -327,10 +373,34 @@ func TestTheFreeTransferChargeIsInertOnSinglesBelowTheKink(t *testing.T) {
 			GainBar: minGain, FreeCost: charge,
 		})
 	}
-	// A gain grid straddling the bar from well below to well above it.
+	// A gain grid straddling every bar in play, from zero to above the largest.
+	//
+	// ⚠️ The ceiling must clear `shipped/1` — the bar at the shortest horizon —
+	// and not merely the bar at the shipped one. A grid stopping at 1.2 cannot
+	// separate a charge of 1.5 from the shipped 2.0 at `H = 1`, where their bars
+	// are 1.5 and 2.0, so the boundary assertion below reported a disconnection
+	// that was really a grid too narrow to see.
+	ceiling := shipped/1.0 + 0.5
 	var gains []float64
-	for g := 0.0; g <= 1.2000001; g += 0.02 {
+	for g := 0.0; g <= ceiling+1e-9; g += 0.02 {
 		gains = append(gains, g)
+	}
+
+	// The positive control. If MinGain ever rose above the grid's ceiling every
+	// call below would return false and the inertness loop would pass vacuously,
+	// which is the shape of guard this project has been bitten by.
+	accepts, refusals := 0, 0
+	for _, g := range gains {
+		if single(g, shipped, full) {
+			accepts++
+		} else {
+			refusals++
+		}
+	}
+	if accepts == 0 || refusals == 0 {
+		t.Fatalf("the gain grid does not straddle the bar at the shipped charge "+
+			"(%d accepts, %d refusals): the inertness loop below would pass on a "+
+			"constant answer and prove nothing", accepts, refusals)
 	}
 
 	for _, rung := range freeValueRungs {
@@ -348,25 +418,85 @@ func TestTheFreeTransferChargeIsInertOnSinglesBelowTheKink(t *testing.T) {
 	}
 
 	// And the mirror, which is what stops this reading as "the charge does
-	// nothing": shorten the horizon and the low rungs do bind. Without this the
-	// test would pass on a build where FreeCost had been disconnected entirely.
-	woke := 0
+	// nothing": shorten the horizon and the low rungs bind.
+	//
+	// It pins WHERE they start binding rather than merely that they do. A floor
+	// ("something woke somewhere") would pass on a build whose boundary had moved
+	// by two gameweeks, which is exactly the error this test's own comment made
+	// before review caught it.
 	for _, rung := range freeValueRungs {
 		if rung >= shipped {
 			continue
 		}
-		for h := full - 1; h >= 1; h-- {
+		for h := 1.0; h <= full; h++ {
+			differs := false
 			for _, g := range gains {
 				if single(g, shipped, h) != single(g, rung, h) {
-					woke++
+					differs = true
 					break
 				}
 			}
+			switch {
+			case h == full && differs:
+				t.Fatalf("charge %v differs from the shipped %v at the full horizon "+
+					"%v: the singles channel is not pinned below the kink after all",
+					rung, shipped, h)
+			case h < full && !differs:
+				t.Fatalf("charge %v is indistinguishable from the shipped %v at "+
+					"horizon %v: shipped's own bar is %v there against min_gain %v, "+
+					"so they must differ — FreeCost is not reaching the singles "+
+					"branch", rung, shipped, h, shipped/h, minGain)
+			}
 		}
 	}
-	if woke == 0 {
-		t.Fatal("no sub-shipped charge changes a single-swap decision at any " +
-			"shortened horizon: FreeCost is not reaching the singles branch at " +
-			"all, which is a disconnection rather than the kink this test pins")
+}
+
+// TestTheSinglesProposalCarriesNoAlternativeOrStrictFlag is the source half of
+// the guard above.
+//
+// The kink identity holds only because `decide` builds the singles proposal with
+// `Alternative` zero, `Strict` false and no hit — and the test above hard-codes
+// all three into its own literal rather than calling `decide`. So a change
+// giving the singles branch `Strict: true` (tidying it up against the funded
+// pair, which `gate.go` openly invites) would turn `>= 0` into `> 0`, break the
+// inertness at ties, and leave that test passing unchanged while every low-rung
+// attribution in the finding silently became wrong.
+//
+// A source scan rather than a behavioural test, following this package's own
+// precedent in TestTheHitCeilingIsReadByTheFundedPairBranch: the property is
+// about how the call site is written, and there is no input that reveals it.
+func TestTheSinglesProposalCarriesNoAlternativeOrStrictFlag(t *testing.T) {
+	src, err := os.ReadFile("simulate.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The singles proposal, from its comment through the switch that consumes it.
+	const anchor = "// One move, so the package is the move. The alternative is doing nothing,"
+	i := strings.Index(string(src), anchor)
+	if i < 0 {
+		t.Fatalf("cannot find the singles proposal in simulate.go: this guard is "+
+			"anchored on %q and the anchor has moved", anchor)
+	}
+	rest := string(src)[i:]
+	end := strings.Index(rest, "default:")
+	if end < 0 {
+		t.Fatal("cannot find the end of the singles switch in simulate.go")
+	}
+	block := rest[:end]
+	for _, banned := range []string{"Alternative:", "Strict:"} {
+		if strings.Contains(block, banned) {
+			t.Fatalf("the singles proposal now sets %s. The free-single bar is "+
+				"max(MinGain, FreeCost/H) only while Alternative is zero and Strict "+
+				"is false; setting either changes it, and "+
+				"TestTheFreeTransferChargeIsInertOnSinglesBelowTheKink would go on "+
+				"passing against its own hard-coded literal. Re-derive the bar, "+
+				"re-read stats/findings/2026-08-17-free-transfer-value-ladder.md, "+
+				"then update both.", banned)
+		}
+	}
+	if !strings.Contains(block, "withBar(cfg.MinGain)") {
+		t.Fatal("the singles branch no longer gates on withBar(cfg.MinGain): the " +
+			"first half of the free-single bar is not min_gain any more, so the " +
+			"kink identity does not hold")
 	}
 }

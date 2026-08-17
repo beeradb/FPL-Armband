@@ -85,6 +85,19 @@ type ReviewPolicy struct {
 	// 2.5 beats zero on all three seasons; 2 is the middle of that range. The
 	// exact value is not resolvable on three seasons, so treat it as a knob
 	// rather than a calibrated constant.
+	//
+	// Re-measured 2026-08-17 as a flat ladder — 1.0/1.5/3.0/4.0 against 2.0, 36
+	// cells on the six-season grid, POLICY: +8.8/+6.5/-23.0/-10.5 a season against
+	// per-arm thresholds of 15 to 34, Holm >= 0.56 on the clustered p, and no
+	// shape (non-monotone, 3.0 worse than 4.0). So "not resolvable on three
+	// seasons" is not a grid-width problem — it does not resolve on six either.
+	// ⚠️ 0.0 was NOT a rung, so the "beats zero" comparison above is still the
+	// only record of that comparator and has not been re-run.
+	// ⚠️ A ladder spanning 2.0 crosses a kink: a free single's bar is
+	// max(MinGainForTransfer, FreeTransferValue/H), and at the shipped horizon 5
+	// this constant's 2.0 IS MinGainForTransfer's 0.4 exactly, so below 2.0 the
+	// singles channel cannot move. See
+	// stats/findings/2026-08-17-free-transfer-value-ladder.md.
 	FreeTransferValue float64 `json:"free_transfer_value"`
 
 	// BankTransfersLookahead lets the weekly decision decline a move because a

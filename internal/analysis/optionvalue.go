@@ -289,11 +289,17 @@ type OptionValue struct {
 //	h = 16   0.957
 //	h = 30   0.693
 //
-// A factor of 2.3 across the ladder, all of it level. And the flat level has
-// **never been varied in any banked sweep** — every `*.provenance.csv` stamps
-// `free_transfer_value` at 2 — so the level is the untested prior question and a
-// taper arm run without this would be confounded with it. Found in review before
-// any arm was run.
+// A factor of 2.3 across the ladder, all of it level. When this was written the
+// flat level had never been varied in any banked sweep, so it was the untested
+// prior question and a taper arm run without this would have been confounded with
+// it. Found in review before any arm was run.
+//
+// The flat ladder has since run — 1.0/1.5/3.0/4.0 against the shipped 2.0, 36
+// cells, `POLICY` — and **nothing resolves**: +8.8/+6.5/−23.0/−10.5 a season
+// against per-arm thresholds of 15 to 34, with no shape. So the level is
+// measured-and-unresolved rather than untested, and the normalisation below is
+// still what makes a taper arm attributable, because an unresolved level is not
+// a level of zero.
 //
 // Dividing by this mean makes the taper **mean-preserving**: the same average
 // charge as flat, redistributed across the season. That is what makes a
