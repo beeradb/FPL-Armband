@@ -70,6 +70,69 @@ func (c SimConfig) nextChip(k chipSlot, from int) int { return c.schedule().Next
 // anyChips is whether a plan plays anything at all.
 func anyChips(p analysis.ChipPlan) bool { return p != analysis.ChipPlan{} }
 
+// SplitChipSets routes a single-set plan's chips into the sets the season
+// actually granted them from.
+//
+// # The defect it repairs, and why it is here rather than in the planner
+//
+// A chip PLANNER answers "which gameweek is this chip worth playing in". Which of
+// FPL's two sets that week draws from is bookkeeping about the calendar, not about
+// football, and every planner that computed a week had to know the rule
+// separately — which is how none of them did.
+//
+// The cost was silent and total. `anchoredPlan` puts 2025-26's free hit at GW34
+// and its bench boost at GW33; `ChipSetsFor("2025-26")` is 2, so
+// `ValidateChipSets` refuses a first-set chip at or after `ChipResetGW`;
+// `runPolicySweep` records the refusal as an INFEASIBLE cell rather than
+// fatalling. So an anchored-chips arm quietly lost **all six 2025-26 cells** while
+// every printed number stayed plausible — a comparison that never ran, wearing the
+// clothes of a season that did. Found by the blanks-and-doubles census, which
+// counts the refusals rather than assuming there are none.
+//
+// # It is the identity in a one-set season
+//
+// `ChipSetsFor` gates it, so every season before 2025-26 gets its plan back
+// unchanged in `First` and an empty `Second` — which is what makes this safe to
+// apply to every planner rather than to the ones somebody remembered. A plan that
+// was already legal stays byte-identical.
+//
+// ⚠️ **It cannot repair a plan that is illegal for a second reason.** Two chips in
+// one gameweek is still two chips in one gameweek, and `ValidateChipSets` still
+// refuses it — the split moves a chip between sets and never moves its week. That
+// is deliberate: a planner that collides with itself has a bug this must not hide.
+func SplitChipSets(season string, p analysis.ChipPlan) analysis.ChipSchedule {
+	if ChipSetsFor(season) < 2 {
+		return analysis.ChipSchedule{First: p}
+	}
+	var out analysis.ChipSchedule
+	for _, n := range []struct {
+		k    chipSlot
+		week int
+	}{
+		{slotWildcard, p.Wildcard},
+		{slotFreeHit, p.FreeHit},
+		{slotBenchBoost, p.BenchBoost},
+		{slotTripleCaptain, p.TripleCaptain},
+	} {
+		if n.week <= 0 {
+			continue
+		}
+		set := 1
+		if n.week >= ChipResetGW {
+			set = 2
+		}
+		// The slot names carry no suffix here — see chipSlot — so the set is
+		// appended rather than assumed. `Set` returns an error only for a name that
+		// does not resolve or a week outside 1..38, and both are impossible on the
+		// literals above given the `n.week <= 0` guard, so a failure here would be a
+		// change to ChipSchedule rather than bad input from a caller.
+		if err := out.Set(fmt.Sprintf("%s%d", n.k, set), n.week); err != nil {
+			panic("SplitChipSets: " + err.Error())
+		}
+	}
+	return out
+}
+
 // ValidateChipSets checks a two-set plan against the rules FPL actually enforces,
 // and against what the season being replayed granted.
 //

@@ -212,6 +212,37 @@ type cellRow struct {
 	// three count moves and the first counts weeks. See fixtureRunCols.
 	FixtureRuns FixtureRunMediator
 
+	// The four option-value levers' funnels, and the chip-preparation credit's.
+	//
+	// They share HasBanking's gate for the reason the fixture-run block does: all
+	// three funnels are counted on weeks that reached `decide`, so they are
+	// recorded together or not at all and a reader can put any of them over
+	// `decision_weeks` without checking a second flag.
+	//
+	// ⚠️ **Each lever's block goes blank on its OWN count, not on a shared one.**
+	// `ftv_priced_weeks` is blank when the taper was never consulted; a chip
+	// trigger's firing columns are blank when it never fired. That is what keeps a
+	// null on one lever readable without reference to the others, which is the
+	// whole reason the four switches are independent.
+	TransferHold TransferHoldMediator
+	WildcardTrig ChipTriggerMediator
+	BenchBoostTrig ChipTriggerMediator
+	FreeHitTrig  ChipTriggerMediator
+	ChipPrep     ChipPrepMediator
+
+	// The per-cell fixture dose. See doseCols for the two windows, the two traps,
+	// and why nothing regresses on them here.
+	//
+	// Gated separately from HasBanking, because a dose is a property of the
+	// SEASON and the ENTRY GAMEWEEK rather than of anything the decision loop did
+	// — a cell that played no gameweek at all still has one — so it follows the
+	// arm rule rather than the metric rule and survives asInfeasible.
+	HasDose         bool
+	ActDoubles      int
+	ActBlanks       int
+	LateDoubles     int
+	LateBlanks      int
+
 	// What each chip actually returned in the week it was played, and which week
 	// that was. Zero week means the arm did not play that chip in this cell.
 	//
@@ -464,8 +495,17 @@ func (r cellRow) asInfeasible() cellRow {
 	// one. Leaving it would report decision weeks in a cell that played none.
 	r.HasBanking, r.BankingMediator = false, BankingMediator{}
 	// The fixture-run funnel goes with it, for the identical reason: it counts
-	// what the decision loop did, and an infeasible cell never ran one.
+	// what the decision loop did, and an infeasible cell never ran one. So do the
+	// four option-value funnels and the preparation credit's.
 	r.FixtureRuns = FixtureRunMediator{}
+	r.TransferHold = TransferHoldMediator{}
+	r.WildcardTrig, r.BenchBoostTrig, r.FreeHitTrig = ChipTriggerMediator{},
+		ChipTriggerMediator{}, ChipTriggerMediator{}
+	r.ChipPrep = ChipPrepMediator{}
+	// ⚠️ The DOSE block survives, and that is the arm rule rather than an
+	// oversight: it is a function of the season and the entry gameweek, which an
+	// infeasible cell still has, exactly as it still has `season` and `start_gw`.
+	// Clearing it would report a cell with no doubles in a season that had them.
 	r.HasChipWeeks = false
 	r.BenchBoostGW, r.BenchBoostPts, r.TripleCapGW, r.TripleCapPts = 0, 0, 0, 0
 	r.HasChipOracle, r.chipReadings = false, chipReadings{}
@@ -512,6 +552,14 @@ var cellHeader = []string{
 	"free_at_decision",
 	"band_ready_weeks", "band_moves", "band_run_moves", "band_worse_moves",
 	"band_exposure",
+	"ftv_weeks", "ftv_priced_weeks", "ftv_gate_calls", "ftv_flips",
+	"ftv_mean_charge", "ftv_mean_load",
+	"wc_trig_weeks", "wc_trig_weighed", "wc_trig_gw", "wc_trig_value", "wc_trig_bar",
+	"bb_trig_weeks", "bb_trig_weighed", "bb_trig_gw", "bb_trig_value", "bb_trig_bar",
+	"fh_trig_weeks", "fh_trig_weighed", "fh_trig_gw", "fh_trig_value", "fh_trig_bar",
+	"prep_weeks", "prep_credit_weeks", "prep_bench_sum", "prep_captain_sum",
+	"dose_act_doubles", "dose_act_blanks",
+	"dose_late_doubles", "dose_late_blanks",
 	"bench_boost_gw", "bench_boost_pts", "triple_captain_gw", "triple_captain_pts",
 	"bench_boost_oracle_gw", "bench_boost_oracle_pts",
 	"bench_boost_median_pts", "bench_boost_threshold_pts", "bench_boost_bar_pts",
@@ -586,6 +634,88 @@ const (
 	// 63 replayed transfers the incoming player's fixtures got *harder* 63% of the
 	// time, so a negative sum is the recorded prior and not a sign error.
 	fixtureRunCols = 5
+	// optionCols is the four option-value levers' funnels, the third and last
+	// block in the decision-mediator region:
+	//
+	//	ftv_weeks / ftv_priced_weeks   weeks the free-transfer taper ran, and
+	//	                               weeks it actually moved the charge
+	//	ftv_gate_calls / ftv_flips     gate answers in those weeks, and how many
+	//	                               the untapered charge would have reversed
+	//	ftv_mean_charge / ftv_mean_load the applied charge and the squad's forward
+	//	                               fixture density, averaged over ftv_weeks
+	//	<chip>_trig_weeks / _weighed   the chip state rule's consulted and weighed
+	//	                               weeks, per chip: wc, bb, fh
+	//	<chip>_trig_gw / _value / _bar the week it fired in, the reading that
+	//	                               cleared, and the bar it cleared
+	//	prep_weeks / prep_credit_weeks the chip-preparation credit's funnel, which
+	//	                               had NO mediator at all before this
+	//	prep_bench_sum / _captain_sum  the credit's level, in the per-gameweek
+	//	                               units the gate consumed
+	//
+	// ⚠️ **Four levers, four independent funnels, and no block-level flag.** Each
+	// lever is switchable on its own — the likely end state is chip placement on
+	// and banking off — so a null on one has to be readable without reference to
+	// the others. A single `option_value_on` column would make that impossible and
+	// is deliberately absent.
+	//
+	// ⚠️ **`ftv_flips` counts GATE ANSWERS, not weeks and not transfers.** A week
+	// offering a funded pair and a solo swap asks the gate three times, so it can
+	// exceed `ftv_weeks`; `ftv_gate_calls` is its denominator and is in the block
+	// for exactly that reason. And a flip is not a changed transfer — `decide`
+	// returns on a refusal, so a flip on a later candidate may change nothing.
+	//
+	// ⚠️ **`wc_trig_gw` is the wildcard lever's whole deliverable.** The replay
+	// cannot value a wildcard — it replaces all fifteen and the within-season
+	// spread swamps it — so the question is a decision count, and the recorded
+	// closure of the wildcard-trigger line rests on the tested trigger firing at
+	// GW2. Reading this column tells you whether a repair-cost trigger does the
+	// same. Do not quote a points figure from that arm.
+	optionCols = 25
+	// doseCols is the per-cell fixture dose, and it is NOT a mediator: it is a
+	// function of the season and the entry gameweek alone, identical on every arm
+	// of a cell, and it exists so a doubles or blanks arm can be read as a
+	// dose-response rather than as a pooled mean over 36 differences.
+	//
+	//	dose_act_doubles / dose_act_blanks   club-gameweeks in the ACTIONABLE
+	//	                                     window [start+1, 38]
+	//	dose_late_doubles / dose_late_blanks club-gameweeks beyond the opening
+	//	                                     squad's own horizon, [start+H+1, 38]
+	//
+	// # Why the actionable window and not the played one
+	//
+	// A cell entering at GW n plays [n, 38] but can ACT only on [n+1, 38]: the
+	// opening fifteen is chosen at the entry deadline, so a double in the entry
+	// week is football the cell scores and no transfer can be banked into.
+	// Counting it as dose credits the mechanism with a week it could not act on.
+	//
+	// # And why a second, sharper pair
+	//
+	// The opening squad is built on a horizon of H gameweeks, so every double
+	// inside [start+1, start+H] was already visible to and priced by the squad
+	// build. What is left for the TRANSFER POLICY to add is what falls beyond it,
+	// which is the `dose_late_*` pair. That is the quantity nobody had defined.
+	//
+	// ⚠️ **Two traps, and either one manufactures a slope.**
+	//
+	//   - **92% of doubles fall after GW19**, so a late-entry cell has more dose
+	//     per gameweek AND fewer gameweeks. Dose and denominator move together, so
+	//     a per-gameweek outcome regressed on dose picks up the entry point rather
+	//     than the doubles. Put entry gameweek in the model or stratify on it.
+	//   - **The 36 cells collapse to about 14 distinct doses**, with effective
+	//     seasons around 4.4, because cells within a season are nested and share
+	//     nearly all their doubles. The dose axis is far thinner than 36 rows look,
+	//     and a standard error computed as though the rows were independent is
+	//     wrong by roughly the ratio.
+	//
+	// ⚠️ **These columns are emitted and NOTHING here regresses on them.** No
+	// slope has been fitted, none is quoted, and a dose-response is a separate act
+	// requiring its own pre-registration against both traps above.
+	//
+	// ⚠️ The alternative reading of "captured by the opening squad" — clubs the
+	// opening fifteen actually owns — is deliberately not the one taken. It varies
+	// by arm, which would make this a mediator rather than a dose, and a covariate
+	// that moves with the treatment is not a covariate.
+	doseCols = 4
 	// chipWeekCols is the chip block: two gameweeks and two one-off point
 	// totals. Four rather than eight because there are no per-gw columns here —
 	// see cellRow.HasChipWeeks for why a chip must not be normalised by weeks.
@@ -949,6 +1079,70 @@ func (s *cellSink) cell(r cellRow) {
 			strconv.Itoa(r.FixtureRuns.RunMoves),
 			strconv.Itoa(r.FixtureRuns.WorseMoves),
 			strconv.Itoa(r.FixtureRuns.Exposure))
+	} else {
+		rec = append(rec, "", "", "", "")
+	}
+	// The free-transfer taper's funnel. `ftv_weeks` is written whenever the
+	// decision loop ran, so a zero there is a measurement — it says the taper was
+	// switched off — and the other five go blank behind it, because with no
+	// consulted week there is no charge to have moved and a 0 would assert that
+	// one was measured.
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec, strconv.Itoa(r.TransferHold.ConsultedWeeks))
+	} else {
+		rec = append(rec, "")
+	}
+	if r.HasBanking && r.TransferHold.ConsultedWeeks > 0 {
+		rec = append(rec,
+			strconv.Itoa(r.TransferHold.PricedWeeks),
+			strconv.Itoa(r.TransferHold.GateCalls),
+			strconv.Itoa(r.TransferHold.Flips),
+			floatOrBlank(r.TransferHold.MeanCharge()),
+			floatOrBlank(r.TransferHold.MeanLoad()))
+	} else {
+		rec = append(rec, "", "", "", "", "")
+	}
+	// The three chip state rules, each on its own counts. `_trig_weeks` is written
+	// whenever the decision loop ran — a zero says the rule was off or never
+	// eligible — and the firing triple goes blank until it fires, because a
+	// gameweek of 0 is already "did not fire" and a bar of 0.0 alongside it would
+	// read as a bar that was measured.
+	for _, m := range []ChipTriggerMediator{r.WildcardTrig, r.BenchBoostTrig, r.FreeHitTrig} {
+		if r.HasBanking && r.DecisionWeeks > 0 {
+			rec = append(rec,
+				strconv.Itoa(m.ConsultedWeeks), strconv.Itoa(m.WeighedWeeks))
+		} else {
+			rec = append(rec, "", "")
+		}
+		if r.HasBanking && m.FiredGW > 0 {
+			rec = append(rec, strconv.Itoa(m.FiredGW),
+				floatOrBlank(m.FiredValue), floatOrBlank(m.FiredBar))
+		} else {
+			rec = append(rec, "", "", "")
+		}
+	}
+	// The chip-preparation credit, which had no mediator at all until now — so
+	// every recorded preparation figure is a points column with no funnel behind
+	// it, and "the credit never fired" and "it fired and bought nothing" were one
+	// number.
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec, strconv.Itoa(r.ChipPrep.ConsultedWeeks))
+	} else {
+		rec = append(rec, "")
+	}
+	if r.HasBanking && r.ChipPrep.ConsultedWeeks > 0 {
+		rec = append(rec, strconv.Itoa(r.ChipPrep.CreditWeeks),
+			floatOrBlank(r.ChipPrep.BenchSum), floatOrBlank(r.ChipPrep.CaptainSum))
+	} else {
+		rec = append(rec, "", "", "")
+	}
+	// The dose block. Blank when the sweep did not compute it; a zero is a real
+	// reading — a cell whose actionable window carries no double is exactly the
+	// cell a doubles arm cannot run in, which is what this column exists to say.
+	if r.HasDose {
+		rec = append(rec,
+			strconv.Itoa(r.ActDoubles), strconv.Itoa(r.ActBlanks),
+			strconv.Itoa(r.LateDoubles), strconv.Itoa(r.LateBlanks))
 	} else {
 		rec = append(rec, "", "", "", "")
 	}

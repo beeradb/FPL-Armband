@@ -389,7 +389,14 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 	// not move where the banking block starts — which is why the next line can
 	// keep using `bankingBlockAt()`, an offset into the full header, on the
 	// already-shortened one.
-	noFixtureRuns := withoutFixtureRunBlock()
+	// ⚠️ The dose block and the option-value block are newer still, and both sit
+	// AFTER the fixture-run block, so they come off first and in that order —
+	// dose outermost. Because both sit after the fixture-run block, removing them
+	// does not move where that block starts, which is why the next line can keep
+	// using an offset into the full header on an already-shortened one.
+	noDose := headerWithout(cellHeader, doseBlockAt(), doseCols)
+	noOption := headerWithout(noDose, optionBlockAt(), optionCols)
+	noFixtureRuns := headerWithout(noOption, fixtureRunBlockAt(), fixtureRunCols)
 	noBanking := headerWithout(noFixtureRuns, bankingBlockAt(), bankingCols)
 	noChipOracle := headerWithout(noBanking, chipOracleBlockAtIn(noBanking), chipOracleCols)
 	noXPoints := headerWithout(noChipOracle, xPointsBlockAtIn(noChipOracle), xPointsCols)
@@ -437,14 +444,21 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 		// sitting immediately after the banking one. It heads the chain and every
 		// entry below it shifted down one name again; the widths did not move,
 		// because they are facts about commits.
-		"predecessor (no fixture-run columns)":          noFixtureRuns,
-		"two builds back (no banking either)":           noBanking,
-		"three builds back (no chip-oracle either)":     noChipOracle,
-		"four builds back (no xpoints either)":          noXPoints,
-		"five builds back (no arm columns either)":      noArm,
-		"six builds back (no chip columns either)":      noChipWeek,
-		"seven builds back (no oracle pair either)":     noOracle,
-		"eight builds back (no captaincy rungs either)": noOracle[:len(noOracle)-captainRungCols],
+		// ⚠️ Two more mid-header blocks landed together, both AFTER the
+		// fixture-run one: the option-value funnels and the dose pair. The dose
+		// block is the outermost of the two, so it heads the chain and every
+		// entry below it shifted down two names. The widths did not move,
+		// because they are facts about commits.
+		"predecessor (no dose columns)":               noDose,
+		"two builds back (no option funnels either)":  noOption,
+		"three builds back (no fixture-run either)":   noFixtureRuns,
+		"four builds back (no banking either)":        noBanking,
+		"five builds back (no chip-oracle either)":    noChipOracle,
+		"six builds back (no xpoints either)":         noXPoints,
+		"seven builds back (no arm columns either)":   noArm,
+		"eight builds back (no chip columns either)":  noChipWeek,
+		"nine builds back (no oracle pair either)":    noOracle,
+		"ten builds back (no captaincy rungs either)": noOracle[:len(noOracle)-captainRungCols],
 	}
 	// The property these entries have now failed three times to have: a
 	// synthesised header must be the one the build it names really wrote.
@@ -463,14 +477,16 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 		cols int
 		last string
 	}{
-		{"predecessor (no fixture-run columns)", 55, "oracle_kind"},
-		{"two builds back (no banking either)", 50, "oracle_kind"},
-		{"three builds back (no chip-oracle either)", 40, "oracle_kind"},
-		{"four builds back (no xpoints either)", 36, "oracle_kind"},
-		{"five builds back (no arm columns either)", 33, "oracle_kind"},
-		{"six builds back (no chip columns either)", 29, "oracle_kind"},
-		{"seven builds back (no oracle pair either)", 27, "hold_nocap_per_gw"},
-		{"eight builds back (no captaincy rungs either)", 23, "weekly_per_gw"},
+		{"predecessor (no dose columns)", 85, "oracle_kind"},
+		{"two builds back (no option funnels either)", 60, "oracle_kind"},
+		{"three builds back (no fixture-run either)", 55, "oracle_kind"},
+		{"four builds back (no banking either)", 50, "oracle_kind"},
+		{"five builds back (no chip-oracle either)", 40, "oracle_kind"},
+		{"six builds back (no xpoints either)", 36, "oracle_kind"},
+		{"seven builds back (no arm columns either)", 33, "oracle_kind"},
+		{"eight builds back (no chip columns either)", 29, "oracle_kind"},
+		{"nine builds back (no oracle pair either)", 27, "hold_nocap_per_gw"},
+		{"ten builds back (no captaincy rungs either)", 23, "weekly_per_gw"},
 	} {
 		got, ok := stale[w.name]
 		if !ok {
@@ -1757,7 +1773,38 @@ func bankingBlockAt() int { return bankingBlockAtIn(cellHeader) }
 // one went in between them, and an offset that still subtracted only chipWeekCols
 // would have silently re-labelled banking columns as fixture-run ones.
 func fixtureRunBlockAtIn(h []string) int {
-	return chipOracleBlockAtIn(h) - chipWeekCols - fixtureRunCols
+	return optionBlockAtIn(h) - fixtureRunCols
+}
+
+// optionBlockAtIn is where the four option-value funnels start: immediately after
+// the fixture-run block and immediately before the dose block.
+//
+// Anchored from the END like every other offset here, and chained THROUGH the
+// dose block rather than subtracting chipWeekCols directly — the same correction
+// fixtureRunBlockAtIn already carries in its own comment. An offset that skipped a
+// neighbour would silently re-label one block's columns as another's, which is the
+// failure every position assertion in this file exists to catch.
+func optionBlockAtIn(h []string) int { return doseBlockAtIn(h) - optionCols }
+
+func optionBlockAt() int { return optionBlockAtIn(cellHeader) }
+
+// doseBlockAtIn is where the per-cell fixture dose starts: immediately after the
+// option-value funnels and immediately before the chip block.
+func doseBlockAtIn(h []string) int {
+	return chipOracleBlockAtIn(h) - chipWeekCols - doseCols
+}
+
+func doseBlockAt() int { return doseBlockAtIn(cellHeader) }
+
+// withoutOptionBlock and withoutDoseBlock synthesise the two headers this build's
+// predecessors wrote. The dose block is the NEWEST and the outermost of the pair,
+// so the stale-header chain removes it first and the option block second.
+func withoutOptionBlock() []string {
+	return headerWithout(cellHeader, optionBlockAt(), optionCols)
+}
+
+func withoutDoseBlock() []string {
+	return headerWithout(cellHeader, doseBlockAt(), doseCols)
 }
 
 func fixtureRunBlockAt() int { return fixtureRunBlockAtIn(cellHeader) }

@@ -155,16 +155,16 @@ func TestTheChipWindowIsWalledByAWildcardAndNotByAFreeHit(t *testing.T) {
 // TestMoveLimitClampsToOneHit pins the arithmetic the banking comparison is
 // built on — the whole question is what one more move would buy.
 func TestMoveLimitClampsToOneHit(t *testing.T) {
-	if got := MoveLimit(2, 1, 0); got != 3 {
+	if got := MoveLimit(2, 1, 0, 0); got != 3 {
 		t.Errorf("two free plus a hit is %d, want 3", got)
 	}
-	if got := MoveLimit(2, 3, 0); got != 3 {
+	if got := MoveLimit(2, 3, 0, 0); got != 3 {
 		t.Errorf("more than one hit must clamp: got %d, want 3", got)
 	}
-	if got := MoveLimit(2, 1, 2); got != 2 {
+	if got := MoveLimit(2, 1, 2, 0); got != 2 {
 		t.Errorf("an explicit ceiling must bind: got %d, want 2", got)
 	}
-	if got := MoveLimit(0, 0, 0); got != 0 {
+	if got := MoveLimit(0, 0, 0, 0); got != 0 {
 		t.Errorf("no transfers and no hits is %d, want 0", got)
 	}
 }

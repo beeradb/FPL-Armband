@@ -460,7 +460,7 @@ func liveMoveLimit(cfg config.Config, free int) int {
 		// offered and there is no reason to narrow it here.
 		return 3
 	}
-	return analysis.MoveLimit(free, cfg.Review.MaxHitsPerWeek, 0)
+	return analysis.MoveLimit(free, cfg.Review.MaxHitsPerWeek, 0, cfg.Review.HitCeiling)
 }
 
 // liveBankCeiling is the allowance the ceiling guard is measured against.

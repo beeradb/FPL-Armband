@@ -128,7 +128,7 @@ func TestDiagObjectiveDivergence(t *testing.T) {
 				if free < 1 {
 					free = 1
 				}
-				limit := moveLimit(free, base.MaxHits, base.MaxMoves)
+				limit := moveLimit(free, base.MaxHits, base.MaxMoves, base.HitCeiling)
 
 				bMove, _, bIn := bestSwap(e, held, bank, nil, analysis.ChipCredit{})
 				var bProposal []Move

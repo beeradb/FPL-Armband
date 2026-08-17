@@ -145,14 +145,14 @@ func TestCappingToOneTransferMakesHitsUnreachable(t *testing.T) {
 		}
 		// Capped at one move a week, the limit is always spent on a free
 		// transfer and never reaches the hit allowance.
-		if moveLimit(free, 1, 1) != 1 || free == 0 {
+		if moveLimit(free, 1, 1, 0) != 1 || free == 0 {
 			t.Fatalf("week %d: free=%d — the cap should keep the bank topped up", week, free)
 		}
 		free--
 	}
 	// Uncapped, the same accrual empties the bank and a hit becomes available.
 	free = 2
-	if moveLimit(free, 1, 0) != 3 {
+	if moveLimit(free, 1, 0, 0) != 3 {
 		t.Error("uncapped, two free transfers plus a hit allowance should permit three moves")
 	}
 }
@@ -187,17 +187,17 @@ func TestMoveLimitAllowsHitsOnlyBeyondTheFreeTransfers(t *testing.T) {
 		{2, 1, 1, 1}, // capped at one, the old behaviour
 		{0, 1, 0, 1}, // no free transfers left: a hit is still reachable
 	} {
-		if got := moveLimit(c.free, c.hits, c.cap); got != c.want {
+		if got := moveLimit(c.free, c.hits, c.cap, 0); got != c.want {
 			t.Errorf("moveLimit(free=%d hits=%d cap=%d) = %d, want %d",
 				c.free, c.hits, c.cap, got, c.want)
 		}
 	}
-	if moveLimit(0, 0, 0) != 0 {
+	if moveLimit(0, 0, 0, 0) != 0 {
 		t.Error("with no free transfers and no hit allowance the policy must do nothing")
 	}
 	// The limit is free+1 however many transfers are banked, so the modern
 	// five-transfer bank offers six moves and never a second hit.
-	if got := moveLimit(5, 2, 0); got != 6 {
+	if got := moveLimit(5, 2, 0, 0); got != 6 {
 		t.Errorf("moveLimit(free=5) = %d, want 6 — five free transfers plus a single hit", got)
 	}
 }

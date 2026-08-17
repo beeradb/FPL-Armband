@@ -1,5 +1,7 @@
 package config
 
+import "armband/internal/analysis"
+
 // ReviewPolicy is the standing brief for the weekly review. You set the
 // thresholds and the rules; the agent decides within them.
 //
@@ -139,6 +141,22 @@ type ReviewPolicy struct {
 	// Zero means never take a hit.
 	MaxHitsPerWeek int `json:"max_hits_per_week"`
 
+	// HitCeiling is the largest value MaxHitsPerWeek can MEAN. Zero takes
+	// analysis.DefaultHitCeiling, which is 1 and is what ships.
+	//
+	// # Why there are two knobs and not one
+	//
+	// `analysis.MoveLimit` clamped the hit allowance to 1 unconditionally, so
+	// setting `max_hits_per_week: 2` here changed nothing at all and said nothing
+	// about it. The clamp has an argument behind it — see
+	// `analysis.DefaultHitCeiling` — but an unreachable clamp makes the routine
+	// two-hit week unexpressible, and this record's rule is that a knob which
+	// silently means something else is worse than one that is absent.
+	//
+	// Raise this to raise the ceiling; raise `max_hits_per_week` to spend into it.
+	// A ceiling below `max_hits_per_week` wins, which is what a ceiling is.
+	HitCeiling int `json:"max_hits_ceiling"`
+
 	// AlwaysActOnInjury forces a move when a starter is ruled out, regardless
 	// of the gain thresholds — an unavailable player scores zero, which no
 	// threshold can outweigh.
@@ -165,6 +183,7 @@ func DefaultReviewPolicy() ReviewPolicy {
 		BankUpTo:           5,
 		LeadHours:          6,
 		MaxHitsPerWeek:     1,
+		HitCeiling:         analysis.DefaultHitCeiling,
 		AlwaysActOnInjury:  true,
 		Rules: []string{
 			"Do nothing is a valid and usually underrated answer. Only recommend a move when the case is affirmative.",

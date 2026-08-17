@@ -115,6 +115,15 @@ type censusRow struct {
 	actionableDoubleClubGWs int
 	actionableBlankClubGWs  int
 
+	// The same window narrowed again, to what falls BEYOND the opening squad's
+	// own horizon — the dose the transfer policy can actually add, since
+	// everything inside [start+1, start+H] was already visible to the squad
+	// build. Both pairs come from `DoseFor`, which the cells file's `dose_*`
+	// columns also read, so the census checks the shipped quantity rather than
+	// restating it.
+	lateDoubleClubGWs int
+	lateBlankClubGWs  int
+
 	// Counted over the same window and further gated on minAnchorClubs — the bar
 	// `sightedWeeks` applies before it will spend a chip on a week. A cell can be
 	// live for football, live for transfers, and dead for the chip axis.
@@ -247,9 +256,16 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 	fmt.Printf("this is the dose to weight or regress on: a double in the entry week cannot\n")
 	fmt.Printf("be transferred into, because the opening fifteen is chosen at that deadline.\n")
 	fmt.Printf("anch-D/anch-B are the same window at or above minAnchorClubs — the chip axis.\n")
-	fmt.Printf("%-9s %-6s %4s | %6s %8s | %6s %8s | %5s | %6s %6s | %6s %6s\n",
+	fmt.Printf("late-D/late-B narrow the actionable window again, to [start+H+1, 38] —\n")
+	fmt.Printf("what falls BEYOND the opening squad's own horizon, which is the dose the\n")
+	fmt.Printf("transfer policy can add rather than inherit. act-* and late-* both come\n")
+	fmt.Printf("from DoseFor, the same function the cells file's dose_* columns read.\n")
+	fmt.Printf("⚠️  92%% of doubles fall after GW19, so dose and denominator move together;\n")
+	fmt.Printf("and these cells carry far fewer distinct doses than rows. Do not regress\n")
+	fmt.Printf("on either column without putting entry gameweek in the model.\n")
+	fmt.Printf("%-9s %-6s %4s | %6s %8s | %6s %8s | %5s | %6s %6s | %6s %6s | %6s %6s\n",
 		"season", "entry", "gws", "D-rnds", "D-clubgw", "B-rnds", "B-clubgw",
-		"empty", "act-D", "act-B", "anch-D", "anch-B")
+		"empty", "act-D", "act-B", "anch-D", "anch-B", "late-D", "late-B")
 
 	var rows []censusRow
 	for _, p := range pairs {
@@ -273,8 +289,6 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 					r.blankClubGWs += w.blanking
 				}
 				if w.gw > start {
-					r.actionableDoubleClubGWs += w.doubling
-					r.actionableBlankClubGWs += w.blanking
 					if w.doubling >= minAnchorClubs {
 						r.anchorableDoubleRounds++
 					}
@@ -283,14 +297,26 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 					}
 				}
 			}
+			// ⚠️ The actionable dose comes from `DoseFor` rather than being
+			// counted again here. It was a second implementation of the same
+			// window the moment the cells file grew a `dose_act_*` column, and
+			// the two would have agreed on the day they were written — which is
+			// exactly the drift this package's scans exist for. The census now
+			// checks the shipped one rather than restating it.
+			d := DoseFor(p.Cur, start, cfg.Weights.Horizon)
+			r.actionableDoubleClubGWs = d.ActDoubles
+			r.actionableBlankClubGWs = d.ActBlanks
+			r.lateDoubleClubGWs = d.LateDoubles
+			r.lateBlankClubGWs = d.LateBlanks
 			rows = append(rows, r)
-			fmt.Printf("%-9s GW%-4d %4d | %6d %8d | %6d %8d | %5d | %6d %6d | %6d %6d\n",
+			fmt.Printf("%-9s GW%-4d %4d | %6d %8d | %6d %8d | %5d | %6d %6d | %6d %6d | %6d %6d\n",
 				r.season, r.start, r.gameweeks,
 				r.doubleRounds, r.doubleClubGWs,
 				r.blankRounds, r.blankClubGWs,
 				r.emptyRounds,
 				r.actionableDoubleClubGWs, r.actionableBlankClubGWs,
-				r.anchorableDoubleRounds, r.anchorableBlankRounds)
+				r.anchorableDoubleRounds, r.anchorableBlankRounds,
+				r.lateDoubleClubGWs, r.lateBlankClubGWs)
 		}
 	}
 
@@ -420,7 +446,17 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 				arm  string
 				plan analysis.ChipPlan
 			}{{"anchored", a}, {"control", c}} {
-				if err := ValidateChipSets(p.Name, v.plan, analysis.ChipPlan{}); err != nil {
+				// ✅ **The defect this counted is REPAIRED**, and the check stays,
+				// because a repair with no check is how the next one goes
+				// unnoticed. `Simulate` now routes a planner's output through
+				// `SplitChipSets` before validating it, so a late chip in a
+				// two-set season lands in the SECOND set instead of being
+				// refused — and this asks the same question of the same plan by
+				// the same route. A non-zero count now means either the repair
+				// has regressed, or a planner has found a way to be illegal that
+				// the split deliberately does not hide: two chips in one week.
+				sch := SplitChipSets(p.Name, v.plan)
+				if err := ValidateChipSets(p.Name, sch.First, sch.Second); err != nil {
 					rejected[v.arm]++
 					rejectExample[v.arm] = fmt.Sprintf("%s GW%d: %v", p.Name, start, err)
 				}
