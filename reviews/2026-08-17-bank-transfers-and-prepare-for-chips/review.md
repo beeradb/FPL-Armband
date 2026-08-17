@@ -34,7 +34,7 @@ Dispatched concurrently against the mediator commit, before the scope widened:
 
 | reviewer | ran | why |
 |---|---|---|
-| **fpl-code-review** | yes | the diff touches the backtest harness and, later, the agent-facing command layer |
+| **fpl-code-review** | yes, **twice** | once over the mediator, once over the capability half — the second round returned the ten findings below |
 | **fpl-stats-review** | yes | `internal/backtest` — the triage table's harness row |
 | **fpl-findings-audit** | yes | the change edits `AGENTS.md`'s transfer bullet |
 | **fpl-docs-review** | yes | the change adds a schema section to `stats/README.md` |
@@ -42,11 +42,11 @@ Dispatched concurrently against the mediator commit, before the scope widened:
 | fpl-run-review | no | no live run was made and nothing wrote config |
 | fpl-season-maintenance | no | none of the four hand-maintained lists is touched |
 
-⚠️ **The four reviews cover the mediator commit, not the capability commit.** The scope change
-landed after they were dispatched, so the analysis extraction, the config fields, the live
-wiring and the accrual fix are **unreviewed by an agent**. They are covered by tests named
-below, and the accrual fix is itself a reviewer finding acted on. This is stated rather than
-papered over.
+✅ **The capability half is now reviewed too.** The first version of this record flagged it as
+unreviewed by an agent; `fpl-code-review` and `fpl-stats-review` then ran over it and returned
+sixteen findings between them, every one of which is dispositioned under "Second round" below.
+The branch was not mergeable as it stood, and the two most serious findings — an unpinned fix and
+deletable live wiring — were each proved by experiment rather than argued.
 
 ## Findings, ranked by how misleading the current state was
 
@@ -67,19 +67,55 @@ Found independently by `fpl-code-review` and `fpl-docs-review`, and by reading b
 returned — three readings agreeing. `decide` accrued at the top and the banked branch accrued
 again, so a banked week ended two transfers up.
 
-It is worse than generous, it is **self-defeating**: `shouldBank` refuses once the allowance is
-at `BankUpTo`, so an arm that manufactured allowance reached the ceiling at double speed and
-could then never bank again. Any future banking arm would have measured a rule sabotaging
-itself.
+**Applied.** The second increment is gone. Fixed on correctness alone: FPL grants one free
+transfer a gameweek and the code granted two.
 
-**Applied.** The second increment is gone. `TestABankedWeekAccruesExactlyOneTransfer` pins it as
-an invariant over the replay: the allowance may never rise by more than one across a gameweek
-that spent nothing. Nothing pinned this arithmetic before.
+⚠️ **Two claims made in the first version of this section were FALSE and are withdrawn.**
 
-⚠️ **This changes replay behaviour for `BankLookahead` arms only.** That setting shipped off and
-no banked sweep carries it, so no recorded figure moves — verified by grepping
-`stats/snapshots/*/cells/`. The consequence for the record is that the arm the recorded null was
-measured on no longer exists, which is now stated in `AGENTS.md`.
+**"No banked sweep carries `BankLookahead`" — false.** `fpl-stats-review` found
+`stats/snapshots/2026-08-13-reach/cells/reach.csv`, variant `bank_lookahead on`, 8 cells. It is
+the only such arm in the corpus, and `grep -rn bank_lookahead stats/` returns it immediately —
+so the grep behind the original claim was either not run or run for the wrong string. **Verified
+by replaying those exact eight cells under the current tree: all eight `policy_points` reproduce
+byte-exactly.** The correct statement is therefore stronger than the false one: the arm exists,
+it banks in **0 of 8 cells**, and the fix is provably inert on it.
+
+**"It climbed to the ceiling at double speed and could then never bank again" — false, and it
+was a hypothesis stated as a mechanism.** The arm never banks, so the buggy branch never
+executed and nothing climbed. Withdrawn from `AGENTS.md`, from this record and from the
+narrative; the fix needs no sabotage story. The erroneous version is also in commit `86095b3`'s
+message, which cannot be corrected after the fact — it is named here instead.
+
+### 2a. The accrual fix was UNPINNED, and every banking test was inert
+
+`fpl-code-review` restored the exact deleted lines and ran the three guards named in the first
+version of this record: **all three passed with the bug back.** Verified independently here —
+restored the lines, ran them, all green; restored the fix, all green.
+
+The cause is that at shipped config the rule is consulted on all 37 decision weeks of the
+replayed season and banks **zero** times, so no test in the repository executed the banked
+branch, the early return, or the `BankedWeeks` increment.
+`TestABankedWeekAccruesExactlyOneTransfer` iterated a loop whose condition was unreachable.
+**The first version of this record claimed that test was the pin. That claim was false and is
+withdrawn.**
+
+**Applied.** `bankingArm` sets `MaxHits: 0` — one lever, and the mechanism rather than a fudge:
+`MoveLimit` is `free + hits`, so at the shipped one hit the now-arm already reaches two moves and
+the later arm three, and only with no hit allowance does the extra free transfer buy the funded
+pair the rule exists to reach. Measured: **0 banked weeks at shipped config, 5 with
+`MaxHits: 0`**. `TestTheBankingRuleActuallyFires` asserts the branch is reachable and that firing
+changes the season; the accrual test now runs on that arm and refuses to run at all if it banks
+nothing.
+
+**Verified both directions:** with the bug restored, `TestABankedWeekAccruesExactlyOneTransfer`
+now fails with "GW7 made no transfer and the allowance rose from 0 to 2", and
+`TestTheBankingRuleActuallyFires` fails too. With the fix, both pass.
+
+One of the reviewer's proposals was **wrong and was corrected rather than applied**: that a
+firing rule must make fewer transfers than the greedy arm. It does not — a banked week defers a
+move and often spends it on a two-move package next week, measured at 34 against 34. The
+assertion is now that the *season the policy played* differs, which is the record's own liveness
+idiom.
 
 ### 3. `banked_weeks` had no denominator, and a zero was a mixture
 
@@ -184,13 +220,74 @@ The capability half, which no reviewer saw. The judgement calls the coordinator 
   near-identical inline blocks. Adding banking to only one would have produced a page that
   recommends acting and a command that recommends waiting, from the same config and squad.
 
+## Second round: the capability half, reviewed
+
+The first version of this record flagged the capability half as agent-unreviewed. Two reviews
+then ran over commit `86095b3` — `fpl-code-review` returning ten findings, `fpl-stats-review`
+six. **Every proposal below was verified before being applied**, by experiment where it was an
+empirical claim; two were found wrong as stated and are marked so.
+
+Both reviewers independently confirmed things this record does not repeat: the
+`internal/analysis` extraction is behaviour-preserving for the replay, the funnel nests on every
+path through `decide`, wildcard and free-hit weeks are correctly excluded from both numerator and
+denominator, the config backfill and its justifying comment are right, there is no point-in-time
+leakage, the column design is correct and would not be changed, and the placement outside
+`cellMetricColumns` is right on two independent arguments.
+
+### Applied
+
+| # | finding | what was done |
+|---|---|---|
+| 1 | the accrual fix was unpinned and every banking test inert | §2a above — `bankingArm`, `TestTheBankingRuleActuallyFires`, both directions verified |
+| 2 | the live wiring could be deleted with the suite green; only the *negative* arm of the switch was pinned | `planFn` seam added so the rule runs without an engine — `TestTheLiveBankingRuleDecidesBothWays` pins both directions. `TestTheTransferBoardWiresTheBankingDecision` scans the join, and was verified to fail when the wiring line is deleted |
+| 3 | the command and the page gave opposite recommendations off one board | `transferBoard.outcome()` is now the single decision both renderers switch on. `TestTheCommandAndThePageAgreeOnABankedWeek` pins it. Sharing the board was not sharing the decision |
+| 4 | the later arm's chip credit was amortised over the wrong horizon, biasing against banking | `chipCreditNow` takes the horizon as a parameter; the later arm passes `horizon-1`, so `1/(h-1) × (h-1)` cancels as it does in the replay. The window bound moves with it |
+| 5 | `AdviseBank` was a second implementation of guards `shouldBank` still carried inline | `analysis.BankGuardFor` is now the one implementation, called by both. `shouldBank` returns `a.Bank, a.Weighed()` |
+| 6 | no end-of-season horizon clamp live, so `BankGuardHorizon` was dead code | `liveHorizonFor` clamps to gameweeks remaining. `TestTheLiveHorizonRunsOutWithTheSeason` pins both the guard and its reachability |
+| 7 | the now-arm searched a different package space from the recommendation printed beside it | `liveMoveLimit` is used for both. This also stops the command offering plans the allowance cannot execute |
+| 8 | neither config field reached the replay | `cmd/armband/backtest.go` now carries `BankLookahead` and both prepare flags |
+| 9 | a transient `History` failure silently disabled banking | the reason is captured and printed as a note, as the comment had promised |
+| 10 | `BuildPlans` applies neither gate while `BestPackageValue` applies both; `bank_transfers_up_to: 8` made the live ceiling guard unreachable | the "nothing weighed" wording is now scoped to the waiting comparison and says why a plan may still appear below it; `liveBankCeiling` clamps to `fpl.MaxBankedTransfers` |
+| A | "no banked sweep carries `BankLookahead`" was false, in three places | §2 above. Replaced with the measured statement, verified by replaying the eight cells |
+| B | the "climbed at double speed" narrative was a hypothesis contradicted by the only measurement of it | §2 above. Withdrawn from `AGENTS.md`, this record and the narrative |
+| C | record the eight-cell result | `AGENTS.md` and `stats/README.md`: 236 consulted, **169 weighed**, 0 banked, with all four caveats — confinement not null, `WeeklyXI` not shipped, `bank_up_to` pinned at 5 running in favour of banking, original `BANK` cells never banked |
+| D | "each step removes one explanation" over-reads — `weighed` removes three at once | stated, with the arithmetic that partly closes the gap |
+| E | "the two transfer-banking columns" — it is five | corrected |
+| F | mechanism hypothesis: the rule may be near-unreachable by construction | recorded as a hypothesis in both files, **not acted on**. Strengthened by an incidental measurement: `MaxHits: 0` takes banked weeks 0 → 5, which is what the hypothesis predicts, since that is the setting under which the extra transfer is a real capability |
+
+### Verified and found wrong as stated
+
+- **"A firing rule must make fewer transfers than the greedy arm"** (code-review 1, implied).
+  Measured 34 against 34. A banked week defers rather than cancels. The assertion was rewritten
+  to test that the played season differs.
+- **"The arm the null was measured on no longer exists"** (my own prior claim, caught by
+  `fpl-stats-review`). It exists and reproduces byte-exactly.
+
+### Declined
+
+- **A `first_banked_gw` column and a `limit_binding_weeks` column** (`fpl-stats-review`,
+  third-tier). The first is recoverable from a per-week dump if ever wanted; the second belongs
+  to the bullet's other clause, "money binds, not transfer count", and is a different question.
+- **Redesigning the rule around finding F.** Explicitly out of scope per the coordinator, and
+  right: the hypothesis is checkable off eight banked cells far more cheaply than it is
+  guessable, and a redesign before that measurement would be an argmax over specifications.
+- **Sweeping the sweep path for finding 8.** `armband backtest` is the user-facing command and is
+  fixed. `runPolicySweep` deliberately builds its own `SimConfig` from `sweepConfig` so an arm
+  varies one lever against a fixed baseline; wiring user config into it would make every sweep
+  depend on the operator's `config.json`, which is the opposite of what a sweep is for.
+
 ## What could not be checked on this harness
 
-- **Whether banking is worth points.** No sweep was run. The columns exist so that one can be
-  read; nothing here claims a figure, and `AGENTS.md` says no banked sweep carries them.
-- **Whether the accrual fix changes any replayed number.** It cannot on shipped config —
-  `BankLookahead` is off — and there is no banked banking sweep to compare against. So the fix is
-  correct-by-construction rather than measured, and that is the strongest available claim.
+- **Whether banking is worth points.** No sweep was run, and none can be read off the one banked
+  arm: it banks in 0 of 8 cells, so its points columns are byte-identical to the greedy arm by
+  construction. That is a confinement, not a null, and nothing here claims a figure.
+- **Whether the accrual fix changes any replayed number.** ✅ **Measured, not assumed.** The one
+  banked `BankLookahead` arm banks 0 times, so the buggy branch never executed there, and all
+  eight of its `policy_points` reproduce byte-exactly under the fix. The fix is inert on every
+  banked cell in the corpus. What remains unmeasured is any arm that *does* bank — which today
+  means an arm nobody has run.
+- **Whether banking is reachable at all at shipped config.** Finding F's hypothesis says it may
+  not be, by construction. Recorded, unmeasured, and the named next measurement.
 - **The chip-credit path on the live command against a real entry.** The unit tests cover the
   switch and the window; exercising it end-to-end needs a season with a chip planned and an entry
   with picks. `TestChipPreparationIsOffUntilAsked` covers the off arm, which is the shipped one.
@@ -201,8 +298,13 @@ The capability half, which no reviewer saw. The judgement calls the coordinator 
 |---|---|
 | `TestTheSweepWritesTheBankingBlock` | the join nothing covered — proven green after deleting the wiring line |
 | `TestTheBankingFunnelNests` | a counter incremented in the wrong branch, which would silently restore the ambiguous count |
-| `TestABankedWeekAccruesExactlyOneTransfer` | the double grant coming back |
+| `TestABankedWeekAccruesExactlyOneTransfer` | the double grant coming back. ⚠️ **Was vacuous** at shipped config and now runs on `bankingArm`; verified to fail with the bug restored |
+| `TestTheBankingRuleActuallyFires` | the banked branch never executing — the hole that made every other banking test inert |
 | `TestTheBankingMediatorIsCountedOnEveryDecisionWeek` | the rule going unconsulted in a banking arm; deliberately does **not** assert that banking ever fires |
+| `TestTheLiveBankingRuleDecidesBothWays` | the live rule pinned only on its refusals, so nothing pinned the switch turning it ON |
+| `TestTheCommandAndThePageAgreeOnABankedWeek` | the two renderers reaching opposite recommendations from one board |
+| `TestTheTransferBoardWiresTheBankingDecision` | the live wiring being deleted with the suite green; verified to fail when it is |
+| `TestTheLiveHorizonRunsOutWithTheSeason` | advising a manager at GW38 to hold a transfer into a gameweek that does not exist |
 | `TestAChippedWeekIsNotADecisionWeek` | a wildcard or free-hit week entering the denominator |
 | `TestTheBankingColumnsSeparateOffFromNeverFired` | all five columns' gating and the mean's denominator |
 | `TestTheBankingBlockIsBeforeTheChipBlockAndCounted` | a column dropped between two counted blocks |

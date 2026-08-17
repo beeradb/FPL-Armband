@@ -63,7 +63,21 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 		fmt.Printf("\n  %s\n", bankLine(board.Advice))
 	}
 
-	if len(plans) == 0 {
+	// Both renderers switch on transferBoard.outcome and nothing else, which is
+	// what stops this command and the page disagreeing about the same board.
+	//
+	// A banked week names what it declined — "wait" is only actionable if you know
+	// what you are waiting to afford — but as a declined option rather than as a
+	// recommendation, and no team sheet is drawn for a move nobody is making.
+	switch board.outcome() {
+	case outcomeBank:
+		if len(plans) > 0 {
+			fmt.Printf("\n  %s\n    %s  %s\n", dim("declined this week"),
+				dim(fmt.Sprintf("%+.2f pts/gw", plans[0].GainPerGW)), movesLine(plans[0]))
+		}
+		fmt.Println()
+		return nil
+	case outcomeNothing:
 		present.Moves(os.Stdout, analysis.Plan{}, theme)
 		return nil
 	}
@@ -117,10 +131,10 @@ func bestPlanForOwnedSquad(ctx context.Context, cfg config.Config, client *fpl.C
 	if board == nil {
 		return nil, why
 	}
-	if board.Consulted && board.Advice.Bank {
+	switch board.outcome() {
+	case outcomeBank:
 		return nil, board.Advice.Explain()
-	}
-	if len(board.Plans) == 0 {
+	case outcomeNothing:
 		return nil, "No move clears the threshold this week. Banking the transfer is a " +
 			"first-class outcome and usually the right one."
 	}
@@ -166,6 +180,43 @@ type transferBoard struct {
 	// lines the command prints above its header.
 	Value int
 	Notes []string
+}
+
+// boardOutcome is what the week's decision comes to, as one value both renderers
+// switch on.
+type boardOutcome int
+
+const (
+	// outcomeRecommend: make the best plan.
+	outcomeRecommend boardOutcome = iota
+	// outcomeBank: the banking rule says hold this week's transfer.
+	outcomeBank
+	// outcomeNothing: no plan on offer at all.
+	outcomeNothing
+)
+
+// outcome is the single decision, and it exists because sharing the board was not
+// sharing the decision.
+//
+// The command and the page each read the same `transferBoard` and each decided
+// for themselves what it meant: the page returned no plan when the rule said
+// wait, while the command printed the advice and then rendered the moves and a
+// team sheet anyway. Same config, same squad, opposite recommendations — the
+// exact failure the shared board was introduced to prevent, one layer up from
+// where it was prevented.
+//
+// Banking outranks a plan. When the rule says wait, the best plan is one the
+// policy has decided not to make, and presenting it as a recommendation is the
+// opposite of what was decided.
+func (b *transferBoard) outcome() boardOutcome {
+	switch {
+	case b.Consulted && b.Advice.Bank:
+		return outcomeBank
+	case len(b.Plans) == 0:
+		return outcomeNothing
+	default:
+		return outcomeRecommend
+	}
 }
 
 // buildTransferBoard assembles the weekly decision for the squad you own, or a
@@ -237,43 +288,69 @@ func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Clie
 	bank := picks.EntryHistory.Bank
 	// The allowance is reconstructed from the transfer history, which the picks
 	// payload does not carry — FPL publishes it nowhere, so this is a close
-	// reconstruction rather than an authority, and the banking rule says so when
-	// it declines to run on it. A failed history read leaves the allowance
-	// unknown, and unknown is UnlimitedTransfers here rather than a guess of 1:
-	// guessing low would have the rule advise hoarding a transfer that may not
-	// exist, which is the expensive direction.
+	// reconstruction rather than an authority. A failed read leaves it unknown,
+	// and unknown is UnlimitedTransfers rather than a guess of 1: guessing low
+	// would have the rule advise hoarding a transfer that may not exist, which is
+	// the expensive direction.
+	//
+	// ⚠️ **And it must say so.** The fallback silently disables banking — the rule
+	// declines on an unlimited allowance — which on a transient network failure is
+	// indistinguishable from the switch being off. A capability that vanishes
+	// quietly is the failure this whole change exists to stop, so the reason is
+	// carried and printed.
 	free := fpl.UnlimitedTransfers
+	var notes2 []string
 	if h, err := client.History(ctx, cfg.EntryID); err == nil {
 		free = fpl.FreeTransfers(h)
+	} else if cfg.Review.BankTransfersLookahead {
+		notes2 = append(notes2, "Could not read your transfer history, so the free-transfer "+
+			"allowance is unknown and the banking rule was not run: "+err.Error())
+	}
+
+	// One plan builder, shared by the banking comparison and the recommendation,
+	// so the rule cannot weigh a package space the command does not offer.
+	build := func(st analysis.SquadState, limit int) []analysis.Plan {
+		return analysis.BuildPlans(st, pool, e.WeekEngine(), bank, limit, 5)
 	}
 
 	b := &transferBoard{
 		Bank: bank, GW: gw, Free: free,
-		Value: picks.EntryHistory.Value, Notes: notes,
+		Value: picks.EntryHistory.Value, Notes: append(notes, notes2...),
 	}
-	b.Advice, b.Consulted = adviseBanking(cfg, e, state, pool, bank, free, gw)
+	horizon := liveHorizon(cfg, e, gw)
+	b.Advice, b.Consulted = adviseBanking(cfg, e, state, build, free, gw, horizon)
 
 	// The plans themselves carry the chip credit too, so a recommendation made
 	// with a chip in view is the one displayed. Without this the banking advice
 	// would price a planned chip and the moves printed beside it would not.
-	state.Chip = chipCreditNow(cfg, e, gw)
-	b.Plans = analysis.BuildPlans(state, pool, e.WeekEngine(), bank, 3, 5)
+	state.Chip = chipCreditNow(cfg, e, gw, horizon)
+	b.Plans = build(state, liveMoveLimit(cfg, free))
 	return b, ""
 }
 
-// chipCreditNow is what a planned chip is worth to a transfer made this week.
+// chipCreditNow is what a planned chip is worth to a transfer made in gameweek
+// `gw`, amortised over `horizon`.
 //
 // Zero unless `prepare_squad_for_chips` is on AND a chip is actually planned
 // inside the horizon, so every other configuration is unaffected. This is the
 // one channel by which a chip can be prepared for at all — without it the search
 // assembles a squad for the average week and the chip is played on whatever
 // fifteen happens to be owned.
-func chipCreditNow(cfg config.Config, e *analysis.Engine, gw int) analysis.ChipCredit {
+//
+// ⚠️ **The horizon is a parameter and must be the one the arm is valued over.**
+// It read the engine's horizon unconditionally, so the banking rule's later arm
+// got a credit of `1/h` and then multiplied it by `h-1`, losing a fifth of the
+// chip's value at the shipped horizon of 5 — on the waiting arm only, which
+// biased the rule against banking in exactly the weeks a chip was planned, which
+// is the case the feature exists for. The replay never had this: `shouldBank`
+// passes the shortened horizon, so `1/(h-1) x (h-1)` cancels to the whole chip.
+// The window bound moves with it, so `[gw+1, gw+1+(h-1))` matches the replay
+// rather than reaching a gameweek further.
+func chipCreditNow(cfg config.Config, e *analysis.Engine, gw int, horizon float64) analysis.ChipCredit {
 	if !cfg.Review.PrepareForChips {
 		return analysis.ChipCredit{}
 	}
-	horizon, _ := e.EffectiveHorizon(cfg.Chips)
-	cr := analysis.ChipCreditAt(cfg.Chips, true, true, gw, float64(horizon))
+	cr := analysis.ChipCreditAt(cfg.Chips, true, true, gw, horizon)
 	if cr.Bench > 0 {
 		// The bench boost values fifteen players in ONE gameweek, so it needs
 		// that week's per-club fixture counts: a club playing twice is worth
@@ -285,46 +362,119 @@ func chipCreditNow(cfg config.Config, e *analysis.Engine, gw int) analysis.ChipC
 	return cr
 }
 
+// planFn builds the ranked plans for one squad state at one move limit.
+//
+// A parameter rather than a direct call so the banking decision can be exercised
+// without a bootstrap, a squad and a network. That is not a convenience: the
+// previous shape could only be tested through its two refusal arms, both of which
+// return before the engine is touched, so the suite pinned that the switch turns
+// the rule OFF and nothing pinned that it turns it ON — the identical hole a
+// review had just proved for the sweep's own wiring, one commit later.
+type planFn func(st analysis.SquadState, limit int) []analysis.Plan
+
+// liveHorizon is how many gameweeks a transfer made now can still earn over.
+//
+// Two clamps, and the second was missing. `EffectiveHorizon` shortens for a
+// planned wildcard — the squad does not survive one — and it does NOT clamp at
+// the end of the season, because it answers "how long must this squad serve"
+// rather than "how many gameweeks are left". The replay clamps separately, in
+// `effectiveHorizon(configured, gw)`.
+//
+// Without the second clamp the banking rule's horizon guard is unreachable live,
+// and a manager at GW38 is advised to hold a transfer into a gameweek that does
+// not exist.
+func liveHorizon(cfg config.Config, e *analysis.Engine, gw int) float64 {
+	h, _ := e.EffectiveHorizon(cfg.Chips)
+	return liveHorizonFor(gw, h)
+}
+
+// liveHorizonFor is the season-end clamp on its own, so the arithmetic can be
+// checked without a bootstrap. `38 - gw + 1` counts gw itself, because a transfer
+// made now plays in it.
+func liveHorizonFor(gw, horizon int) float64 {
+	if left := 38 - gw + 1; left < horizon {
+		horizon = left
+	}
+	if horizon < 0 {
+		horizon = 0
+	}
+	return float64(horizon)
+}
+
 // adviseBanking runs the banking rule over the squad you own.
 //
 // The two arms are priced exactly as the replay prices them — the best package
 // available now over the horizon, against the best package one more transfer
-// would buy over a horizon one shorter — through analysis.BestPackageValue, so
-// the live recommendation and the replayed policy cannot disagree about what a
-// package is worth or which way a tie goes.
+// would buy over a horizon one shorter — through analysis.BestPackageValue, and
+// the decision itself is analysis.AdviseBank. So the live recommendation and the
+// replayed policy cannot disagree about what a package is worth, about which way
+// a tie goes, or about either guard.
 //
-// The later arm is priced at NEXT week's decision, so its chip credit is too: a
-// boost one week nearer is one week less to amortise it over, which is the whole
-// quantity this comparison turns on when a chip is planned.
+// The later arm is priced at NEXT week's decision over a horizon one shorter, and
+// its chip credit is amortised over that same shorter horizon: a boost one week
+// nearer is one week less to spread it across, which is the whole quantity this
+// comparison turns on when a chip is planned.
 //
 // Unlimited free transfers — before the first deadline — is not a bankable
 // state: there is no allowance to accumulate, so the rule is not consulted.
+// The horizon is a parameter rather than derived here, so the rule can be
+// exercised without a bootstrap — see TestTheLiveBankingRuleDecidesBothWays. The
+// caller gets it from liveHorizon, which is the only place the two clamps live.
 func adviseBanking(cfg config.Config, e *analysis.Engine, state analysis.SquadState,
-	pool []analysis.PlayerMetrics, bank, free, gw int) (analysis.BankAdvice, bool) {
+	build planFn, free, gw int, horizon float64) (analysis.BankAdvice, bool) {
 
 	if !cfg.Review.BankTransfersLookahead || free == fpl.UnlimitedTransfers {
 		return analysis.BankAdvice{}, false
 	}
-	horizon, _ := e.EffectiveHorizon(cfg.Chips)
 	value := func(limit, atGW int, over float64) float64 {
 		if limit < 1 || over < 1 {
 			return 0
 		}
 		st := state
-		st.Chip = chipCreditNow(cfg, e, atGW)
+		st.Chip = chipCreditNow(cfg, e, atGW, over)
 		var packages []analysis.TransferPackage
-		for _, p := range analysis.BuildPlans(st, pool, e.WeekEngine(), bank, limit, 5) {
+		for _, p := range build(st, limit) {
 			packages = append(packages,
 				analysis.TransferPackage{Gain: p.GainPerGW, Moves: p.Transfers})
 		}
 		return analysis.BestPackageValue(packages, over,
 			cfg.Review.FreeTransferValue, cfg.Review.MinGainForTransfer)
 	}
-	now := value(analysis.MoveLimit(free, cfg.Review.MaxHitsPerWeek, 0),
-		gw, float64(horizon))
-	later := value(analysis.MoveLimit(free+1, cfg.Review.MaxHitsPerWeek, 0),
-		gw+1, float64(horizon-1))
-	return analysis.AdviseBank(free, cfg.Review.BankUpTo, float64(horizon), now, later), true
+	now := value(liveMoveLimit(cfg, free), gw, horizon)
+	later := value(liveMoveLimit(cfg, free+1), gw+1, horizon-1)
+	return analysis.AdviseBank(free, liveBankCeiling(cfg), horizon, now, later), true
+}
+
+// liveMoveLimit is how many transfers are actually available, and is what BOTH
+// the banking comparison's now-arm and the printed recommendation are built from.
+//
+// They were two different numbers: the rule asked what `MoveLimit(free, ...)`
+// buys while the command offered plans of up to three moves regardless of the
+// allowance. At one free transfer the rule weighed at most two moves against a
+// recommendation of up to three, so it could advise banking about the very
+// package printed beside it — and the extra plans were not executable anyway.
+func liveMoveLimit(cfg config.Config, free int) int {
+	if free == fpl.UnlimitedTransfers {
+		// Before the first deadline the squad can be rebuilt freely, so the
+		// allowance is not the constraint. Three is what the command has always
+		// offered and there is no reason to narrow it here.
+		return 3
+	}
+	return analysis.MoveLimit(free, cfg.Review.MaxHitsPerWeek, 0)
+}
+
+// liveBankCeiling is the allowance the ceiling guard is measured against.
+//
+// Clamped to what FPL actually grants, because `fpl.FreeTransfers` reconstructs
+// the allowance under the same cap: a config saying `bank_transfers_up_to: 8`
+// would otherwise put the guard permanently out of reach, since the reconstructed
+// figure can never reach 8. The replay is unaffected — it takes its ceiling from
+// `BankLimitFor(season)`, the rule that was actually in force.
+func liveBankCeiling(cfg config.Config) int {
+	if n := fpl.MaxBankedTransfers; cfg.Review.BankUpTo > n {
+		return n
+	}
+	return cfg.Review.BankUpTo
 }
 
 // planSquad adapts a Plan's imminent-week eleven into the shape the pitch

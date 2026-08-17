@@ -248,13 +248,18 @@ func TestTheSweepWritesTheBankingBlock(t *testing.T) {
 // break the nesting and quietly turn the block back into an ambiguous count.
 func TestTheBankingFunnelNests(t *testing.T) {
 	cur, prior, base := chipSim(t)
+	// The third arm is one that actually banks. Without it the nesting is only
+	// ever checked where the last step of the funnel is zero, which is the step
+	// most likely to be incremented in the wrong branch.
 	for _, c := range []struct {
 		name string
-		on   bool
-	}{{"greedy", false}, {"bank lookahead", true}} {
-		sc := base
-		sc.BankLookahead = c.on
-		res, err := Simulate(cur, prior, sc)
+		sc   SimConfig
+	}{
+		{"greedy", base},
+		{"bank lookahead", func() SimConfig { s := base; s.BankLookahead = true; return s }()},
+		{"bank lookahead, firing", bankingArm(base)},
+	} {
+		res, err := Simulate(cur, prior, c.sc)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -269,15 +274,92 @@ func TestTheBankingFunnelNests(t *testing.T) {
 	}
 }
 
+// bankingArm is a SimConfig under which the banking rule actually fires.
+//
+// # Why one is needed, and why it is this one
+//
+// At shipped config the rule is consulted on all 37 decision weeks of a replayed
+// season and banks **zero** times, so every test written against a shipped-config
+// banking arm executes the guards, the comparison and the false branch — and
+// never the banked branch, the early return, or the BankedWeeks increment. A
+// review proved the cost: the accrual bug could be put straight back and all
+// three of this file's guards still passed, because the loop one of them iterates
+// has an unreachable condition.
+//
+// **MaxHits: 0 is the single lever changed**, and it is the mechanism rather than
+// a fudge. `MoveLimit` is `free + hits`, so at the shipped one hit the now-arm
+// already reaches 2 moves and the later arm 3 — the extra free transfer buys a
+// capability only if the best package needs three moves, while the shorter
+// horizon costs a flat fifth of the gain. With no hit allowance the now-arm is
+// one move and the later arm two, so banking buys the paired
+// downgrade-and-upgrade the rule exists to reach. Measured on 2025-26 from GW1:
+// 5 banked weeks against 0 at the shipped setting.
+func bankingArm(base SimConfig) SimConfig {
+	sc := base
+	sc.BankLookahead = true
+	sc.MaxHits = 0
+	return sc
+}
+
+// TestTheBankingRuleActuallyFires is the liveness guard for the banked branch.
+//
+// Everything else about banking can be green while the branch has never run
+// once. This is the test that executes it: the early return, the BankedWeeks
+// increment, and the accrual behaviour the test below pins.
+//
+// It asserts a floor of one rather than an exact count. The count is a fact about
+// the football and would rot; that the branch is reachable at all is a fact about
+// the code and is what has to hold.
+func TestTheBankingRuleActuallyFires(t *testing.T) {
+	cur, prior, base := chipSim(t)
+	res, err := Simulate(cur, prior, bankingArm(base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := res.Banking
+	if b.BankedWeeks == 0 {
+		t.Fatalf("the banking rule never fired: decision=%d consulted=%d weighed=%d "+
+			"banked=%d. Every other guard in this file passes on an arm that never "+
+			"executes the banked branch, which is how the accrual bug survived a "+
+			"suite that claimed to pin it",
+			b.DecisionWeeks, b.ConsultedWeeks, b.WeighedWeeks, b.BankedWeeks)
+	}
+	// And the firing reached the scored path, not merely a column. This is the
+	// record's own liveness idiom: a confinement check on a path that cannot
+	// carry the effect confirms nothing, so pair it with something that MUST
+	// move.
+	//
+	// ⚠️ The obvious assertion — that banking makes fewer transfers — is **wrong**,
+	// and measured so: 34 against 34. A banked week declines a move and spends it
+	// later, often on a two-move package, so the season total is not reduced and
+	// need not change at all. What must change is the season the policy played.
+	off := bankingArm(base)
+	off.BankLookahead = false
+	plain, err := Simulate(cur, prior, off)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.Banking.ConsultedWeeks != 0 {
+		t.Errorf("the control arm consulted the rule %d times", plain.Banking.ConsultedWeeks)
+	}
+	if res.Points == plain.Points {
+		t.Errorf("banking fired %d times and the season scored %d either way — the "+
+			"rule reached its counter without reaching the decision",
+			b.BankedWeeks, res.Points)
+	}
+}
+
 // TestABankedWeekAccruesExactlyOneTransfer pins the arithmetic that was wrong.
 //
 // The banked branch of `decide` used to increment `free` a second time, on top
 // of the weekly accrual, so a banked week ended two transfers up where FPL grants
-// one. It was self-defeating rather than merely generous: shouldBank's first
-// guard refuses once the allowance is at BankUpTo, so an arm that manufactured
-// allowance climbed to the ceiling at double speed and could then never bank
-// again — and every later week's free_at_decision carried the inflation with
-// nothing recording where it came from.
+// one. Fixed on correctness: FPL grants one a gameweek and the code granted two.
+//
+// ⚠️ **It runs on `bankingArm`, and that is the whole point.** Written against
+// shipped config this test was vacuous — the rule banks zero times there, so the
+// loop below iterated a condition that could never be met, and a review restored
+// the deleted lines and watched it pass. A guard whose subject never executes is
+// not a guard.
 //
 // Asserted as an invariant over the replay rather than as a unit test on
 // `decide`, which needs an engine, a wallet and a season. The allowance may never
@@ -285,10 +367,13 @@ func TestTheBankingFunnelNests(t *testing.T) {
 // per gameweek is the whole of FPL's rule.
 func TestABankedWeekAccruesExactlyOneTransfer(t *testing.T) {
 	cur, prior, base := chipSim(t)
-	base.BankLookahead = true
-	res, err := Simulate(cur, prior, base)
+	res, err := Simulate(cur, prior, bankingArm(base))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if res.Banking.BankedWeeks == 0 {
+		t.Fatal("this arm banked nothing, so the branch under test never ran and " +
+			"the loop below proves nothing — see TestTheBankingRuleActuallyFires")
 	}
 	moves := map[int]int{}
 	for _, mv := range res.Moves {

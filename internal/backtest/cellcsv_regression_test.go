@@ -1769,7 +1769,7 @@ func withoutChipOracleBlock() []string {
 	return headerWithout(cellHeader, chipOracleBlockAt(), chipOracleCols)
 }
 
-// withoutBankingBlock is this build's header with the two transfer-banking
+// withoutBankingBlock is this build's header with the five transfer-banking
 // columns removed from the middle — literally the header the predecessor build
 // wrote, since the banking block is the newest and it too went in mid-header.
 func withoutBankingBlock() []string {

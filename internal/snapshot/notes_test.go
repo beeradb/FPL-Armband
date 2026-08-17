@@ -641,7 +641,33 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// measurement, which is the failure this constant exists to prevent.
 	//
 	// The `teamBands` correction in the same commit is net-neutral and did not need room.
-	const budget = 108 * 1024
+	//
+	// # 110 KB from 2026-08-17 — the banking null became a checked zero
+	//
+	// The claim that needed the room: **the recorded "the policy never banks a transfer"
+	// was an UNCHECKED zero, and is now a checked one that is not degenerate.** The one
+	// banked `BankLookahead` arm in the corpus — `stats/snapshots/2026-08-13-reach/`, 4
+	// seasons × 2 entry points — replays byte-exactly on all eight `policy_points` and
+	// reads 236 consulted weeks, **169 weighed**, 0 banked. The 169 is the whole entry: it
+	// separates "the rule weighed a real choice and preferred to act" from "nothing ever
+	// cleared the gain floor", which license opposite conclusions and were previously one
+	// number.
+	//
+	// The qualifiers are again most of the cost, and again they are the point. It is a
+	// **confinement rather than a null** — the branch never ran, so byte-identical points
+	// are a construction and a threshold would be a category error. `WeeklyXI = true` is
+	// not shipped config. `bank_up_to` is pinned at 5 rather than the rule each season
+	// played under, which runs *in favour* of banking and makes the zero conservative. And
+	// the original `BANK` sweep's cells were never banked, so that arm stays unverifiable:
+	// this is circumstantial evidence from a different sweep, not the same one.
+	//
+	// A prior draft of the same bullet asserted that the arm the null was measured on "no
+	// longer exists", because a double free-transfer grant made it climb to the ceiling at
+	// double speed. That was a **hypothesis contradicted by the only measurement of it** —
+	// the arm banks 0 times, so the buggy branch never executed and nothing climbed. The
+	// accrual fix ships on correctness alone. Recording the replacement cost bytes; the
+	// erroneous version would have cost a retraction.
+	const budget = 110 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

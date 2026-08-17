@@ -1088,19 +1088,26 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   ⚠️ **That null is a simple-effect null** (the standing rule, above) **and it was not taken at
   shipped config**: both the `BANK` sweep and the reach map set `WeeklyXI = true`, which
   `runPolicySweep` does not. `shouldBank` prices both arms on **today's board**, so `MinGain`,
-  `FreeCost`, `BankUpTo` and the horizon are its whole bar. **The null predates any count of its
-  mediator, and no banked sweep carries one**: the cells file records the funnel
-  `decision_weeks / consulted_weeks / weighed_weeks / banked_weeks` plus `free_at_decision`, so the
-  recorded zero is **unchecked** rather than checked, and the reach map's "weeks with a transfer
-  banked" is a declared condition rather than a measurement. A banking arm reading 0 in every cell
-  made no intervention at all — the banked branch is a pure early return, so its points columns are
-  byte-identical to the greedy arm **by construction**, a confinement rather than a null — and its
-  deliverable is the count. ⚠️ **"Never banks" is a claim about `Week.Free`, what survived each
-  decision; `free_at_decision` is what the search ran with, and on 2025-26 from GW1 they read 0.55
-  and 1.46.** ⚠️ **The arm the null was measured on no longer exists**: the banked branch granted a
-  second free transfer on top of the weekly accrual, so it climbed to `BankUpTo` at double speed and
-  the ceiling guard then refused every later week. Fixed, unmeasured, and reachable from user config
-  as `bank_transfers_lookahead`. No cross against team news is banked here.
+  `FreeCost`, `BankUpTo` and the horizon are its whole bar. ✅ **The zero is now CHECKED, and it is
+  not degenerate.** The one banked `BankLookahead` arm — `stats/snapshots/2026-08-13-reach/`, 4
+  seasons × 2 entry points — replays under the current tree to all 8 `policy_points` **byte-exact**,
+  and its mediator reads **236 consulted weeks, 169 weighed, 0 banked**. So in 72% of consulted
+  weeks the rule had a real choice and preferred to act every time; without `weighed_weeks` that is
+  indistinguishable from "nothing ever cleared the gain floor", which licenses the opposite
+  conclusion. ⚠️ Read it as a **confinement, not a null**: `banked = 0` means the branch never ran,
+  so the points columns are byte-identical **by construction** and a threshold, a p or "unresolved"
+  would be a category error. ⚠️ `WeeklyXI = true` is not shipped config, `BankUpTo` is pinned at 5
+  rather than `BankLimitFor(season)` — which runs *in favour* of banking, so the zero is
+  conservative — and the original `BANK` sweep's cells were never banked, so that arm stays
+  unverifiable. ⚠️ **"Never banks" is a claim about `Week.Free`, what survived each decision;
+  `free_at_decision` is what the search ran with, and on 2025-26 from GW1 they read 0.55 and 1.46.**
+  ⚠️ **The banked branch used to grant a second free transfer on top of the weekly accrual.** Fixed
+  on correctness — FPL grants one — and **inert on every banked cell**, since the arm banks in 0 of
+  8 so the branch never executed. Reachable from user config as `bank_transfers_lookahead`, shipped
+  off. **Hypothesis, unmeasured:** the rule may be near-unreachable *by construction* at shipped
+  config, because `MoveLimit` is `free + hits` so the hit allowance already grants the extra move
+  while waiting costs a flat 1/horizon — setting `MaxHits: 0` takes banked weeks from 0 to 5 on one
+  season. No cross against team news is banked here.
 - **Reach is not the problem: 97.6% of worth-taking two-move packages are already reachable**, which
   closes the unified-search line on mechanism. The lever is the **valuation**, not the gate.
 - **The sell side is calibrated; its error is entirely availability** — −0.100 per gameweek for a

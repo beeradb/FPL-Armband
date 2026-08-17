@@ -150,6 +150,31 @@ func (a BankAdvice) Weighed() bool {
 	return a.Guard == BankGuardNone && (a.NowValue > 0 || a.LaterValue > 0)
 }
 
+// BankGuardFor is the pair of refusals that need no package valuation.
+//
+// Split out so both callers reach them without pricing anything: valuing the two
+// arms means two full transfer searches, and the whole point of a guard is to
+// decline before paying for that. The replay calls this first and returns; the
+// live path calls it through AdviseBank.
+//
+// ⚠️ **Horizon must already be clamped to the gameweeks that remain.** This
+// cannot do it — it is handed a horizon rather than a gameweek — and the second
+// guard is the one that stops a manager being advised at GW38 to hold a transfer
+// into a gameweek that does not exist. The replay clamps in `effectiveHorizon`
+// and the live path in `adviseBanking`.
+func BankGuardFor(free, bankUpTo int, horizon float64) BankGuard {
+	// Nothing to bank toward: the allowance is already at its ceiling, so waiting
+	// buys no extra move and simply loses a week.
+	if free >= bankUpTo {
+		return BankGuardCeiling
+	}
+	// A week is only worth waiting through if there is more than one left.
+	if horizon <= 1 {
+		return BankGuardHorizon
+	}
+	return BankGuardNone
+}
+
 // AdviseBank runs the banking rule over two already-valued arms.
 //
 // The caller supplies the package values because the two callers enumerate
@@ -157,21 +182,19 @@ func (a BankAdvice) Weighed() bool {
 // every player was bought for, the live command through the ranked plans it is
 // about to print — and forcing one enumeration on both would make the cheaper
 // caller wrong rather than making them agree. What must not differ, and does not,
-// is the rule applied to those values.
+// is the rule applied to those values: the guards through BankGuardFor, the
+// comparison through PreferWaiting, and what counts as having weighed anything
+// through Weighed.
 func AdviseBank(free, bankUpTo int, horizon, nowValue, laterValue float64) BankAdvice {
 	a := BankAdvice{
 		Free: free, BankUpTo: bankUpTo, Horizon: horizon,
 		NowValue: nowValue, LaterValue: laterValue,
 	}
-	// Nothing to bank toward: the allowance is already at its ceiling, so waiting
-	// buys no extra move and simply loses a week.
-	if free >= bankUpTo {
-		a.Guard, a.NowValue, a.LaterValue = BankGuardCeiling, 0, 0
-		return a
-	}
-	// A week is only worth waiting through if there is more than one left.
-	if horizon <= 1 {
-		a.Guard, a.NowValue, a.LaterValue = BankGuardHorizon, 0, 0
+	if a.Guard = BankGuardFor(free, bankUpTo, horizon); a.Guard != BankGuardNone {
+		// The arms are zeroed rather than reported, because a guard refuses
+		// *before* the comparison and reporting values it never consulted would
+		// invite a reader to check the arithmetic of a decision made another way.
+		a.NowValue, a.LaterValue = 0, 0
 		return a
 	}
 	a.Bank = PreferWaiting(nowValue, laterValue)
@@ -196,8 +219,14 @@ func (a BankAdvice) Explain() string {
 		return "Not banking: there is no run of gameweeks left to spend a banked " +
 			"transfer into."
 	case !a.Weighed():
-		return "Not banking, and nothing was weighed: no package cleared the gain " +
-			"floor this week or next, so the comparison had nothing on either side."
+		// Scoped to the banking comparison on purpose. It is NOT a claim that no
+		// transfer is worth making: the printed recommendation comes from
+		// BuildPlans, which applies neither the gain floor nor the transfer
+		// charge, so a plan can legitimately be offered directly beneath this
+		// line. What has nothing on either side is the *waiting* question.
+		return "Not banking: neither this week's nor next week's best package " +
+			"cleared the transfer charge, so the waiting comparison had nothing " +
+			"to weigh on either side."
 	default:
 		return "Not banking: acting now is worth more than waiting for a larger " +
 			"allowance next week."

@@ -216,6 +216,14 @@ any row. `consulted < decision` says a guard appeared in front of the rule;
 `weighed < consulted` says it refused without comparing anything; `banked <
 weighed` is the rule genuinely preferring to act now.
 
+⚠️ **The `weighed` step removes three explanations at once and does not separate
+them**: the allowance already at the ceiling, one gameweek left, and both arms
+worth nothing because no package cleared the transfer charge. The gap is partly
+closable arithmetically rather than by another column — the horizon guard fires
+in exactly one week per cell at the shipped horizon, and `free_at_decision`
+bounds the ceiling guard by the Markov argument below — so what is left in
+`consulted − weighed` after those two is the degenerate exit.
+
 Read together they give:
 
 | `banked_weeks` | `consulted_weeks` | reading |
@@ -242,6 +250,39 @@ construction** — a confinement rather than a null, cross-checkable against
 is *unmeasurable* rather than null: the season-clustered t is capped by
 construction, as this record already records for the minutes floor. Quote no p, no
 interval and no threshold; report the per-cell and per-season fire counts instead.
+
+### The first read, and what it settled
+
+The one banked `BankLookahead` arm in the corpus is
+`stats/snapshots/2026-08-13-reach/cells/reach.csv`, variant `bank_lookahead on` —
+4 seasons × 2 entry points, `WeeklyXI = true`, `bank_up_to` 5. Replayed under the
+current tree it reproduces all eight `policy_points` **byte-exactly**, and the
+mediator on those cells reads **236 decision weeks, 236 consulted, 169 weighed,
+0 banked**.
+
+So the zero is **not degenerate**: in 72% of consulted weeks the rule had a real
+choice and preferred to act now, every time. Without `weighed_weeks` that is
+indistinguishable from "nothing cleared the gain floor so there was never anything
+to weigh", and the two license opposite conclusions.
+
+Four caveats ride with it. It is a **confinement, not a null** — the branch never
+ran, so byte-identical points are a construction and a threshold would be a
+category error. `WeeklyXI = true` is **not shipped config**. `bank_up_to` is
+pinned at 5 rather than the rule each season played under, which runs *in favour*
+of banking and makes the zero conservative. And the original `BANK` sweep's cells
+were never banked, so that arm remains unverifiable — this is strong
+circumstantial evidence, not the same sweep.
+
+**Open hypothesis, recorded rather than acted on.** The rule may be
+near-unreachable *by construction* at shipped config: `MoveLimit` is
+`free + hits`, so at one hit the now-arm already reaches two moves and the later
+arm three — the extra free transfer buys a capability only when the best package
+needs three moves, while the shorter horizon costs a flat `1/horizon`, 20% at the
+shipped 5. Consistent with the measurement: setting `MaxHits: 0`, which makes the
+extra transfer the difference between one move and a funded pair, takes banked
+weeks from 0 to 5 on one season. Testing it properly means logging `now` and
+`later` on those same eight cells — far cheaper than a new sweep, and the next
+measurement rather than a banking sweep.
 
 ### Reading the two that are easiest to get wrong
 

@@ -1835,16 +1835,19 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 // `weighed` is true when the rule got past both guards and at least one arm was
 // worth something — the population a banked-weeks count is a rate over. See
 // BankingMediator.WeighedWeeks.
+// ⚠️ **The guards, the comparison and the weighed rule are all
+// analysis.AdviseBank's**, and the only thing left here is the enumeration.
+// They were spelled out inline while the live path spelled them again, which is
+// exactly the drift the extraction claims to have removed — left, on the first
+// attempt, in the part of the rule that is judgement rather than arithmetic.
+//
+// The guards run BEFORE the arms are priced, because valuing them means two full
+// transfer searches and the whole point of a guard is to decline before paying
+// for that. AdviseBank re-checks them, which is idempotent and cheap.
 func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 	horizon, freeCost float64, cfg SimConfig, sell map[int]int) (bank_ bool, weighed bool) {
 
-	// Nothing to bank toward: the allowance is already at its ceiling, so
-	// waiting buys no extra move and simply loses a week.
-	if free >= cfg.BankUpTo {
-		return false, false
-	}
-	// A week is only worth waiting through if there is more than one left.
-	if horizon <= 1 {
+	if analysis.BankGuardFor(free, cfg.BankUpTo, horizon) != analysis.BankGuardNone {
 		return false, false
 	}
 	// The later arm is priced at *next* week's decision, so its chip credit is
@@ -1853,7 +1856,8 @@ func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 	now := bestPackageValue(e, held, bank, limit, gw, horizon, freeCost, cfg, sell)
 	later := bestPackageValue(e, held, bank,
 		moveLimit(free+1, cfg.MaxHits, cfg.MaxMoves), gw+1, horizon-1, freeCost, cfg, sell)
-	return analysis.PreferWaiting(now, later), now > 0 || later > 0
+	a := analysis.AdviseBank(free, cfg.BankUpTo, horizon, now, later)
+	return a.Bank, a.Weighed()
 }
 
 // bestPackageValue is what the best set of moves up to `limit` is worth, in

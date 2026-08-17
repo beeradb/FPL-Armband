@@ -129,6 +129,18 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		// Worth +33 points a season at t = +5.74 with squad selection
 		// unchanged — see analysis.fixturesPerGameweek.
 		WeeklyXI: true,
+		// The two transfer-policy switches a user can actually set, carried onto
+		// the replay so `armband backtest` scores the policy the config describes.
+		//
+		// ⚠️ Without these the command replays the SHIPPED policy under the user's
+		// other settings: a manager turns banking on, runs a backtest, and gets a
+		// byte-identical null from a setting that never arrived — which is exactly
+		// the reading the standing rule says to check the mediator for, produced by
+		// the very feature that added the mediator. One config field, one
+		// consumer, named here so the link is greppable in both directions.
+		BankLookahead:        cfg.Review.BankTransfersLookahead,
+		PrepareBenchBoost:    cfg.Review.PrepareForChips,
+		PrepareTripleCaptain: cfg.Review.PrepareForChips,
 		// Diagnostic override for sweeping what the opening fifteen credits a
 		// bench player at. See SimConfig.openingBenchWeight — the shipped 0.02
 		// is what broke when the optimiser was fixed.
