@@ -5,8 +5,8 @@ agent on top to reason over the output. Read [docs/architecture.md](docs/archite
 changing code and [docs/model.md](docs/model.md) before changing the scoring.
 [docs/README.md](docs/README.md) maps the rest.
 
-Everything in `docs/` is **reference** — what the system *is*. `docs/README.md`'s "Why this is
-eight files" says what it costs that the design documents no longer sit beside it.
+Everything in `docs/` is **reference** — what the system *is*. Design proposals and research
+notes do not belong there; `docs/README.md` says so and says where the evidence lives instead.
 
 This file holds the **verdicts**: one line per conclusion that has been paid for, plus the rules
 that keep the next measurement honest. The evidence behind each conclusion is not in this

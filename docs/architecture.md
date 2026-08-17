@@ -1,9 +1,10 @@
 # Architecture
 
-A Go binary. Deterministic analysis in `internal/analysis`, an LLM agent on top that reasons
-over it via tools. **The analysis layer never calls the API; the agent layer never computes
-football numbers.** That separation is why `squad`, `fixtures`, `chips` and `congestion` cost
-nothing to run.
+The whole system is one Go binary with two layers that never blur. Deterministic analysis
+lives in `internal/analysis`; an LLM agent sits on top and reasons over it via tools. **The
+analysis layer never calls the API; the agent layer never computes a football number.** That
+separation is why `squad`, `fixtures`, `chips` and `congestion` cost nothing to run — they
+never touch the agent at all.
 
 ```mermaid
 flowchart TB
@@ -42,10 +43,10 @@ flowchart TB
     archive -->|"a bootstrap FPL WOULD<br/>have served, per gameweek"| replay
     replay --> metrics
 
-    classDef io fill:#fde8e8,stroke:#c0392b,color:#111
-    classDef pure fill:#e8f4fd,stroke:#2471a3,color:#111
-    classDef llm fill:#eafaf1,stroke:#1e8449,color:#111
-    classDef test fill:#fef5e7,stroke:#b9770e,color:#111
+    classDef io fill:#F4E0E3,stroke:#A8404E,color:#141A21
+    classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef llm fill:#DFEDE6,stroke:#2F7A57,color:#141A21
+    classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
     class api,client io
     class metrics,support,squad pure
     class tools,loop llm
@@ -65,6 +66,9 @@ cost nothing to run.
 
 ## Packages
 
+Each core package below owns one concern; the seven supporting packages at the end each
+exist because the FPL bootstrap does not carry something the model needs.
+
 ### `internal/fpl`
 
 Thin client over the public, unauthenticated FPL API. No login required for anything used
@@ -74,7 +78,7 @@ Responses are cached on disk (`cache_minutes`, default 60) so a single agent run
 many tool calls hits the network once per endpoint. `Bootstrap` and `Fixtures` are
 additionally memoised per process.
 
-**Gotchas baked in:**
+Three quirks of the API are absorbed here so nothing downstream has to know about them:
 
 - The API rejects requests without a browser-like `User-Agent`.
 - Numeric fields arrive inconsistently — `"expected_goals": "25.50"` as a string, others as
@@ -108,7 +112,8 @@ record a player's status and a price forecast, and two more that read and update
 participation. `Toolbox.Tools()` is the single registry — a tool that is written and not
 registered there is invisible to the agent.
 
-**Three non-obvious things:**
+The SDK's tool runner has three behaviours that are not obvious from its documentation, and
+each has caused a real failure here:
 
 1. **The runner overwrites `params.Tools`** with the local tool set (`betatoolrunner.go:64`).
    Server tools must be appended to `runner.Params.Tools` *after* construction. `NextMessage`
@@ -136,6 +141,25 @@ above 0.8.
 **Context editing** (`clear_tool_uses_20250919`, keeping 4) clears stale tool results. Without
 it, the full JSON of every earlier search is replayed on every subsequent request.
 
+The shape of that cost is counter-intuitive enough to be worth drawing: watch what each
+successive request carries, and where the clearing finally steps in.
+
+```mermaid
+sequenceDiagram
+    participant L as tool-runner loop
+    participant M as Claude API
+
+    L->>M: request 1 · system prompt + question
+    M-->>L: tool call, result R1
+    L->>M: request 2 · prompt + R1
+    M-->>L: tool call, result R2
+    L->>M: request 3 · prompt + R1 + R2
+    Note over L,M: every earlier tool result is replayed on every<br/>later request — a verbose field is paid for once<br/>per remaining iteration, not once
+    M-->>L: further iterations produce R3..R6
+    L->>M: request 7 · prompt + R3 + R4 + R5 + R6
+    Note over L,M: context editing keeps the newest four tool<br/>results and clears the stale ones — without it,<br/>R1 and R2 would ride to the end of the run
+```
+
 `cost.go` accumulates usage across iterations — usage is reported *per request*, so a run
 total is the sum, not the final message. Pricing is date-aware to handle promotional rates
 that expire.
@@ -150,8 +174,9 @@ Markdown reports to `reports/`, dated, never clobbering an earlier file from the
 
 ### The supporting packages
 
-Seven more exist, each because the FPL bootstrap does not carry something the model needs.
-None of them is on the path of an ordinary scoring call.
+Seven more packages fill gaps in what the FPL API publishes. None of them is on the path of
+an ordinary scoring call, so a reader tracing `Score` can safely ignore them; each matters
+when the question is where a number *came from*.
 
 | package | what it is for |
 |---|---|
@@ -166,6 +191,10 @@ None of them is on the path of an ordinary scoring call.
 ---
 
 ## Data flow for one `review`
+
+The sequence below is a single `armband review` from the command line to the written
+report. The loop in the middle is where the money goes, so the two notes after the diagram
+are worth reading before touching anything inside it.
 
 ```mermaid
 sequenceDiagram
@@ -196,11 +225,15 @@ Two things in that loop cost real money and are easy to miss. Tool results are *
 on every subsequent request**, so a verbose field is paid for once per remaining
 iteration rather than once — which is why `playerRow` is terse and full detail sits
 behind single-player lookups. And the fan-out at step 4 is genuinely concurrent, which is
-where the `sync.Once` and config-write rules below come from.
+where the `sync.Once` and config-write rules above come from.
 
 ---
 
 ## Extending it
+
+The three common extensions each have a fixed shape. Following it is less about style than
+about not being invisible: a factor the agent cannot see, or a tool that is not registered,
+fails silently rather than loudly.
 
 **A new scoring factor** — add the field to `PlayerMetrics`, compute it in `Engine.Metrics`,
 multiply it into `Score`, and expose it on `playerRow` in `tools.go` so the agent can see it.
@@ -208,14 +241,10 @@ Add the knob to the relevant config struct with a backfill in `config.Load`.
 
 Then **give it an escape hatch and measure it**. A scoring change that cannot be switched off
 cannot be compared against the behaviour it replaced, and the standing convention here is a
-package-level `FPL_NO_<thing>` var beside the term. Judge it on `HOLD` **at the default grid, 36
-cells over six seasons**, rather than on a season total — [replay.md](replay.md) covers both, and
-the failure to expect is not a wrong answer but a plausible number that measured nothing.
-
-⚠️ **This said "24 cells" until 2026-08-15, and it is a prescription rather than a record** — a
-figure quoted about a past measurement stays correct as a four-season figure, but an instruction to
-the next person telling them to use a grid that is no longer the default is simply wrong. The
-default became six pairs × six entry gameweeks; `FPL_SWEEP_SEASONS` selects otherwise.
+package-level `FPL_NO_<thing>` var beside the term. Judge it on `HOLD` **at the default grid,
+36 cells over six seasons**, rather than on a season total — [replay.md](replay.md) covers
+both, and the failure to expect is not a wrong answer but a plausible number that measured
+nothing.
 
 **A new tool** — write a `func (t *Toolbox) name() (anthropic.BetaTool, error)` using
 `toolrunner.NewBetaToolFromJSONSchema`, and register it in `Toolbox.Tools()`. Keep output
@@ -240,10 +269,10 @@ and regressions**, not exact values, since the underlying data changes weekly.
 and skipped by the line above. They replay whole seasons and take minutes, so they are run
 deliberately rather than as part of the gate — see [replay.md](replay.md).
 
-The regression tests each encode a bug that was actually shipped. **This is a representative
-five, not the list** — the full inventory of bugs this codebase has shipped and now guards is
-the "Things that have already bitten" section of [AGENTS.md](../AGENTS.md), and anything added
-there should arrive with a test.
+The regression tests each encode a bug that was actually shipped. The table below is **a
+representative five, not the list** — the full inventory of bugs this codebase has shipped
+and now guards is the "Things that have already bitten" section of [AGENTS.md](../AGENTS.md),
+and anything added there should arrive with a test.
 
 | Test | Guards against |
 |---|---|
@@ -260,7 +289,34 @@ are not enough" under Squad optimisation in [model.md](model.md). Its failure
 mode is **silence**: if the seeding stops contributing, nothing errors and no legality check
 fails — the seeds are simply never the best answer any more, and the search quietly returns
 worse squads. Three tests exist for exactly that, plus the supporting cases in
-`dpseed_test.go` and `searchquality_test.go`.
+`dpseed_test.go` and `searchquality_test.go`. Each row below is one way that silence has
+happened, or could.
+
+First the ladder itself, compressed from [model.md](model.md)'s account — read top to bottom:
+each red box is a failure the layer *above* it provably could not escape, which is why the
+layer beneath it exists.
+
+```mermaid
+flowchart TB
+    swaps1["steepest-ascent 1-for-1 swaps"]
+    stall["stalls: the downgrade that funds an<br/>upgrade lowers the objective on its own,<br/>so it is rejected in isolation"]
+    pairs["paired moves — one downgrade<br/>funding one upgrade,<br/>evaluated as a unit"]
+    blind["still cannot restructure: fitting a £15.5m<br/>striker is a formation change, and no<br/>sequence of swaps reaches it because<br/>every intermediate step is downhill"]
+    dp["exact per-formation seeds —<br/>dynamic programming solves every<br/>formation exactly and seeds<br/>the local search"]
+    funded["funded restructures — several<br/>downgrades funding one upgrade,<br/>the same generalisation the<br/>transfer search has"]
+    silence["the failure mode is silence: if the seeding<br/>stops contributing, nothing errors —<br/>the three guards in the table below<br/>exist for exactly that"]
+
+    swaps1 --> stall --> pairs --> blind
+    blind --> dp --> funded
+    dp -.-> silence
+
+    classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef fail fill:#F4E0E3,stroke:#A8404E,color:#141A21
+    classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
+    class swaps1,pairs,dp,funded pure
+    class stall,blind fail
+    class silence test
+```
 
 | Test | What it guarantees |
 |---|---|
@@ -272,6 +328,9 @@ worse squads. Three tests exist for exactly that, plus the supporting cases in
 
 ## Known limitations
 
+These are the places where the system knows less than it appears to. None is a bug; each is
+a boundary a user should know about before trusting a number.
+
 - **Free transfers are reconstructed**, not read. Verify against the site if a decision turns
   on the exact number.
 - **The model cannot distinguish injury absence from being dropped.** Both look like low
@@ -282,22 +341,23 @@ worse squads. Three tests exist for exactly that, plus the supporting cases in
   they fail *silently*: a stale list simply applies to the wrong clubs, or stops applying at
   all. `armband congestion` reports what is set and how old it is.
 - **All eight congestion penalties ship disabled at 1.00**, so that block is reported to the
-  agent and moves no score at all, and **three of those four lists** are consequently
-  display-only — a stale one can mis-inform a human and can no longer mis-score a player.
-  `TestTheShippedCongestionBlockIsInert` makes re-enabling one deliberate. Section 5 of
-  [model.md](model.md) says what each was measured at and why it is off.
-  ⚠️ **Corrected 2026-08-15: this said all four.** `DefaultRestPlayers` is live on the scoring
-  path — `blendFor` applies `restFactor` at `blend.go:165` through `rest_minutes_factor`, a
-  `Weights` field rather than a congestion penalty, at GW1 and GW2 only. Two unrelated things
-  answer to "rest"; only the congestion pair is inert. See AGENTS.md, "Season maintenance".
+  agent and moves no score at all — and three of the four hand-maintained lists are therefore
+  display-only: a stale one can mis-inform a human but cannot mis-score a player.
+  `TestTheShippedCongestionBlockIsInert` makes re-enabling one deliberate. The live exception
+  is `DefaultRestPlayers`: `blendFor` applies `restFactor` through `rest_minutes_factor`, a
+  `Weights` field rather than a congestion penalty, at GW1 and GW2 only — it multiplies
+  expected minutes, not the score, but a wrong name there still mis-scores a player. Two
+  unrelated mechanisms answer to "rest"; only the congestion pair is inert. Section 5 of
+  [model.md](model.md) says what each penalty was measured at and why it is off, and
+  [AGENTS.md](../AGENTS.md)'s "Season maintenance" section carries the maintenance rule.
 - The agent has web search, so it can read team news — but it cannot see your reasoning or
   anything you have not told it. `criteria` is how you fix that.
 
 ## `Engine.Recent`: what the live path costs
 
-Moved from the resident index (then `CLAUDE.md`) on 2026-08-12, verbatim. This is operational rather than research — it says
-what the recency hook costs to run live, not whether it is worth having. The evidence that it
-is worth having is in the recency-and-priors note.
+This section is operational rather than research: it says what the recency hook costs to run
+live, not whether it is worth having. The evidence that it is worth having sits outside this
+repository.
 
 **`Engine.Recent` needs per-gameweek history, which the bootstrap does not carry.** It is nil
 by default and the model falls back to flat season totals — so a failed fetch degrades rather

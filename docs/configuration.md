@@ -1,61 +1,108 @@
 # Configuration reference
 
 Everything lives in `config.json`, created with defaults on first run. Delete it and run any
-command to regenerate.
+command to regenerate. A field you omit is backfilled from defaults, so a partial file is valid —
+useful when a new field is added and your existing config predates it.
 
-A field you **omit** is backfilled from defaults, so a partial file is valid — useful when a new
-field is added and your existing config predates it.
+That backfilling has consequences worth understanding before you edit anything, because
+"absent", "zero" and "empty" are three different statements and the file does not treat them
+alike. The rules below are the ones that catch people out.
 
-⚠️ **An explicit `0` is not the same as omitting a field, and for most numeric fields it is
-treated as an omission.** `config.Load` backfills anything non-positive for `max_iterations`,
-`fixture_horizon`, `minutes_half_life`, `bench_weight`, `minutes_weight`, `blend_minutes_k`,
-`blend_rate_k`, `rest_minutes_factor`, `cache_minutes`, all eight congestion penalties, all four
-`role_risk` numbers and six of `review_policy`. So writing `"minutes_half_life": 0` does **not**
-select the flat season average — it silently becomes 4.
+## How the file is read
+
+**For most numeric fields, an explicit `0` is treated as an omission.** `config.Load` backfills
+anything non-positive for `max_iterations`, `fixture_horizon`, `minutes_half_life`,
+`bench_weight`, `minutes_weight`, `blend_minutes_k`, `blend_rate_k`, `rest_minutes_factor`,
+`cache_minutes`, all eight congestion penalties, all four `role_risk` numbers and six of
+`review_policy`. So writing `"minutes_half_life": 0` does **not** select the flat season
+average — it silently becomes 4.
 
 Zero *is* honoured for `bonus_weight`, `fixture_weight`, `set_piece_weight`, `band_strength`,
 `rate_half_life`, `prior_half_life` and `defcon_clean_coupling`, because for those it is a real
 setting meaning "turn this term off".
 
+**`blank_run_penalty` looks like it belongs to that second group and does not.** It has no
+backfill in `config.Load`; instead `blankRunFactor` resolves "unset" at the *read* site, and a
+configured value of `0` is silently rewritten to 0.75, the live default. So writing
+`"blank_run_penalty": 0` does not disable the term — it leaves it fully on. **`1.0` is the off
+switch**, because the term multiplies expected minutes and zero would erase them. It is also the
+only weight with two defaults for one quantity, which is a shape this project has been bitten by
+before, so `TestBlankRunPenaltyHasOneDefault` pins both halves.
 
-⚠️ **`blank_run_penalty` is NOT one of them, and this page said it was.** It has no backfill in
-`config.Load`, and `blankRunFactor` resolves "unset" at the *read* site instead: a configured
-value of `0` is silently rewritten to **0.75**, the live default. So writing
-`"blank_run_penalty": 0` does not disable the term — it leaves it fully on, which is the
-opposite of what a reader would conclude. **`1.0` is the off switch**, because the term
-multiplies expected minutes and zero would erase them. It is also the only weight with two
-defaults for one quantity, which is a shape this project has been bitten by before, so
-`TestBlankRunPenaltyHasOneDefault` pins both halves. Two fields need a third state and get
-one: `bonus_prior_weight` is probed for **key presence** so that an absent key does not read as a
-deliberate 0, which is why its off switch is `-1`; `rest_minutes_factor` uses the same trick for
-its rename migration.
+Two fields need a genuine third state and get one by probing for **key presence** rather than
+value: `bonus_prior_weight`, so that an absent key does not read as a deliberate 0 — which is
+why its off switch is `-1` — and `rest_minutes_factor`, for the rename migration described under
+post-tournament rest below.
 
-⚠️ **List-valued fields follow a different rule from the numbers above, and it changed on
-2026-08-14.** An absent key keeps the Go default; **a present key wins outright — `{}`, `[]` and
-`null` included**, since `encoding/json` zeroes a map or a slice on `null`. So an empty list is a
-*statement* ("nobody is in Europe this season"), and only omitting the key means "I did not say".
+**List-valued fields follow a different rule again.** An absent key keeps the Go default; a
+present key wins outright — `{}`, `[]` and `null` included, since `encoding/json` zeroes a map
+or a slice on `null`. So an empty list is a *statement* ("nobody is in Europe this season"), and
+only omitting the key means "I did not say". Replacement rather than merging is what lets the
+agent's own removals stick: when `SetCompetitionWindows` drops a knocked-out club, the next
+`Load` keeps it dropped. `TestRemovingAClubSurvivesASaveLoadCycle` pins the round trip.
 
-That covers every list-valued field except two. **`review_policy.rules` and
-`minutes_weight_by_position` still backfill**, because for them an empty list is a fallback trigger
-rather than a statement; `minutes_weight_by_position` also still *merges*, so naming one position
-leaves the other three at their defaults.
+Two list-valued fields backfill anyway: `review_policy.rules` and `minutes_weight_by_position`,
+because for them an empty list is a fallback trigger rather than a statement.
+`minutes_weight_by_position` also *merges*, so naming one position leaves the other three at
+their defaults.
 
-⚠️ **The consequence to hold on to: once a list is in your file, editing only the Go default has no
+The consequence to hold on to: **once a list is in your file, editing only the Go default has no
 effect.** Edit both, or delete the key. All eight of the lists that exist twice — as Go defaults
-*and* as copies in `config.json` — are in your file today, so their Go defaults are already inert.
-`TestTheShippedConfigsHandMaintainedListsMatchTheGoDefaults` is what stops the two copies drifting.
+*and* as copies in `config.json` — are in the shipped file, so their Go defaults are already
+inert. `TestTheShippedConfigsHandMaintainedListsMatchTheGoDefaults` is what stops the two copies
+drifting.
 
-The two campaign maps used to **merge** instead, and additionally backfilled an empty map back to
-the default, so they could not be shortened by any route: deleting a club did nothing. That
-silently undid the agent's own `update_competition_status` removals on the next load —
-`SetCompetitionWindows` drops the club, and the next `Load` put it back.
-`TestRemovingAClubSurvivesASaveLoadCycle` pins the round trip. `tournament_absences` changed in one
-case only: a `== nil` backfill made `null` restore the six shipped groups while `[]` emptied them,
-two answers to one question.
+The whole procedure, traced key by key. The amber nodes are the questions `config.Load`
+effectively asks; the two red ones are the answers that silently do the opposite of what
+was typed.
+
+```mermaid
+flowchart TB
+    key{"is the key present<br/>in config.json?"}
+    def["Go default backfilled —<br/>a partial file stays valid"]
+    shape{"what kind of value?"}
+
+    numgroup{"which numeric field?"}
+    most["most numeric fields:<br/>max_iterations, minutes_half_life,<br/>the congestion penalties, ..."]
+    trap1["any value at or below 0 is treated<br/>as an omission and backfilled —<br/>minutes_half_life: 0<br/>silently becomes 4"]
+    zerook["bonus_weight · fixture_weight ·<br/>set_piece_weight · band_strength ·<br/>rate_half_life · prior_half_life ·<br/>defcon_clean_coupling"]
+    honoured["0 is honoured — it is a real<br/>setting meaning 'turn this term off'"]
+    brp["blank_run_penalty"]
+    trap2["0 is rewritten to 0.75 at the read<br/>site — the term stays fully on.<br/>The off switch is 1.0"]
+    probe["bonus_prior_weight ·<br/>rest_minutes_factor"]
+    presence["key presence is the test, not the value:<br/>bonus_prior_weight's off switch is -1,<br/>rest_minutes_factor probes for the<br/>rest_discount migration"]
+
+    listrule["a present key wins outright —<br/>empty object, empty list and null included.<br/>An empty list is a statement, and the<br/>agent's removals survive the next load"]
+    listexc["except review_policy.rules and<br/>minutes_weight_by_position, which<br/>backfill when empty — and the<br/>latter merges per position"]
+
+    key -->|"absent"| def
+    key -->|"present"| shape
+    shape -->|"number"| numgroup
+    shape -->|"list"| listrule
+    numgroup --> most --> trap1
+    numgroup --> zerook --> honoured
+    numgroup --> brp --> trap2
+    numgroup --> probe --> presence
+    listrule -.-> listexc
+
+    classDef io fill:#F4E0E3,stroke:#A8404E,color:#141A21
+    classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef llm fill:#DFEDE6,stroke:#2F7A57,color:#141A21
+    classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
+    classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    class key,shape,numgroup,listexc test
+    class def,most,zerook,brp,probe muted
+    class trap1,trap2 io
+    class honoured,listrule llm
+    class presence pure
+```
 
 ---
 
 ## Top level
+
+Identity, cost and housekeeping. `entry_id` is the one field worth setting immediately;
+everything else has a workable default.
 
 | Field | Default | Meaning |
 |---|---|---|
@@ -89,11 +136,15 @@ The agent is told to follow these and to say so explicitly when the data argues 
 
 ## `weights` — the scoring model
 
+These are the knobs on the deterministic scoring model. [model.md](model.md) explains each
+mechanism in full; this table says what to type and what the default buys you. Several fields
+ship at zero because the honest measurement said "off" — the table notes each one.
+
 | Field | Default | Meaning |
 |---|---|---|
 | `fixture_horizon` | `5` | Gameweeks ahead to weigh. |
 | `fixture_weight` | `0.65` | 0 ignores fixtures, 1 is fully fixture-adjusted. |
-| `set_piece_weight` | `0.0` | **Off, deliberately** — see the warning below. Scales a penalty/corner/free-kick bonus that measured as counting the same output twice. |
+| `set_piece_weight` | `0.0` | **Off, deliberately** — scales a penalty/corner/free-kick bonus that measured as counting the same output twice. See below. |
 | `bench_weight` | `0.10` | How much bench players count when optimising a 15-man squad, as a fraction of a starter. Lower buys cheaper fodder. |
 | `minutes_weight` | `1.25` | Convexity of the rotation penalty. 1.0 is neutral; 1.6+ is ruthless about nailed-ness. |
 | `minutes_weight_by_position` | `{GKP:1, DEF:1, MID:0.75, FWD:1}` | Per-position severity as a fraction of `minutes_weight`'s bite. See [model.md](model.md#per-position-severity). |
@@ -109,50 +160,45 @@ The agent is told to follow these and to say so explicitly when the data argues 
 | `prior_half_life` | `0` | Off. Blends seasons *before* last one into it, for players whose last season was an injury artefact. The mechanism is unit-tested; the benefit is not measurable on the replay archive, so it is off by default. |
 | `band_strength` | `0` | Off. An experimental re-rating of the three best and three worst attacks and defences. Measured as no better than FPL's own difficulty ratings. |
 
-> ⚠️ **`set_piece_weight` ships at 0 and putting it back to 1.0 re-introduces a measured bug.**
-> FPL's expected-goals figure already contains penalties and its expected-assists figure
-> already contains corners and free kicks, so a separate set-piece bonus adds output the base
-> rate has already counted. For a first-choice penalty taker the whole of the over-prediction
-> was the bonus itself. Set-piece duty is still *reported* on every player, so the agent can
-> reason about a newly appointed taker; it just does not move the number.
-> `TestSetPieceBonusDoubleCountsPenalties` fails if the weight is restored. Full working in
-> [model.md](model.md#2-set-piece-duty--reported-not-scored).
+**`set_piece_weight` ships at 0, and putting it back to 1.0 re-introduces a measured bug.**
+FPL's expected-goals figure already contains penalties, and its expected-assists figure already
+contains corners and free kicks, so a separate set-piece bonus adds output the base rate has
+already counted. For a first-choice penalty taker, the whole of the over-prediction was the
+bonus itself. Set-piece duty is still *reported* on every player, so the agent can reason about
+a newly appointed taker; it just does not move the number.
+`TestSetPieceBonusDoubleCountsPenalties` fails if the weight is restored. Full working in
+[model.md](model.md#2-set-piece-duty--reported-not-scored).
 
 There is no `minutes_floor` field. One existed, described as a sample-size guard on per-90
-rates, and **no scoring path ever read it** — so it was removed rather than renamed. Both jobs
-it claimed to do are done elsewhere, and were measured there: small samples are handled by
+rates, and no scoring path ever read it — so it was removed rather than renamed. Both jobs it
+claimed to do are done elsewhere, and were measured there: small samples are handled by
 `blend_rate_k` and by shrinking a priorless player's rates toward his position's league-wide
 rates, and rotation risk by minutes reliability. A knob that documents behaviour the model does
 not have is worse than no knob, because it becomes the stated reason for trusting a number.
 
 ### Post-tournament rest
 
+Players back late from a summer tournament are eased in over the opening gameweeks, and the FPL
+API says nothing about who was at one. These four fields carry the discount and the
+hand-maintained list of who it applies to.
+
 | Field | Default | Meaning |
 |---|---|---|
-| `rest_players` | 2026 World Cup semi-finalists | Names or ids to discount after a summer tournament. **⚠️ Re-derive every season.** |
+| `rest_players` | 2026 World Cup semi-finalists | Names or ids to discount after a summer tournament. Re-derive every summer — see below. |
 | `rest_regions` | `[]` | Nationality codes — run `armband nations`. |
 | `rest_minutes_factor` | `0.83` | Per-gameweek multiplier on a flagged player's expected **minutes**, not on his score. |
 | `rest_gameweeks` | `2` | How many opening gameweeks the discount covers. |
 
-The FPL API does not say who played a summer international, so the shipped list is
-hand-derived from the four 2026 World Cup semi-final teamsheets: **the 17 Premier League
-players who started, or came on before half-time**. Squad membership is not the test — the
-other 19 Premier League players in those four squads were unused or came on late, and are not
-flagged. **Auditing this list against published squads will "find" names missing and be wrong**;
-that happened once and a correct list was reverted. See
+The shipped list is hand-derived from the four 2026 World Cup semi-final teamsheets, and the
+test for inclusion is time on the pitch, not squad membership: a player qualifies if he was *on
+the pitch for the majority of his semi-final* — started, or on before half-time. That rule is
+the doc comment on `DefaultRestPlayers` in `internal/analysis/metrics.go` (find it by the
+identifier; `config.json` carries a copy of the list with no room for a comment). Only **17 of
+the 36** Premier League players across the four semi-finalists clear it, and unused substitutes
+are excluded deliberately — Saka, Watkins, Eze, Raya, Zubimendi and Pino had a long summer in a
+hotel rather than a punishing one. So the list is supposed to look incomplete, and auditing it
+against published squads will "find" names missing and be wrong. See
 [model.md](model.md#post-tournament-rest) for the threshold and why it is not fragile.
-
-**The rule, moved here from the resident index (then `CLAUDE.md`) on 2026-08-13 so the resident file carries only the warning.**
-The doc comment on `DefaultRestPlayers` (`internal/analysis/metrics.go`, ~line 510 — ⚠️ this was
-recorded as `metrics.go:470` until 2026-08-14, by which time 470 was inside the unrelated
-`DefaultTournamentAbsences` literal, so prefer the identifier) requires the player to have been
-*on the pitch for the majority of his semi-final*
-— started, or on before half-time. Only **17 of the 36** Premier League players across the four 2026
-semi-finalists clear it, and **unused substitutes are excluded deliberately**: Saka, Watkins, Eze,
-Raya, Zubimendi and Pino had a long summer in a hotel rather than a punishing one. Anyone auditing
-the list against published squads will "find" names missing and be wrong. `config.json` carries a
-copy with no room for a comment, which is what makes the trap easy to walk into. The audit that
-walked into it was the **August 2026 pass**, and its "correction" was reverted.
 
 Names are full names **exactly as the FPL API spells them, accents included** — `"Marcos Senesi
 Barón"`, not `"Marcos Senesi"`. Matching is exact-then-fuzzy and surnames collide, with two
@@ -160,40 +206,48 @@ Martínezes on this list alone, so a misspelling silently matches the wrong play
 all. `TestDefaultRestPlayersAllResolveToDistinctPlayers` fails if any entry stops resolving.
 
 `rest_regions` is deliberately empty. Flagging a nationality would discount every English,
-Spanish, French and Argentine player in the game, most of whom spent the summer resting.
-Use it only for a tournament where a nation's entire Premier League contingent travelled.
+Spanish, French and Argentine player in the game, most of whom spent the summer resting. Use it
+only for a tournament where a nation's entire Premier League contingent travelled.
 
-**Keep `rest_gameweeks` short.** Players get three weeks of mandatory rest after a
-tournament, not three weeks of absence. The 2026 final was 19 July, so they were back in
+**Keep `rest_gameweeks` short.** Players get three weeks of mandatory rest after a tournament,
+not three weeks of absence. The 2026 final was 19 July, so the flagged players were back in
 training around 9 August with twelve days of pre-season before the GW1 deadline on 21 August.
-An earlier default of 4 ran the discount out to 12 September.
 
-**The field it multiplies is minutes, and that is the whole point of its name.** A player back
-late from a tournament is eased in — he plays fewer minutes — and his output *while on the
-pitch* does not reliably drop. So `rest_minutes_factor` scales his expected minutes per match
-and lets everything downstream recompute from that: his score, his minutes-reliability rating
-and the rotation band the agent reads all move together and all agree. An earlier version
-multiplied the score directly, at which point a rested player still reported full minutes and
-still read as "nailed" while quietly scoring less. A tired player plays less, not worse.
+**The field the discount multiplies is minutes, and that is the whole point of its name.** A
+player back late from a tournament is eased in — he plays fewer minutes — and his output *while
+on the pitch* does not reliably drop. So `rest_minutes_factor` scales his expected minutes per
+match and lets everything downstream recompute from that: his score, his minutes-reliability
+rating and the rotation band the agent reads all move together and all agree. Multiplying the
+score directly would get this wrong — a rested player would still report full minutes and still
+read as "nailed" while quietly scoring less. A tired player plays less, not worse.
 
-It is **per gameweek** and is prorated across the horizon — see
+The discount is **per gameweek** and is prorated across the horizon — see
 [model.md](model.md#post-tournament-rest). At the defaults, a flagged player's minutes are
-scaled by 0.93 for a horizon starting at GW1, 0.97 at GW2 and nothing from GW3, rather than a
+scaled by 0.93 for a horizon starting at GW1, 0.97 at GW2 and not at all from GW3, rather than a
 flat 0.83 everywhere.
 
-**An old config file still works.** The field used to be called `rest_discount` and multiplied
-the score. On load, a file that has `rest_discount` and no `rest_minutes_factor` is migrated:
-the old value is converted to the minutes channel so the effect on the score stays what that
-file was already getting, rather than jumping to the new default. The migration checks whether
-the *key is present* rather than whether it holds a particular value — an unwritten
+**An old config file still works.** The field was once called `rest_discount` and multiplied the
+score. On load, a file that has `rest_discount` and no `rest_minutes_factor` is migrated: the
+old value is converted to the minutes channel so the effect on the score stays what that file
+was already getting, rather than jumping to the new default. The migration checks whether the
+*key is present* rather than whether it holds a particular value — an unwritten
 `rest_minutes_factor` already reads 0.83 from the defaults, so a value check would never fire.
 `TestLegacyRestDiscountMigrates` pins it.
 
 ## `congestion`
 
+Fixture congestion — European midweeks, cup ties, international travel — is described by a set
+of competition windows and nationality lists that the FPL API does not carry, so they are
+hand-maintained and dated to a season. The note after the table explains why every penalty in
+this block ships neutral, and what that means for maintaining the lists.
+
+Remember the list-valued rule from the top of this page: the two campaign maps **replace** on
+load when the key is present, so a re-derivation done only in Go has no effect while your file
+carries the key — and `{}` means "nobody is in Europe".
+
 | Field | Default | Meaning |
 |---|---|---|
-| `european_campaigns` | 2026/27 contingent | Club → list of windows: `competition`, `start_date`, optional `end_date`, `match_dates`, `note`. **⚠️ Re-derive every season.** The file **replaces** this list when the key is present, so a re-derivation done only in Go has no effect — and `{}` means "nobody is in Europe". |
+| `european_campaigns` | 2026/27 contingent | Club → list of windows: `competition`, `start_date`, optional `end_date`, `match_dates`, `note`. Re-derive every season. |
 | `domestic_cup_campaigns` | 2026/27 League Cup | Same shape, same override rule. European clubs enter round three, everyone else round two. |
 | `status_last_verified` | — | Set automatically when the agent corrects status. Anything over a week old is flagged stale. |
 | `long_haul_regions` | Go: `[]`, **shipped file: Brazil, Argentina** | Nationality codes facing intercontinental travel. `config.Load` has **no backfill** for this field, so whatever `config.json` says wins outright. |
@@ -205,33 +259,66 @@ the *key is present* rather than whether it holds a particular value — an unwr
 | `short_rest_penalty` | `1.00` | Off — under 4 days between league fixtures. |
 | `very_short_rest_penalty` | `1.00` | Off — under 3 days. |
 | `post_break_penalty` | `1.00` | Off — regular international returning from a break. |
-| `long_haul_penalty` | `1.0` | Intercontinental traveller returning from a break. **Unmeasured**, and now neutral. It shipped at 0.86, and the claim that it was "inert unless you set `long_haul_regions`" was false: `config.json` sets that list and `config.Load` has no backfill for it, so the discount was live — and only ever applied to Brazilians and Argentines, though the field describes intercontinental travel generally. |
+| `long_haul_penalty` | `1.0` | Intercontinental traveller returning from a break. **Unmeasured**, and neutral for that reason. Note that `config.json` sets `long_haul_regions` and there is no backfill for it, so a value below 1.0 here becomes live immediately — and applies only to the listed nationalities, though the field describes intercontinental travel generally. |
 
-> **All eight of these now ship at 1.00 — disabled — and are kept as levers rather than active
-> terms, so the block changes no score at all.** Every one of them multiplies a player's
-> *score*, and the honest finding in each case was either that nothing moved at all, or that
-> what moved was his minutes rather than his output per minute. The clearest example: under
-> four days' rest really does cost about 4% of a player's minutes, but the players picked for a
-> midweek round are the ones the manager trusts, so their points per 90 go *up* — charging a
-> score penalty against that is wrong in sign, not merely wrong in size.
+> **All eight of these penalties ship at 1.00 — disabled — and are kept as levers rather than
+> active terms, so the block changes no score at all.** Every one of them multiplies a player's
+> *score*, and the honest finding in each case was one of two things. Five were measured as having
+> no effect on the channel they are applied to — the three European penalties and both short-rest
+> penalties. The other three, covering domestic cups, long-haul travel and the week after an
+> international break, are neutral on the weaker but
+> sufficient argument that an unmeasured multiplier which moves a score is not neutral, and 1.00
+> is. (§5 of [model.md](model.md) reports the post-break week as showing nothing on either channel,
+> which reads as a measurement instead; the shipped value is 1.00 either way, so do not cite that
+> one as measured on the strength of either page.)
+> The clearest measured example: under four days' rest really does cost about 4% of a
+> player's minutes, but the players picked for a midweek round are the ones the manager trusts,
+> so their points per 90 go *up* — charging a score penalty against that is wrong in sign, not
+> merely wrong in size. Setting any of the eight back below 1.0 fails
+> `TestTheShippedCongestionBlockIsInert`, so it has to be deliberate.
 >
-> **Five got there by measurement and three by argument.** Measured as no effect on the channel
-> they are applied to: the three European penalties and both rest penalties. Neutral by the
-> weaker but sufficient argument that an unmeasured multiplier which moves a score is not
-> neutral, and 1.00 is: `domestic_cup_penalty`, `long_haul_penalty` and `post_break_penalty`.
-> Setting any of them back below 1.0 fails `TestTheShippedCongestionBlockIsInert`, so it has to
-> be deliberate.
->
-> ⚠️ **The record is not consistent about which side `post_break_penalty` falls on.**
-> `TestTheShippedCongestionBlockIsInert` counts it among the three argued, while
-> [model.md](model.md) §5 reports that the week after an international break "shows nothing on
-> either channel", which is a measurement. Nothing downstream turns on it — the shipped value is
-> 1.00 either way — but do not cite it as measured on the strength of this page.
->
-> The consequence for maintenance is worth knowing: the four hand-maintained season lists are
-> now **display-only**. They still need refreshing, because the agent reads them and `armband
-> congestion` reports them, but a stale entry can no longer mis-score a player — only
-> mis-inform a human.
+> The consequence for maintenance is worth knowing: the four hand-maintained lists *in this block*
+> — the two campaign maps and the two nationality lists — are **display-only**. They still need
+> refreshing, because the agent reads them and `armband congestion` reports them, but a stale entry
+> can no longer mis-score a player — only mis-inform a human. Counting across the whole config
+> rather than this block, the season lists are the two campaign maps, `new_coach_clubs` and
+> `rest_players`, and there it is three of the four that are display-only: `rest_players` is live.
+
+The two fates of a stale entry, drawn end to end: the lists behind a 1.00 multiplier stop at
+a report, while `rest_players` reaches expected minutes and everything downstream of them.
+Note that `new_coach_clubs` is a `role_risk` field rather than a congestion one; it appears here
+because it is display-only for the same reason, through its own penalty at 1.00.
+
+```mermaid
+flowchart LR
+    subgraph neutral["every multiplier behind these ships at 1.00"]
+        euro["european_campaigns"]
+        cups["domestic_cup_campaigns"]
+        travel["long_haul_regions ·<br/>regular_international_regions"]
+        coach["new_coach_clubs<br/>(new_coach_penalty, also 1.00)"]
+    end
+    human["agent context and the<br/>armband congestion report —<br/>a stale entry mis-informs<br/>a human, never a score"]
+
+    restp["rest_players"]
+    rmf["rest_minutes_factor 0.83,<br/>prorated: 0.93 at GW1,<br/>0.97 at GW2, off from GW3"]
+    mins["expected minutes<br/>per match"]
+    live["score, minutes reliability and the<br/>rotation band all recompute —<br/>a misspelled name silently matches<br/>the wrong player or nobody"]
+
+    euro --> human
+    cups --> human
+    travel --> human
+    coach --> human
+    restp --> rmf --> mins --> live
+
+    classDef io fill:#F4E0E3,stroke:#A8404E,color:#141A21
+    classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
+    classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    class euro,cups,travel,coach,human muted
+    class restp test
+    class rmf,mins pure
+    class live io
+```
 
 International breaks and turnarounds are **derived from the calendar** and need no config.
 Competition participation and nationalities are **not in the API**; the shipped defaults cover
@@ -244,12 +331,15 @@ Run `armband congestion` to see what was derived and what is still missing.
 
 ## `role_risk`
 
+Discounts for players whose role is genuinely uncertain: new signings without minutes at their
+new club, and clubs whose data was earned under a different manager.
+
 | Field | Default | Meaning |
 |---|---|---|
 | `new_signing_penalty` | `0.88` | Joined this summer. A **minutes** discount — see the calibration data in [model.md](model.md#new-signings--calibrated-not-guessed). |
 | `new_signing_gameweeks` | `5` | After this, real minutes at the new club exist. |
 | `confirmed_starters` | Go: `[]`, **shipped file: four names** | Signings you are confident start every week — exempt from the penalty. Empty in the Go defaults on purpose: it is judgement, not fact, so it lives in `config.json` rather than in code. |
-| `new_coach_clubs` | ten 2026/27 clubs | **⚠️ Not in the FPL API.** Clubs that changed manager. Re-derive every season. |
+| `new_coach_clubs` | ten 2026/27 clubs | Not in the FPL API — clubs that changed manager. Re-derive every season. |
 | `new_coach_penalty` | `1.00` | **Off** — see below. |
 | `new_coach_gameweeks` | `6` | How long the penalty would apply for, if enabled. |
 
@@ -285,8 +375,7 @@ Tottenham's vacant number 5).
 Two heavily-owned signings are pointedly **left on** the penalty. Martin Dubravka wears 39 at
 Spurs and the reporting has De Zerbi committing to Kinsky in goal; Harry Wilson was benched
 for Leeds' first friendly. Both are deliberate, and both want re-checking once real minutes
-exist — the queue that carried that reminder is no longer in this repository, so this paragraph
-is the reminder.
+exist — this paragraph is the reminder.
 
 ## `chip_plan`
 
@@ -295,7 +384,7 @@ Zero means unplanned. See [workflow.md](workflow.md#chip-strategy).
 | Field | Meaning |
 |---|---|
 | `wildcard_gameweek` | Shortens the optimiser horizon to **the gameweeks between now and it** — the upcoming gameweek through N−1, not GW1 through N−1. There is no value optimising for fixtures the squad will never serve. |
-| `free_hit_gameweek` | **No horizon effect.** The chip fields a separate temporary fifteen and hands the permanent squad back at GW N+1, so the squad still has to serve the full horizon. What it does is remove that gameweek from scoring entirely, because the permanent squad should not be judged on a week it did not play. ⚠️ This said "the same horizon effect" as a wildcard until 2026-08-13; truncating there double-counted the chip, since `ApplyFreeHitToScoring` already drops the week. |
+| `free_hit_gameweek` | **No horizon effect.** The chip fields a separate temporary fifteen and hands the permanent squad back at GW N+1, so the squad still has to serve the full horizon. What the plan does is remove that gameweek from scoring entirely — `ApplyFreeHitToScoring` drops the week, because the permanent squad should not be judged on a week it did not play. Truncating the horizon as well would count the chip twice. |
 | `bench_boost_gameweek` | Raises bench weight when inside the horizon, so the optimiser buys fifteen playable footballers. |
 | `triple_captain_gameweek` | Planning only; no squad-construction effect. |
 
@@ -363,6 +452,32 @@ Four properties are load-bearing, and each fixes a bug this project actually shi
   moment of the injury and is wrong in both directions; the expensive one is a player returning
   early, because the exclusion holds, he is never considered, and the squad simply never
   contains him.
+
+Put together, the block is a loop rather than a ledger — a fact enters once, binds both
+solvers on every later run, and keeps being surfaced until you retire it.
+
+```mermaid
+flowchart TB
+    est["a review establishes a fact:<br/>a defender is out until November"]
+    write["the agent writes it into roster,<br/>keyed on permanent player_code"]
+    solvers["both solvers obey it —<br/>the squad builder and<br/>the transfer search"]
+    rereport["an override with no until_gameweek<br/>is re-reported every run,<br/>last_checked tracked beside set_on"]
+    owner["you review it, and retire it<br/>when the situation has passed"]
+    percall["per-call lock_players and<br/>exclude_players add to the<br/>standing set, never replace it"]
+
+    est --> write --> solvers --> rereport --> owner
+    owner -.->|"left standing, it binds<br/>next week's run too"| solvers
+    percall -.-> solvers
+
+    classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef llm fill:#DFEDE6,stroke:#2F7A57,color:#141A21
+    classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
+    classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    class est,percall muted
+    class write,solvers pure
+    class rereport test
+    class owner llm
+```
 
 **Correct the numbers, do not override the decision.** `minutes` supplies a fact the model
 lacks; `lock` and `exclude` assert a conclusion the optimiser cannot decline. The worked case is

@@ -43,6 +43,11 @@ func TestMermaidBlocksAreWellFormed(t *testing.T) {
 
 	var files []string
 	files = append(files, filepath.Join(root, "AGENTS.md"))
+	// The root README carries diagrams too, and did not until the documentation was
+	// rewritten — at which point it gained three while this guard was still reading
+	// only AGENTS.md, docs/ and stats/. A diagram nobody checks is the same silence
+	// the deleted notes glob is a monument to, so the surface grows with the content.
+	files = append(files, filepath.Join(root, "README.md"))
 	// The notes glob that used to sit here was deleted with its directory, for the
 	// reason written out at length in retracted_test.go: a glob left pointing at a
 	// missing directory returns zero matches AND no error, which is silence wearing

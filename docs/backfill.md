@@ -21,8 +21,8 @@ needs. `internal/capture` was built to record this going forward and admits in i
 opening comment that it "yields nothing this season". This backfill recovers the same
 quantity for six finished seasons.
 
-**Four questions the research record marks as unanswerable are blocked on this data**,
-and they are listed in `internal/capture`'s doc comment: whether a published "75%
+**Four questions are blocked on this data**, and `internal/capture`'s doc comment
+lists them: whether a published "75%
 chance of playing" really corresponds to about 75% of a fit player's minutes; the
 injuries that *resolve*; the availability trajectory; and penalty duty changing
 mid-season.
@@ -55,6 +55,30 @@ deadline as team sheets land. So a crawl forty minutes late is both the nearest 
 and a strictly better forecast of that gameweek than anything a manager could have
 had. Figures built on it would be excellent, plausible, and measuring hindsight.
 
+On a timeline the trap is plain: the nearest crawl and the honest crawl sit on opposite
+sides of the deadline, and the contaminated one is closer.
+
+```mermaid
+flowchart LR
+    early["an earlier crawl —<br/>honest, just staler"]
+    take["the last crawl STRICTLY BEFORE —<br/>the one to take. Median gap in<br/>the recovered store: 6.5 h"]
+    dline["deadline"]
+    after["a crawl 40 minutes AFTER —<br/>the nearest of all, and team sheets<br/>are landing: a better forecast than<br/>any manager could have had"]
+    verdict["figures built on it would be<br/>excellent, plausible,<br/>and measuring hindsight"]
+
+    early --> take --> dline --> after
+    after -.-> verdict
+
+    classDef io fill:#F4E0E3,stroke:#A8404E,color:#141A21
+    classDef llm fill:#DFEDE6,stroke:#2F7A57,color:#141A21
+    classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
+    classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    class early muted
+    class take llm
+    class dline test
+    class after,verdict io
+```
+
 Two mechanisms enforce it, and they are deliberately independent.
 
 **`SelectPreDeadline`** takes the latest crawl with `crawl < deadline`, strictly. It
@@ -73,11 +97,43 @@ clock, which is the single external number the whole argument rests on. A body s
 after a deadline contradicts itself three ways, and none of them needs us to be right
 about what time it was.
 
+Belt and braces, drawn out: the first mechanism trusts one external number, and the second
+exists to distrust it.
+
+```mermaid
+flowchart TB
+    cdx["the Internet Archive's crawler clock —<br/>the single external number<br/>the whole argument rests on"]
+    sel["SelectPreDeadline:<br/>latest crawl strictly earlier than the<br/>deadline. Nothing qualifies? It returns<br/>nothing rather than reaching forward,<br/>and the caller reports a gap"]
+    ver["capture.VerifyPreDeadline:<br/>the payload proves its own timing,<br/>using no external clock"]
+    c1["its own deadline_time<br/>is after the crawl"]
+    c2["the gameweek is not<br/>already finished"]
+    c3["FPL's is_next has not<br/>advanced past it"]
+    ok["Backfilled.Write stores the body"]
+    gap["refused — a body served after a<br/>deadline contradicts itself, so the<br/>leak becomes visible missing data"]
+
+    cdx --> sel --> ver
+    ver --- c1
+    ver --- c2
+    ver --- c3
+    ver -->|"all three hold"| ok
+    ver -->|"any one fails"| gap
+
+    classDef io fill:#F4E0E3,stroke:#A8404E,color:#141A21
+    classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef llm fill:#DFEDE6,stroke:#2F7A57,color:#141A21
+    classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
+    classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    class cdx io
+    class sel,ver pure
+    class c1,c2,c3 muted
+    class ok llm
+    class gap test
+```
+
 ## What went wrong the first time: FPL's calendar moves within a season
 
-The obvious design — and the one this task was specified with — reads all 38 deadlines
-out of a single mid-season crawl, because FPL publishes the whole calendar in every
-payload. **That is unsafe, and the cross-check against the season archive caught it.**
+The obvious design reads all 38 deadlines out of a single mid-season crawl, because
+FPL publishes the whole calendar in every payload. **That is unsafe, and the cross-check against the season archive caught it.**
 
 Measured on 2020-21, against the crawl of 26 January 2021:
 
@@ -113,6 +169,32 @@ deadline of 19 February 18:30, `is_current` on GW25 and `is_next` on GW26. The r
 comes from the deadline and `is_next` tests — `is_current` is not one of the three
 things the check reads.)
 
+Laid on the clock, the GW25 failure is the whole argument in one picture: a played match
+and a contaminated crawl both sit between the true deadline and the provisional one.
+
+```mermaid
+flowchart LR
+    true1["19 Feb 18:30 —<br/>the TRUE deadline. The kickoff<br/>moved earlier, and the deadline<br/>moved with it"]
+    fri["Friday night's match<br/>is played"]
+    crawlx["crawl of 20 Feb 10:46 —<br/>sixteen hours after<br/>the real deadline"]
+    prov["20 Feb 11:00 —<br/>GW25's deadline as published<br/>in January: provisional"]
+    refuse["VerifyPreDeadline refuses it —<br/>the crawl itself reports the corrected<br/>deadline and is_next on GW26 —<br/>so the leak becomes a gap<br/>for the resolver to recover"]
+
+    true1 --> fri --> crawlx --> prov
+    prov -.->|"the naive rule selects the last<br/>crawl before the January figure"| crawlx
+    crawlx --> refuse
+
+    classDef io fill:#F4E0E3,stroke:#A8404E,color:#141A21
+    classDef llm fill:#DFEDE6,stroke:#2F7A57,color:#141A21
+    classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
+    classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    class true1 llm
+    class fri muted
+    class crawlx io
+    class prov test
+    class refuse llm
+```
+
 **`resolve` therefore treats the deadline as an estimate to be tightened**, not a
 fact:
 
@@ -147,8 +229,9 @@ failing.
 FPL's published rule, recovered from data**, over 227 compared gameweeks. (227 and not
 228: 2022-23's GW7 was cancelled outright after the Queen's death, and the archive
 carries no fixture for it.) Provisional drift and rescheduling move only the tails; a
-wrong season moves the median by a week or more. An earlier version failed the season
-on any individual inversion, which would have rejected every real season.
+wrong season moves the median by a week or more. That is why the check judges the
+median rather than failing on any individual inversion — a per-inversion rule would
+reject every real season.
 
 ## What was actually recovered
 
@@ -229,8 +312,7 @@ It is the **only** coverage-table builder: `capture.Store` briefly had its own, 
 two fewer columns, and the offline `-coverage` report used the poorer one — so the
 staleness column that is the whole point of the table printed "—" in the mode people
 actually run. One quantity with two implementations, where the one you read knows
-less, is this project's signature defect and it took about an hour to reappear inside
-a change whose own documentation warns about it.
+less, is this project's signature defect.
 
 ## Commands
 
@@ -270,9 +352,9 @@ byte `0x8b`.
 ## What this deliberately does not do
 
 **It does not touch the replay's scoring path and it does not change `statusAt`.**
-Every measured figure in the research record was produced with the reconstruction as
-it stands. Switching the input underneath them would make the record incomparable with
-itself while looking like nothing had happened. Delivering the data and proving it
+Every measured figure this project quotes was produced with the reconstruction as it
+stands. Switching the input underneath them would make those figures incomparable with
+each other while looking like nothing had happened. Delivering the data and proving it
 honest is one job; using it is the next one, with its own measurement pass.
 
 **It re-derives no constant.** Not `BlendMinutesK`, not `availabilityFactor`, not
