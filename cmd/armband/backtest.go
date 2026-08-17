@@ -127,7 +127,7 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		// fixture-load term reachable: a club playing twice this week is worth
 		// roughly twice as much, and a horizon average dilutes that to nothing.
 		// Worth +33 points a season at t = +5.74 with squad selection
-		// unchanged — see analysis.fixturesPerGameweek.
+		// unchanged — see analysis.fixtureLoadFor.
 		WeeklyXI: true,
 		// The two transfer-policy switches a user can actually set, carried onto
 		// the replay so `armband backtest` scores the policy the config describes.

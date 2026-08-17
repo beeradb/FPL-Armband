@@ -179,7 +179,7 @@ func statusAt(p *Player, gw int, cutoff time.Time, o Oracles) string {
 			// A blank gameweek is left alone. His club not playing is on the
 			// published calendar, so treating it as team news would credit
 			// hindsight with a fact the model already has — and the model prices
-			// the blank through fixturesPerGameweek, not through Status.
+			// the blank through fixtureLoadFor, not through Status.
 			if g, ok := p.GWs[gw]; ok {
 				if g.Minutes > 0 {
 					return "a"
@@ -2688,12 +2688,27 @@ func playWildcard(e *analysis.Engine, cur *Season, w *wallet, held []int, gw int
 // describing the squad the manager still owns.
 //
 // The caller supplies a one-gameweek engine; see the call site for why.
+//
+// # Clubs that do not play are excluded, and that is a selection guard
+//
+// The chip is spent on a blank round — 2023-24 GW29 blanked twelve clubs of
+// twenty — so "who plays at all" is most of the problem. Scoring alone does not
+// answer it. `fixtureLoadFor` now takes a blanking club's Score to zero, which
+// keeps its players out of the ELEVEN, but the builder still has four bench
+// slots to fill and is indifferent between two footballers worth nothing, so it
+// takes whoever is cheapest. Pre-fix, with the load blind to blanks entirely,
+// that GW29 build held thirteen blanking players and would have fielded TWO.
+//
+// So the guard has to reach the pool, not just the objective. This is the same
+// shape as the one in `WeekViews`, which zeroes a blanking player's score *after*
+// calling Optimize — correct for the display and too late for the selection.
 func freeHitSquad(e *analysis.Engine, cur *Season, w *wallet, held []int, gw int,
 	minExp float64, cfg SimConfig) ([]int, error) {
 
 	sq, err := e.Optimize(analysis.OptimizeRequest{
 		Budget: w.value(cur, held, gw-1), MinMinutes: 600,
 		MinExpectedMinutes: minExp, BenchWeight: cfg.openingBenchWeight(),
+		ExcludeIDs: e.ElementsWithoutFixtures(),
 	})
 	if err != nil {
 		return nil, err

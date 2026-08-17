@@ -786,8 +786,8 @@ type FixtureBrief struct {
 	Difficulty int  `json:"difficulty"`
 }
 
-// fixturesPerGameweek is how many matches a club plays per gameweek over the
-// horizon — 1.0 normally, up to 2.0 in a double, below 1.0 when it blanks.
+// fixtureLoadFor is how many matches a club plays per gameweek over the next
+// `horizon` gameweeks — 1.0 normally, up to 2.0 in a double, and 0 in a blank.
 //
 // # The assumption this removes
 //
@@ -842,64 +842,143 @@ type FixtureBrief struct {
 // One caveat on the size: the replay's fixture list is final, so it knows about
 // doubles from GW1, where FPL announces them only as cup rounds resolve. The
 // direction and the placement are safe; treat +33 as an optimistic figure.
-// fixtureLoadFor is matches per gameweek over the next `horizon` *gameweeks*.
 //
-// Counting by gameweek window rather than by fixture list is what makes this
-// usable at horizon 1. TeamFixtures returns the next N *fixtures*, so asking it
-// for one fixture in a double gameweek returns one of the two and the double
-// vanishes — the very case the term exists for. Here the window is defined in
-// gameweeks and every fixture inside it is counted, so a double reads as 2.0 at
-// horizon 1 and is diluted correctly over a longer horizon.
+// # The window is the CALENDAR's next gameweeks, not the club's next fixtures
+//
+// This shipped for two seasons anchored on `all[0].Event` — the club's next
+// fixture — and that is the one anchor that cannot express a blank. If the club
+// does not play the imminent gameweek, its first remaining fixture is a week
+// later and the window slides forward with it, so the blank simply disappears.
+// At horizon 1 the window was `[first, first]`, which contains a fixture by
+// construction, so the load was **>= 1 always** and the "playing not at all"
+// half of the comment above described a case that had never once executed.
+//
+// Measured against the archive's true fixture count over every club-gameweek in
+// the six-season grid, the old anchor missed **170 blanks** —
+// 44/61/22/23/10/10 from 2020-21 to 2025-26 — and **zero doubles**, in 4,540
+// comparisons. So the +33 above is a pure doubles result and this fix is not
+// covered by it. `TestDiagFixtureLoadMatchesTheArchive` is that comparison.
+//
+// The anchor is therefore `upcomingGWs` — the rounds the fixture list says are
+// still to be played — minus the skip set, so a window of N means N gameweeks
+// this engine actually scores. Honouring the skip set is what makes the term
+// correct inside `WeekViews`: `engineAt` isolates one gameweek by skipping every
+// round before it, and reading `byTeamUpcoming` raw ignored that, so a club with
+// an imminent double had every player's score doubled in every projected week.
+//
+// The denominator is the number of gameweeks the window actually found, which
+// matters only at the end of a season: with two rounds left and a horizon of 5,
+// a club playing both reads 1.0 rather than 0.4. At horizon 1 — the shipped
+// scoring path — it is always 1.
 func (e *Engine) fixtureLoadFor(teamID, horizon int) float64 {
+	all := e.byTeamUpcoming[teamID]
+	if len(all) == 0 {
+		// No remaining fixtures at all is *unknown*, not a blank, and the two
+		// are different facts. Leave the score alone rather than zeroing it.
+		return 1
+	}
+	skip := e.skipSet()
+	first, last, weeks := e.loadWindow(horizon, skip)
+	if weeks == 0 {
+		return 1
+	}
+	n := 0
+	for _, f := range all {
+		if f.Event > last {
+			// buildFixtureIndex appends in gameweek order.
+			break
+		}
+		if f.Event < first || skip[f.Event] {
+			continue
+		}
+		n++
+	}
+	return float64(n) / float64(weeks)
+}
+
+// loadWindow is the span of gameweeks a load is averaged over: the next
+// `horizon` rounds still to be played that this engine is not skipping.
+//
+// It returns the bounds rather than the set, which is what lets the callers scan
+// a club's fixtures once. Every gameweek strictly inside `[first, last]` is
+// either in the window or in the skip set, so a bounds check plus a skip lookup
+// decides membership exactly.
+//
+// `weeks` is 0 when the season has no rounds left, which callers read as
+// "unknown" for the same reason an empty fixture list is.
+func (e *Engine) loadWindow(horizon int, skip map[int]bool) (first, last, weeks int) {
 	if horizon < 1 {
 		horizon = 1
 	}
-	all := e.byTeamUpcoming[teamID]
-	if len(all) == 0 {
-		return 1
-	}
-	first := all[0].Event
-	last := first + horizon - 1
-	n := 0
-	for _, f := range all {
-		if f.Event >= first && f.Event <= last {
-			n++
+	for _, gw := range e.upcomingGWs {
+		if skip[gw] {
+			continue
+		}
+		if weeks == 0 {
+			first = gw
+		}
+		last, weeks = gw, weeks+1
+		if weeks == horizon {
+			break
 		}
 	}
-	if n == 0 {
-		return 1
-	}
-	return float64(n) / float64(horizon)
+	return first, last, weeks
 }
 
-func (e *Engine) fixturesPerGameweek(fx []FixtureBrief) float64 {
-	if len(fx) == 0 {
-		return 1
+// skipSet reads the gameweeks this engine does not score.
+//
+// One accessor rather than an inline lock at each reader: the map is replaced
+// wholesale by SetSkipGameweeks, so a caller that took two separate reads could
+// see two different sets inside one calculation.
+func (e *Engine) skipSet() map[int]bool {
+	e.skipMu.RLock()
+	defer e.skipMu.RUnlock()
+	return e.skipGameweeks
+}
+
+// ElementsWithoutFixtures lists the element ids whose club plays no match in any
+// gameweek this engine scores.
+//
+// It exists for the free hit, and for selection rather than for scoring. Zeroing
+// a blanking player's Score keeps him out of the ELEVEN, because `BestXI` ranks
+// on the score — but a squad builder still has four bench slots to fill and is
+// indifferent between two players worth nothing, so it fills them with whoever
+// is cheapest, blank or not. A free hit exists to field fifteen playable
+// footballers in a week most clubs do not play; a bench that cannot come on is
+// exactly the cover it was spent to buy.
+//
+// A club with no remaining fixtures at all is *absent* from the index and is not
+// listed here, matching FixtureCountsIn: "does not play" and "unknown" are
+// different facts and only the first is a blank.
+func (e *Engine) ElementsWithoutFixtures() []int {
+	skip := e.skipSet()
+	first, last, weeks := e.loadWindow(e.Weights.Horizon, skip)
+	if weeks == 0 {
+		return nil
 	}
-	// The denominator is the *span* of gameweeks covered, not the count of
-	// distinct ones. Counting distinct gameweeks catches doubles and misses
-	// blanks entirely: TeamFixtures returns the next N fixtures, so a club that
-	// blanks simply reaches one week further ahead and still produces N
-	// fixtures in N distinct gameweeks, reading as a perfectly normal 1.0.
-	// Spanning from the first to the last shows the empty week for what it is.
-	lo, hi := fx[0].Event, fx[0].Event
-	for _, f := range fx {
-		if f.Event < lo {
-			lo = f.Event
+	blank := map[int]bool{}
+	for teamID, fx := range e.byTeamUpcoming {
+		plays := false
+		for _, f := range fx {
+			if f.Event >= first && f.Event <= last && !skip[f.Event] {
+				plays = true
+				break
+			}
 		}
-		if f.Event > hi {
-			hi = f.Event
+		if !plays {
+			blank[teamID] = true
 		}
 	}
-	span := hi - lo + 1
-	if span < 1 {
-		return 1
+	if len(blank) == 0 {
+		return nil
 	}
-	load := float64(len(fx)) / float64(span)
-	if load < 0 {
-		return 0
+	var out []int
+	for i := range e.Boot.Elements {
+		if blank[e.Boot.Elements[i].Team] {
+			out = append(out, e.Boot.Elements[i].ID)
+		}
 	}
-	return load
+	return out
 }
 
 // FixtureLoadIsNotable reports whether a fixture load is far enough from one match
@@ -911,6 +990,21 @@ func (e *Engine) fixturesPerGameweek(fx []FixtureBrief) float64 {
 // spellings of one threshold is the shape this project has been bitten by twice
 // (DefaultBenchWeight against Weights.BenchWeight, fixtureSensitivePart against
 // baseXP90). Rounded to two places, which is the precision either one displays.
+//
+// ⚠️ **A load of exactly 0 reads as "unset" here and is therefore NOT reported.**
+// That was safe while `fixtureLoadFor` could not return 0; it can now, and a
+// blanking club at a horizon of 1 is exactly 0. `PlayerMetrics.FixtureLoad`'s own
+// zero value is 0 too, so the two cannot be told apart on the number alone, and
+// the same conflation sits in `playerRow.Load` (`omitempty`), `noteFixtureLoad`
+// (`r.Load != 0`) and `present.corrections` (`!= 0 && != 1`) — four spellings of
+// one assumption. Separating them means a pointer or a second field through three
+// packages, so it is recorded rather than done.
+//
+// The exposure today is narrow and is not nothing. The card page and the agent
+// both run at the shipped horizon of 5, where a blank reads 0.8 and is reported
+// normally. It goes silent only at a configured horizon of 1 — and in `WeekViews`,
+// which is horizon 1 by construction but names its blanks through `Blanks` and
+// `Opponents` instead, so nothing there is lost.
 func FixtureLoadIsNotable(load float64) bool {
 	return load > 0 && math.Abs(math.Round(load*100)/100-1) > 1e-9
 }
@@ -1069,6 +1163,16 @@ type Engine struct {
 	skipGameweeks map[int]bool
 
 	byTeamUpcoming map[int][]FixtureBrief
+
+	// upcomingGWs is every gameweek byTeamUpcoming holds a fixture in, ascending
+	// and distinct. It is the calendar fixtureLoadFor averages over, and it is
+	// read off the fixture list rather than counted forward from the next event
+	// so that a cancelled or wholly rearranged round does not dilute every week
+	// after it — the same argument upcomingEvents makes for the week views.
+	//
+	// Built once by buildFixtureIndex and read-only thereafter, so it needs no
+	// lock. The skip set, which is mutable, is applied on top at read time.
+	upcomingGWs []int
 
 	// congMu guards Cong and congestion. update_competition_status rewrites them
 	// mid-run while other tools are scoring players off them, and the tool runner
@@ -1333,9 +1437,20 @@ func (e *Engine) scaleFor(pos int) ConversionScale {
 	return ConversionScale{Goals: 1, Assists: 1}
 }
 
-// buildFixtureIndex collects each team's next Horizon unfinished fixtures.
+// buildFixtureIndex collects every unfinished fixture from the next event
+// onward, per club and in gameweek order, plus the distinct gameweeks they fall
+// in. It is not bounded by the horizon, whatever this comment said before:
+// `TeamFixtures` and `fixtureLoadFor` both window it themselves, and
+// `FixtureCountsIn` and the agent's ten-fixture view need it to reach further
+// than either.
+//
+// The gameweek order is load-bearing rather than incidental — `fixtureLoadFor`
+// stops scanning a club's list once it passes the end of its window.
 func (e *Engine) buildFixtureIndex() {
 	e.byTeamUpcoming = map[int][]FixtureBrief{}
+	// Rebuilt, not appended to: ApplyChipPlan calls this a second time when a
+	// planned wildcard shortens the horizon.
+	e.upcomingGWs = nil
 
 	next := e.Boot.NextEvent()
 	fromEvent := 1
@@ -1373,6 +1488,9 @@ func (e *Engine) buildFixtureIndex() {
 			Event: *f.Event, Opponent: home.ShortName, OpponentID: f.TeamH,
 			Home: false, Difficulty: f.TeamADifficulty,
 		})
+		if n := len(e.upcomingGWs); n == 0 || e.upcomingGWs[n-1] != *f.Event {
+			e.upcomingGWs = append(e.upcomingGWs, *f.Event)
+		}
 	}
 }
 
@@ -1416,10 +1534,7 @@ func (e *Engine) FixtureCountsIn(gw int) map[string]float64 {
 // around a free hit.
 func (e *Engine) TeamFixtures(teamID, n int) []FixtureBrief {
 	all := e.byTeamUpcoming[teamID]
-
-	e.skipMu.RLock()
-	skip := e.skipGameweeks
-	e.skipMu.RUnlock()
+	skip := e.skipSet()
 
 	if len(skip) == 0 {
 		if n > len(all) {
@@ -1662,6 +1777,21 @@ func (e *Engine) Metrics(el *fpl.Element) PlayerMetrics {
 	m.BaseXP90 = e.baseXP90(el, m)
 	m.SetPieceXP90 = e.setPieceXP90(el, m)
 
+	// ⚠️ At a horizon of 1 in a DOUBLE gameweek this is one leg of the two.
+	// `TeamFixtures` counts fixtures, `fixtureLoadFor` counts gameweeks, so the
+	// second leg arrives as a multiplier: the week is priced `2·f(d1)` rather
+	// than `f(d1)+f(d2)`, charging both matches at the first one's difficulty.
+	// The gap is bounded by the spread of the fixture ladders — `attackMultiplier`
+	// runs 1.30 to 0.72 and `defenceMultiplier` 0.70 to 1.40 — so at most about a
+	// quarter of the fixture-sensitive part of one match, and exactly zero when
+	// the two legs share a difficulty, which is the common case.
+	//
+	// `m.Fixtures` reports the same single leg to the agent and the CLI, so a
+	// double gameweek shows one opponent where a manager would expect two.
+	//
+	// Known and unfixed, recorded rather than silently carried. It is a
+	// *magnitude* error inside a week the model already knows is a double, not
+	// the blank-shaped one `fixtureLoadFor` documents.
 	fx := e.TeamFixtures(el.Team, e.Weights.Horizon)
 	m.Fixtures = fx
 	m.AvgDifficulty = averageDifficulty(fx)
@@ -1722,7 +1852,7 @@ func (e *Engine) Metrics(el *fpl.Element) PlayerMetrics {
 	// A gameweek is not a match. Everything above is a per-gameweek expectation
 	// built from per-90 rates, and it silently assumes one fixture a week — so a
 	// club playing twice scored identically to one playing once, and a club
-	// playing not at all scored as though it had. See fixturesPerGameweek.
+	// playing not at all scored as though it had. See fixtureLoadFor.
 	m.FixtureLoad = e.fixtureLoadFor(el.Team, e.Weights.Horizon)
 	if e.FixtureLoadInScore() {
 		m.Score *= m.FixtureLoad

@@ -160,11 +160,23 @@ func (e *Engine) WeekViews(squad []PlayerMetrics, n int) []WeekView {
 		weekSquad, chip, rebuilt := squad, e.chipAt(gw), false
 		if chip == "Wildcard" || chip == "Free Hit" {
 			if budget, _, err := e.AssemblyBudget(); err == nil {
-				if built, err := wk.Optimize(OptimizeRequest{
+				req := OptimizeRequest{
 					Budget:             budget,
 					MinMinutes:         600,
 					MinExpectedMinutes: 55,
-				}); err == nil && built != nil {
+				}
+				// A free hit fields its fifteen for this one round and hands the
+				// permanent squad back, so a player whose club does not play is
+				// not merely a poor pick — he cannot appear at all, on the bench
+				// included. The blank guard below zeroes his score, which keeps
+				// him out of the eleven and arrives after Optimize has already
+				// chosen the fifteen; excluding him here is the same guard
+				// reaching the selection. A wildcard is deliberately left alone:
+				// that fifteen is kept, so one blank week must not pick it.
+				if chip == "Free Hit" {
+					req.ExcludeIDs = wk.ElementsWithoutFixtures()
+				}
+				if built, err := wk.Optimize(req); err == nil && built != nil {
 					weekSquad, rebuilt = built.Players, true
 				}
 			}
