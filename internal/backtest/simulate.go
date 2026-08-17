@@ -2403,6 +2403,17 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 	horizon, freeCost float64, cfg SimConfig, sell map[int]int) (bank_ bool, weighed bool) {
 
+	// ⚠️ **`freeCost` here is the NOW-arm's charge, and the later arm is priced at
+	// the same one.** With `TaperFreeTransferValue` on, next week's charge would be
+	// a shade lower — one gameweek less window, and a different congestion window —
+	// so the later arm is charged slightly too much and the comparison leans
+	// marginally toward acting. The size is one week of a decay whose half-life is
+	// eight, so under 2% of the charge; correcting it would mean re-deriving the
+	// factor at `gw+1`, which is cheap, and is left undone deliberately because
+	// **both arms already price on today's board** and adding one forward-looking
+	// term to a comparison that is otherwise entirely today's would make the
+	// approximation harder to state rather than smaller. Named rather than fixed,
+	// so nobody reads the asymmetry as an oversight.
 	if guard := analysis.BankGuardFor(free, cfg.BankUpTo, horizon); guard != analysis.BankGuardNone {
 		if cfg.bankLog != nil {
 			cfg.bankLog(bankProbe{GW: gw, Guard: guard, Free: free,
