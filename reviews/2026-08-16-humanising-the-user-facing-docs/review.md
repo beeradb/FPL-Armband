@@ -6,6 +6,14 @@ A rewrite of every user-facing document in the repository, from `c104c3d` (the p
 `FPL Armband v1` tip) to the staged tree: the root `README.md`, all eight files under `docs/`, one
 line of `AGENTS.md`, and one line of `internal/snapshot/mermaid_test.go`.
 
+**This record was re-keyed once, and the reason is not a rebase.** Public `main` moved to `852bf77`
+while the branch was in review, so it was merged in and the gate re-run, per the merge gate's
+condition 7. That commit removes a branch-name row from two banked snapshots under `stats/`, which
+is a review-watched tree, so the watched digest moved for reasons that have nothing to do with this
+change. It touches no file this rewrite touches and the merge was clean. The re-key covers the
+merged content; the review below is unchanged by it, and nothing in `852bf77` was reviewed here —
+it arrived already on `main`.
+
 The brief was tone and currency, not substance. The documentation had accumulated **91 warning
 symbols and 42 dated lines** — retractions of figures, corrections of what a previous version of the
 document had claimed, and provenance bookkeeping about deleted snapshot directories. Several
