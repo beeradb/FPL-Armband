@@ -52,8 +52,12 @@ season     entry  weeks |  ctl gw ctl pts |  arm gw arm pts |     diff
 2025-26       21     18 |      27       3 |      22      20 |       17
 2025-26       26     13 |      32       3 |      36      17 |       14
 
-LIVENESS — cells whose bench-boost gameweek differs from the control: 36 of 36
+LIVENESS — cells arm 2 placed a bench boost in: 36 of 36
+LIVENESS — of those, cells whose gameweek differs from the control: 36 of 36
 distinct weeks arm 2 chose: 17
+
+TIMING — mean gameweek played: control 19.50, arm 2 27.75 (gap +8.25)
+A large gap means PLACEMENT and LATENESS are not separated by this arm.
 
 --- inference. All figures POINTS PER SEASON-PATH.
 mean difference over 36 cells: +16.139

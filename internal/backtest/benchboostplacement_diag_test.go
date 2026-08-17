@@ -78,6 +78,7 @@ package backtest
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"testing"
@@ -119,18 +120,21 @@ func benchBoostControlPlan(cur *Season, start int) analysis.ChipPlan {
 // so the console output is self-contained rather than only reconstructible from
 // the CSV.
 type bbArm struct {
-	squad           string
-	moves, hits     int
-	points          int
-	gains           []int // Week.BenchBoostGain, one per played gameweek, in order
-	playedGW        int   // the gameweek a chip was actually scored in, 0 for none
-	playedPts       int   // that week's gain, 0 when none was played
-	oracleGW        int   // the argmax week, only when AxisChipWeek granted one
-	oraclePts       int
-	hasOracle       bool
-	med             ChipTriggerMediator
-	weeks           int
-	firstGW, lastGW int
+	squad       string
+	moves, hits int
+	points      int
+	gains       []int // Week.BenchBoostGain, one per played gameweek, in order
+	playedGW    int   // the gameweek a chip was actually scored in, 0 for none
+	playedPts   int   // that week's gain, 0 when none was played
+	oracleGW    int   // the argmax week, only when AxisChipWeek granted one
+	oraclePts   int
+	hasOracle   bool
+	med         ChipTriggerMediator
+	weeks       int
+	// firstGW is the cell's entry gameweek as the simulation saw it. Read to count
+	// oracle picks that land on it, which `gw > start` forbids the state rule and
+	// the control's offset cannot reach.
+	firstGW int
 }
 
 // bbCollector accumulates one bbArm per (arm, cell).
@@ -170,7 +174,6 @@ func (c *bbCollector) observe(i int, name string) func(seasonPair, int, *SimResu
 		}
 		if len(res.Weeks) > 0 {
 			a.firstGW = res.Weeks[0].GW
-			a.lastGW = res.Weeks[len(res.Weeks)-1].GW
 		}
 		// The banked columns' own derivation, never a second argmax here: a
 		// diagnostic must not carry its own copy of the thing it is checking.
@@ -200,14 +203,28 @@ func (c *bbCollector) keys() []string {
 // verifyPathInvariance is the premise the whole design rests on, executed rather
 // than assumed. Arm 0 must be the no-chip baseline.
 //
-// It returns the number of cells checked, so a silent zero — every cell infeasible
-// in one arm, say — cannot read as a clean pass.
-func verifyPathInvariance(t *testing.T, c *bbCollector) int {
+// It returns the number of arm-cells checked and the number whose identity was
+// NON-VACUOUS — a cell where the arm played no chip has `0 == 0` on both sides, so
+// it passes without testing anything. Reporting only the first would be the
+// confinement-without-liveness failure this project has a standing rule about, and
+// it is not hypothetical here: for the chip-week oracle arm the identity is
+// vacuous in **every** cell, because `AxisChipWeek` plays no chip at all.
+//
+// A silent zero — every cell infeasible in one arm — cannot read as a clean pass,
+// and neither can a cell the baseline arm is missing: that is counted separately
+// and is an error rather than a skip, because the report tables below require only
+// arms 1 and 2 and would otherwise carry a difference nothing checked.
+func verifyPathInvariance(t *testing.T, c *bbCollector) (checked, withContent int) {
 	t.Helper()
-	checked := 0
+	noBase := 0
 	for _, key := range c.keys() {
 		base := c.byArm[0][key]
 		if base == nil {
+			for i := 1; i < len(c.byArm); i++ {
+				if c.byArm[i][key] != nil {
+					noBase++
+				}
+			}
 			continue
 		}
 		if base.playedGW != 0 {
@@ -257,13 +274,21 @@ func verifyPathInvariance(t *testing.T, c *bbCollector) int {
 					"the arm changed a week it did not play a chip in",
 					key, i, c.arms[i], got, want)
 			}
+			if a.playedGW != 0 {
+				withContent++
+			}
 		}
 	}
 	if checked == 0 {
 		t.Error("path invariance was checked on ZERO cells, which passes every " +
 			"assertion above and proves nothing")
 	}
-	return checked
+	if noBase > 0 {
+		t.Errorf("%d arm-cell(s) had no baseline arm, so their difference is reported "+
+			"below with nothing having checked it. The report tables require only arms "+
+			"1 and 2; the invariance requires arm 0", noBase)
+	}
+	return checked, withContent
 }
 
 func TestDiagBenchBoostPlacement(t *testing.T) {
@@ -337,10 +362,13 @@ func TestDiagBenchBoostPlacement(t *testing.T) {
 
 		runPolicySweep(t, []policyVariant{b, ctl, oracle}, starts)
 
-		n := verifyPathInvariance(t, c)
-		fmt.Printf("\npath invariance checked on %d arm-cells: squad/moves/hits, the\n", n)
-		fmt.Printf("whole per-week gain vector, and the exact integer identity\n")
+		n, live := verifyPathInvariance(t, c)
+		fmt.Printf("\nCONFINEMENT checked on %d arm-cells: squad/moves/hits, the whole\n", n)
+		fmt.Printf("per-week gain vector, and the exact integer identity\n")
 		fmt.Printf("policy_points(arm) - policy_points(baseline) == bench_boost_pts.\n")
+		fmt.Printf("⚠️  The identity is VACUOUS where an arm played no chip — 0 == 0 — and\n")
+		fmt.Printf("the oracle arm plays none by construction. It had content in %d of\n", live)
+		fmt.Printf("%d arm-cells; the liveness half is the chip's week moving, below.\n", n)
 		reportBBCeiling(t, c)
 	}
 
@@ -371,8 +399,8 @@ func TestDiagBenchBoostPlacement(t *testing.T) {
 
 		runPolicySweep(t, []policyVariant{b, ctl, rule}, starts)
 
-		n := verifyPathInvariance(t, c)
-		fmt.Printf("\npath invariance checked on %d arm-cells.\n", n)
+		n, live := verifyPathInvariance(t, c)
+		fmt.Printf("\nCONFINEMENT checked on %d arm-cells, identity non-vacuous in %d.\n", n, live)
 		reportBBRule(t, c)
 	}
 }
@@ -383,8 +411,8 @@ func reportBBCeiling(t *testing.T, c *bbCollector) {
 	t.Helper()
 	fmt.Printf("\n%-9s %-6s %6s | %7s %7s | %7s %7s | %8s\n",
 		"season", "entry", "weeks", "ctl gw", "ctl pts", "orc gw", "orc pts", "ceiling")
-	var sum float64
-	n, tied := 0, 0
+	var sum, ctlGW, orcGW float64
+	n, tied, atEntry := 0, 0, 0
 	weeks := map[int]bool{}
 	for _, key := range c.keys() {
 		ctl, orc := c.byArm[1][key], c.byArm[2][key]
@@ -409,7 +437,16 @@ func reportBBCeiling(t *testing.T, c *bbCollector) {
 			tied++
 		}
 		weeks[orc.oracleGW] = true
+		// `placeChips` maximises over `res.Weeks`, which starts at the entry
+		// gameweek — but the state rule is barred from it by `gw > start` and the
+		// control's offset cannot reach it either. So the ceiling is over a week no
+		// arm can play, in these cells, and its denominator is inflated.
+		if orc.oracleGW == orc.firstGW {
+			atEntry++
+		}
 		sum += float64(d)
+		ctlGW += float64(ctl.playedGW)
+		orcGW += float64(orc.oracleGW)
 		n++
 		fmt.Printf("%-20s %6d | %7d %7d | %7d %7d | %8d\n",
 			key, ctl.weeks, ctl.playedGW, ctl.playedPts, orc.oracleGW, orc.oraclePts, d)
@@ -420,6 +457,14 @@ func reportBBCeiling(t *testing.T, c *bbCollector) {
 	fmt.Printf("\nmean ceiling over %d cells: %+.2f points per season-path\n", n, sum/float64(n))
 	fmt.Printf("cells where the control already caught the best week: %d of %d\n", tied, n)
 	fmt.Printf("distinct oracle weeks: %d\n", len(weeks))
+	fmt.Printf("mean gameweek played: control %.2f, oracle %.2f\n",
+		ctlGW/float64(n), orcGW/float64(n))
+	fmt.Printf("⚠️  cells where the ORACLE picked the entry gameweek, which `gw > start`\n")
+	fmt.Printf("forbids the state rule and the offset cannot reach: %d of %d. The\n", atEntry, n)
+	fmt.Printf("ceiling's denominator is inflated by exactly those.\n")
+	fmt.Printf("⚠️  The argmax ranges over %d..%d weeks across the entry points, so this\n",
+		13, 38)
+	fmt.Printf("mean pools six different argmax problems and is nobody's season figure.\n")
 	if len(weeks) < 2 {
 		t.Errorf("the oracle chose the same gameweek in all %d cells, so it is a "+
 			"fixed-week policy under an oracle label rather than an argmax", n)
@@ -436,7 +481,8 @@ func reportBBRule(t *testing.T, c *bbCollector) {
 	fmt.Printf("\n%-9s %-6s | %7s %7s | %7s %7s | %7s | %5s %5s %5s\n",
 		"season", "entry", "ctl gw", "ctl pts", "rule gw", "rule pts", "rule-ctl",
 		"offer", "cons", "weigh")
-	var sum float64
+	var sum, ctlGW, armGW float64
+	minBar, maxBar := math.Inf(1), math.Inf(-1)
 	n, fired, moved := 0, 0, 0
 	for _, key := range c.keys() {
 		ctl, r := c.byArm[1][key], c.byArm[2][key]
@@ -447,11 +493,15 @@ func reportBBRule(t *testing.T, c *bbCollector) {
 		d := r.playedPts - ctl.playedPts
 		if r.playedGW != 0 {
 			fired++
+			minBar = math.Min(minBar, r.med.FiredBar)
+			maxBar = math.Max(maxBar, r.med.FiredBar)
 		}
 		if r.playedGW != ctl.playedGW {
 			moved++
 		}
 		sum += float64(d)
+		ctlGW += float64(ctl.playedGW)
+		armGW += float64(r.playedGW)
 		n++
 		fmt.Printf("%-20s | %7d %7d | %7d %7d | %7d | %5d %5d %5d\n",
 			key, ctl.playedGW, ctl.playedPts, r.playedGW, r.playedPts, d,
@@ -464,6 +514,20 @@ func reportBBRule(t *testing.T, c *bbCollector) {
 	fmt.Printf("LIVENESS — cells the rule played a bench boost in: %d of %d\n", fired, n)
 	fmt.Printf("LIVENESS — cells whose bench-boost gameweek DIFFERS from the control: %d of %d\n",
 		moved, n)
+	// ⚠️ The mediator that decides what this contrast MEANS, and it was missing
+	// from the first run. `ChipBarAt` decays the bar to the chip's expiry, so a
+	// rule that finds nothing early fires late **by construction** — lateness is a
+	// designed property of the rule, not a discovery about state. If the rule's
+	// mean week sits far from the control's, the contrast cannot separate "reads
+	// state" from "plays late", and the comparator that would is a calendar anchor
+	// on the known big double, which `anchoredPlan` already expresses.
+	fmt.Printf("\nTIMING — mean gameweek the chip was played: control %.2f, arm %.2f\n",
+		ctlGW/float64(n), armGW/float64(n))
+	fmt.Printf("If those differ by much, this contrast confounds PLACEMENT with\n")
+	fmt.Printf("LATENESS and cannot attribute the difference to reading state.\n")
+	fmt.Printf("The realised bar at firing spans %.2f to %.2f — the tested policy is a\n",
+		minBar, maxBar)
+	fmt.Printf("decaying reservation based at the bar, not a threshold of it.\n")
 	if moved == 0 {
 		fmt.Printf("\n⚠️  The rule never moved the chip's week. The deliverable is that\n")
 		fmt.Printf("count, not a null: the arm did not act, so there is nothing for a\n")
@@ -533,6 +597,17 @@ func TestTheBenchBoostControlPlanPlacesOnlyTheBoost(t *testing.T) {
 				t.Errorf("%s@%d: the control bench boost is GW%d, want GW%d",
 					pair.Name, start, p.BenchBoost, want)
 			}
+		}
+		// The overrun walk-back, which the shipped grid never exercises: `start+6`
+		// is at most GW32 there, so every assertion above runs down the same branch
+		// and the fallback is untested by them. A review called that out, correctly —
+		// a test whose comment cites a branch it cannot reach is a tripwire wearing a
+		// check's clothes. GW33 puts the offset at GW39.
+		if got := benchBoostControlPlan(pair.Cur, 33).BenchBoost; got != 38 {
+			t.Errorf("%s@33: the offset overruns to GW39 and the control placed GW%d, "+
+				"want GW38 — an overrun must walk back from the end of the season, "+
+				"never drop the chip, or the arm plays a different chip SET",
+				pair.Name, got)
 		}
 	}
 }

@@ -52,8 +52,12 @@ season     entry  weeks |  ctl gw ctl pts |  arm gw arm pts |     diff
 2025-26       21     18 |      27       3 |      33      15 |       12
 2025-26       26     13 |      32       3 |      33      13 |       10
 
-LIVENESS — cells whose bench-boost gameweek differs from the control: 34 of 36
+LIVENESS — cells arm 2 placed a bench boost in: 36 of 36
+LIVENESS — of those, cells whose gameweek differs from the control: 34 of 36
 distinct weeks arm 2 chose: 17
+
+TIMING — mean gameweek played: control 19.50, arm 2 27.97 (gap +8.47)
+A large gap means PLACEMENT and LATENESS are not separated by this arm.
 
 --- inference. All figures POINTS PER SEASON-PATH.
 mean difference over 36 cells: +5.778
@@ -89,4 +93,21 @@ what either block was designed to answer. Quoted without a threshold.
 ------------------------------------------------------------------------------
 This is the RULE arm. Its difference is bounded cellwise by the ceiling
 measured in the BBCEILING block; read the two together.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+JOINING THE TWO BLOCKS
+  shared control arm byte-identical in 36 of 36 cells
+  rule +5.7778   ceiling +16.1389   recovered fraction 0.3580
+  Fieller 95% [0.198, 0.518]  (season-clustered, df 5)
+
+⚠️  The fraction is a MIXTURE over entry points, and the denominator is an
+argmax whose breadth falls from 38 weeks at GW1 to 13 at GW26:
+    entry GW1   ceiling  18.83  rule   8.83  fraction  0.469
+    entry GW6   ceiling  17.33  rule   4.50  fraction  0.260
+    entry GW11  ceiling  15.50  rule   5.83  fraction  0.376
+    entry GW16  ceiling  17.00  rule   0.83  fraction  0.049
+    entry GW21  ceiling  14.67  rule   5.17  fraction  0.352
+    entry GW26  ceiling  13.50  rule   9.50  fraction  0.704
+So the pooled ceiling is nobody's season figure. Quote the span.
 ------------------------------------------------------------------------------
