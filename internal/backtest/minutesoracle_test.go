@@ -26,6 +26,40 @@ import (
 	"armband/internal/fpl"
 )
 
+// sameMinutes reports whether a minutes figure or a start share is the one
+// wanted. It is `closeEnough` under a name that says which quantity, and it
+// deliberately does not carry its own constant — one tolerance, one place.
+//
+// ⚠️ **Do not turn these back into `==` or `!=`.** These tests assert football —
+// ninety minutes a match, forty-five, none at all — and not bit patterns. Two of
+// them read a figure weighted by `math.Pow`, and Go's `math` package is not
+// bit-identical across machines: `Pow` is pure Go but computes `Exp(y*Log(x))`,
+// and `Exp` has separate assembly for amd64, arm64, loong64 and s390x while
+// `Log` has assembly on amd64 only. On amd64 `Exp` additionally branches at run
+// time on `cpu.X86.HasAVX && cpu.X86.HasFMA`, so two amd64 CPUs can disagree
+// from one binary.
+//
+// Concretely: `math.Pow(0.5, 0.25)` returns 0x3feae89f995ad3ae here on arm64,
+// one ulp ABOVE the correctly rounded 2^-0.25. `newRecentIndexWith` divides
+// `90w + 90` by `w + 1` for a player on 90 minutes in each of two gameweeks at a
+// four-gameweek half-life, and feeding it the correctly rounded weight instead
+// yields 0x4056800000000001 — 90.00000000000001, bit for bit what CI reports.
+// Only that weight reproduces those bits within ±4 ulps, which is what pins the
+// cause to `Pow` rather than to FMA contraction or accumulation order; both were
+// tested and refuted. The amd64 half is inferred from CI's value, not executed
+// here, because this machine is arm64.
+//
+// Paid for on 2026-08-17: CI had been red on **every** commit for at least eight
+// of them, on two assertions in this file, while the same tests passed on the
+// arm64 machines the work was being done on — the signal was invisible exactly
+// where anyone was looking. The tolerance costs no power. The smallest football
+// difference these tests must catch is one minute over the window's fixtures,
+// which is 0.2 here and 0.026 at a full-season denominator; the error being
+// tolerated is one ulp of 90, or 1.4e-14. Seven orders of margin either side.
+func sameMinutes(got, want float64) bool {
+	return closeEnough(got, want)
+}
+
 // minutesFields are the RecentPlayer fields OracleMinutes may rewrite.
 //
 // Named, and checked by reflection against the struct rather than by a
@@ -156,16 +190,16 @@ func TestLineupsKnowsSelectionAndNotQuantity(t *testing.T) {
 
 	m, _ := mIdx.Get(101)
 	l, _ := lIdx.Get(101)
-	if m.StartShare != 1 || l.StartShare != 1 {
+	if !sameMinutes(m.StartShare, 1) || !sameMinutes(l.StartShare, 1) {
 		t.Errorf("start share reads %v under minutes and %v under lineups, want 1 "+
 			"under both — selection is the fact BOTH arms are given, and the two "+
 			"must not differ about it", m.StartShare, l.StartShare)
 	}
-	if want := (90.0*3 + 30.0*2) / 5; m.MinutesPerMatch != want {
+	if want := (90.0*3 + 30.0*2) / 5; !sameMinutes(m.MinutesPerMatch, want) {
 		t.Errorf("the minutes arm reads %v over GW11-15, want the realised %v",
 			m.MinutesPerMatch, want)
 	}
-	if l.MinutesPerMatch != 60 {
+	if !sameMinutes(l.MinutesPerMatch, 60) {
 		t.Errorf("the lineups arm prices his starts at %v, want his own conditional "+
 			"average of 60 — a conditional average is exactly what cannot see when "+
 			"the hook comes", l.MinutesPerMatch)
@@ -174,7 +208,7 @@ func TestLineupsKnowsSelectionAndNotQuantity(t *testing.T) {
 	// The control: no within-state variation, so no residual.
 	m, _ = mIdx.Get(102)
 	l, _ = lIdx.Get(102)
-	if m.MinutesPerMatch != 90 || l.MinutesPerMatch != 90 {
+	if !sameMinutes(m.MinutesPerMatch, 90) || !sameMinutes(l.MinutesPerMatch, 90) {
 		t.Errorf("the ever-present reads %v under minutes and %v under lineups; "+
 			"with nothing varying within the state the two arms must agree",
 			m.MinutesPerMatch, l.MinutesPerMatch)
@@ -182,12 +216,12 @@ func TestLineupsKnowsSelectionAndNotQuantity(t *testing.T) {
 
 	// And the two states are priced apart rather than pooled.
 	l, _ = lIdx.Get(103)
-	if l.MinutesPerMatch != 20 {
+	if !sameMinutes(l.MinutesPerMatch, 20) {
 		t.Errorf("the permanent substitute reads %v under lineups, want his own "+
 			"conditional substitute average of 20 — pooling the two states would "+
 			"price him near a starter", l.MinutesPerMatch)
 	}
-	if l.StartShare != 0 {
+	if !sameMinutes(l.StartShare, 0) {
 		t.Errorf("the permanent substitute reads a start share of %v, want 0",
 			l.StartShare)
 	}
@@ -231,7 +265,7 @@ func TestADoubleDoesNotInventASubstituteAppearance(t *testing.T) {
 	// Through GW2, so the window is the double alone: two club fixtures, one
 	// start, ninety minutes.
 	m, _ := mins.recentIndex(s, 2).Get(101)
-	if m.MinutesPerMatch != 45 {
+	if !sameMinutes(m.MinutesPerMatch, 45) {
 		t.Fatalf("the minutes arm reads %v over the double, want 90/2 = 45",
 			m.MinutesPerMatch)
 	}
@@ -248,7 +282,7 @@ func TestADoubleDoesNotInventASubstituteAppearance(t *testing.T) {
 		t.Fatal("the fixture supports no conditional prices, so the lineups arm " +
 			"falls through to the honest index and this test checks nothing")
 	}
-	if want := cm.start / 2; l.MinutesPerMatch != want {
+	if want := cm.start / 2; !sameMinutes(l.MinutesPerMatch, want) {
 		t.Errorf("the lineups arm reads %v over the double, want one start and one "+
 			"absence over two fixtures = %v. Crediting a substitute appearance for "+
 			"the leg he did not start would give %v, above what the minutes arm "+
@@ -260,7 +294,7 @@ func TestADoubleDoesNotInventASubstituteAppearance(t *testing.T) {
 	// one leg and came on in the other, so minutes exceed ninety per start.
 	s.Players[1].GWs[3] = GW{Minutes: 110, Starts: 1, Fixtures: 2}
 	l, _ = lineups.recentIndex(s, 2).Get(101)
-	if want := (cm.start + cm.sub) / 2; l.MinutesPerMatch != want {
+	if want := (cm.start + cm.sub) / 2; !sameMinutes(l.MinutesPerMatch, want) {
 		t.Errorf("with 110 minutes over a double the lineups arm reads %v, want %v "+
 			"— minutes beyond ninety per started fixture can only come from a "+
 			"fixture he did not start", l.MinutesPerMatch, want)
@@ -388,7 +422,7 @@ func TestMinutesOracleIsAboutTheFutureNotThePast(t *testing.T) {
 	if !ok {
 		t.Fatal("the about-to-stop player has no entry")
 	}
-	if got.MinutesPerMatch != 0 {
+	if !sameMinutes(got.MinutesPerMatch, 0) {
 		t.Errorf("a player who never plays again reads %v minutes per match, want 0 "+
 			"— this is the population OracleAvailability catches only when the "+
 			"season total is zero, and it is the whole point of generalising it",
@@ -400,13 +434,13 @@ func TestMinutesOracleIsAboutTheFutureNotThePast(t *testing.T) {
 		t.Fatal("a player the honest index has never seen got no entry; the oracle " +
 			"must be able to add one, or a returning injury stays invisible")
 	}
-	if got.MinutesPerMatch != 90 || got.StartShare != 1 {
+	if !sameMinutes(got.MinutesPerMatch, 90) || !sameMinutes(got.StartShare, 1) {
 		t.Errorf("the about-to-start player reads %v/%v, want 90/1",
 			got.MinutesPerMatch, got.StartShare)
 	}
 
 	got, _ = idx.Get(103)
-	if got.MinutesPerMatch != 90 {
+	if !sameMinutes(got.MinutesPerMatch, 90) {
 		t.Errorf("a double gameweek reads %v minutes per match, want 90 — "+
 			"MinutesPerMatch is a statement about how much of a MATCH he plays",
 			got.MinutesPerMatch)
@@ -415,7 +449,7 @@ func TestMinutesOracleIsAboutTheFutureNotThePast(t *testing.T) {
 	// And with the oracle off, nothing changes: the honest index knows only that
 	// player 1 has been an ever-present and has never heard of player 2.
 	plain := SimConfig{Weights: analysis.Weights{MinutesHalfLife: 4}}.recentIndex(s, 2)
-	if r, _ := plain.Get(101); r.MinutesPerMatch != 90 {
+	if r, _ := plain.Get(101); !sameMinutes(r.MinutesPerMatch, 90) {
 		t.Errorf("without the oracle the ever-present reads %v, want 90", r.MinutesPerMatch)
 	}
 	if _, ok := plain.Get(102); ok {
@@ -452,13 +486,13 @@ func TestTheOracleWindowMovesWithTheSeason(t *testing.T) {
 	cfg.Oracles = Oracles{Info: OracleMinutes}
 
 	// Decided at GW21, looking at GW22-26: he is in hospital for all of it.
-	if r, _ := cfg.recentIndex(s, 21).Get(101); r.MinutesPerMatch != 0 {
+	if r, _ := cfg.recentIndex(s, 21).Get(101); !sameMinutes(r.MinutesPerMatch, 0) {
 		t.Errorf("at the GW21 decision the absent player reads %v minutes per "+
 			"match, want 0 — a season average would report about 74, which is the "+
 			"defect this window exists to remove", r.MinutesPerMatch)
 	}
 	// Decided at GW27, looking at GW28-32: he is back and playing every minute.
-	if r, _ := cfg.recentIndex(s, 27).Get(101); r.MinutesPerMatch != 90 {
+	if r, _ := cfg.recentIndex(s, 27).Get(101); !sameMinutes(r.MinutesPerMatch, 90) {
 		t.Errorf("at the GW27 decision the returning player reads %v minutes per "+
 			"match, want 90", r.MinutesPerMatch)
 	}
@@ -466,7 +500,12 @@ func TestTheOracleWindowMovesWithTheSeason(t *testing.T) {
 	// for the season cannot express a trajectory.
 	a, _ := cfg.recentIndex(s, 21).Get(101)
 	b, _ := cfg.recentIndex(s, 27).Get(101)
-	if a.MinutesPerMatch == b.MinutesPerMatch {
+	// Tolerant in the must-DIFFER direction too, and that is the direction that
+	// fails silently: with `==`, two figures a single bit apart would report a
+	// difference this test would call a pass. Today a is 0 and b is 90, so
+	// nothing is at risk — but the day the window regresses toward a season
+	// average, both land near the same number and the guard evaporates.
+	if sameMinutes(a.MinutesPerMatch, b.MinutesPerMatch) {
 		t.Error("the oracle reports the same minutes before and after a six-week " +
 			"absence, so it is answering a season-average question rather than the " +
 			"question the weekly decision asks")
@@ -497,7 +536,7 @@ func TestAMissingRowIsAnAbsence(t *testing.T) {
 	if !ok {
 		t.Fatal("no entry for a player whose club plays four more times")
 	}
-	if r.MinutesPerMatch != 0 || r.Matches != 4 {
+	if !sameMinutes(r.MinutesPerMatch, 0) || r.Matches != 4 {
 		t.Errorf("a player with no rows over four club fixtures reads %v minutes "+
 			"per match over %d matches, want 0 over 4 — counting only his own rows "+
 			"would divide by zero football and report him as an ever-present",
@@ -505,7 +544,7 @@ func TestAMissingRowIsAnAbsence(t *testing.T) {
 	}
 
 	// Through GW5, window GW6-9: one appearance in four fixtures.
-	if r, _ := cfg.recentIndex(s, 5).Get(101); r.MinutesPerMatch != 90.0/4 {
+	if r, _ := cfg.recentIndex(s, 5).Get(101); !sameMinutes(r.MinutesPerMatch, 90.0/4) {
 		t.Errorf("one full match in four club fixtures reads %v, want %v",
 			r.MinutesPerMatch, 90.0/4)
 	}
@@ -532,7 +571,7 @@ func TestAClubWithNoFixturesLeavesTheHonestIndexAlone(t *testing.T) {
 	if !ok {
 		t.Fatal("the oracle dropped a player the honest index knows about")
 	}
-	if r.MinutesPerMatch != 90 {
+	if !sameMinutes(r.MinutesPerMatch, 90) {
 		t.Errorf("with no fixtures in the window the player reads %v, want the "+
 			"honest index's 90 — an empty window is not evidence of an absence",
 			r.MinutesPerMatch)

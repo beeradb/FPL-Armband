@@ -619,7 +619,29 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// different claims — a regressor swap and an invariance misread as a null — and the
 	// rule's requirement is that the comment name *the claim that needed the room*, which
 	// a summary of two claims does not do. Neither is a summary of the other.
-	const budget = 106 * 1024
+	//
+	// # 108 KB from 2026-08-17 — floating point is not portable across machines
+	//
+	// The claim that needed the room: **a banked absolute total is reproducible from a
+	// commit AND a machine, and only the commit is recorded.** Go's `math.Exp` has
+	// per-architecture assembly and on amd64 branches at run time on AVX+FMA, so two
+	// amd64 CPUs can disagree from one binary; `math.Pow(0.5, 0.25)` is one ulp high on
+	// arm64, which makes a recency-weighted 90 minutes read exactly 90 here and
+	// 90.00000000000001 on CI. Two unit tests compared float64 exactly, so CI was red on
+	// eight consecutive commits while green on every arm64 machine the work was done on.
+	//
+	// It cost its bytes twice over, because the first draft was wrong in three ways a
+	// reviewer caught and the corrections are longer than the errors: it named priors and
+	// team strength as exposed when `prior_half_life` 0 gives `BlendPriors` an integer
+	// exponent that `Pow` takes exactly and both team-strength sites ship off; it omitted
+	// the Poisson blocks and `defconCleanFactor`, which are exposed; and it asserted that
+	// swapping the transcendental "moves every banked cell" while the next clause said the
+	// points columns reproduce unless a decision flips. **The qualifiers ARE the entry
+	// here** — an unhedged version would have recorded a mechanism argument as a
+	// measurement, which is the failure this constant exists to prevent.
+	//
+	// The `teamBands` correction in the same commit is net-neutral and did not need room.
+	const budget = 108 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

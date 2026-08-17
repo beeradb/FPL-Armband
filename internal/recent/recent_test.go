@@ -106,7 +106,13 @@ func TestWeighIgnoresTheFuture(t *testing.T) {
 	if got.Matches != 1 {
 		t.Errorf("counted %d matches through GW1, want 1", got.Matches)
 	}
-	if got.MinutesPerMatch != 90 {
+	// Tolerant because the figure is weighted by math.Pow, which is not
+	// bit-identical across machines. This assertion survives an exact comparison
+	// only by accident — `weigh(h, 1, 2)` has through == Round, so the weight is
+	// `math.Pow(0.5, 0)` and hits the exact `y == 0` special case. Move that
+	// cutoff past the row and it becomes the landmine that had CI red on eight
+	// consecutive commits; see sameMinutes in internal/backtest.
+	if math.Abs(got.MinutesPerMatch-90) > 1e-9 {
 		t.Errorf("minutes per match %.1f; a later gameweek has leaked in", got.MinutesPerMatch)
 	}
 }
