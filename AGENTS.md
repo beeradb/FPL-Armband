@@ -1063,10 +1063,12 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   ⚠️ **That null is a simple-effect null** (the standing rule, above) **and it was not taken at
   shipped config**: both the `BANK` sweep and the reach map set `WeeklyXI = true`, which
   `runPolicySweep` does not. `shouldBank` prices both arms on **today's board**, so `MinGain`,
-  `FreeCost`, `BankUpTo` and the horizon are its whole bar. And **nothing counts how often it
-  fires** — there is no banked-weeks column, and the reach map's "weeks with a transfer banked"
-  is a declared condition, not a measurement — so check the mediator before reading the zero as a
-  tie. No cross against team news is banked here.
+  `FreeCost`, `BankUpTo` and the horizon are its whole bar. **The null predates its mediator**: the
+  cells file now carries `banked_weeks` and `free_at_decision` (blank means the arm never consulted
+  the rule, 0 means it consulted it and it never fired), so the zero is checkable — but **no banked
+  sweep carries them**, and the reach map's "weeks with a transfer banked" is a declared condition
+  rather than a measurement. Any banking arm reading 0 everywhere is a comparison that never ran,
+  and its deliverable is the count. No cross against team news is banked here.
 - **Reach is not the problem: 97.6% of worth-taking two-move packages are already reachable**, which
   closes the unified-search line on mechanism. The lever is the **valuation**, not the gate.
 - **The sell side is calibrated; its error is entirely availability** — −0.100 per gameweek for a
