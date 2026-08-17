@@ -1,0 +1,23 @@
+{
+  "captured_at": "2026-08-17T03:07:35.104745568Z",
+  "files": [
+    {
+      "endpoint": "/bootstrap-static/",
+      "name": "bootstrap-static.json.gz",
+      "bytes": 1381634,
+      "stored_bytes": 128636,
+      "sha256": "35180ed71ef88253daaf9854e74c7ebb24aa2e3af1cdd2c0b498d1aa061e49b6"
+    },
+    {
+      "endpoint": "/fixtures/",
+      "name": "fixtures.json.gz",
+      "bytes": 118021,
+      "stored_bytes": 5950,
+      "sha256": "9e7484118381f8202830906ba993c176475d8ca1796571f5dd78cbfc2d73bd3e"
+    }
+  ],
+  "event": 1,
+  "event_deadline": "2026-08-21T17:30:00Z",
+  "hours_to_deadline": 110.37358201512,
+  "fplagent_version": "c104c3dc11f8"
+}
