@@ -40,6 +40,7 @@ Four consequences, each with its own guard:
 | **fpl-code-review** | yes | `internal/analysis` (scoring) and `internal/backtest` (harness). Found four defects, all confirmed before acting; one is severe and was *created* by this fix |
 | **fpl-stats-review** | yes | the branch quotes a points figure, and the triage lists it for both trees |
 | **fpl-findings-audit** | yes | `AGENTS.md` was edited, and the triage lists it for that and for `internal/analysis` |
+| **fpl-docs-review** | yes | `docs/model.md` changed, and the record written for this change needed routing between the two stores. Found the two defects at the head of the list below, one of them a false claim in *this file* |
 | fpl-security-review | not applicable | no change to `internal/fpl`, `internal/agent` or config persistence |
 | fpl-season-maintenance | not applicable | none of the four hand-maintained lists is touched |
 | fpl-run-review | not applicable | no live run wrote config |
@@ -52,6 +53,20 @@ first place, and it caught more than the reviewers did.
 ## Findings applied
 
 Ranked by how misleading the state would have been.
+
+**0. This file claimed a correction that had not been made.** *(docs review)* The entry under
+*Findings declined* said the false thread-safety justification on `Engine.upcomingGWs` had been
+"removed instead" — and the tree still carried the strongest form of it, newly added by this
+branch: "built once by buildFixtureIndex and read-only thereafter, so it needs no lock."
+`ApplyChipPlan` calls `buildFixtureIndex` a second time, from a tool handler the runner fans out
+concurrently. **Applied**: the comment now names the writer, the concurrent reader and that it is
+unfixed, and the declined entry says what was actually done. Worse than the race itself, because a
+dated tracked artefact asserting a lock is unnecessary is what makes the next reader skip one.
+
+**0b. `docs/model.md` said the term does not scale a fifteen built from scratch**, which the free
+hit has contradicted since this branch added `ExcludeIDs` to that very builder — and
+`docs/replay.md` already said so, so two reference documents disagreed in the section a reader
+consults for exactly this. **Applied.**
 
 **1. A wildcard was being built on one week's blanks — and only because this fix works.**
 *(code review)* `WeekViews` built both rebuilt squads on `engineAt(gw)`, a horizon-1 engine where
@@ -127,15 +142,20 @@ in the test comment, per that constant's own rule.
 *post-fix* commit for both arms. Both arms were re-run from clean checkouts (`d8a3eb9` detached and
 branch HEAD), and every figure reproduced to the digit.
 
-**The code review suggested a lock for `Engine.upcomingGWs`.** Declined for now, and the false
-justification removed instead. `ApplyChipPlan` rebuilds the fixture index from a tool handler the
-runner fans out concurrently, and the reviewer reproduced a data race under `-race` — but the race
-is **pre-existing** on `byTeamUpcoming` and on `e.Weights.Horizon`, both of which `ApplyChipPlan`
-also writes unguarded. Fixing it properly means guarding the whole fixture index and the weights,
-which is a change to a different subsystem than the one under review and wants its own measurement
-of the read-path cost (`fixtureLoadFor` runs per player). **What is not acceptable is a comment
-asserting safety that does not hold**, and that is corrected. Recorded here so the next pass does
-not re-raise it as new.
+**The code review suggested a lock for `Engine.upcomingGWs`.** Declined; the race is **recorded on
+the field, unfixed**. `ApplyChipPlan` rebuilds the fixture index from a tool handler the runner
+fans out concurrently, and the reviewer reproduced a data race under `-race` — but the race is
+**pre-existing** on `byTeamUpcoming` and on `e.Weights.Horizon`, both of which `ApplyChipPlan` also
+writes unguarded. Fixing it properly means guarding the whole fixture index and the weights, which
+is a different subsystem from the one under review and wants its own measurement of the read-path
+cost (`fixtureLoadFor` runs once per player per scoring pass).
+
+⚠️ **This entry said "the false justification removed instead" before the documentation review, and
+that was false when written** — the tree still carried the strongest form of the assertion ("built
+once … so it needs no lock"), newly added by this branch, while a dated tracked artefact said it
+had been corrected. That is worse than the race: it is the line that makes the next reader skip a
+lock they need. Now corrected in `metrics.go`, which names the writer, the concurrent reader, and
+that it is unfixed.
 
 **A pointer or second field to separate "unset" from "zero" in the three *reporting* predicates**
 — `playerRow.Load` (`omitempty`), `noteFixtureLoad` and `present.corrections` — declined. It is the

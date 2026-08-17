@@ -190,18 +190,23 @@ because surviving bullets rest on them:
   of 5) windowed on a club's next *fixture* rather than the next *gameweek*. At horizon 1 that made
   the window `[first, first]`, which holds a fixture by construction, so **the ON-vs-OFF contrast
   that produced the recorded `+33` priced doubles and nothing else** — a fact about the anchor, not
-  about how often it bit. **The blank half has never been priced, so the shipped term's value is
-  unmeasured.** `POLICY` moves in 12 of 12 cells (6 seasons × 2 entry points), by up to 77 points on
+  about how often it bit. (That `+33` is **a season on `POLICY`, `HOLD` byte-identical, measured
+  against a fixture list the replay sees in full from GW1 and therefore optimistic** — it lives on
+  `fixtureLoadFor` and in `sweep.go`, and every figure below inherits the same hindsight.) **The
+  blank half has never been priced, so the shipped term's value is unmeasured.** `POLICY` moves in 12 of 12 cells (6 seasons × 2 entry points), by up to 77 points on
   a cell's `policy_points` total — cells span 38 to 13 gameweeks, so that is a per-cell total and
   not a season figure — and **in both directions**, so a contrast re-derived across the boundary is
   contaminated unevenly. **On points the fix does not resolve, recorded so it is not re-measured**:
-  **+35.9 a season**, season-clustered t 2.98 against start-fixed **1.40**, with the season
-  component estimated *negative* (MoM −2.111, F p 0.938) — the case `sweep_inference.R` says to read
-  start-fixed, though at two entry points that component is thin as well as negative.
-  `policy_xpoints` does resolve (+50.9, t_seas 3.94, t_fixd 3.90, 6 of 6 season means positive) and
-  is quoted **beside** points, never instead. Both inherit the replay's final fixture list, so they
-  carry the same hindsight caveat as the `+33`. **The fix ships on correctness; no points gain is
-  claimed.** `HOLD` is untouched as a **confinement, not a null**, and the confinement is
+  **+35.9 a season** against a season-clustered threshold of **31.0** (t 2.98) and a start-fixed one
+  of **~57** (t **1.40**, df 10 derived) — and the season component is estimated *negative* (MoM
+  −2.111, F p 0.938), which is the case `sweep_inference.R` says to read start-fixed on, so the arm
+  that clears is the one the data says not to use. Clustering runs *optimistic* here (CR2 SE 0.318
+  against a naive 0.502), and at two entry points that component is thin as well as negative.
+  `policy_xpoints` does resolve on both (+50.9 against 33.2, t_seas 3.94, t_fixd 3.90, 6 of 6 season
+  means positive, wild 0.0105 at S_eff 6, floor 0.000129) and is quoted **beside** points, never
+  instead — it is not independent, since a blanking player scores zero on both. ⚠️ **Neither arm's
+  cells are banked**, so both can be re-measured and neither re-derived. **The fix ships on
+  correctness; no points gain is claimed.** `HOLD` is untouched as a **confinement, not a null**, and the confinement is
   conditional: `fixtureLoadWeeklyOnly` keeps the term off `Score` above horizon 1 and
   `HoldCaptaincyWeekly` builds every engine at `cfg.Weights.Horizon`, so `hold_points`,
   `hold_xpoints` and both captaincy rungs are byte-identical **wherever `Weights.Horizon != 1` and
@@ -1124,10 +1129,10 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   round-trips, but the *proportion* that are round-trips barely shifts — so a device that worked as
   intended would be destroying value, since round-trips are solidly positive. Stays at 2.0.
   **Rotating for blanks and doubles pays**: those are the best moves the policy makes.
-  ⚠️ **The two halves are not equally supported.** That was measured while the imminent blank was
-  invisible to the term the eleven is picked with — `fixtureLoadFor` could not express a blank at
-  all at horizon 1, and above it the denominator was wrong — so read it as established on doubles
-  and **unverified on blanks**. See the fixture-load anchor fix under *Absolute point totals*.
+  ⚠️ **Rotating for DOUBLES pays; the blank half is unverified.** Those measurements ran while
+  `fixtureLoadFor` could not express an imminent blank at all at horizon 1, and above it the window
+  slid past the blank and counted a later round in its place. See the fixture-load anchor fix under
+  *Absolute point totals*.
 - **Team value compounds, and the half-of-any-rise selling rule taxes 62% of it.** Affordability
   still rises, because the squad converges on the best players. **You cannot sell at the market
   price**, and modelling it properly costs 31 points a season.
@@ -1273,8 +1278,9 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
   mechanical. An interval on a bound is the only legitimate reading. Nothing has been re-measured
   under the banked schema; a re-sweep is owed.
 - **Only two of the four chips are *preparation* problems.** A free hit fields a temporary fifteen
-  and a wildcard *is* the rebuild, so what those want was already wired — a statement about the
-  *preparation credit* only. The free hit's own builder was blind to blanks until 2026-08-17. `ChipCredit` adds the other
+  and a wildcard *is* the rebuild, so what those want was already wired **for the preparation
+  credit**. The free hit's own *builder* is a separate thing and needs its own blank guard — see
+  *Things that have already bitten*. `ChipCredit` adds the other
   two, off by default. **The bench channel is mechanism-real and points-unresolved**: the chip's own
   week is a paired **+7.28 points** (CR2 t +2.91, p 0.033, 27 of 36 cells positive) — **suggestive,
   not established**, since Holm over the two channels reads ≈0.066 and no leave-one-season-out

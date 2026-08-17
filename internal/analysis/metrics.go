@@ -1191,8 +1191,22 @@ type Engine struct {
 	// so that a cancelled or wholly rearranged round does not dilute every week
 	// after it — the same argument upcomingEvents makes for the week views.
 	//
-	// Built once by buildFixtureIndex and read-only thereafter, so it needs no
-	// lock. The skip set, which is mutable, is applied on top at read time.
+	// ⚠️ **Written by buildFixtureIndex, which is NOT called only once, and this
+	// slice is NOT lock-guarded.** `ApplyChipPlan` calls it a second time when a
+	// planned wildcard shortens the horizon — from a tool handler the runner fans
+	// out through an errgroup — so this slice, `byTeamUpcoming` and
+	// `Weights.Horizon` are all written unguarded while other tools are scoring
+	// players off them. Reproduced under `-race`.
+	//
+	// **Unfixed, and recorded rather than asserted away.** The race predates this
+	// field on the other two, and guarding it properly means taking the whole
+	// fixture index and the weights under a lock — a different subsystem, and one
+	// that wants its own measurement of the read-path cost, since `fixtureLoadFor`
+	// runs once per player per scoring pass. An earlier version of this comment
+	// claimed the field was built once and needed no lock; it is wrong, and it is
+	// the kind of wrong that makes the next reader skip a lock they need.
+	//
+	// The skip set has its own lock (`skipMu`) and is applied on top at read time.
 	upcomingGWs []int
 
 	// congMu guards Cong and congestion. update_competition_status rewrites them
