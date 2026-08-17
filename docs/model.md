@@ -431,19 +431,43 @@ is none.
 
 `fixtures_per_gameweek` is matches per gameweek over the horizon, and **the window is counted in
 gameweeks rather than in fixtures**: `fixtureLoadFor` takes the club's fixtures falling inside the
-next `horizon` gameweeks and divides by `horizon`. A double reads 2.0 at horizon 1, a blank 0.0,
-and an ordinary week 1.0.
+next `horizon` gameweeks and divides by however many gameweeks the window actually found. A double
+reads 2.0 at horizon 1, a blank 0.0, and an ordinary week 1.0. The denominator matters only at the
+end of a season — with two rounds left and a horizon of five, a club playing both reads 1.0 rather
+than 0.4.
 
-Counting the window that way rather than "the next N fixtures" is the one subtlety, and it is what
-makes the term usable at all. Asking a fixture *list* for the next one match in a double gameweek
-returns one of the two and the double vanishes — which is precisely the case the term exists for.
-The same asymmetry hides a blank in the other direction: a club with no fixture simply reaches a
-week further ahead and still yields N fixtures, reading as a perfectly ordinary 1.0.
-`TestFixtureLoadCountsDoublesAndBlanks` pins both directions.
+Two things decide the window, and both were wrong once.
+
+**It is anchored on the next GAMEWEEK, not on the club's next FIXTURE.** Asking a fixture *list*
+for the next one match in a double gameweek returns one of the two and the double vanishes — which
+is the case the term exists for. The blank is the mirror and is worse: anchored on the club's own
+next fixture, a club that does not play simply starts its window a week later, so the blank falls
+outside it and cannot be expressed at all. At horizon 1 that made the load **1 or more by
+construction**. Checked against the archive's true fixture count over every club-gameweek of the
+six-season grid, the old anchor missed **170 blanks and no doubles**;
+`TestDiagFixtureLoadMatchesTheArchive` is that comparison and
+`TestFixtureLoadMatchesTheArchiveOnOneSeason` runs the cheap half by default.
+
+**It honours the skip set.** A free hit removes its own week from the permanent squad's horizon,
+and `WeekViews` isolates a single gameweek by skipping every round before it — so a window of N
+means N gameweeks *this engine scores*, not N on the calendar. Reading the fixture index raw made
+every projected week inherit the imminent week's load, so a club with a double this Saturday had
+its players doubled in all five projected weeks.
+
+`TestFixtureLoadCountsDoublesAndBlanks`, `TestFixtureLoadHonoursTheSkipSet` and
+`TestFixtureLoadWindowEndsWithTheSeason` pin the three properties.
 
 **Where the term is applied decides everything, and it is not applied everywhere.** It scales
 the score used to pick the eleven you actually field this week, and the score used to judge a
-transfer. It does *not* scale the score used to build a fifteen from scratch.
+transfer. It does *not* scale the score used to build a permanent fifteen from scratch.
+
+The **free hit** is the one exception, and it is not an oversight. That fifteen is fielded for a
+single round and handed back, so one gameweek *is* its whole horizon: it is built on the horizon-1
+engine, load and all, and its candidate *pool* excludes clubs with no fixture — because zeroing a
+score keeps a player out of the eleven and does nothing about the four bench slots, where a builder
+is indifferent between two footballers worth nothing and takes the cheapest. A **wildcard** is the
+opposite and is built at the full horizon: that fifteen is kept, so a single blank week must not
+pick it.
 
 The reason is that starting a player who plays twice this Saturday is **free** — you already own
 him and the eleven is re-picked weekly at no cost — while buying one for a double three weeks out
@@ -454,8 +478,12 @@ decisions that are re-made cheaply it is the largest reliable gain measured anyw
 project, with squad selection completely unchanged. `FPL_NO_FIXTURE_LOAD=1` and
 `FPL_NO_LOAD_TRANSFERS=1` separate the two consumers again.
 
-Read the direction as safe and the size as optimistic. The replay knows about every double
-gameweek from GW1, where in reality FPL announces them only as cup rounds resolve.
+Read the direction as safe and the size as optimistic, and read it as a statement about **doubles
+only**. The replay knows about every double gameweek from GW1, where in reality FPL announces them
+only as cup rounds resolve. And that measurement was taken when the window anchored on a club's
+next fixture rather than the next gameweek, which at a horizon of one made the load one or more by
+construction — so a blank could not enter the comparison at all. The anchor is fixed; the blank
+half has not been priced.
 
 The generalisable lesson: a signal can be right for one decision and wrong for another, and the
 fix is to find the seam between the consumers rather than to weaken the signal. That works

@@ -497,6 +497,13 @@ var (
 // to the horizon-1 view by fixtureLoadWeeklyOnly: worth +33 points a season at
 // t = +5.74 with squad selection byte-identical. Applied everywhere it damages
 // the opening fifteen instead. FPL_NO_FIXTURE_LOAD=1 restores the old behaviour.
+//
+// ⚠️ **That +33 priced DOUBLES and nothing else.** It was measured when the
+// window anchored on a club's next fixture, where at horizon 1 the window was
+// `[first, first]` and could hold only a fixture — so the load read >= 1 always
+// and a blank could not enter the contrast at all. The anchor is fixed and the
+// blank half is unpriced; do not read +33 as the shipped term's value. See
+// fixtureLoadFor, which carries the measurement.
 var fixtureLoadScaling = os.Getenv("FPL_NO_FIXTURE_LOAD") == ""
 
 // fixtureLoadWeeklyOnly restricts the scaling to a horizon-1 engine — the view
