@@ -311,6 +311,11 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 				// question it answers can only be asked of a sweep whose effect
 				// is already known, so recording it always costs nothing and
 				// recording it on demand means it is missing when wanted.
+				// The transfer-banking mediator, on every arm rather than the
+				// banking ones. It is what makes a banking arm's null readable
+				// at all — see bankingOf — and it is free, since Simulate has
+				// already counted it.
+				row.BankingMediator, row.HasBanking = bankingOf(res)
 				row.HasChipWeeks = true
 				for _, w := range res.Weeks {
 					if w.BenchBoost {

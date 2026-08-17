@@ -85,6 +85,56 @@ type ReviewPolicy struct {
 	// rather than a calibrated constant.
 	FreeTransferValue float64 `json:"free_transfer_value"`
 
+	// BankTransfersLookahead lets the weekly decision decline a move because a
+	// larger package is affordable next week, when one more free transfer is in
+	// hand.
+	//
+	// # What it buys, and why it is off
+	//
+	// A premium upgrade usually needs more than one move: the money is locked in
+	// a player of a different position, so buying him means selling a forward
+	// *and* funding the gap. The paired search can express that and almost never
+	// gets the chance, because the weekly decision is greedy — it spends a free
+	// transfer the moment any move clears the gate. Traced cost: in 2025-26 the
+	// model rated Haaland above Salah from GW7 and could not buy him until GW13,
+	// because nothing ever compared "spend one now" against "bank two and buy the
+	// premium".
+	//
+	// It is also how a chip gets prepared for. With a bench boost or triple
+	// captain planned inside the horizon, the *later* arm of the comparison
+	// carries that chip's credit one week nearer, so waiting is worth more
+	// exactly when the squad is being assembled for a chip.
+	//
+	// **Ships off**, and that is a statement about evidence rather than about the
+	// mechanism. The recorded verdict is that the policy never banks a transfer
+	// and that banking is not the fix — reached, it turns out, with nothing
+	// counting whether the rule ever fired, which is why the replay now records
+	// the funnel from decision weeks down to banked weeks. Until a sweep carries
+	// those columns there is no measured case for turning it on, and shipping a
+	// default on an unmeasured claim is what this project has a rule against.
+	// Turning it on is supported, explained in the transfer output, and yours to
+	// judge.
+	BankTransfersLookahead bool `json:"bank_transfers_lookahead"`
+
+	// PrepareForChips lets the transfer search value a planned bench boost or
+	// triple captain that falls inside its horizon.
+	//
+	// Without it a squad is assembled for the average week and the chip is played
+	// on whatever fifteen happens to be owned. With it, the bench a boost will
+	// pay for and the armband a triple captain will treble are worth something to
+	// the search *before* the chip week arrives — which is the only channel by
+	// which a chip can be prepared for at all.
+	//
+	// The credit is amortised over the same horizon the gate is about to multiply
+	// it back by, so it prices what the chip actually pays once rather than once
+	// per gameweek. A wildcard between now and the chip closes the window: that
+	// squad does not survive to play it.
+	//
+	// Off by default for the reason above it: the mechanism is real and the
+	// points question is unresolved. It does nothing at all unless a chip is
+	// actually planned in `chip_plan`.
+	PrepareForChips bool `json:"prepare_squad_for_chips"`
+
 	// MaxHitsPerWeek caps points deliberately spent on extra transfers.
 	// Zero means never take a hit.
 	MaxHitsPerWeek int `json:"max_hits_per_week"`
