@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"fmt"
 	"testing"
 
 	"armband/internal/fpl"
@@ -37,8 +38,14 @@ func loadEngineOver(t *testing.T, weeks int, doubles, blanks map[int][]int) *Eng
 			{ID: 3, SingularNameShort: "MID"}, {ID: 4, SingularNameShort: "FWD"},
 		},
 	}
+	// Distinct short names, because `PlayerMetrics.Team` carries the short name
+	// and `Optimize` counts the three-per-club cap on it — one shared name makes
+	// the whole league read as a single club and no legal fifteen exists.
 	for id := 1; id <= 2*clubs; id++ {
-		b.Teams = append(b.Teams, fpl.Team{ID: id, Name: "Club", ShortName: "C"})
+		b.Teams = append(b.Teams, fpl.Team{
+			ID: id, Name: fmt.Sprintf("Club %d", id),
+			ShortName: fmt.Sprintf("C%d", id),
+		})
 	}
 	for i := 1; i <= 38; i++ {
 		b.Events = append(b.Events, fpl.Event{ID: i})
@@ -149,6 +156,57 @@ func TestFixtureLoadCountsDoublesAndBlanks(t *testing.T) {
 	}
 }
 
+// TestTheFixtureIndexIsInGameweekOrder — `fixtureLoadFor` stops scanning a
+// club's fixtures at the first one past the end of its window, and the dedupe
+// that builds `upcomingGWs` compares only against the last gameweek appended.
+// Both are correct only because `buildFixtureIndex` sorts before it appends.
+//
+// It is pinned here because the failure is silent and doubly wrong: an unsorted
+// index truncates the window early AND lets `upcomingGWs` hold a gameweek twice,
+// which inflates the denominator. The synthetic calendar is built in ascending
+// order, so it cannot exercise the sort on its own — the fixtures are shuffled
+// first, which is the whole point of the test.
+func TestTheFixtureIndexIsInGameweekOrder(t *testing.T) {
+	e := loadEngine(t, map[int][]int{2: {3}}, map[int][]int{3: {2}})
+	// Reverse the fixture list and rebuild: the index must come back identical.
+	for i, j := 0, len(e.Fixtures)-1; i < j; i, j = i+1, j-1 {
+		e.Fixtures[i], e.Fixtures[j] = e.Fixtures[j], e.Fixtures[i]
+	}
+	e.buildFixtureIndex()
+
+	for team, fx := range e.byTeamUpcoming {
+		for i := 1; i < len(fx); i++ {
+			if fx[i].Event < fx[i-1].Event {
+				t.Fatalf("club %d holds GW%d after GW%d. fixtureLoadFor breaks out of "+
+					"this scan on the first event past its window, so an unsorted list "+
+					"silently truncates the count", team, fx[i].Event, fx[i-1].Event)
+			}
+		}
+	}
+	seen := map[int]bool{}
+	for i, gw := range e.upcomingGWs {
+		if seen[gw] {
+			t.Fatalf("upcomingGWs holds GW%d twice; it is the window's DENOMINATOR, "+
+				"so a duplicate reports every club as playing less often than it does", gw)
+		}
+		seen[gw] = true
+		if i > 0 && gw < e.upcomingGWs[i-1] {
+			t.Fatalf("upcomingGWs is not ascending at index %d (GW%d after GW%d)",
+				i, gw, e.upcomingGWs[i-1])
+		}
+	}
+	// And the loads themselves are unchanged by the shuffle, which is the
+	// property the two structural checks above exist to protect.
+	if got := e.fixtureLoadFor(3, 1); got != 1 {
+		t.Errorf("club 3 reads %.3f at horizon 1 after the fixture list was "+
+			"shuffled, want 1", got)
+	}
+	if got := e.fixtureLoadFor(2, 5); got != 1.2 {
+		t.Errorf("club 2's GW3 double reads %.3f over five gameweeks after the "+
+			"fixture list was shuffled, want 1.2", got)
+	}
+}
+
 // TestFixtureLoadHonoursTheSkipSet — the load must be counted over the gameweeks
 // this engine SCORES, not over the calendar.
 //
@@ -224,5 +282,49 @@ func TestElementsWithoutFixturesNamesOnlyRealBlanks(t *testing.T) {
 	if ids := e.ElementsWithoutFixtures(); len(ids) != 0 {
 		t.Errorf("over a five-gameweek horizon a club with one blank is still "+
 			"playing, but %v were excluded", ids)
+	}
+}
+
+// TestATotalBlankIsWorthNothingToTheTransferSearch — the transfer objective must
+// price a club that plays no match in the whole window at zero, and a bare
+// `FixtureLoad > 0` test cannot do it.
+//
+// `xiValueForTransfer` multiplies `Score` by `FixtureLoad` for every candidate.
+// Its guard used to be `FixtureLoad > 0`, meaning "did Metrics populate this",
+// which was sound only while `fixtureLoadFor` could not return a real 0. Once it
+// could, the guard read a genuine blank as an unset field and skipped the
+// multiply — leaving the one footballer who certainly scores nothing valued at
+// full score, in the search that decides who to buy.
+//
+// The window this needs is a horizon of 2 to 4, which is not exotic:
+// `EffectiveHorizon` shortens the transfer horizon to the gap before a planned
+// wildcard, and the archive holds blank runs of two and three consecutive
+// rounds. At horizon 1 `loadInScore` is true and the guard short-circuits before
+// reaching the load at all, so a test written there would pass on the bug.
+func TestATotalBlankIsWorthNothingToTheTransferSearch(t *testing.T) {
+	if !fixtureLoadTransfers {
+		t.Skip("fixture load is switched off for transfers")
+	}
+	// A club with no fixture anywhere in the window, as Metrics reports it above
+	// horizon 1: the load is a real zero and Score has NOT been scaled by it.
+	blanked := loadSeamSquad()
+	blanked[7].FixtureLoad = 0
+	blanked[7].loadInScore = false
+
+	full := XIValue(loadSeamSquad())
+	if got := XIValue(blanked); got >= full {
+		t.Errorf("XIValue is %.4f with a squad member whose club plays no match in "+
+			"the whole window and %.4f with everyone playing. A player who cannot "+
+			"appear must be worth strictly less, or the transfer search under-prices "+
+			"selling him and over-prices buying him", got, full)
+	}
+
+	// The mechanism has to be the multiplier and nothing else: the same row at a
+	// load of 1 must recover the untouched value exactly.
+	restored := loadSeamSquad()
+	restored[7].FixtureLoad = 1
+	if got := XIValue(restored); got != full {
+		t.Errorf("a load of 1 gives %.4f against %.4f for the untouched squad; the "+
+			"multiplier is doing something other than scaling", got, full)
 	}
 }

@@ -24,11 +24,17 @@ func TestFixtureLoadIsAppliedOnce(t *testing.T) {
 	}
 	// A legal fifteen where one player's club plays twice. Scores are flat so the
 	// only thing that can move XIValue is the multiplier.
+	// `loadSet` is set because `Metrics` sets it on every row it produces, and
+	// `xiValueForTransfer` gates on it rather than on `FixtureLoad > 0` — a real
+	// load of 0 is a club that blanks the whole window, which must be multiplied
+	// by, not skipped. A hand-built row that omitted it would be silently exempt
+	// from the multiplier and this test would pass on a disabled term.
 	squad := func(loadInScore bool) []PlayerMetrics {
 		var out []PlayerMetrics
 		add := func(pos string, n int) {
 			for i := 0; i < n; i++ {
-				out = append(out, PlayerMetrics{Position: pos, Score: 1, FixtureLoad: 1})
+				out = append(out, PlayerMetrics{
+					Position: pos, Score: 1, FixtureLoad: 1, loadSet: true})
 			}
 		}
 		add("GKP", 2)

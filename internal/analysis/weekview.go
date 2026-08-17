@@ -165,18 +165,39 @@ func (e *Engine) WeekViews(squad []PlayerMetrics, n int) []WeekView {
 					MinMinutes:         600,
 					MinExpectedMinutes: 55,
 				}
-				// A free hit fields its fifteen for this one round and hands the
-				// permanent squad back, so a player whose club does not play is
-				// not merely a poor pick — he cannot appear at all, on the bench
-				// included. The blank guard below zeroes his score, which keeps
-				// him out of the eleven and arrives after Optimize has already
-				// chosen the fifteen; excluding him here is the same guard
-				// reaching the selection. A wildcard is deliberately left alone:
-				// that fifteen is kept, so one blank week must not pick it.
-				if chip == "Free Hit" {
+				// The two chips want fifteens built to different questions, so
+				// they are built on different engines.
+				//
+				// A FREE HIT fields its fifteen for this one round and hands the
+				// permanent squad back, so one gameweek is the whole horizon and
+				// `wk` is the right engine. A player whose club does not play is
+				// then not merely a poor pick — he cannot appear at all, bench
+				// included — and `fixtureLoadFor` takes his score to zero, which
+				// keeps him out of the eleven and does nothing about the four
+				// bench slots, since a builder is indifferent between two players
+				// worth nothing and takes the cheapest. So the guard is applied to
+				// the POOL as well.
+				//
+				// A WILDCARD is the opposite: that fifteen is KEPT, so it must be
+				// built over the horizon rather than for one round. It cannot use
+				// `wk` at all. `wk` is horizon 1, where `FixtureLoadInScore()` is
+				// true, so every blanking club's score is already zero before
+				// `Optimize` ranks on it — and a wildcard planned for a heavy blank
+				// (2023-24 GW29 blanked twelve clubs of twenty) would return a
+				// permanent squad drawn entirely from the eight clubs that happened
+				// to play that week. That is a free-hit squad presented as a
+				// wildcard, and it is reachable only since `fixtureLoadFor` learned
+				// to express a blank: before that, a blanking club read >= 1 and the
+				// distortion could not arise. So the wildcard is built at the
+				// caller's horizon, anchored on its own week, where the same blank
+				// is correctly one week in five rather than the whole world.
+				builder := wk
+				if chip == "Wildcard" {
+					builder = e.engineAtHorizon(gw, e.Weights.Horizon)
+				} else {
 					req.ExcludeIDs = wk.ElementsWithoutFixtures()
 				}
-				if built, err := wk.Optimize(req); err == nil && built != nil {
+				if built, err := builder.Optimize(req); err == nil && built != nil {
 					weekSquad, rebuilt = built.Players, true
 				}
 			}
@@ -278,9 +299,18 @@ func (e *Engine) upcomingEvents(n int) []int {
 // the league and not the other is this package's most expensive recorded bug
 // class. TestDerivedEnginesCarryEverySource enumerates the fields from the
 // struct so the two cannot drift apart or fall behind it.
-func (e *Engine) engineAt(gw int) *Engine {
+func (e *Engine) engineAt(gw int) *Engine { return e.engineAtHorizon(gw, 1) }
+
+// engineAtHorizon is engineAt with the horizon named.
+//
+// Horizon 1 is the week view itself. Anything longer is for a decision that
+// outlives the week: a wildcard's fifteen is kept, so it is built over the
+// horizon starting at its own gameweek rather than for that gameweek alone. The
+// skip set does the anchoring in both cases — `TeamFixtures` extends past a
+// skipped week, so N means N gameweeks from `gw` onward.
+func (e *Engine) engineAtHorizon(gw, horizon int) *Engine {
 	w := e.Weights
-	w.Horizon = 1
+	w.Horizon = horizon
 	wk := NewEngineFull(e.Boot, e.Fixtures, w, e.Cong, e.Role)
 	wk.Priors = e.Priors
 	wk.Recent = e.Recent

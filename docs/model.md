@@ -431,15 +431,31 @@ is none.
 
 `fixtures_per_gameweek` is matches per gameweek over the horizon, and **the window is counted in
 gameweeks rather than in fixtures**: `fixtureLoadFor` takes the club's fixtures falling inside the
-next `horizon` gameweeks and divides by `horizon`. A double reads 2.0 at horizon 1, a blank 0.0,
-and an ordinary week 1.0.
+next `horizon` gameweeks and divides by however many gameweeks the window actually found. A double
+reads 2.0 at horizon 1, a blank 0.0, and an ordinary week 1.0. The denominator matters only at the
+end of a season — with two rounds left and a horizon of five, a club playing both reads 1.0 rather
+than 0.4.
 
-Counting the window that way rather than "the next N fixtures" is the one subtlety, and it is what
-makes the term usable at all. Asking a fixture *list* for the next one match in a double gameweek
-returns one of the two and the double vanishes — which is precisely the case the term exists for.
-The same asymmetry hides a blank in the other direction: a club with no fixture simply reaches a
-week further ahead and still yields N fixtures, reading as a perfectly ordinary 1.0.
-`TestFixtureLoadCountsDoublesAndBlanks` pins both directions.
+Two things decide the window, and both were wrong once.
+
+**It is anchored on the next GAMEWEEK, not on the club's next FIXTURE.** Asking a fixture *list*
+for the next one match in a double gameweek returns one of the two and the double vanishes — which
+is the case the term exists for. The blank is the mirror and is worse: anchored on the club's own
+next fixture, a club that does not play simply starts its window a week later, so the blank falls
+outside it and cannot be expressed at all. At horizon 1 that made the load **1 or more by
+construction**. Checked against the archive's true fixture count over every club-gameweek of the
+six-season grid, the old anchor missed **170 blanks and no doubles**;
+`TestDiagFixtureLoadMatchesTheArchive` is that comparison and
+`TestFixtureLoadMatchesTheArchiveOnOneSeason` runs the cheap half by default.
+
+**It honours the skip set.** A free hit removes its own week from the permanent squad's horizon,
+and `WeekViews` isolates a single gameweek by skipping every round before it — so a window of N
+means N gameweeks *this engine scores*, not N on the calendar. Reading the fixture index raw made
+every projected week inherit the imminent week's load, so a club with a double this Saturday had
+its players doubled in all five projected weeks.
+
+`TestFixtureLoadCountsDoublesAndBlanks`, `TestFixtureLoadHonoursTheSkipSet` and
+`TestFixtureLoadWindowEndsWithTheSeason` pin the three properties.
 
 **Where the term is applied decides everything, and it is not applied everywhere.** It scales
 the score used to pick the eleven you actually field this week, and the score used to judge a

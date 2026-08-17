@@ -723,6 +723,27 @@ type PlayerMetrics struct {
 	// package's most expensive recorded bug class; carrying the fact on the value
 	// rather than re-deriving the condition is what stops it recurring.
 	loadInScore bool
+	// loadSet records that FixtureLoad was computed, which is a different fact
+	// from its value.
+	//
+	// It became necessary when `fixtureLoadFor` learned to return a real 0 for a
+	// club that blanks the whole window. Before that, `FixtureLoad > 0` was a
+	// sound test for "this came from Metrics", because the function could not
+	// return anything else; afterwards it silently reads a genuine blank as an
+	// unpopulated field, and the two callers below both respond by *skipping the
+	// multiply* — so the one player who certainly scores nothing is valued at his
+	// full score in the transfer objective. That is the very defect the anchor fix
+	// exists to remove, surviving in the objective the fix does not touch.
+	//
+	// Reachable at a horizon of 2 to 4, which is not exotic: `EffectiveHorizon`
+	// shortens the transfer horizon to the gap before a planned wildcard, and the
+	// archive holds blank runs of two and three consecutive rounds. It is NOT
+	// reachable at horizon 1, where `loadInScore` is true and the second guard
+	// short-circuits before reading the load at all.
+	//
+	// Unexported for the same reason `loadInScore` is: bookkeeping, not a scoring
+	// term, and tool output is replayed on every API call.
+	loadSet bool
 	// TeamXGCFactor is the club-level correction applied to XGC90, if any.
 	// Reported because every scoring term is a reported multiplier: a defender
 	// marked down for his club's changed back line should say so.
@@ -1854,6 +1875,7 @@ func (e *Engine) Metrics(el *fpl.Element) PlayerMetrics {
 	// club playing twice scored identically to one playing once, and a club
 	// playing not at all scored as though it had. See fixtureLoadFor.
 	m.FixtureLoad = e.fixtureLoadFor(el.Team, e.Weights.Horizon)
+	m.loadSet = true
 	if e.FixtureLoadInScore() {
 		m.Score *= m.FixtureLoad
 		m.loadInScore = true

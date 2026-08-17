@@ -10,20 +10,34 @@ package backtest
 // holds every fixture of every season, so the claim can be checked exactly
 // rather than argued about — which is what found the defect this file now
 // guards against. Anchored on the club's next FIXTURE rather than the next
-// GAMEWEEK, the window slid past a blank and the load read >= 1 by construction:
+// GAMEWEEK, the window slid past a blank and the load read >= 1 by construction.
+// This probe against the pre-fix anchor, on the six-season grid:
 //
-//	2021-22  agree 679 | blank scored as playing 61 | other 0
-//	2022-23  agree 698 | blank scored as playing 42 | other 0
-//	2023-24  agree 717 | blank scored as playing 23 | other 0
-//	2024-25  agree 730 | blank scored as playing 10 | other 0
-//	2025-26  agree 730 | blank scored as playing 10 | other 0
+//	2020-21  agree 716 | blank scored as playing 44 | other 0
+//	2021-22  agree 699 | blank scored as playing 61 | other 0
+//	2022-23  agree 718 | blank scored as playing 22 | other 0 | 1 round nobody plays
+//	2023-24  agree 737 | blank scored as playing 23 | other 0
+//	2024-25  agree 750 | blank scored as playing 10 | other 0
+//	2025-26  agree 750 | blank scored as playing 10 | other 0
+//	TOTAL   agree 4370 | blank scored as playing 170 | other 0
 //
-// Every blank missed and no double ever missed, over 3,554 club-gameweeks. The
-// doubles half is therefore what a fix must not break, and the "other" column is
-// what says so.
+// Every blank missed and no double ever missed, over 4,540 comparisons — that
+// is `agree + blank`, not the agree column. The doubles half is therefore what a
+// fix must not break, and the "other" column is what says so.
+//
+// ⚠️ **2022-23 reads 22 here and 42 in the audit that first found this**, and
+// both are right about different populations: the 20 extra are its wholly
+// postponed GW7, which the `played[gw] == 0` guard below now counts separately
+// because a round nobody plays is not twenty blanks.
 //
 // It reads FixtureLoad off `Metrics`, not off the unexported counter, because
 // the quantity that matters is the one the scoring path puts on a footballer.
+//
+// ⚠️ **This measures how often the defect bit, and not what it was worth.** The
+// replay's fixture list is final, so it knows from GW1 which rounds a club will
+// blank, where FPL announces them as cup rounds resolve — the same hindsight
+// caveat the `+33` doubles figure already carries, and blanks are if anything
+// more exposed to it. No points figure derived from this fix escapes it.
 
 import (
 	"fmt"
