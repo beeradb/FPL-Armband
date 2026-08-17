@@ -21,7 +21,7 @@ Every expensive failure in this project's history is a provenance failure rather
 |---|---|
 | snapshot taken | 2026-08-14 18:08 EDT |
 | commit | `2bf601808c2b` — **working tree was dirty**, so this commit alone does not identify the code that ran |
-| branch | `vault-migration` |
+| branch | *row removed. The generator stamped the branch it ran on; that row carried no information the commit above does not, and it is no longer emitted.* |
 | cells file | `not supplied` |
 | model file | `/home/bbowman.guest/.claude/jobs/f2a39dbc/tmp/model.csv` |
 
