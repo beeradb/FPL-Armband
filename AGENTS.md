@@ -1452,6 +1452,35 @@ The `→ **name**` at the end of a line is the note the evidence sits in, not a 
 - **Anchoring the chips on the calendar is a clean null as a measurement, and "anchoring is worth
   nothing" is not established** — MDE 34-37 per season-path, with the sign resting entirely on the
   GW1 column. `fullSight` is the realistic arm, because the biggest double is known ahead of time.
+- **Bench-boost PLACEMENT resolves, at a threshold of 2.65, and the reason is the comparison rather
+  than the effect.** The chip is **path-invariant**: `consult` runs after `pickXI` and mutates only
+  `chipTriggers`, playing it reaches `weekScoreWithChip` alone, and `BenchBoostGain` is recorded
+  every week against the *unchipped* week. So two placement arms hold the identical fifteen, make
+  the identical transfers, and differ only in which recorded gain enters the total. Verified in **36
+  of 36** cells on `squad_hash`/`moves`/`hits`, on the whole per-week gain vector, and on the exact
+  integer identity `Δpolicy_points == bench_boost_pts`. Neither the ~70 `POLICY` median nor the
+  303-point transfer floor applies. `stats/snapshots/2026-08-17-bench-boost-placement/`, 36 cells,
+  six seasons, **points per season-path** — a chip is a one-week event, so do not multiply by 38.
+  The state rule (`BenchBoostTrigger`, bar 16, congestion off) beats a bench boost at entry+6 by
+  **+5.778** (CR2 SE 1.032, df 5, t 5.60, threshold 2.65 season-clustered and 3.31 start-fixed, wild
+  0.0096 at `S_eff` 6, 6 of 6 season means positive, LOSO +5.03 to +6.40, no cell carrying it). It
+  fires in 36 of 36 cells and moves the week in 34. Perfect placement is **+16.139** over the same
+  control (one-sided 95% lower bound +14.52), so the rule recovers **0.358** of it — the ceiling's
+  own t is mechanical, since it is non-negative by construction, and it was run first as a canary.
+  ⚠️ **This is NOT a case for turning the lever on.** The control's own gain averages 3.69 and is
+  **exactly zero in 11 of 36 cells** — under a bench boost there are no autosubs, so a week's gain
+  is the bench's points *less the substitutions forfeited* — and shipped plays no bench boost at
+  all. The rule's level against no chip is +9.47, a different question, unpre-registered and
+  thresholdless here. ⚠️ **A floor, four ways:** no arm plays a wildcard, free hit or triple
+  captain, so every arm boosts a squad the ordinary objective built and a flat bench flattens the
+  gain profile — the measured ceiling is itself a floor on the ceiling. Simple-effect at
+  `WeeklyXI` false, congestion off, `BankUpTo` 5 and `chipBarBenchBoost` **16, which is asserted**
+  and was not swept. Nothing here recommends a placement week, and none was chosen.
+- **`OptionPricing.CongestionSensitivity = 0` means the DEFAULT of 1.0, not off** —
+  `CongestionFactor` reads `if sensitivity <= 0 { sensitivity = DefaultCongestionSensitivity }`,
+  which is that struct's correct unset-is-a-no-op convention and a trap for an arm meaning to hold
+  the channel still: it selects the *strongest* setting and reports a confounded contrast as a clean
+  one. Say `1e-12`. `TestCongestionSensitivityZeroIsTheDefaultNotOff` pins both halves.
 - **The scoring-chip timing `+0.000` is a declared invariance, not a result.**
   `mustNotMoveForAxis(AxisChipWeek)` returns all eight of `cellMetricColumns` — the eight columns
   every sweep collects a comparable series for, which is **not** every column in the cells file,

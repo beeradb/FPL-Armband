@@ -261,6 +261,40 @@ for (s in sort(unique(fit$season))) {
   note(sprintf("  drop %-9s %+.3f", s, mean(sub$diff)))
 }
 
+# --- post-hoc, and labelled so it cannot be read as pre-registered -------------
+#
+# ⚠️ **Neither reading below is in the pre-registered family.** They are printed
+# because a verdict that omitted them would be over-readable, and they carry no p
+# for exactly the reason the family was declared in advance: a contrast chosen
+# after the numbers are seen is not a contrast the multiplicity accounting covers.
+
+note("")
+note("--- POST-HOC. Not in the pre-registered family; no p is offered for either.")
+
+# Leave-one-CELL-out, which is a different question from leave-one-season-out and
+# is the one that answers "is one cell carrying this". Its own limitation is
+# stated: 35 of 36 cells are shared, so the SPREAD is the reading and the level is
+# not news.
+loo <- vapply(seq_len(nrow(fit)), function(i) mean(fit$diff[-i]), numeric(1))
+note(sprintf("leave-one-CELL-out mean spans %+.3f to %+.3f (full sample %+.3f).",
+             min(loo), max(loo), m))
+note("  A cell whose removal moves this materially is a cell carrying the arm.")
+
+# The arm's own LEVEL against playing no chip at all. This is a different question
+# from placement — it asks whether the lever should be on, not where it should
+# fire — and the shipped default plays no bench boost, so it is the number a
+# reader will reach for and must not mistake for the result above.
+lev <- merge(a0[, c("cell", "policy_points")],
+             a2[, c("cell", "policy_points", "season", "start_gw")],
+             by = "cell", suffixes = c(".base", ".arm"))
+lev$diff <- lev$policy_points.arm - lev$policy_points.base
+note("")
+note(sprintf("arm 2's LEVEL against playing no chip at all: %+.3f points per",
+             mean(lev$diff)))
+note("season-path, over ", nrow(lev), " cells. That is a DIFFERENT question —")
+note("whether the lever should be on, not where it should fire — and it is not")
+note("what either block was designed to answer. Quoted without a threshold.")
+
 # --- the gate -----------------------------------------------------------------
 
 if (mode == "CEILING") {

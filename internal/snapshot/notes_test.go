@@ -806,7 +806,22 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// dispute on the other — so the merged file carries both sets and neither branch's
 	// ceiling covers it. Raising to 136 is the arithmetic of that merge, not a licence
 	// for more prose: the next entry pays the usual price.
-	const budget = 136 * 1024
+	//
+	// # 140 KB from 2026-08-17, and the room went to one measured result
+	//
+	// The bench-boost placement arm: a resolved contrast (+5.778 a season-path, CR2
+	// t 5.60 against its own threshold of 2.65), the canary that gated it (+16.139,
+	// non-negative by construction so its t is mechanical), the path-invariance that
+	// makes both readable at all, and the four conditions the level is a floor under.
+	// Plus the `CongestionSensitivity = 0` trap, which is a standing rule in the shape
+	// of a two-line warning: a zero there selects the package DEFAULT, so an arm
+	// meaning to hold that channel still reports a confounded contrast as a clean one.
+	//
+	// The previous raise left **197 bytes free**, which is the ratchet this comment
+	// warns about three paragraphs up — at that margin the next honest edit pays a
+	// budget commit whatever it says, and the cheapest way to fit is to drop a
+	// qualifier. So this raise is deliberately larger than the entry that prompted it.
+	const budget = 140 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.
