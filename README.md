@@ -1,4 +1,4 @@
-# FPL Armband
+<img src="docs/images/fpl-armband-banner.png" alt="FPL Armband — a dark shield carrying circuit traces, crossed by a blue captain's armband marked with a C, beside the wordmark FPL Armband" width="520">
 
 An AI Fantasy Premier League analyst that runs on your machine. The binary is `armband`.
 
@@ -13,6 +13,13 @@ optional.
 
 *Named for the captaincy, which is the biggest single decision you make each week and the one
 effect in this project's record that stands clear of the noise.*
+
+This is the page `armband -html squad.html squad` writes — real output from a live run, not a
+mockup. The whole fifteen under the real rules: the eleven and the bench in substitution order,
+the captain, what was spent and what is left, and against every player the next five fixtures,
+expected minutes, the model's score and the price.
+
+![The squad page for gameweek 1, four days before the deadline. A header shows the gameweek, the deadline and free transfers, above three tabs: The eleven, Why this eleven, and Watchlist. Below, the starting eleven in a 3-5-2 — 46.2 XI points per gameweek, Bruno Fernandes as captain, £99.5m spent, £0.5m left — with each row carrying five colour-coded fixture-difficulty pills, expected minutes, the model's score and the price. The four-man bench follows in substitution order.](docs/images/squad-eleven.png)
 
 The shape of the system, and where the split falls: everything up to the agent is deterministic
 and free, and the language model is judgement layered on top of numbers it never computes
@@ -131,6 +138,13 @@ team as skin in the game.
 A transfer is a question about **order** — will this player out-score that one — not about
 hitting a points total. So the number to judge a predictor by is how well it ranks players
 within a gameweek.
+
+The squad page's watchlist tab asks that question thirty-two times over, and it is worth seeing
+how: each candidate is ranked not against the league but against the weakest starter you already
+own in that position, named in every group's header, with the Δ column giving the gap and green
+marking what clears the free-transfer gate. One of thirty-two does.
+
+![The watchlist tab: the 32 best available players not in the fifteen, grouped by position. Each group is headed by the weakest starter already owned in that position — Raya for goalkeepers, Tarkowski for defenders, Rice for midfielders, Calvert-Lewin for forwards — and each row shows the next five fixtures, expected minutes, ownership, the model's score, the gap to that starter, and price. Haaland's +1.70 is the only gap shown in green; the note above the table says one of 32 clears the free-transfer gate of 0.40 points per gameweek.](docs/images/watchlist.png)
 
 The baselines are not straw men; they are what an FPL manager actually reasons from today.
 **Recent form** here is a player's mean score over his last five gameweeks — the same idea as
@@ -375,6 +389,14 @@ Worth knowing before you trust a recommendation:
   scarce axis, and six seasons of football is a small sample for questions at that resolution.
   [docs/replay.md](docs/replay.md) is candid about which comparisons the harness can settle and
   which it can't.
+
+The tool says this to your face rather than leaving it in the documentation. The squad page's
+"Why this eleven" tab names where the model is structurally blind that week — sides whose
+defensive numbers were earned with a player who is now out, arrivals it scores 0.00 because
+there are no Premier League minutes to read — and, for each group, the question worth going
+and asking.
+
+![The "Why this eleven" tab. Under "Standing overrides": no standing overrides, this squad is the model's unaided answer. Under "Where the model says it is blind", two worked groups: "Defences whose numbers no longer describe the side" lists five injured or unavailable defenders whose clubs' expected goals conceded was earned with them in the team, with the question "how long is he out, who replaces him, and should every defensive asset at that club be marked down?"; "No Premier League data — scored 0.00 regardless of role" lists five players from promoted clubs or overseas, with the question "is he in the predicted XI? If so he is badly underrated and worth a squad slot."](docs/images/why-this-eleven.png)
 
 ## Documentation
 
