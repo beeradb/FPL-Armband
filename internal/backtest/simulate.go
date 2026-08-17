@@ -310,6 +310,17 @@ type SimResult struct {
 	// difference — a points difference of zero has two explanations and a change
 	// count of zero has one.
 	Armband *ArmbandOracle
+
+	// Banking is the transfer-banking mediator, filled by every simulated season
+	// rather than by one arm. See BankingMediator.
+	//
+	// A value and not a pointer, unlike the two oracles above, because it is not
+	// conditional: every season runs weekly decisions and every decision holds
+	// some allowance, so there is no "the axis was not requested" state to
+	// represent. What plays the pointer's role is DecisionWeeks — zero exactly
+	// when no week reached `decide`, which is what a SimResult assembled by hand
+	// carries and is why bankingOf gates on it.
+	Banking BankingMediator
 }
 
 // ArmbandOracle counts how often hindsight disagreed with the model about who
@@ -317,6 +328,71 @@ type SimResult struct {
 type ArmbandOracle struct {
 	Weeks   int // gameweeks the armband was chosen in
 	Changed int // of those, how many the oracle captained differently
+}
+
+// BankingMediator is what the weekly transfer decision did with its allowance:
+// how often the banking rule declined a move, and how much allowance it had to
+// decline with.
+//
+// # Why this is counted rather than inferred
+//
+// The recorded verdict is that the policy never banks a transfer and that
+// banking is not the fix. Nothing counted whether shouldBank ever fired, so that
+// null could not be told apart from a comparison that never ran — the arm wired,
+// the rule unreachable, and a byte-identical result reported as a tie. This
+// package's standing rule is that a byte-identical result is not a tie until its
+// mediator has been checked, and the ArmbandOracle field above states the same
+// argument in its own terms: a points difference of zero has two explanations
+// and a count of zero has one.
+//
+// FreeHeld is here for the other half of the reading. shouldBank returns false
+// outright once the allowance is already at cfg.BankUpTo, so an arm whose
+// decisions all run at the ceiling would report zero banked weeks for a reason
+// that has nothing to do with the comparison being made. That reason is only
+// visible with the allowance recorded beside the count.
+type BankingMediator struct {
+	// DecisionWeeks is how many gameweeks reached `decide`: every week played
+	// except the first, which buys the squad, and any week a wildcard or a free
+	// hit took the transfer decision away.
+	DecisionWeeks int
+	// ConsultedWeeks is how many of those weeks shouldBank was actually asked
+	// in. Counted rather than read off cfg.BankLookahead so that the mediator
+	// says what ran instead of what was configured — the same rule the cells
+	// file's arm block is built on.
+	ConsultedWeeks int
+	// BankedWeeks is how many of ConsultedWeeks it answered "wait" in.
+	BankedWeeks int
+	// FreeHeld is the sum, over DecisionWeeks, of the free transfers in hand
+	// when the search ran — after the week's accrual and before anything was
+	// spent, which is the number moveLimit is taken from and the number
+	// shouldBank compares against cfg.BankUpTo.
+	//
+	// A sum rather than a mean so the cell that carries it can be re-pooled
+	// downstream; MeanFreeAtDecision is the one place the division happens.
+	// ⚠️ This is NOT Week.Free, which is recorded after the decision has spent
+	// what it spent. Both are wanted and they are different quantities.
+	FreeHeld int
+}
+
+// MeanFreeAtDecision is the average transfer allowance a decision week ran with,
+// and the sole definition of the free_at_decision column.
+//
+// Zero when nothing was decided. A caller that needs to tell that apart from a
+// genuine mean of zero — which cannot occur, since the accrual runs before the
+// search — reads DecisionWeeks, and bankingOf does exactly that.
+func (b BankingMediator) MeanFreeAtDecision() float64 {
+	if b.DecisionWeeks <= 0 {
+		return 0
+	}
+	return float64(b.FreeHeld) / float64(b.DecisionWeeks)
+}
+
+// weekBanking is one gameweek's contribution to BankingMediator: what the search
+// ran with, whether the banking rule was asked, and whether it said wait.
+type weekBanking struct {
+	Free      int
+	Consulted bool
+	Banked    bool
 }
 
 // ChipWeek is one chip placed with hindsight: which gameweek, and what it would
@@ -1189,6 +1265,9 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// The armband oracle's mediator, counted rather than inferred. See
 	// SimResult.Armband.
 	armbandWeeks, armbandChanged := 0, 0
+	// The transfer-banking mediator, on the same principle and for every arm
+	// rather than one. See SimResult.Banking.
+	var banking BankingMediator
 
 	for gw := start; gw <= 38; gw++ {
 		week := Week{GW: gw}
@@ -1236,7 +1315,20 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 
 			default:
 				var moves []Move
-				held, free, moves = decide(pe, cur, held, w, free, gw, cfg)
+				var wb weekBanking
+				held, free, moves, wb = decide(pe, cur, held, w, free, gw, cfg)
+				// The mediator, accumulated only on weeks that actually reached
+				// the decision: a wildcard or a free-hit week is one the banking
+				// rule could not have been asked in, and counting it would put a
+				// week the arm never governed into the denominator.
+				banking.DecisionWeeks++
+				banking.FreeHeld += wb.Free
+				if wb.Consulted {
+					banking.ConsultedWeeks++
+				}
+				if wb.Banked {
+					banking.BankedWeeks++
+				}
 				for _, mv := range moves {
 					res.Moves = append(res.Moves, mv)
 					res.Transfers++
@@ -1373,6 +1465,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	if cfg.Oracles.Decision == AxisArmband {
 		res.Armband = &ArmbandOracle{Weeks: armbandWeeks, Changed: armbandChanged}
 	}
+	res.Banking = banking
 	return res, nil
 }
 
@@ -1385,7 +1478,12 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 // The horizon shrinks toward the end of a season. A hit taken at GW36 has two
 // gameweeks to repay itself, not five, and a policy that ignores that will keep
 // buying form in May.
-func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, cfg SimConfig) ([]int, int, []Move) {
+//
+// The fourth return is the banking mediator's per-week contribution. It is
+// returned rather than accumulated through a pointer so that this function still
+// computes nothing it does not also return, and so a caller that ignores it —
+// there are none today — cannot end up with a half-filled counter.
+func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, cfg SimConfig) ([]int, int, []Move, weekBanking) {
 	bank := w.bank
 	// Prices as they stood when the decision was made, which is the end of the
 	// previous gameweek — the same point the engine's data comes from.
@@ -1490,13 +1588,25 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 	var moves []Move
 	hits := 0
 	limit := moveLimit(free, cfg.MaxHits, cfg.MaxMoves)
+	// The allowance the search is about to run with: after this week's accrual,
+	// before anything is spent. Captured beside moveLimit because it is the same
+	// number moveLimit is taken from — recording it anywhere later would report
+	// what survived the decision instead. See BankingMediator.FreeHeld.
+	wb := weekBanking{Free: free}
 
 	// Is next week's bigger allowance worth more than this week's move?
-	if cfg.BankLookahead && shouldBank(e, held, bank, free, limit, gw, horizon, freeCost, cfg, sell) {
-		if free < cfg.BankUpTo {
-			free++
+	if cfg.BankLookahead {
+		// Counted here rather than from cfg, so that a future guard added in
+		// front of shouldBank shows up as consulted weeks falling rather than as
+		// a banking arm that quietly stops firing.
+		wb.Consulted = true
+		if shouldBank(e, held, bank, free, limit, gw, horizon, freeCost, cfg, sell) {
+			wb.Banked = true
+			if free < cfg.BankUpTo {
+				free++
+			}
+			return held, free, nil, wb
 		}
-		return held, free, nil
 	}
 
 	// One search for both jobs, when enabled. See unified.go.
@@ -1510,7 +1620,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 		if free < 0 {
 			free = 0
 		}
-		return held, free, moves
+		return held, free, moves, wb
 	}
 
 	// A premium cannot be funded one swap at a time: the downgrade that pays for
@@ -1610,14 +1720,14 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			hits++
 		default:
 			// Nothing left worth doing this week.
-			return held, free, moves
+			return held, free, moves, wb
 		}
 		best.GW = gw
 		held = applyMove(held, best)
 		settle(best)
 		moves = append(moves, best)
 	}
-	return held, free, moves
+	return held, free, moves, wb
 }
 
 // applyMove returns the squad with one player swapped for another.

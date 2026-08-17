@@ -133,6 +133,41 @@ type cellRow struct {
 	HoldFixedCaptain int
 	HoldNoCaptain    int
 
+	// The transfer-banking mediator, embedded rather than flattened for the same
+	// reason chipReadings is: it is the engine's own struct, so the column block
+	// and the quantity it reports cannot drift into two definitions.
+	//
+	// # What it makes readable
+	//
+	// A banking arm's whole claim is that declining a move this week buys a
+	// bigger package next week. Every reading of that claim so far has been a
+	// points difference, and a points difference of zero has two explanations —
+	// the rule ran and never paid, or the rule never ran. banked_weeks separates
+	// them and free_at_decision says which of the rule's own guards was the
+	// reason, since shouldBank refuses outright once the allowance is already at
+	// cfg.BankUpTo.
+	//
+	// # The off / never-fired distinction, and how it is spelled
+	//
+	// shouldBank is only reachable when SimConfig.BankLookahead is on, so on
+	// shipped config the honest reading is "the question was never asked" rather
+	// than "the answer was never yes". The file's standing rule already spells
+	// that: **blank is a gap and zero is a measurement**. So banked_weeks is
+	// blank when the arm never consulted the rule and 0 when it consulted the
+	// rule and it never fired, and free_at_decision is written either way — it
+	// is measured on every arm, banking or not. A reader therefore sees
+	//
+	//	blank / blank    this sweep did not record the block at all
+	//	blank / a number banking was off in this arm; here is the allowance it
+	//	                 would have had to bank out of
+	//	0     / a number banking was on and never fired
+	//	n     / a number banking was on and fired n times
+	//
+	// which is the whole point of the change, and is why the two columns are one
+	// block and must be read together.
+	HasBanking bool
+	BankingMediator
+
 	// What each chip actually returned in the week it was played, and which week
 	// that was. Zero week means the arm did not play that chip in this cell.
 	//
@@ -380,6 +415,10 @@ func (r cellRow) asInfeasible() cellRow {
 	r.Weeks, r.PolicyPoints, r.HoldPoints, r.Moves, r.Hits = 0, 0, 0, 0, 0
 	r.HasLayers, r.Frozen, r.FrozenCaptain, r.Weekly = false, 0, 0, 0
 	r.HasCaptainRungs, r.HoldFixedCaptain, r.HoldNoCaptain = false, 0, 0
+	// The banking block follows the metric rule rather than the arm rule: it is
+	// a count of what the decision loop did, and an infeasible cell never ran
+	// one. Leaving it would report decision weeks in a cell that played none.
+	r.HasBanking, r.BankingMediator = false, BankingMediator{}
 	r.HasChipWeeks = false
 	r.BenchBoostGW, r.BenchBoostPts, r.TripleCapGW, r.TripleCapPts = 0, 0, 0, 0
 	r.HasChipOracle, r.chipReadings = false, chipReadings{}
@@ -422,6 +461,7 @@ var cellHeader = []string{
 	"weekly_points", "weekly_per_gw",
 	"hold_fixedcap_points", "hold_fixedcap_per_gw",
 	"hold_nocap_points", "hold_nocap_per_gw",
+	"banked_weeks", "free_at_decision",
 	"bench_boost_gw", "bench_boost_pts", "triple_captain_gw", "triple_captain_pts",
 	"bench_boost_oracle_gw", "bench_boost_oracle_pts",
 	"bench_boost_median_pts", "bench_boost_threshold_pts", "bench_boost_bar_pts",
@@ -444,6 +484,19 @@ var cellHeader = []string{
 // stripping both yields the one before that.
 const (
 	captainRungCols = 4
+	// bankingCols is the transfer-banking mediator: how many decision weeks the
+	// banking rule declined a move in, and the mean allowance a decision week ran
+	// with. Two rather than four because neither is a season total — a count of
+	// weeks and a mean over weeks are both already normalised, so dividing either
+	// by `weeks` a second time would be the inflation the chip block's comment
+	// records paying for.
+	//
+	// It sits between the captaincy rungs and the chip block. That is the only
+	// free slot in the schema: the chip-oracle block must stay immediately after
+	// the chip block, xPoints immediately after that, the arm block after that
+	// and the oracle pair last, and every one of those four contracts has a
+	// position test indexing from the end.
+	bankingCols = 2
 	// chipWeekCols is the chip block: two gameweeks and two one-off point
 	// totals. Four rather than eight because there are no per-gw columns here —
 	// see cellRow.HasChipWeeks for why a chip must not be normalised by weeks.
@@ -741,6 +794,30 @@ func (s *cellSink) cell(r cellRow) {
 			strconv.Itoa(r.HoldNoCaptain), perGW(r.HoldNoCaptain, r.Weeks))
 	} else {
 		rec = append(rec, "", "", "", "")
+	}
+	// The transfer-banking mediator.
+	//
+	// # Pre-registered liveness rule
+	//
+	// **Any banking arm whose banked_weeks is 0 everywhere is a comparison that
+	// never ran, and its deliverable is the mediator count, not a null.**
+	//
+	// banked_weeks is blank when the arm never consulted the rule and 0 when it
+	// consulted it and it never fired — the file's standing blank-is-a-gap rule,
+	// applied to the one distinction this block exists for. free_at_decision is
+	// written whenever a decision week ran, banking arm or not, because the
+	// allowance is measured on every arm and is what says whether shouldBank's
+	// ceiling guard was the reason for a zero. See cellRow.HasBanking for the
+	// four readings the pair produces.
+	if r.HasBanking && r.ConsultedWeeks > 0 {
+		rec = append(rec, strconv.Itoa(r.BankedWeeks))
+	} else {
+		rec = append(rec, "")
+	}
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec, floatOrBlank(r.MeanFreeAtDecision()))
+	} else {
+		rec = append(rec, "")
 	}
 	// Same rule again for the chips, and for the same reason: a blank says the
 	// sweep did not record them, where a zero would say the chip returned

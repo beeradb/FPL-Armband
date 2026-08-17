@@ -179,6 +179,7 @@ One row per (sweep, variant, season, start point).
 | `policy_points`, `hold_points` | raw season totals |
 | `policy_per_gw`, `hold_per_gw` | the same, divided by `weeks` |
 | `moves`, `hits` | transfer counts, from the policy arm |
+| `banked_weeks`, `free_at_decision` | the transfer-banking mediator (below): how many decision weeks the banking rule declined a move in, and the mean free-transfer allowance a decision week ran with. **Blank `banked_weeks` means the arm never consulted the rule**, `0` means it consulted it and it never fired |
 | `frozen_*`, `frozen_captain_*`, `weekly_*` | the variance decomposition's intermediate layers, in which the eleven is frozen at the day-one pick; blank for an ordinary sweep |
 | `hold_fixedcap_*`, `hold_nocap_*` | the captaincy rungs (below); blank for the variance decomposition |
 | `bench_boost_gw`, `bench_boost_pts`, `triple_captain_gw`, `triple_captain_pts` | what each scoring chip returned in the week the arm actually played it, and which week that was. Zero week means the arm did not play that chip in this cell. The standard sweep config plans no chips, so both pairs are `0` in an ordinary sweep; only a diagnostic that sets a chip plan populates them |
@@ -192,6 +193,39 @@ has a `_per_gw` twin, none may be divided by `weeks`, and none may be multiplied
 38 either — they are already at season scale. The `_gw` columns are gameweek
 numbers, not points. A chip pays once; normalising it by gameweeks played is an
 inflation this record has paid for before.
+
+### The transfer-banking mediator
+
+`shouldBank` lets the weekly decision decline a move because a bigger package is
+affordable next week. It is only reachable when `SimConfig.BankLookahead` is on,
+which the shipped arm does not set — so on an ordinary sweep the honest reading is
+"the question was never asked" rather than "the answer was never yes". These two
+columns are what tells those apart, and they must be read together:
+
+| `banked_weeks` | `free_at_decision` | reading |
+|---|---|---|
+| blank | blank | this sweep did not record the block at all |
+| blank | a number | banking was off in this arm; the number is the allowance it would have had to bank out of |
+| `0` | a number | banking was on and never fired |
+| `n` | a number | banking was on and fired `n` times |
+
+**The pre-registered rule: any banking arm whose `banked_weeks` is 0 in every cell
+is a comparison that never ran, and its deliverable is the mediator count, not a
+null.** This record's standing rule is that a byte-identical result is not a tie
+until its mediator has been checked, and until these columns existed the recorded
+verdict that the policy never banks a transfer had no mediator to check.
+
+`free_at_decision` is the other half of the reading, because `shouldBank` refuses
+outright once the allowance already sits at `bank_up_to` — an arm whose decisions
+all run at the ceiling would report zero banked weeks for a reason that has nothing
+to do with the comparison being made.
+
+Two things it is not. It is **a mean over decision weeks, not over `weeks`**: a
+wildcard or free-hit week plays football and makes no transfer decision, so it is
+outside the denominator, and neither column may be divided by `weeks` or multiplied
+by 38. And the allowance is measured **after the week's accrual and before anything
+is spent**, which is the number the search actually ran with — not `Week.Free`,
+which is what survived the decision.
 
 ### The chip-week oracle's readings
 
