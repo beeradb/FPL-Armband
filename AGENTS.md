@@ -184,6 +184,16 @@ because surviving bullets rest on them:
   flat-bench-weight verdict.
 - Making defcon visible to the replay moved 2025-26 by **−95**, but it was one of four changes in
   that block. Do not attribute the movement to visibility alone.
+- **The fixture-load anchor fix moves every `POLICY` total and no `HOLD` one.** `fixtureLoadFor`
+  (matches per gameweek, the multiplier on the imminent-week eleven) windowed on a club's next
+  *fixture* rather than the next *gameweek*, so a blank slid out of the window and the load was
+  ≥ 1 by construction at horizon 1 — **170 blanks missed over the six-season grid and zero
+  doubles**, so the term's recorded **+33 is a pure-doubles result**. `POLICY` totals move in 12
+  of 12 cells, by up to 77 points and **in both directions**, so a contrast re-derived across the
+  boundary is contaminated unevenly. `HOLD` is untouched as a **confinement, not a null**:
+  `fixtureLoadWeeklyOnly` confines the term to a horizon-1 engine and `HoldCaptaincyWeekly` builds
+  every engine at the shipped horizon of 5, so `hold_points`, `hold_xpoints`, both captaincy rungs
+  and `squad_hash` are byte-identical and every banked `HOLD` cell survives.
 
 ## What each season can and cannot run
 

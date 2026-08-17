@@ -667,7 +667,23 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// the arm banks 0 times, so the buggy branch never executed and nothing climbed. The
 	// accrual fix ships on correctness alone. Recording the replacement cost bytes; the
 	// erroneous version would have cost a retraction.
-	const budget = 110 * 1024
+	//
+	// **Raised to 112 KB on 2026-08-17 for the fixture-load anchor fix, which is a
+	// contamination event and therefore the class this section exists to carry.**
+	// `fixtureLoadFor` anchored on a club's next FIXTURE rather than the next
+	// GAMEWEEK, so at horizon 1 the load was >= 1 by construction and a blank could
+	// not be expressed at all — 170 missed over the six-season grid against zero
+	// missed doubles. Two things had to be resident and neither compresses. The
+	// first is that every banked `POLICY` total straddling the fix is contaminated
+	// UNEVENLY: 12 of 12 cells move, by up to 77 points, in both directions, which
+	// is the "invents shapes" pattern rather than added noise. The second is the
+	// qualifier on the other half — `HOLD` is byte-identical by CONFINEMENT, a code
+	// fact about `fixtureLoadWeeklyOnly` and `HoldCaptaincyWeekly`, not an empirical
+	// null — and without it the same sentence reads as "the fix does nothing to
+	// scoring", which is the opposite of true and would retire every banked `HOLD`
+	// cell for no reason. The points measurement itself is deliberately NOT here:
+	// it does not resolve on the estimator its own variance components call for.
+	const budget = 112 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.
