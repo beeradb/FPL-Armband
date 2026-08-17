@@ -1138,9 +1138,69 @@ func (s *Season) loadPlayers(ctx context.Context) error {
 }
 
 func (s *Season) loadGameweeks(ctx context.Context) error {
-	r, c, col, err := rows(ctx, s.Name, "gws/merged_gw.csv")
+	guards, err := s.gameweekRows(ctx, func(rec []string, col map[string]int, p *Player, gw int) {
+		// Accumulate, never assign.
+		//
+		// FPL publishes one row per *fixture*, so a double gameweek gives a
+		// player two rows with the same gameweek number. Assigning meant the
+		// second silently overwrote the first and the replay scored half of
+		// every double — confirmed by the largest minutes figure recorded in a
+		// double being 90, where two full matches is 180. Doubles run 10 to 42
+		// team-gameweeks a season, so this was not a rounding error.
+		g := p.GWs[gw]
+		g.Fixtures++
+		g.Points += ival(rec, col, "total_points")
+		g.Minutes += ival(rec, col, "minutes")
+		g.Starts += ival(rec, col, "starts")
+		g.Goals += ival(rec, col, "goals_scored")
+		g.Assists += ival(rec, col, "assists")
+		g.CleanSheets += ival(rec, col, "clean_sheets")
+		g.GoalsConceded += ival(rec, col, "goals_conceded")
+		g.Saves += ival(rec, col, "saves")
+		g.Bonus += ival(rec, col, "bonus")
+		g.Yellow += ival(rec, col, "yellow_cards")
+		g.Red += ival(rec, col, "red_cards")
+		g.DefCon += ival(rec, col, "defensive_contribution")
+		g.XG += fval(rec, col, "expected_goals")
+		g.XA += fval(rec, col, "expected_assists")
+		g.XGC += fval(rec, col, "expected_goals_conceded")
+		// Price is a level, not a count: the second fixture's value is the
+		// current one and summing them would double a player's price.
+		g.Value = ival(rec, col, "value")
+		p.GWs[gw] = g
+	})
 	if err != nil {
 		return err
+	}
+	s.RowGuards = guards
+	return nil
+}
+
+// gameweekRows walks `gws/merged_gw.csv` and calls fn once per surviving row,
+// with the row's renumbered gameweek and the player it belongs to.
+//
+// # Why this is separate from loadGameweeks
+//
+// A row of `merged_gw.csv` is **one match**, and `GW` is a whole gameweek — so a
+// double's two matches are added together the moment loadGameweeks' callback
+// returns and the per-match split is gone. Anything measuring a single match
+// (does this appearance clear the hour, what did this one match pay) has to read
+// the rows themselves.
+//
+// The alternative is a second walk that re-derives the gameweek renumbering and
+// the two row guards, which is this project's signature failure — one quantity
+// with two implementations — on the guards it can least afford: a phantom match
+// counted as real turns a single gameweek into a double, which is precisely the
+// distinction a doubles measurement exists to make. So the walk is written once
+// and the accumulation is the caller's.
+//
+// The report is RETURNED rather than assigned to s, because a second caller
+// walking an already-loaded season must not overwrite what the load recorded.
+func (s *Season) gameweekRows(ctx context.Context,
+	fn func(rec []string, col map[string]int, p *Player, gw int)) (*rowGuardReport, error) {
+	r, c, col, err := rows(ctx, s.Name, "gws/merged_gw.csv")
+	if err != nil {
+		return nil, err
 	}
 	defer c.Close()
 	// Older seasons label the gameweek "round"; newer ones add "GW".
@@ -1160,14 +1220,13 @@ func (s *Season) loadGameweeks(ctx context.Context) error {
 	}
 	seen := make(map[[2]int]bool, 30000)
 	guards := &rowGuardReport{Guards: rowGuardCount}
-	s.RowGuards = guards
 	for {
 		rec, err := r.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("merged_gw.csv: %w", err)
+			return nil, fmt.Errorf("merged_gw.csv: %w", err)
 		}
 		p := s.Players[ival(rec, col, "element")]
 		if p == nil {
@@ -1205,37 +1264,9 @@ func (s *Season) loadGameweeks(ctx context.Context) error {
 			}
 			seen[[2]int{p.ID, fid}] = true
 		}
-		// Accumulate, never assign.
-		//
-		// FPL publishes one row per *fixture*, so a double gameweek gives a
-		// player two rows with the same gameweek number. Assigning meant the
-		// second silently overwrote the first and the replay scored half of
-		// every double — confirmed by the largest minutes figure recorded in a
-		// double being 90, where two full matches is 180. Doubles run 10 to 42
-		// team-gameweeks a season, so this was not a rounding error.
-		g := p.GWs[gw]
-		g.Fixtures++
-		g.Points += ival(rec, col, "total_points")
-		g.Minutes += ival(rec, col, "minutes")
-		g.Starts += ival(rec, col, "starts")
-		g.Goals += ival(rec, col, "goals_scored")
-		g.Assists += ival(rec, col, "assists")
-		g.CleanSheets += ival(rec, col, "clean_sheets")
-		g.GoalsConceded += ival(rec, col, "goals_conceded")
-		g.Saves += ival(rec, col, "saves")
-		g.Bonus += ival(rec, col, "bonus")
-		g.Yellow += ival(rec, col, "yellow_cards")
-		g.Red += ival(rec, col, "red_cards")
-		g.DefCon += ival(rec, col, "defensive_contribution")
-		g.XG += fval(rec, col, "expected_goals")
-		g.XA += fval(rec, col, "expected_assists")
-		g.XGC += fval(rec, col, "expected_goals_conceded")
-		// Price is a level, not a count: the second fixture's value is the
-		// current one and summing them would double a player's price.
-		g.Value = ival(rec, col, "value")
-		p.GWs[gw] = g
+		fn(rec, col, p, gw)
 	}
-	return nil
+	return guards, nil
 }
 
 func (s *Season) loadTeams(ctx context.Context) error {
