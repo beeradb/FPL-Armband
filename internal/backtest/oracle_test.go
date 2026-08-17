@@ -518,6 +518,16 @@ func TestEveryCellRowIsStamped(t *testing.T) {
 		"cellcsv_test.go":            true,
 		"cellcsv_regression_test.go": true,
 		"oracle_test.go":             true,
+		// The option-value levers' schema tests. Every cellRow there is a
+		// SCHEMA fixture — a literal handed straight to the writer to check
+		// that a column lands under its own name, or to `asInfeasible` to check
+		// what survives it — and none of them describes a simulated cell. There
+		// is no SimConfig to stamp from, and stamping from `Oracles{}` would
+		// assert a provenance nothing measured. ⚠️ The exemption is per FILE, so
+		// a real sweep added to it would go unstamped; if one ever is, it moves
+		// to its own file rather than this list growing an argument it cannot
+		// carry.
+		"optionvalue_test.go": true,
 	}
 	for _, f := range files {
 		if exempt[filepath.Base(f)] {

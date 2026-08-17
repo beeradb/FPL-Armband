@@ -224,11 +224,11 @@ type cellRow struct {
 	// trigger's firing columns are blank when it never fired. That is what keeps a
 	// null on one lever readable without reference to the others, which is the
 	// whole reason the four switches are independent.
-	TransferHold TransferHoldMediator
-	WildcardTrig ChipTriggerMediator
+	TransferHold   TransferHoldMediator
+	WildcardTrig   ChipTriggerMediator
 	BenchBoostTrig ChipTriggerMediator
-	FreeHitTrig  ChipTriggerMediator
-	ChipPrep     ChipPrepMediator
+	FreeHitTrig    ChipTriggerMediator
+	ChipPrep       ChipPrepMediator
 
 	// The per-cell fixture dose. See doseCols for the two windows, the two traps,
 	// and why nothing regresses on them here.
@@ -237,11 +237,11 @@ type cellRow struct {
 	// SEASON and the ENTRY GAMEWEEK rather than of anything the decision loop did
 	// — a cell that played no gameweek at all still has one — so it follows the
 	// arm rule rather than the metric rule and survives asInfeasible.
-	HasDose         bool
-	ActDoubles      int
-	ActBlanks       int
-	LateDoubles     int
-	LateBlanks      int
+	HasDose     bool
+	ActDoubles  int
+	ActBlanks   int
+	LateDoubles int
+	LateBlanks  int
 
 	// What each chip actually returned in the week it was played, and which week
 	// that was. Zero week means the arm did not play that chip in this cell.

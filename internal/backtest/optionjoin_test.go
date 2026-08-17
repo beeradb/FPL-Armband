@@ -96,7 +96,7 @@ func TestTheTaperReachesTheTransferDecision(t *testing.T) {
 	// reach it. A movement here means the lever is changing squad SELECTION,
 	// which would make any figure from this arm bound something else.
 	if squadHash(got.OpeningSquad) != squadHash(shipped.OpeningSquad) {
-		t.Errorf("the taper moved the opening fifteen; it is a charge on a "+
+		t.Errorf("the taper moved the opening fifteen; it is a charge on a " +
 			"transfer and the opening squad makes none")
 	}
 }

@@ -546,9 +546,9 @@ type ChipTriggerMediator struct {
 	// FiredGW is the gameweek the chip was played in, or 0 if the rule never
 	// fired. FiredValue is the reading that cleared, and FiredBar the bar it
 	// cleared — both zero when FiredGW is zero.
-	FiredGW           int
-	FiredValue        float64
-	FiredBar          float64
+	FiredGW    int
+	FiredValue float64
+	FiredBar   float64
 	// ValueSum and BarSum are the reading and the bar summed over WeighedWeeks,
 	// so a cell carries the level as well as the count.
 	ValueSum, BarSum float64
