@@ -530,14 +530,42 @@ sits in, not a file you can open here.
   ⚠️ **The convergence argument is CAPACITY-CONDITIONAL and wrong as stated, and the line closes
   anyway on a harder constraint.** A manager who can transfer experiences a *selected subsequence*
   rather than a drawn run, so the governing spread is the **one-gameweek 35%** and not the
-  five-gameweek 13%. What binds instead is **throughput**: 37 free transfers, a free hit's eleven and
-  a wildcard's rebuild give at most **~58 targeted matches against 38 × 11 = 418 fielded
-  player-matches**, so **at most 14% are re-pointable at all, and chips redistribute transfers in
-  time without creating any.** At the recorded 21-41% per-match uplift the perfect-hindsight,
-  zero-cost ceiling is **34-93 a season (central 59)**, which merely *straddles* a `POLICY` threshold
-  of 50-70; attenuating by the ~2-in-3 ex-ante band accuracy and charging the displaced alternative
-  use of the same transfers leaves **+2 to +25**, before the argmax penalty that has flipped five
-  such signs. Arithmetic off recorded counts, **no cells spent** — a bound, not a measurement.
+  five-gameweek 13%. What binds instead is **throughput**: 37 free transfers plus a free hit's eleven
+  give at most **~51 targeted matches against 38 × 11 = 418 fielded player-matches**, so **at most
+  ~12% are re-pointable at all, and chips do not create transfers.** At the recorded 21-41%
+  per-match uplift the perfect-hindsight, zero-cost ceiling is **~30-82 a season**, which straddles a
+  `POLICY` threshold of 50-70; attenuating by the ~2-in-3 ex-ante band accuracy and charging the
+  displaced alternative use of the same transfers leaves it below, before the argmax penalty that has
+  flipped five such signs. Arithmetic off recorded counts, **no cells spent** — a bound, not a
+  measurement.
+  ⚠️ **A first draft counted a wildcard's rebuild as ~10 of those targeted matches. That is
+  backwards, and the correction matters more than the arithmetic it fixes.** The wildcard is not a
+  *source* of fixture targeting — it is the **exit**: transfer into the doublers with ordinary
+  transfers, then wildcard out into the best players. Its role is to delete the **unwind cost**,
+  which is the largest term in the charge above: transfers spent chasing fixtures leave you holding
+  worse players and are normally billed a second time to reverse. A chip that resets the squad makes
+  that bill zero, and the free hit does the same by construction because it reverts on its own. So
+  **chips do not raise the throughput ceiling; they lower the price of using it**, and the deduction
+  above is too harsh for any window that ends in a reset.
+  ⚠️ **That mechanism is UNMEASURABLE on this policy rather than refuted, and the reason is a code
+  fact**: `decide` is greedy per week and never prices a future unwind **in either arm**, so a cost
+  absent from both cannot be removed from one. Pricing it needs a valuation that scores a move over
+  the weeks it will actually be held — **a model change, not a sweep** — and until then no arm here
+  can express *"buy the fixture, then reset"*. **Do not read the bound above as covering it.**
+  ⚠️ **The exit need not be a chip — a BANKED TRANSFER is one too, and what matters is holding one
+  at all.** Wildcard, free hit and banked transfer are three implementations of the same thing, so
+  the strategy needs *an* exit rather than all three. That reframes what banking is **for**, and it
+  is a better explanation of the measured inertness than anything the probe found: `shouldBank`
+  prices the extra transfer as **enumeration capacity** — can a larger funded package be built — and
+  the answer is no, identical candidate lists in 224 of 226. But the strategy wants it as a
+  **reserved exit**, which `PackageValue` has no term for. **The rule is not failing to find value;
+  it is pricing a different quantity.** Hypothesis, unrun, and it shares the unmeasurability above:
+  a reserved exit is worth something only to a valuation that looks past this week.
+  ⚠️ **The season's end is a third exit, and it is free.** Chase a double late enough and there is no
+  unwind at all, so the holding cost falls monotonically toward GW38. That is a **shape** prediction
+  rather than a level, and it collides with a recorded one: *nothing clears the gain threshold at any
+  price after GW28*. Either that quiet is the converged squad the record says it is, or the objective
+  cannot see that the holding cost has gone to zero. **Unresolved; do not assume the first.**
   ⚠️ **And the 21-41% is not a deployable magnitude.** It is an uplift on a term the model
   *already prices* through `defenceMultiplier`/`attackMultiplier`, so the deployable quantity is the
   **residual** after that — and this file's own verdict is that the five-game response is about right
