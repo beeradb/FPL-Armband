@@ -20,6 +20,14 @@ package backtest
 // optimistic direction. This diagnostic is what makes that checkable before a
 // sweep is spent rather than after.
 //
+// ⚠️ **"Every cell contains a double" is a necessary condition and licenses
+// nothing on its own.** The dose is what matters and it is wildly unequal — read
+// the per-cell columns and the season totals, not the live-cell count. Cells
+// within a season are nested and share nearly all their doubles, so the
+// entry-point axis varies the *state* the doubles are met in rather than the
+// treatment. A doubles arm is a season-clustered design first and a 36-cell one
+// second, and the two readings differ by a lot.
+//
 // # What is counted, and what it is keyed on
 //
 // Everything here is read off the **fixture list** through `teamGameweeks`, never
@@ -42,14 +50,23 @@ package backtest
 // round as played at all, so no chip rule can anchor to it. It is counted and
 // reported separately, and excluded from the blank totals.
 //
-// # Two windows, and they are not the same window
+// # Three windows, and they are not the same window
 //
 // A cell entering at GW n **plays** [n, 38] — `Simulate`'s loop is
-// `for gw := start; gw <= 38`. A chip may only be placed in [n+1, 38], because
-// `sightedWeeks` and `findAnchors` both require `gw > start`. So a double in the
-// entry week itself is football the cell scores and a chip can never be spent on.
-// Both windows are reported; conflating them overstates what the chip axis can
-// reach.
+// `for gw := start; gw <= 38`. It can **act** only on [n+1, 38], because the
+// opening fifteen is chosen at the entry deadline, so a double in the entry week
+// is football the cell scores and no transfer can be banked into. And a **chip**
+// reaches [n+1, 38] gated by `minAnchorClubs`, a bar the two planners apply that
+// nothing else does.
+//
+// All three are reported, because they answer different questions and the middle
+// one is the dose to weight or regress on. Conflating them credits the mechanism
+// with weeks it could not have acted on.
+//
+// ⚠️ The [n+1, 38] restriction is a property of `sightedWeeks` and `findAnchors`,
+// which both require `gw > start` — **not** of the harness. `Simulate`'s
+// scoring-chip switch and its free-hit build sit outside its `if gw > start`
+// block, so a plan naming the entry week itself would be played.
 //
 // # Data state
 //
@@ -76,16 +93,31 @@ type censusRow struct {
 	season string
 	start  int
 
-	gameweeks int // rounds the cell plays, [start, 38]
+	// gameweeks is the WIDTH of the window, 38-start+1, which is the record's
+	// 38/33/28/23/18/13 convention. It is not the number of rounds carrying
+	// football: 2022-23 has an empty round, so at a GW1 entry this reads 38 while
+	// only 37 were played. The `empty` column is what corrects it, and anything
+	// using this as a denominator on that season is about 2.7% low.
+	gameweeks int
 
-	// Counted over the PLAYED window [start, 38].
+	// Counted over the PLAYED window [start, 38] — the football the cell scores.
 	doubleRounds, doubleClubGWs int
 	blankRounds, blankClubGWs   int
 	emptyRounds                 int
 
-	// Counted over the CHIP-ELIGIBLE window [start+1, 38], and further gated on
-	// minAnchorClubs — the bar `sightedWeeks` applies before it will spend a chip
-	// on a week. A cell can be live for football and dead for the chip axis.
+	// Counted over the ACTIONABLE window [start+1, 38], ungated by any bar.
+	//
+	// This is the dose a policy can actually respond to, and it is the column to
+	// weight or regress on rather than `doubleClubGWs`. A double in the entry week
+	// itself is football the cell scores and no transfer can ever be banked into,
+	// because the opening fifteen is chosen at the entry deadline — so counting it
+	// as dose credits the mechanism with a week it could not have acted on.
+	actionableDoubleClubGWs int
+	actionableBlankClubGWs  int
+
+	// Counted over the same window and further gated on minAnchorClubs — the bar
+	// `sightedWeeks` applies before it will spend a chip on a week. A cell can be
+	// live for football, live for transfers, and dead for the chip axis.
 	anchorableDoubleRounds int
 	anchorableBlankRounds  int
 }
@@ -103,16 +135,37 @@ type weekCensus struct {
 
 // censusOf reads a season's calendar into one row per gameweek.
 //
-// It is `teamGameweeks` plus arithmetic and holds no second copy of the counting
-// rule, which is the point: `findAnchors`, `sightedWeeks` and
-// `TestDiagFixtureCalendar` all read the same function, so a census that
-// disagreed with the placement rule would be a census of a calendar no chip rule
-// can see.
+// It reads `teamGameweeks` for the per-club match counts, which is the safe side
+// to count from. It does re-spell the *classification* — zero is a blank, two or
+// more is a double — and that expression now exists four times in this package:
+// here, in `calendarWeek`, in `findAnchors` and inside `sightedWeeks`. Three of
+// those are deliberate, because `TestAnchoredPlanSitsOnTheCalendarMaxima` and
+// this file's Part 3 both work by cross-checking one against another; `censusOf`
+// against `calendarWeek` is not, and `censusOf` strictly supersedes it — it adds
+// `played` and gets the fixture count right. Collapsing `TestDiagFixtureCalendar`
+// onto this function is the right follow-up and is left out of this change
+// because it rewrites another diagnostic's output. Neither
+// `TestTheCopiedExpressionsHaveOneImplementation` nor
+// `TestTheSharedCellQuantitiesHaveOneImplementation` matches this idiom, so
+// nothing will catch a fifth copy.
+//
+// # blanking is zero on an unplayed round, not twenty
+//
+// `count[gw]` is nil for a round with no fixtures, so the natural loop reads
+// every club as blanking and reports 2022-23 GW7 as a twenty-club blank — the
+// exact misreading this file's header rejects. Parts 1 and 2 skip unplayed rounds
+// before reading the field, so they were already safe; Part 3 looks a chip's week
+// up directly and was not. Fixing it at the source rather than at each reader is
+// what stops the next reader inheriting the trap.
 func censusOf(s *Season) []weekCensus {
 	played, count, teams := teamGameweeks(s.Fixtures)
 	out := make([]weekCensus, 0, 38)
 	for gw := 1; gw <= 38; gw++ {
 		w := weekCensus{gw: gw, played: played[gw]}
+		if !w.played {
+			out = append(out, w)
+			continue
+		}
 		for team := range teams {
 			switch n := count[gw][team]; {
 			case n == 0:
@@ -141,9 +194,10 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 	fmt.Printf("Counted from the fixture list via teamGameweeks, never from player rows:\n")
 	fmt.Printf("a blank is the case where no row exists, and a real double has the same\n")
 	fmt.Printf("shape as the archive's duplicate rows. No repair switch bears on any of it.\n")
-	fmt.Printf("A cell entering at GW n plays [n,38]; a chip may only be placed in [n+1,38].\n")
-	fmt.Printf("minAnchorClubs = %d is the bar sightedWeeks applies before spending a chip.\n",
+	fmt.Printf("A cell entering at GW n PLAYS [n,38] but can ACT only on [n+1,38], and a\n")
+	fmt.Printf("chip reaches [n+1,38] gated by minAnchorClubs = %d. Three windows, three\n",
 		minAnchorClubs)
+	fmt.Printf("different questions; the middle one is the dose to weight or regress on.\n")
 
 	// ---- Part 1: the calendar, per season ----
 
@@ -187,11 +241,15 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 
 	// ---- Part 2: per cell ----
 
-	fmt.Printf("\n--- per cell, over the window the cell plays\n")
-	fmt.Printf("anchorable counts the chip-eligible window [start+1,38] at or above the bar.\n")
-	fmt.Printf("%-9s %-6s %4s | %7s %8s | %7s %8s | %6s | %10s %10s\n",
+	fmt.Printf("\n--- per cell\n")
+	fmt.Printf("D/B-clubgw count the PLAYED window [start,38] — the football the cell scores.\n")
+	fmt.Printf("act-D/act-B count the ACTIONABLE window [start+1,38] ungated by any bar, and\n")
+	fmt.Printf("this is the dose to weight or regress on: a double in the entry week cannot\n")
+	fmt.Printf("be transferred into, because the opening fifteen is chosen at that deadline.\n")
+	fmt.Printf("anch-D/anch-B are the same window at or above minAnchorClubs — the chip axis.\n")
+	fmt.Printf("%-9s %-6s %4s | %6s %8s | %6s %8s | %5s | %6s %6s | %6s %6s\n",
 		"season", "entry", "gws", "D-rnds", "D-clubgw", "B-rnds", "B-clubgw",
-		"empty", "anchD-rnds", "anchB-rnds")
+		"empty", "act-D", "act-B", "anch-D", "anch-B")
 
 	var rows []censusRow
 	for _, p := range pairs {
@@ -214,19 +272,24 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 					r.blankRounds++
 					r.blankClubGWs += w.blanking
 				}
-				if w.gw > start && w.doubling >= minAnchorClubs {
-					r.anchorableDoubleRounds++
-				}
-				if w.gw > start && w.blanking >= minAnchorClubs {
-					r.anchorableBlankRounds++
+				if w.gw > start {
+					r.actionableDoubleClubGWs += w.doubling
+					r.actionableBlankClubGWs += w.blanking
+					if w.doubling >= minAnchorClubs {
+						r.anchorableDoubleRounds++
+					}
+					if w.blanking >= minAnchorClubs {
+						r.anchorableBlankRounds++
+					}
 				}
 			}
 			rows = append(rows, r)
-			fmt.Printf("%-9s GW%-4d %4d | %7d %8d | %7d %8d | %6d | %10d %10d\n",
+			fmt.Printf("%-9s GW%-4d %4d | %6d %8d | %6d %8d | %5d | %6d %6d | %6d %6d\n",
 				r.season, r.start, r.gameweeks,
 				r.doubleRounds, r.doubleClubGWs,
 				r.blankRounds, r.blankClubGWs,
 				r.emptyRounds,
+				r.actionableDoubleClubGWs, r.actionableBlankClubGWs,
 				r.anchorableDoubleRounds, r.anchorableBlankRounds)
 		}
 	}
@@ -275,17 +338,25 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 	fmt.Printf("%-9s %-6s | %-22s | %-22s\n", "season", "entry",
 		"anchored bb/fh/tc", "control bb/fh/tc")
 
-	type placement struct{ placed, onFeature int }
+	type placement struct{ placed, onFeature, unplayed int }
 	var anchoredBB, anchoredFH, anchoredTC placement
 	var controlBB, controlFH, controlTC placement
+	rejected := map[string]int{}
+	rejectExample := map[string]string{}
 
+	// `!` marks a chip placed on a round that carries no fixture at all. It is not
+	// a decoration: `controlWeeks` has no `played` gate, so at a 2022-23 GW1 entry
+	// the control bench boost lands on GW7 — the voided round. Without the marker
+	// that prints as "0", indistinguishable from an ordinary week where nobody
+	// doubles, and the control arm's confound is invisible.
 	describe := func(weeks []weekCensus, gw int, double bool) string {
 		if gw == 0 {
-			return "  -   "
+			return "   -   "
 		}
-		n := 0
+		n, played := 0, false
 		for _, w := range weeks {
 			if w.gw == gw {
+				played = w.played
 				if double {
 					n = w.doubling
 				} else {
@@ -293,7 +364,11 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 				}
 			}
 		}
-		return fmt.Sprintf("%2d(%2d)", gw, n)
+		flag := " "
+		if !played {
+			flag = "!"
+		}
+		return fmt.Sprintf("%2d(%2d)%s", gw, n, flag)
 	}
 	tally := func(weeks []weekCensus, gw int, double bool, p *placement) {
 		if gw == 0 {
@@ -302,6 +377,10 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 		p.placed++
 		for _, w := range weeks {
 			if w.gw != gw {
+				continue
+			}
+			if !w.played {
+				p.unplayed++
 				continue
 			}
 			n := w.blanking
@@ -320,6 +399,33 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 			a := anchoredPlan(p.Cur, start)
 			c := controlPlan(p.Cur, start)
 
+			// Would the harness actually replay this plan?
+			//
+			// `Simulate` calls `ValidateChipSets` before its first gameweek, and
+			// `runPolicySweep` records a rejection as an INFEASIBLE cell rather
+			// than fatalling — so an arm can quietly lose cells while every
+			// printed number stays plausible. That is the failure this file's
+			// header says it exists to prevent, and Part 3 was committing it: it
+			// printed plans as good placements without ever asking whether they
+			// were playable.
+			//
+			// It fires today, on the two-set rule. `ChipSetsFor("2025-26")` is 2,
+			// and a FIRST-set chip at or after `ChipResetGW` is refused — but
+			// `sightedWeeks` and `controlWeeks` know nothing about the reset, and
+			// 2025-26's only anchors are GW33 and GW34. The defect belongs to
+			// those two planners rather than to this census, which is why this
+			// counts and reports rather than failing: making the census red would
+			// invite deleting the check instead of fixing the planners.
+			for _, v := range []struct {
+				arm  string
+				plan analysis.ChipPlan
+			}{{"anchored", a}, {"control", c}} {
+				if err := ValidateChipSets(p.Name, v.plan, analysis.ChipPlan{}); err != nil {
+					rejected[v.arm]++
+					rejectExample[v.arm] = fmt.Sprintf("%s GW%d: %v", p.Name, start, err)
+				}
+			}
+
 			tally(weeks, a.BenchBoost, true, &anchoredBB)
 			tally(weeks, a.FreeHit, false, &anchoredFH)
 			tally(weeks, a.TripleCaptain, true, &anchoredTC)
@@ -336,12 +442,18 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 				describe(weeks, c.FreeHit, false),
 				describe(weeks, c.TripleCaptain, true))
 
-			// The liveness half of the confinement pairing. A bench boost the
-			// anchored rule places must sit on a week carrying at least
-			// minAnchorClubs doubling clubs — that is what sightedWeeks' bar
-			// asserts, and checking it here is what would catch the bar being
-			// bypassed by a later edit. Confinement alone ("no chip moved") can
-			// only fail; this must move and does.
+			// Two static tripwires, and they are NOT the liveness half of the
+			// pairing — an earlier version of this comment claimed they were and
+			// it was wrong. Both are guaranteed to pass by construction:
+			// `sightedWeeks`' `place` already returns on `gw <= start`, and its
+			// `firstUnbeaten` already skips a week below the bar, off the same
+			// `teamGameweeks` call this reads. So they can only fail if a later
+			// edit removes one of those, which makes them a second CONFINEMENT
+			// check. Worth keeping as tripwires, worth not mislabelling.
+			//
+			// The check with real power is the one below the loop, which asks
+			// whether `Simulate` would accept these plans at all. That one moves,
+			// and it fails today.
 			for _, chk := range []struct {
 				name   string
 				gw     int
@@ -378,7 +490,8 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 	}
 
 	n := len(rows)
-	fmt.Printf("\n%-22s %8s %14s\n", "chip", "placed", "on the feature")
+	fmt.Printf("\n%-24s %9s %16s %10s\n",
+		"chip", "placed", "on the feature", "unplayed")
 	for _, l := range []struct {
 		name string
 		p    placement
@@ -390,9 +503,24 @@ func TestDiagBlanksAndDoublesCensus(t *testing.T) {
 		{"control free hit", controlFH},
 		{"control triple captain", controlTC},
 	} {
-		fmt.Printf("%-22s %5d/%-3d %11d/%-3d\n",
-			l.name, l.p.placed, n, l.p.onFeature, l.p.placed)
+		fmt.Printf("%-24s %5d/%-3d %12d/%-3d %10d\n",
+			l.name, l.p.placed, n, l.p.onFeature, l.p.placed, l.p.unplayed)
 	}
+	fmt.Printf("\n\"on the feature\" is 100%% for every anchored arm BY CONSTRUCTION —\n")
+	fmt.Printf("minAnchorClubs guarantees it. The informative column is the control's.\n")
+	fmt.Printf("\"unplayed\" counts chips burned on a round carrying no fixture at all.\n")
+
+	fmt.Printf("\nplans ValidateChipSets would REFUSE, so Simulate records the cell\n")
+	fmt.Printf("as infeasible rather than replaying it:\n")
+	for _, arm := range []string{"anchored", "control"} {
+		fmt.Printf("  %-9s %2d of %d cells", arm, rejected[arm], n)
+		if rejected[arm] > 0 {
+			fmt.Printf("   e.g. %s", rejectExample[arm])
+		}
+		fmt.Printf("\n")
+	}
+	fmt.Printf("A rejected cell is a comparison that never ran. Size an anchored-chips\n")
+	fmt.Printf("arm on the surviving count, never on %d.\n", n)
 
 	// ---- Part 4: the baseline sweep plays no chips at all ----
 	//
