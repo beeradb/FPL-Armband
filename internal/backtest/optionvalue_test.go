@@ -341,9 +341,10 @@ func TestTheOptionValueCurveHasTheShapeItClaims(t *testing.T) {
 // `OptionDecay` is monotone decreasing and bounded by 1, so **no half-life
 // reproduces the flat constant** — the un-normalised mean over a season is 0.62 at
 // the shipped half-life and slides from 0.78 to 0.35 across a 3-to-30 ladder. Every
-// rung would therefore move the AVERAGE charge by up to a factor of 2.3, and the
-// flat level has never been varied in any banked sweep — so the level is the
-// untested prior question and a taper arm run this way would be confounded with it.
+// rung would therefore move the AVERAGE charge by up to a factor of 2.3, against a
+// flat level that is measured but **unresolved** — the ladder ran at 36 cells and
+// nothing cleared its own threshold — so a taper arm run this way would be
+// confounded with a level nobody can pin.
 //
 // Normalising by the season mean fixes it. This is what fails if the normaliser is
 // ever removed as a "simplification": the arms would still run, the mediators would

@@ -807,6 +807,15 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// ceiling covers it. Raising to 136 is the arithmetic of that merge, not a licence
 	// for more prose: the next entry pays the usual price.
 	//
+	// # 140 KB from 2026-08-17 — the free_transfer_value ladder verdict
+	//
+	// The first banked variation of the constant. Its entry replaces the withdrawn
+	// "never been varied" claim with the sweep's figures, thresholds and null verdict,
+	// and the kink identity it surfaced (the shipped charge IS min_gain times the
+	// horizon) joins the min_gain bullet as a clause rather than a second entry. The
+	// competing option-value model rides along as a labelled hypothesis, and the
+	// transfer-gate closure's support count moves to accommodate four new ties.
+	//
 	// # 144 KB from 2026-08-17, and the room went to one measured result
 	//
 	// The bench-boost placement arm: a resolved contrast (+5.778 a season-path, CR2
@@ -832,7 +841,15 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// previous entry's "the next entry pays the usual price". At a margin of a few
 	// hundred bytes the cheapest way to fit any later edit is to drop a qualifier,
 	// and that is the failure this whole comment exists to record.
-	const budget = 144 * 1024
+	//
+	// # 150 KB from 2026-08-17 — the merge of the two raises above
+	//
+	// No new claim. The bench-boost placement entry and the free_transfer_value
+	// ladder entry grew on two branches from the same 136 KB base, so the merged
+	// file — 149,561 bytes — fits under neither branch's ceiling alone. Raising to
+	// 150 is the arithmetic of that merge, same shape as the 136 raise: the next
+	// entry pays the usual price.
+	const budget = 150 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

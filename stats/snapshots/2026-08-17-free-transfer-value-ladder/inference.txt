@@ -1,0 +1,669 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+
+Read 180 cells from 1 file(s): 1 sweep(s).
+------------------------------------------------------------------------------
+Contract checks
+  ok  exactly one baseline arm in each of 1 sweep(s)
+  ok  re-derives from points / weeks: hold, policy, hold_fixedcap, hold_nocap, hold_xpoints, policy_xpoints
+  ok  no infeasible cells
+  ..  bank_up_to = 5  (pinned modern rule; totals are not comparable across seasons)
+------------------------------------------------------------------------------
+Sweep: 1786991554-2616786 / FREEVALUE#1
+Metric: HOLD (the opening fifteen; scoring constants belong here)
+Paired against: free_value=2.0 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+free_value=1.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=1.5                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=3.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=4.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    No arm in this table can be bootstrapped. That is a statement about
+    the arms, not a null: see each reason above.
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  every difference is exactly zero: this arm is byte-identical to the
+  baseline. For a transfer knob measured on HOLD that is the invariance
+  check passing, not a failed measurement.
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    free_value=1.5 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=3.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=1.5 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786991554-2616786 / FREEVALUE#1
+Metric: POLICY (the weekly transfer decision)
+Paired against: free_value=2.0 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+free_value=1.0                0.231    36 |    0.207    1.12 |    0.258    5.0    0.90 |   0.4117   0.9849   0.3784
+free_value=1.5                0.172    36 |    0.178    0.97 |    0.159    5.0    1.08 |   0.3283   0.9849   0.3131
+free_value=3.0               -0.606    36 |    0.280   -2.17 |    0.347    5.0   -1.75 |   0.1412   0.5649   0.1665
+free_value=4.0               -0.275    36 |    0.289   -0.95 |    0.327    5.0   -0.84 |   0.4381   0.9849   0.4275
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    free_value=1.0                0.3784 |        6        6    0.00013
+    free_value=1.5                0.3131 |        6        6    0.00013
+    free_value=3.0                0.1665 |        6        6    0.00013
+    free_value=4.0                0.4275 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    free_value=1.0              0.90    1.16    1.22 |    0.163   4/6  |    10.3     0.0    89.7   1.30
+    free_value=1.5              1.08    0.90    1.40 |   -0.066   4/6  |     0.0     0.0   100.0   0.83
+    free_value=3.0             -1.75   -2.25   -2.37 |    0.288   4/6  |    10.0     0.0    90.0   1.29
+    free_value=4.0             -0.84   -0.90   -2.93 |    0.078   4/6  |     2.3     0.0    97.7   1.07
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    free_value=1.0             SE    0.258  df    5.0  t    0.90  p   0.4117
+    free_value=1.5             SE    0.178  df   35.0  t    0.97  p   0.3404
+    free_value=3.0             SE    0.347  df    5.0  t   -1.75  p   0.1412
+    free_value=4.0             SE    0.327  df    5.0  t   -0.84  p   0.4381
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    free_value=1.5 minus free_value=1.0            -0.059    36 |    0.116   -0.50 |    0.134   -0.44 |    11   0.6829
+    free_value=3.0 minus free_value=1.0            -0.837    36 |    0.297   -2.82 |    0.225   -3.71 |    11   0.0136
+    free_value=4.0 minus free_value=1.0            -0.506    36 |    0.297   -1.71 |    0.243   -2.09 |    13   0.0557
+    free_value=3.0 minus free_value=1.5            -0.778    36 |    0.278   -2.80 |    0.310   -2.51 |    12   0.0593
+    free_value=4.0 minus free_value=1.5            -0.447    36 |    0.290   -1.55 |    0.299   -1.50 |    13   0.2049
+    free_value=4.0 minus free_value=3.0             0.331    36 |    0.275    1.20 |    0.096    3.46 |    23   0.0390
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786991554-2616786 / FREEVALUE#1
+Metric: instrument: HOLD, armband pinned to the day-one pick
+Paired against: free_value=2.0 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+free_value=1.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=1.5                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=3.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=4.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    No arm in this table can be bootstrapped. That is a statement about
+    the arms, not a null: see each reason above.
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  every difference is exactly zero: this arm is byte-identical to the
+  baseline. For a transfer knob measured on HOLD that is the invariance
+  check passing, not a failed measurement.
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    free_value=1.5 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=3.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=1.5 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786991554-2616786 / FREEVALUE#1
+Metric: instrument: HOLD with nobody doubled (not what FPL pays)
+Paired against: free_value=2.0 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+free_value=1.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=1.5                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=3.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=4.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    No arm in this table can be bootstrapped. That is a statement about
+    the arms, not a null: see each reason above.
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  every difference is exactly zero: this arm is byte-identical to the
+  baseline. For a transfer knob measured on HOLD that is the invariance
+  check passing, not a failed measurement.
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    free_value=1.5 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=3.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=1.5 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786991554-2616786 / FREEVALUE#1
+Metric: instrument: HOLD on accumulated xPoints (read beside HOLD)
+Paired against: free_value=2.0 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+free_value=1.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=1.5                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=3.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=4.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    No arm in this table can be bootstrapped. That is a statement about
+    the arms, not a null: see each reason above.
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  every difference is exactly zero: this arm is byte-identical to the
+  baseline. For a transfer knob measured on HOLD that is the invariance
+  check passing, not a failed measurement.
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    free_value=1.5 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=3.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=1.5 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786991554-2616786 / FREEVALUE#1
+Metric: instrument: POLICY on accumulated xPoints (read beside POLICY)
+Paired against: free_value=2.0 (ships)
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+free_value=1.0               -0.001    36 |    0.121   -0.01 |    0.139    5.0   -0.01 |   0.9954   0.9954   0.9948
+free_value=1.5                0.102    36 |    0.108    0.94 |    0.108    5.0    0.94 |   0.3893   0.9880   0.3844
+free_value=3.0               -0.585    36 |    0.178   -3.28 |    0.324    5.0   -1.81 |   0.1305   0.5222   0.1941
+free_value=4.0               -0.336    36 |    0.233   -1.44 |    0.311    5.0   -1.08 |   0.3293   0.9880   0.3877
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    variant                       p wild |  seasons  movable      floor
+    free_value=1.0                0.9948 |        6        6    0.00013
+    free_value=1.5                0.3844 |        6        6    0.00013
+    free_value=3.0                0.1941 |        6        6    0.00013
+    free_value=4.0                0.3877 |        6        6    0.00013
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  clustering axis check — is the season clustering doing anything?
+    variant                   t seas  t fixd t entry | v_season  agree |   %seas  %entry  %resid  ratio
+    free_value=1.0             -0.01   -0.01   -0.01 |    0.024   2/6  |     4.2     0.0    95.8   1.12
+    free_value=1.5              0.94    0.90    1.25 |   -0.006   4/6  |     0.0     0.0   100.0   0.96
+    free_value=3.0             -1.81   -4.36   -3.53 |    0.520   4/6  |    42.5     4.7    52.9   2.41
+    free_value=4.0             -1.08   -1.47   -2.16 |    0.268   3/6  |    12.5     0.0    87.5   1.36
+    t seas  = CR2 clustered on season, df ~5.0 — the record's primary column
+    t fixd  = start point as a FIXED block, no season effect, df 25 — the SAME estimand as t seas when v_season is ~0, on five times the df
+    t entry = CR2 clustered on entry point. A ROBUSTNESS CHECK, not a rival:
+              the same six entry gameweeks are replayed every season on
+              purpose, so their main effect is fixed and cancels from a
+              paired contrast. It can print absurd values on six tight
+              clusters; read it only as 'does the axis matter'.
+    Prefer t fixd where %seas is near zero, t seas where it is not — and
+    treat a high %seas with `agree` well below the season count as one
+    season carrying the whole effect rather than as seasons agreeing.
+    v_season is the RAW component and may be negative, which is how a
+    method-of-moments estimate says 'indistinguishable from zero' on 3 df;
+    the %seas column clamps it and cannot show that.
+    Run variance_components.R on the same cells before acting on any of it.
+
+  mixed model, diff ~ 1 + (1|season) — residual is the within-season level:
+    free_value=1.0             SE    0.139  df    5.0  t   -0.01  p   0.9954
+    free_value=1.5             SE    0.108  df   35.0  t    0.94  p   0.3530
+    free_value=3.0             SE    0.324  df    5.0  t   -1.81  p   0.1305
+    free_value=4.0             SE    0.311  df    5.0  t   -1.08  p   0.3293
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    free_value=1.5 minus free_value=1.0             0.103    36 |    0.078    1.32 |    0.082    1.26 |    13   0.2166
+    free_value=3.0 minus free_value=1.0            -0.584    36 |    0.192   -3.04 |    0.256   -2.28 |    11   0.0341
+    free_value=4.0 minus free_value=1.0            -0.335    36 |    0.239   -1.40 |    0.261   -1.28 |    15   0.3751
+    free_value=3.0 minus free_value=1.5            -0.687    36 |    0.175   -3.93 |    0.262   -2.62 |     8   0.0117
+    free_value=4.0 minus free_value=1.5            -0.438    36 |    0.239   -1.83 |    0.263   -1.67 |    11   0.1603
+    free_value=4.0 minus free_value=3.0             0.249    36 |    0.208    1.20 |    0.052    4.78 |    21   0.0125
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786991554-2616786 / FREEVALUE#1
+Metric: marginal: the armband's share of this effect
+Paired against: free_value=2.0 (ships)
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+free_value=1.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=1.5                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=3.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=4.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    No arm in this table can be bootstrapped. That is a statement about
+    the arms, not a null: see each reason above.
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  every difference is exactly zero: this arm is byte-identical to the
+  baseline. For a transfer knob measured on HOLD that is the invariance
+  check passing, not a failed measurement.
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    free_value=1.5 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=3.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=1.5 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Sweep: 1786991554-2616786 / FREEVALUE#1
+Metric: marginal: re-picking the captain weekly
+Paired against: free_value=2.0 (ships)
+This marginal is differenced per cell, so its SE needs no assumption
+about independence between adjacent layers.
+mean is points per gameweek played; multiply by ~38 for a season.
+
+variant                        mean     n |   SE nai   t nai |   SE CR2     df   t CR2 |    p raw   p holm   p wild
+free_value=1.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=1.5                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=3.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+free_value=4.0                0.000    36 |    0.000       . |        .      .       . |   1.0000   1.0000 identical
+
+  wild cluster bootstrap — Webb 6-point weights on SEASON, null imposed,
+  enumerated exactly over all 6^movable draws (no sampling, so no seed):
+    free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    No arm in this table can be bootstrapped. That is a statement about
+    the arms, not a null: see each reason above.
+    `movable` is the number of seasons carrying a non-zero difference. A
+    season of exact zeros is unchanged by any weight, so it sets no part
+    of the reference distribution and the FLOOR IS SET BY `movable`, not
+    by `seasons`. The smallest attainable p is 6/6^movable — SIX, because
+    the CR2 t is homogeneous in y, so every draw giving all movable
+    seasons the same weight ties |t|, and Webb has six weight values:
+      movable  2 -> 0.1667   3 -> 0.02778   4 -> 0.00463   6 -> 0.000129
+    At four seasons the largest effect in this record — the perfect
+    armband, CR2 t 20.4 — reaches only 0.0093, so read this as a SEASON-
+    AGREEMENT statistic with a few usable gradations, not a magnitude.
+    Three inert words, because they are three different facts: `identical`
+    is the invariance check passing, `pinned` is one movable season and
+    measures nothing, `underpowered` is two and cannot reach 0.05.
+    It is a function of the SEASON TOTALS ALONE, hence exactly invariant
+    to how a season's effect is spread across its cells. It therefore
+    cannot see cell-level kurtosis at all, and cannot tell one big cell
+    from six equal ones — that is what `pos` is for. Read them together.
+    ASYMMETRIC BY RULE: it may WITHDRAW support from a CR2 rejection, and
+    it may NOT grant one. Do not Holm-adjust it, and derive no MDE or
+    points-per-season from it — a bootstrap p carries no SE.
+
+  every difference is exactly zero: this arm is byte-identical to the
+  baseline. For a transfer knob measured on HOLD that is the invariance
+  check passing, not a failed measurement.
+
+  Family size for the Holm adjustment: 4 alternative(s) in this sweep and metric.
+  A raw p that clears 0.05 and an adjusted p that does not is exactly the
+  case the old |t| >= 2 rule counted as 'confirmed'.
+
+  Contrasts BETWEEN arms — the baseline cancels, so each is an ordinary
+  paired difference. Read with the same t_crit as everything above, and
+  note the p is raw: this is a different question from the Holm family.
+    contrast                                         mean     n |   SE nai   t nai |   SE CR2   t CR2 |   pos   p wild
+    free_value=1.5 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=3.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=1.5             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=4.0 minus free_value=3.0             0.000    36 |    0.000       . |        .       . |     0 identical
+    free_value=1.5 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=3.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=1.5: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+    free_value=4.0 minus free_value=3.0: IDENTICAL — every difference is exactly zero — byte-identical to the baseline
+  `pos` is how many of the cells the contrast is positive in. A mean that
+  rests on a handful of cells is a one-cell result whatever its t says.
+  `p wild` is the Webb wild cluster bootstrap described in the block
+  above — a different estimator from the CR2 t beside it, and a
+  robustness diagnostic rather than a gate. It asks whether the contrast
+  survives reweighting whole SEASONS, so read it with `pos`, which is
+  about cells: the two answer different questions and a contrast can
+  fail one and pass the other.
+------------------------------------------------------------------------------
+Noise by information regime — POLICY, pooled over every comparison
+regime                 weeks  SE per gw  vs early   if length   cells
+early (prior-led)         36      0.322      1.00        1.00      48
+middle                    26      0.424      1.32        1.18      48
+late (season-led)         16      0.458      1.42        1.51      48
+------------------------------------------------------------------------------
+Noise by information regime — HOLD: every difference is exactly zero, so there is no noise to attribute.
+------------------------------------------------------------------------------
+Reproducing Go's paired means
+  ok  all 24 comparison(s) reproduce Go's mean and cell count (max abs diff 0e+00)
+  ..  8 comparison(s) computed here with no Go mean to check against:
+        FREEVALUE#1 m_armband free_value=1.0
+        FREEVALUE#1 m_armband free_value=1.5
+        FREEVALUE#1 m_armband free_value=3.0
+        FREEVALUE#1 m_armband free_value=4.0
+        FREEVALUE#1 m_capweekly free_value=1.0
+        FREEVALUE#1 m_capweekly free_value=1.5
+        FREEVALUE#1 m_capweekly free_value=3.0
+        FREEVALUE#1 m_capweekly free_value=4.0
+------------------------------------------------------------------------------
+wrote /tmp/freevalue-bank/inference/inference.csv
+
+Reading this: prefer the CR2 column, and read its df rather than assuming
+one. Treat a raw p under 0.05 whose Holm-adjusted p is not as the case the
+old |t| >= 2 rule mislabelled 'confirmed'. And weigh the shape plot above
+any single row: monotonicity, a plateau with a cliff, or the held-out
+season agreeing is what this project accepts as evidence.
+
+`p_wild` is a SECOND estimator, not a correction to the first: it swaps an
+unverifiable normality assumption on the season means for a symmetry one.
+It is a function of the SEASON TOTALS ALONE, so it says nothing whatever
+about the shape of the cells inside a season. Read it with
+`wild_seasons_movable` and `wild_floor` — both are populated on inert rows
+too, so `wild_floor > 0.05` is a working filter for 'could not be measured'
+and `wild_inert` names which of the three reasons applies. ASYMMETRIC BY
+RULE: it may withdraw support from a CR2 rejection, never grant one. Do not
+Holm-adjust it, and derive no MDE from it.

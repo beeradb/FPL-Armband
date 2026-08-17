@@ -1,0 +1,25 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+FREEVALUE#1,1786991554-2616786,policy,free_value=1.0,1,free_value=2.0 (ships),0.23095740777853713,36,-
+FREEVALUE#1,1786991554-2616786,policy,free_value=1.5,2,free_value=2.0 (ships),0.17223831554495245,36,-
+FREEVALUE#1,1786991554-2616786,policy,free_value=3.0,3,free_value=2.0 (ships),-0.6060256945077688,36,-
+FREEVALUE#1,1786991554-2616786,policy,free_value=4.0,4,free_value=2.0 (ships),-0.27520484113733445,36,-
+FREEVALUE#1,1786991554-2616786,policy_xpoints,free_value=1.0,1,free_value=2.0 (ships),-0.0008453818438061392,36,-
+FREEVALUE#1,1786991554-2616786,policy_xpoints,free_value=1.5,2,free_value=2.0 (ships),0.10168098001420864,36,-
+FREEVALUE#1,1786991554-2616786,policy_xpoints,free_value=3.0,3,free_value=2.0 (ships),-0.5848741645753809,36,-
+FREEVALUE#1,1786991554-2616786,policy_xpoints,free_value=4.0,4,free_value=2.0 (ships),-0.33586465342099303,36,-
+FREEVALUE#1,1786991554-2616786,hold,free_value=1.0,1,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold,free_value=1.5,2,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold,free_value=3.0,3,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold,free_value=4.0,4,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_xpoints,free_value=1.0,1,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_xpoints,free_value=1.5,2,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_xpoints,free_value=3.0,3,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_xpoints,free_value=4.0,4,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_fixedcap,free_value=1.0,1,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_fixedcap,free_value=1.5,2,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_fixedcap,free_value=3.0,3,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_fixedcap,free_value=4.0,4,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_nocap,free_value=1.0,1,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_nocap,free_value=1.5,2,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_nocap,free_value=3.0,3,free_value=2.0 (ships),0,36,-
+FREEVALUE#1,1786991554-2616786,hold_nocap,free_value=4.0,4,free_value=2.0 (ships),0,36,-

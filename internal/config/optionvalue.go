@@ -37,8 +37,15 @@ type OptionValuePolicy struct {
 	// told from noise, tapering is meaningless — noise does not shrink in May. If
 	// it is an opportunity cost, tapering is *required*, because the future the
 	// transfer is being saved for does shrink and is empty at GW38. Nothing here
-	// measures which it is, and `free_transfer_value` has never been varied in any
-	// banked sweep, so the level is untested at any value let alone any shape.
+	// measures which it is; the prohibition falls out of the label.
+	//
+	// The flat level HAS since been swept — 1.0/1.5/3.0/4.0 against the shipped
+	// 2.0, 36 cells on the six-season grid, `POLICY` — and **nothing resolves and
+	// the ladder has no shape**, so it is measured-and-unresolved rather than
+	// untested. An unresolved level is not a level of zero, which is why the
+	// normaliser in analysis.OptionValueAt still does the attribution work rather
+	// than being redundant. See
+	// stats/findings/2026-08-17-free-transfer-value-ladder.md.
 	//
 	// What the taper adds is two meanings the shipped rule has no term for: the
 	// value of a **reserved exit** from a fixture-driven move, and **insurance

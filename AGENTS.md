@@ -544,9 +544,43 @@ Shipped bugs, each now covered by a regression test. Re-introducing one is easy.
   classification is disputed.** If the constant is a confidence threshold filtering noise, tapering
   is meaningless — noise does not shrink in May. If it is an **opportunity cost**, tapering is
   *required*, because the future the transfer is being saved for does shrink. Nothing here measures
-  which it is; the prohibition falls out of the label. And **`free_transfer_value` has never been
-  varied in any banked sweep** — every `*.provenance.csv` stamps it at 2, so the level is untested at
-  any value, let alone any shape.
+  which it is; the prohibition falls out of the label.
+  ⚠️ **The flat level is now SWEPT and nothing resolves, so it is measured-and-unresolved rather
+  than untested.** 1.0/1.5/3.0/4.0 against the shipped 2.0, 36 cells on the six-season grid,
+  `POLICY`: **+8.8 / +6.5 / −23.0 / −10.5 a season** against per-arm thresholds of **15 to 34**
+  (clustered 25/16/34/32, start-fixed 16/15/21/24), Holm ≥ 0.56 **on the clustered p**, wild
+  ≥ 0.166 at `S_eff` 6 — so these are ties, not unmeasurable comparisons. **The ladder has no
+  shape**: it is non-monotone, 3.0 reading worse than 4.0.
+  `stats/snapshots/2026-08-17-free-transfer-value-ladder/`.
+  ⚠️ **One arm clears one estimator and it is not a finding.** 3.0's −23.0 exceeds its
+  **start-fixed** threshold of 21 while failing its clustered 34; that arm's `F_seas` is 1.66 at
+  p 0.180 on a test with about 30% power, so failing to reject is no licence to read start-fixed,
+  and it survives Holm on neither. Recorded so a re-run seeing t −2.25 does not read it as new.
+  ⚠️ **The second `POLICY`-side instrument declines to corroborate the largest positive rung.**
+  `policy_xpoints` reads −0.001/+0.102/−0.585/−0.336 pts/gw, agreeing in sign on three of four —
+  and 1.0's +8.8 a season is **≈0.0** there. Point estimates only, no thresholds computed.
+  ⚠️ **Confinement, then the check with power.** `HOLD` is byte-identical in 144 of 144 cell-arms
+  on **each of its four columns** (`hold_points`, `hold_fixedcap`, `hold_nocap`, `hold_xpoints`,
+  576 comparisons), as is `squad_hash` — but that is a **code fact**, since `FreeCost` is read only
+  inside the weekly transfer decision, so re-running it can only fail. The liveness beside it:
+  `moves` differ in 32/20/30/35 of 36 cells and `policy_points` in 31/23/34/36, and pooled moves
+  fall 1012/977/950/884/752, so the constant arrives. ⚠️ Read that fall as **arrival, not shape** —
+  raising the price of a transfer reducing transfers is monotonicity the construction forces.
+  ⚠️ **Two conditions bound every rung.** `WeeklyXI` is **false** — the `runPolicySweep` default
+  and what the sibling `min_gain` ladder ran at, but the *previous* version of this diagnostic ran
+  at `true`, and this file's own bullet says an arm at `WeeklyXI: false` has switched off the
+  fielding half of a blank-and-double mechanism, which is the class this charge gates. And
+  `BankUpTo` is pinned at **5** in all six seasons where four allowed 2. Shared by every arm, so
+  neither is arm-level bias; both bound where the ladder transports.
+  ⚠️ **0.0 is not a rung**, so the "scores *below* charging nothing" comparison above has **not**
+  been re-run and this ladder does not settle it. Neither half reproduces here: 4.0 against shipped
+  is −10.5 against its own threshold of 32, a **tie**; `4.0 − 1.0` is −19.2 as a difference of two
+  point estimates with no SE and no threshold, so it is not divided by anything. And 73 → 39 is a
+  three-season single-path GW1 count from a pre-doubles era — the 21% cut here is a different
+  denominator on a different grid, not a failed reproduction of 47%.
+  ⚠️ **The ladder crosses a kink at its own baseline** — see the `min_gain` bullet under *Closed
+  lines*; the low and high halves vary different mechanisms, which is why five rungs were never
+  going to make one shape.
   ⚠️ **The competing model, recorded as a hypothesis:** the value of holding a transfer is the
   **option value of the information not yet arrived**, so it is high early — squads are unsettled,
   minutes unknown, promoted clubs unpriced — and **exactly zero at GW38**, where a held transfer can
@@ -755,7 +789,11 @@ sits in, not a file you can open here.
   → **scoring-model**
 - **Stop sweeping the transfer gate: nothing swept in this family is recorded as having resolved.**
   That scope is narrower than "nothing in this family *can* resolve", and the ground is the bullet
-  below rather than a ratio — **one invariance and two ties, not four supports.** The invariance is
+  below rather than a ratio — **one invariance and six ties.** ⚠️ **Four of the
+  six are new and are the best-provenanced in the family**: the `free_transfer_value` ladder of
+  2026-08-17 is banked, six-season, 36 cells, with a per-arm threshold on every arm — which is
+  exactly what the `min_gain` ladder above 0.4 lacks. They strengthen the closure by not refuting
+  it and by nothing else. The invariance is
   the strong row and is a fact about the code rather than an estimate: `min_gain` inert at or below
   0.4, byte-identical at 12 cells and again at 36. The two ties are the floor at horizon 8 and the
   horizon arm, which carry thresholds of their own and **fail to reject**, so under *a null is a
@@ -775,7 +813,29 @@ sits in, not a file you can open here.
   horizon.** The horizon arm is the other half of the same threshold — at horizon 8 the floor
   binds and reads −15.8 against its own threshold of 34, with one season carrying 68% of it, and
   the horizon itself reads −8.4 against 21.7. **Do not compose the two into
-  one ladder**: they are different arms. → **transfer-policy**, **constants-and-sweeps**
+  one ladder**: they are different arms.
+  ⚠️ **The same identity binds `free_transfer_value`, from the other side, and it splits any
+  ladder spanning 2.0 into two mechanisms.** A free single's effective bar is
+  `max(min_gain, free_transfer_value / H)` — `value()` is
+  `Gain·H + money − HitCost·h − charge·(n−h) − surcharge`, where money ships at zero and the
+  surcharge is set only by the unified search, which does not ship — and `H` is
+  `effectiveHorizon`, so at the shipped horizon 5 the shipped charge of 2.0 **is** `min_gain` 0.4,
+  exactly. Below 2.0 the singles **bar** cannot move at all, and only the funded pair is live;
+  above it both channels act. **So an interior optimum at 2.0 would be confounded with
+  `min_gain × DecisionHorizon` rather than a property of the charge.**
+  ⚠️ **The end-of-season exception starts at GW35, not GW36/GW37.** The binding condition is when
+  a rung's bar differs from **shipped's**, not when it clears `min_gain` — and shipped's own bar
+  `2/H` rises above 0.4 the moment `H < 5`, which is GW35. Four end-of-season weeks per cell for
+  both low rungs.
+  ⚠️ **The census does NOT measure the split, and reading it as though it did is the error this
+  clause was corrected for.** `useHit` is `free == 0`, so **every hit week is a multi-move week by
+  construction**. Multi-move weeks read 296/282/**272**/274/235 and `hits` 118/105/**98**/78/41,
+  so the residual is 178/177/**174**/196/194 — flat below the baseline and *higher* above it,
+  the opposite of the naive reading in both halves. The two-mechanism claim rests on the
+  arithmetic; the census confirms both channels move and attributes nothing.
+  `TestTheFreeTransferChargeIsInertOnSinglesBelowTheKink` pins the identity, refuses to run under
+  the three switches that falsify it, and pins the GW35 boundary rather than merely asserting one
+  exists. → **transfer-policy**, **constants-and-sweeps**
 - **The minutes floor's "argmax protection" does not reproduce, and re-measured at −40 the
   direction reverses.** Downward it is close to inert but **not** byte-identical: lifting
   `MinExpectedMinutes` moves the fifteen in **2 of 36 cells**. On points this is **unmeasurable
