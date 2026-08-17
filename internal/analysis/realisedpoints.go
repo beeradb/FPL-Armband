@@ -144,8 +144,13 @@ func (m MatchPoints) Total() float64 {
 // The season enters through `r`, which a caller builds with `ScoringRulesFor`. A
 // zero-valued `ScoringRules` is refused rather than pricing every goal at nothing,
 // on exactly the argument `XPointsResidual` makes for its own refusal.
+// `FPL_NO_UNPRICED_POSITION_GUARD` reaches this refusal, exactly as it reaches
+// the engine's. That is not a convenience: the escape hatch exists so a
+// measurement can name the behaviour it is comparing against, and a hatch that
+// half the package honours is a hatch that produces two different arms under one
+// name.
 func DecomposeMatch(g RealisedMatch, r ScoringRules) MatchPoints {
-	if !r.Prices(g.Position) {
+	if unpricedPositionGuard && !r.Prices(g.Position) {
 		panic(fmt.Sprintf("analysis: DecomposeMatch has no scoring rules for "+
 			"element_type %d in season %q — a position with no goal value must not "+
 			"be scored as one with a goal value of zero; see ScoringRulesFor",

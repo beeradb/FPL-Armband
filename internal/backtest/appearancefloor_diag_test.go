@@ -88,6 +88,21 @@ var appearanceFloorSeasons = []string{
 // from disk and the run is offline. The cache lives beside the parsed seasons, so
 // one repository has one archive copy.
 //
+// ⚠️ **A truncated cache file is the failure this has to rule out, and it is not
+// self-detecting the way the parsed cache is.** `Load`'s JSON refuses to unmarshal
+// a short file and re-fetches; a short CSV parses cleanly into a season with fewer
+// matches, which reads downstream as football rather than as a fault — the shape
+// this record catalogues as "a cache version is not a schema check". So the write
+// goes to a temporary file and is renamed into place, which is atomic on one
+// filesystem, and a caller that crashes mid-write leaves a stray temporary rather
+// than a plausible short season. Two concurrent runs sharing a cache directory are
+// the reachable path, and the DIAG tests are exactly the ones people run twice.
+//
+// ⚠️ **Only a 404 is cached as absence.** An empty 200 is treated as a fetch
+// failure, because caching it would permanently turn `fixtures.csv` into "this
+// season has no calendar" and silently drop the season from every doubles table
+// with one log line to say so.
+//
 // ⚠️ It mutates a package-level var. That is what `archiveURL`'s own comment says
 // the var is for, and both callers restore it through `t.Cleanup`; nothing in this
 // package runs in parallel with them.
@@ -115,17 +130,16 @@ func mirrorArchive(t *testing.T, cfg config.Config) {
 		}
 		body, status := fetchWithBackoff(upstream + "/" + rel)
 		if status == http.StatusNotFound {
-			_ = os.MkdirAll(filepath.Dir(local), 0o755)
-			_ = os.WriteFile(local, nil, 0o644)
+			writeAtomically(local, nil)
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		if status != http.StatusOK {
-			http.Error(w, "upstream "+strconv.Itoa(status), status)
+		if status != http.StatusOK || len(body) == 0 {
+			// An empty 200 is a failure, never an absence. See the type comment.
+			http.Error(w, "upstream "+strconv.Itoa(status), http.StatusBadGateway)
 			return
 		}
-		_ = os.MkdirAll(filepath.Dir(local), 0o755)
-		_ = os.WriteFile(local, body, 0o644)
+		writeAtomically(local, body)
 		_, _ = w.Write(body)
 	}))
 	archiveURL = srv.URL
@@ -133,6 +147,33 @@ func mirrorArchive(t *testing.T, cfg config.Config) {
 		archiveURL = upstream
 		srv.Close()
 	})
+}
+
+// writeAtomically puts the bytes in place through a temporary file and a rename,
+// so a partial write can never be read as a complete file. Best effort: a mirror
+// that cannot cache is a slow mirror, and that is not worth failing a diagnostic
+// over — but it must never be a WRONG mirror, which is what the rename buys.
+func writeAtomically(path string, body []byte) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return
+	}
+	f, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
+	if err != nil {
+		return
+	}
+	tmp := f.Name()
+	if _, err := f.Write(body); err != nil {
+		f.Close()
+		_ = os.Remove(tmp)
+		return
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+	}
 }
 
 // fetchWithBackoff is the mirror's one upstream request, retried on the statuses
@@ -437,8 +478,15 @@ func topByPoints(sm *seasonMatches, n int) map[int]bool {
 // and the halves go through it too, so nothing here re-spells the idiom the
 // package guard exists to catch.
 func quartiles(xs []float64) (q1, med, q3 float64) {
-	if len(xs) == 0 {
-		return 0, 0, 0
+	// Fewer than two values has no halves to take a median of, so `stats.Median`
+	// would return 0 for both quartiles beside a real median and the row would
+	// print three numbers where there is one. NaN prints as NaN, which is what a
+	// missing distribution should look like.
+	if len(xs) < 2 {
+		if len(xs) == 1 {
+			return math.NaN(), xs[0], math.NaN()
+		}
+		return math.NaN(), math.NaN(), math.NaN()
 	}
 	s := slices.Clone(xs)
 	slices.Sort(s)
@@ -516,9 +564,6 @@ type share struct {
 	Matches    int
 	Appearance float64
 	Total      float64
-	// PerPlayer holds one share per player, for the distribution. A player's
-	// share is his summed appearance points over his summed total points.
-	PerPlayer []float64
 }
 
 func (s *share) add(r matchRow) {

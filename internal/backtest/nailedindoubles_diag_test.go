@@ -18,12 +18,20 @@ package backtest
 //
 // # The denominator is the CLUB's double, never the player's appearance
 //
-// `merged_gw.csv` lists only players who were in a matchday squad, so conditioning
-// on a row existing drops precisely the rotated player the congestion mechanism
-// predicts. Every population below is enumerated from (player, gameweek) pairs the
-// player was *eligible* for — he has enough recent history at a club for a prior
-// nailedness to be computable — and a gameweek with no row is a zero rather than
-// an absence.
+// Every population below is enumerated from (player, gameweek) pairs the player
+// was *eligible* for — he has enough recent history at a club for a prior
+// nailedness to be computable — with the club's fixture count read from
+// `fixtures.csv`. Conditioning on the player having appeared would drop precisely
+// the rotated player the congestion mechanism predicts.
+//
+// ⚠️ **A first version of this comment justified that design on `merged_gw.csv`
+// listing only matchday squads, so that a rotated player would have no row at
+// all. That premise is FALSE and was worth checking:** over all 183,428 eligible
+// player-weeks in the eight seasons with a calendar, the number with no archive
+// row is **0**. The archive files a row for every registered player in every
+// gameweek and records the rotated ones with zero minutes, so "not fielded" is a
+// minutes fact here rather than a missing-row fact. The design is right for the
+// reason above; it was never right for the reason first given.
 //
 // # Nailedness is prior information
 //
@@ -103,6 +111,11 @@ type eligibleWeek struct {
 	GW      int
 	Value   int
 
+	// StartsRecorded is whether the ARCHIVE records starts in this gameweek,
+	// measured league-wide on the load pass. It is a property of the week rather
+	// than of the player, which is the whole point: see startedLegs.
+	StartsRecorded bool
+
 	// seasonKey distinguishes clubs and gameweeks across seasons, so a cluster
 	// count cannot merge 2020-21's club 3 with 2024-25's.
 	seasonKey    int
@@ -141,18 +154,46 @@ func (w eligibleWeek) appearedLegs() int {
 // startedLegs counts recorded starts, and returns ok=false where the archive
 // records no start in this gameweek at all.
 //
+// ⚠️ **The gate is the GAMEWEEK's fact, never the player's rows, and reading it off
+// the rows was a real defect.**
+//
+// A loop over a player's legs finds nothing to object to when there are none, so
+// the previous version fell through to "known, zero starts" for a week with no
+// archive row — in every season, including the six that publish no `starts`
+// column. Inside a non-recording gameweek the numerator could then only be zero
+// while the denominator still counted him.
+//
+// ⚠️ **That is a real defect and it is worth exactly zero points of correction on
+// this archive, which is why the fix moved no printed number.** The population it
+// would contaminate is empty: 0 of 183,428 eligible player-weeks have no row. It
+// is fixed because the next archive need not behave that way and because a gate
+// that depends on a coincidence is not a gate — not because a figure changed.
+//
+// `n(st)` running above the naive 45% of gameweeks is therefore football, not the
+// defect: the four start-recording seasons carry more rows each than the four
+// before them, so they hold 51% of all eligible matches and more than that of the
+// fringe bucket's.
+//
 // The reconstruction in `reconstructStarts` is deliberately not consulted. Its own
 // boundary two forbids using a reconstructed start for a per-gameweek start
 // classification, and boundary three forbids it as evidence about an individual
 // rotation case — which is precisely what every row here would be.
 func (w eligibleWeek) startedLegs() (int, bool) {
+	if !w.StartsRecorded {
+		return 0, false
+	}
 	n := 0
 	for _, l := range w.Legs {
 		if l.Started < 0 {
+			// A recording gameweek with an unrecorded row is a contradiction.
+			// Refuse it rather than counting it as a non-start.
 			return 0, false
 		}
 		n += l.Started
 	}
+	// No row in a recording gameweek is a determinate non-start: he was not in
+	// the squad. That is the case the gate above exists to keep separate from
+	// "this season records nothing".
 	return n, true
 }
 
@@ -174,6 +215,13 @@ func eligibleWeeks(sm *seasonMatches, news *TeamNewsTable) []eligibleWeek {
 		if name == sm.Name {
 			seasonKey = i + 1
 		}
+	}
+	if seasonKey == 0 {
+		// A zero here would merge this season's cluster keys with another's, and
+		// a cluster count that silently under-counts is worse than none. An
+		// identity with a zero default is the shape this record distrusts.
+		panic("nailedindoubles: season " + sm.Name +
+			" is not in appearanceFloorSeasons, so its cluster keys would collide")
 	}
 	if !sm.HasCalendar {
 		return nil
@@ -242,6 +290,7 @@ func eligibleWeeks(sm *seasonMatches, news *TeamNewsTable) []eligibleWeek {
 				Element: el, Code: p.Code, Club: c, Pos: p.Type, GW: gw,
 				Value: lastValue, seasonKey: seasonKey, ClubFixtures: n,
 				Nailed: nailed, Legs: legs[el][gw],
+				StartsRecorded: sm.StartsRecorded[gw],
 			}
 			if news != nil && news.Covers(sm.Name, gw) {
 				st, _, ok := news.FlagAt(sm.Name, gw, p.Code)
@@ -264,6 +313,12 @@ func eligibleWeeks(sm *seasonMatches, news *TeamNewsTable) []eligibleWeek {
 // could have played rather than the calendar.
 func priorMinutesShare(sm *seasonMatches, el, club, gw, first int,
 	legs map[int][]matchRow) (float64, bool) {
+	// The calendar is the club he is at NOW, while the minutes are wherever he
+	// earned them. An intra-league January move therefore denominates minutes
+	// played for the old club against the new club's blanks and doubles. Recorded
+	// rather than fixed: it reaches only mid-season movers, it moves a ratio
+	// rather than a classification for almost all of them, and nothing here reads
+	// the future either way.
 	matches, minutes := 0, 0
 	for g := gw - 1; g >= first && matches < nailedWindow; g-- {
 		n := sm.clubGWFixtures(club, g)
@@ -423,6 +478,12 @@ func reportCalendarCensus(t *testing.T, seasons []*seasonMatches) {
 	}
 	t.Log("`clubs>=1` is clubs blanking exactly once — the dragged-in heuristic; " +
 		"`clubs>=2` is repeated blankers, the cup-runner heuristic.")
+	t.Log("")
+	t.Log("⚠️ EVERY POOLED DOUBLES-AGAINST-SINGLES TABLE BELOW IS SEASON-CONFOUNDED. Roughly")
+	t.Log("half of all double club-gameweeks fall in 2020-21 and 2021-22, against a singles")
+	t.Log("column drawn from all eight seasons, so any such difference carries a COVID-era")
+	t.Log("contrast as well as the double. Only the within-player table controls for it, and")
+	t.Log("the per-season headline at the end is where concentration can be read directly.")
 }
 
 // rateAcc counts one bucket.
@@ -725,6 +786,10 @@ func reportBothLegs(t *testing.T, all []seasonWeeks, haveNews bool) {
 	t.Log("elite player banks close to four. `single wk` is the same bucket's mean appearance")
 	t.Log("points in its SINGLE weeks and `added` is the difference — what the double was")
 	t.Log("really worth on the floor, against a theoretical 2.000.")
+	t.Log("⚠️ `top30 by points` and `nailed AND top30` select on the season's END total, and a")
+	t.Log("player's doubles feed that total — so the population is selected TOWARD having played")
+	t.Log("them and both60 is an upper bound rather than an ex-ante rate. `price 10.0m+` is the")
+	t.Log("prior-information elite proxy and it reads far lower.")
 	t.Log("`doubles` is the distinct (season, club, gameweek) doubles behind the cell — the")
 	t.Log("independent-unit count, which is far below `dbl weeks` because a club's ten nailed")
 	t.Log("players in one double week are one team-selection decision. `if indep` is what")
@@ -1093,6 +1158,17 @@ func reportPostDoubleLoad(t *testing.T, all []seasonWeeks) {
 		// horizon counts how many of the three follow-up weeks existed as
 		// non-blank club weeks, per offset, so a rate has an honest denominator.
 		horizon [3]int
+		// followMatches and sixtyMatches are the same follow-ups counted in
+		// MATCHES rather than weeks.
+		//
+		// A follow-up week can itself be a double, which gives that observation
+		// two chances at a 60+ and up to 180 minutes — and the treated arm sits
+		// inside a cluster of rearranged fixtures by construction, so it meets
+		// more of them. A per-week minutes column differenced across the arms is
+		// therefore not a per-match quantity, and the per-match columns beside it
+		// are what to read.
+		followMatches [3]int
+		sixtyMatches  [3]int
 	}
 	buckets := map[string]*follow{}
 	order := []string{}
@@ -1135,7 +1211,15 @@ func reportPostDoubleLoad(t *testing.T, all []seasonWeeks) {
 				hadPrev && prev.ClubFixtures == 1 && prev.sixtyLegs() == 1:
 				arm = "after two full singles"
 			case w.ClubFixtures == 1 && w.sixtyLegs() == 1:
-				arm = "after a full single"
+				// ⚠️ A RESIDUAL, not a category. The clause above claims every
+				// full single whose previous week was also a full single, so what
+				// is left here is a full single preceded by an absence, a bench
+				// week or an early substitution — a population selected on having
+				// been unavailable or out of favour seven days earlier. Its
+				// absence rate is accordingly the highest of the three arms, and
+				// differencing the double against it reverses the sign of the
+				// comparison. The label says so now; before, it did not.
+				arm = "after a single, week before NOT full"
 			default:
 				continue
 			}
@@ -1167,11 +1251,13 @@ func reportPostDoubleLoad(t *testing.T, all []seasonWeeks) {
 						continue // blank week, season over, or no longer eligible
 					}
 					f.horizon[k]++
+					f.followMatches[k] += nx.ClubFixtures
 					if nx.appearedLegs() == 0 {
 						f.absent[k]++
 					} else {
 						f.appear[k]++
 					}
+					f.sixtyMatches[k] += nx.sixtyLegs()
 					if nx.sixtyLegs() > 0 {
 						f.sixty[k]++
 					}
@@ -1184,11 +1270,16 @@ func reportPostDoubleLoad(t *testing.T, all []seasonWeeks) {
 	}
 	sort.Strings(order)
 	t.Log("== the second-order cost: what happens in the three gameweeks after ==")
-	t.Log("`absent` is no matchday-squad row at all in that gameweek — the archive's only")
-	t.Log("proxy for unavailability, and it also catches a straight omission.")
+	t.Log("`absent` is zero minutes in that gameweek — the archive's only proxy for")
+	t.Log("unavailability, and it catches being dropped as readily as being unfit. It is not")
+	t.Log("a missing row: the archive files a row for every registered player every week.")
 	t.Log("Every arm is restricted to clubs that doubled in that season, so the control matches")
 	t.Log("the club as well as the load. It does NOT match the point in the season, which is")
 	t.Log("where the remaining difference between the arms lives.")
+	t.Log("`60+` and `mins` are PER MATCH — a follow-up week can itself be a double, and the")
+	t.Log("treated arm meets more of those by construction, so a per-week column would compare")
+	t.Log("two different exposures. `absent` stays per week, because being left out is a weekly")
+	t.Log("event and has no per-match reading.")
 	t.Logf("%-38s %7s   %s", "arm", "events",
 		"gw+1 absent/60+/mins   gw+2 absent/60+/mins   gw+3 absent/60+/mins")
 	for _, k := range order {
@@ -1196,8 +1287,9 @@ func reportPostDoubleLoad(t *testing.T, all []seasonWeeks) {
 		var parts []string
 		for i := 0; i < 3; i++ {
 			parts = append(parts, fmt.Sprintf("%6.4f/%6.4f/%5.1f",
-				rate(f.absent[i], f.horizon[i]), rate(f.sixty[i], f.horizon[i]),
-				float64(f.minutes[i])/math.Max(1, float64(f.horizon[i]))))
+				rate(f.absent[i], f.horizon[i]),
+				rate(f.sixtyMatches[i], f.followMatches[i]),
+				float64(f.minutes[i])/math.Max(1, float64(f.followMatches[i]))))
 		}
 		t.Logf("%-38s %7d   %s  %s  %s", k, f.n, parts[0], parts[1], parts[2])
 	}

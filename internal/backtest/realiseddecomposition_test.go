@@ -91,7 +91,11 @@ func TestTheRealisedDecompositionReconcilesWithTheArchive(t *testing.T) {
 			}
 		})
 	if err != nil {
-		t.Skipf("archive unreachable: %v", err)
+		// FAIL, not skip. The walk is over a file `Load` has already fetched, so
+		// the network is not in question by this point — an error here is a CSV
+		// the parser could not read, and reporting that as "archive unreachable"
+		// would turn a real defect into a silent skip.
+		t.Fatalf("walking %s: %v", decompositionCheckSeason, err)
 	}
 
 	// A zero row count reads exactly like a pass, which is the failure this
