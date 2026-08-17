@@ -95,10 +95,10 @@ flowchart TB
     sum --> mult
     mult --> score
 
-    classDef inp fill:#f4f6f7,stroke:#7f8c8d,color:#111
-    classDef core fill:#e8f4fd,stroke:#2471a3,color:#111
-    classDef pay fill:#fef5e7,stroke:#b9770e,color:#111
-    classDef out fill:#eafaf1,stroke:#1e8449,color:#111
+    classDef inp fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    classDef core fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef pay fill:#FBF2E3,stroke:#B9770E,color:#141A21
+    classDef out fill:#DFEDE6,stroke:#2F7A57,color:#141A21
     class prior,curr,rec inp
     class blend,rates,fix core
     class rate,step,dc pay
@@ -116,8 +116,10 @@ recency alone — weighting minutes by minutes is circular (§4b).
 
 ## 1. Base rate per 90
 
-Expected goals and assists per 90 are converted to points at the real position-dependent
-rates. A defender's goal is worth 6, a forward's 4.
+The starting point is what a player produces per 90 minutes, priced at what FPL actually pays
+for it. Expected goals and assists per 90 are converted to points at the real
+position-dependent rates — a defender's goal is worth 6, a forward's 4. The table is FPL's own
+payment schedule:
 
 | Position | Goal | Clean sheet | Per 2 conceded |
 |---|---|---|---|
@@ -218,6 +220,20 @@ is still near zero, so the error is a hump peaking around 0.7× the bar:
 | ramp | 0.40 | 1.00 | 1.40 | 2.00 | 2.00 | 2.00 |
 | true | 0.00 | 0.06 | 0.34 | 1.08 | 1.52 | 1.91 |
 
+The same two rows drawn as lines make the shape of the error obvious: the upper line is the
+ramp, the lower is the true probability, and the gap between them is the hump — widest at
+dc/90 of 7, which is 0.7× a bar of 10, and closing at both ends:
+
+```mermaid
+%%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#B9762A, #1F5F73, #2F7A57"}}}}%%
+xychart-beta
+    title "Ramp versus true Poisson probability, at a bar of 10"
+    x-axis "defensive contributions per 90" ["2", "5", "7", "10", "12", "16"]
+    y-axis "expected points per match" 0 --> 2
+    line [0.40, 1.00, 1.40, 2.00, 2.00, 2.00]
+    line [0.00, 0.06, 0.34, 1.08, 1.52, 1.91]
+```
+
 FPL set the thresholds near what a busy outfielder actually achieves, so **86% of defenders
 and 82% of midfielders sat in the 0.5–1.1× band where the approximation is worst**. Measured
 against actual points per 90 across every player with 900+ minutes, replacing the ramp moved
@@ -248,11 +264,11 @@ midfielders (n=23) — scattered around zero, changing sign, at the noise floor.
 binomial fitted to this data lands on r≈6.8 and improves RMSE only from 0.1385 to 0.1246,
 which is what a dispersion model looks like when there is no dispersion to find.
 
-> ⚠️ **When measuring this, deduct goals conceded per match, not from the season total.**
-> An earlier version of this analysis used `goals_conceded // 2`, which over-deducts a
-> defender by about 0.23 points per appearance — and produced a phantom +0.250 "dispersion
-> gap" that was almost exactly that arithmetic. The tell was that midfielders, who take no
-> goals-conceded deduction at all, showed no gap.
+One trap for anyone re-measuring this: **deduct goals conceded per match, not from the season
+total.** Deducting `goals_conceded // 2` from the season total over-deducts a defender by
+about 0.23 points per appearance — and that arithmetic alone manufactures a phantom
+"dispersion gap" of +0.250, which is almost exactly the error. The tell is that midfielders,
+who take no goals-conceded deduction at all, show no gap.
 
 ## 2. Set-piece duty — reported, not scored
 
@@ -297,8 +313,11 @@ once a summer.
 
 ## 3. Fixture adjustment
 
-The attacking and clean-sheet terms are recomputed against the difficulty of **each** of the
-next N fixtures (default 5), and those N answers are averaged.
+A per-90 rate describes a player against an average opponent, and the next five fixtures are
+rarely average. So the attacking and clean-sheet terms are recomputed against the difficulty
+of **each** of the next N fixtures (default 5), and those N answers are averaged. Each FPL
+difficulty grade maps to a pair of multipliers, one on attacking output and one on expected
+goals conceded:
 
 | Difficulty | Attacking returns | Goals conceded |
 |---|---|---|
@@ -337,6 +356,35 @@ forward**, who has no clean sheet and no goals-conceded deduction so every term 
 linear. A run split between the extremes of the ladder is where it is largest: at a defender's
 1.3 expected goals conceded per 90 the correct clean-sheet probability is near 0.283 against
 0.256 at the averaged multiplier, or 0.11 points per 90 before damping.
+
+The two orders of operation, traced side by side on that worked defender, show where the short
+cut loses the points — the red path evaluates the curve once at the mean and lands low, the blue
+path evaluates it five times and averages the answers:
+
+```mermaid
+flowchart TB
+    fixts["five fixtures on the horizon,<br/>a run split between easy and hard<br/>(defender, 1.3 xGC per 90)"]
+    avgfirst["short cut: average the five<br/>multipliers into one number"]
+    once["evaluate the clean-sheet curve once,<br/>at the averaged difficulty"]
+    low["0.256 — understates the clean sheet<br/>and squashes the gap between<br/>an easy run and a hard one"]
+    perfix["shipped: recompute at each<br/>fixture's own multipliers"]
+    five["average the five answers"]
+    ok["0.283 — the correct probability"]
+    linear["goals and assists are a straight line:<br/>both orders give the same answer,<br/>so a forward moves by exactly zero"]
+
+    fixts --> avgfirst --> once --> low
+    fixts --> perfix --> five --> ok
+    fixts --> linear
+
+    classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    classDef bad fill:#F4E0E3,stroke:#A8404E,color:#141A21
+    classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef good fill:#DFEDE6,stroke:#2F7A57,color:#141A21
+    class fixts,linear muted
+    class avgfirst,once,low bad
+    class perfix,five pure
+    class ok good
+```
 
 The forward's exact zero is what the regression test checks, because it is the sharpest
 statement available: if an attacker's estimate moves at all, something non-linear has been
@@ -404,8 +452,7 @@ to move things first. Applying one number to both charges the bet against the ce
 measures that way: applied everywhere it damages squad selection, and confined to the two
 decisions that are re-made cheaply it is the largest reliable gain measured anywhere in this
 project, with squad selection completely unchanged. `FPL_NO_FIXTURE_LOAD=1` and
-`FPL_NO_LOAD_TRANSFERS=1` separate the two consumers again; the evidence is in the
-harness-and-inference note.
+`FPL_NO_LOAD_TRANSFERS=1` separate the two consumers again.
 
 Read the direction as safe and the size as optimistic. The replay knows about every double
 gameweek from GW1, where in reality FPL announces them only as cup rounds resolve.
@@ -421,7 +468,9 @@ can see equally — tried, and every variant was worse.
 > **Points only accrue while a player is on the pitch.** Correlation between season minutes
 > and season points across all players with any minutes: **r = 0.929**.
 
-Every player carries `expected_minutes_per_gw` — his mean minutes per gameweek — and a band:
+Every player carries `expected_minutes_per_gw` — his mean minutes per gameweek — and a band.
+The bands are labels on that number, and the right-hand column is why minutes lead everything
+else in this document:
 
 | Band | min/GW | Mean season points |
 |---|---|---|
@@ -431,10 +480,22 @@ Every player carries `expected_minutes_per_gw` — his mean minutes per gameweek
 | squad player | 20-40 | 53.8 |
 | fringe | <20 | 14.6 |
 
+Drawn to scale, that right-hand column is the steepest relationship in this document — the fall
+accelerates down the bands, and a nailed starter is worth nearly ten fringe players:
+
+```mermaid
+%%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#B9762A, #1F5F73, #2F7A57"}}}}%%
+xychart-beta
+    title "Mean season points by expected-minutes band"
+    x-axis ["nailed 75+", "likely 60-75", "rotation 40-60", "squad 20-40", "fringe under 20"]
+    y-axis "mean season points" 0 --> 150
+    bar [140.6, 124.4, 91.4, 53.8, 14.6]
+```
+
 Of last season's **top 20 scorers, 18 averaged 75+ minutes per gameweek**. Nailed-ness is
 not a trade against upside — it is where both the mean and the ceiling live.
 
-### ⚠️ The denominator is the season so far, never a fixed 38
+### The denominator is the season so far, never a fixed 38
 
 FPL's published totals reset at GW1 and then accumulate, so dividing minutes by 38 in September
 is dividing four matches of football by a whole season. It reports an ever-present as 2.4
@@ -514,7 +575,7 @@ deliberately. It is maintained by one person, and the previous community archive
 mid-season. **Stale minutes are worse than no recency at all**, because they would report a
 dropped player as still starting — which is the exact failure this term exists to fix.
 
-### ⚠️ Never use `starts_per_90` for this
+### Never use `starts_per_90` for this
 
 FPL publishes a `starts_per_90` field. It measures *"when this player appears, does he
 start"*, which sits at ≈1.0 for almost every player in the game.
@@ -651,6 +712,20 @@ weight = n / (n + k)          n = current-season evidence, k = the prior's stren
 At `n == k` the two are believed equally. Pre-season it is a no-op — FPL's totals *are* last
 season, so blending would double-count it.
 
+The formula drawn out shows how belief shifts as evidence accumulates. The upper line is
+minutes at its calibrated k of 5, the lower is rates at k of 8; each crosses one half exactly
+where `n == k`, and neither ever quite stops listening to last season:
+
+```mermaid
+%%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#B9762A, #1F5F73, #2F7A57"}}}}%%
+xychart-beta
+    title "Weight on this season, n / (n + k)"
+    x-axis "n — current-season evidence, in matches or 90s" ["0", "2", "4", "8", "12", "16", "24", "38"]
+    y-axis "weight on this season" 0 --> 1
+    line [0.00, 0.29, 0.44, 0.62, 0.71, 0.76, 0.83, 0.88]
+    line [0.00, 0.20, 0.33, 0.50, 0.60, 0.67, 0.75, 0.83]
+```
+
 **Both values of k are measured.** Calibrated against 2025-26, predicting each player's
 rest-of-season output from a blend of what had happened so far and what came before:
 
@@ -697,6 +772,24 @@ defender or keeper and 1 for a midfielder, at sixty minutes, and nothing below. 
 minutes gets one appearance point and no clean sheet; at 60 he gets both in full, and nothing
 after that changes either.
 
+What the two terms pay as a player's minutes rise is a pair of steps, not a slope — the x-axis
+below marks the breakpoints rather than running linearly, which is what makes the steps
+visible. The top line is a defender keeping a clean sheet (1 point at the first minute, then
+1 + 1 + 4 = 6 at sixty), the middle a midfielder (to 3), the bottom a forward, who has no
+clean sheet and steps only to 2. Everything between the steps is flat, which is exactly what a
+proportional minutes multiplier gets wrong:
+
+```mermaid
+%%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#B9762A, #1F5F73, #2F7A57"}}}}%%
+xychart-beta
+    title "Step-term points in one match, by minutes played"
+    x-axis "minutes played (breakpoints, not to scale)" ["0", "1", "59", "60", "90"]
+    y-axis "appearance + clean-sheet points" 0 --> 6
+    line [0, 1, 1, 6, 6]
+    line [0, 1, 1, 3, 3]
+    line [0, 1, 1, 2, 2]
+```
+
 **So each takes the probability of the event that pays it, and both probabilities are fitted from
 data rather than assumed.** There are two, and conflating them is a bug this model has shipped in
 both directions:
@@ -729,11 +822,12 @@ true**, because a fitted curve is wrong at the ends of its range:
   that forces 1, which is the only right answer for a player who never leaves the pitch. The bare
   curve saturates near 0.94 and would dock him for it.
 
-**`P(appears)` has exactly one implementation, and that is deliberate.** It once had two, fitted
-from different statistics with nothing requiring them to agree — one on mean minutes and one on
-start share — and they differed by up to 0.34 for the same player. `appearanceOdds` now returns the
-probability and its complement together, so the bench-slot weights and the defensive-contribution
-exposure cannot disagree even by a rounding error. `FPL_NO_UNIFIED_APPEARANCE=1` restores the pair.
+**`P(appears)` has exactly one implementation, fitted against mean minutes, and that is
+deliberate.** It once had two, fitted from different statistics with nothing requiring them to
+agree — one on mean minutes and one on start share — and they differed by up to 0.34 for the same
+player. `appearanceOdds` now returns the probability and its complement together, so the
+bench-slot weights and the defensive-contribution exposure cannot disagree even by a rounding
+error. `FPL_NO_UNIFIED_APPEARANCE=1` restores the pair.
 
 **Defensive contribution needed the opposite correction.** Its bar is a count of *actions in a
 match* — ten clearances, blocks, interceptions and tackles for a defender, twelve including
@@ -789,8 +883,7 @@ stoppage time**. Both are stated directly in FPL's own rules. A clean sheet is t
 team event**, and the per-player expected-goals-conceded figure captures that by a channel nobody
 designed for it: team-mates who both played 60+ minutes disagree in 2.8-6.1% of team-gameweeks,
 rising as substitutions do. Replacing that per-player figure with a club rate — which has been
-proposed — would delete the effect. The evidence is in the
-scoring-model note, "A clean sheet is not a team event".
+proposed — would delete the effect.
 
 The model prices a defender's clean sheet from his team's expected goals conceded and his
 defensive contribution from his own action count, with nothing connecting them. Those two are
@@ -804,6 +897,20 @@ the lowest, middle and highest third by defensive workload — 1.016, 0.987, 1.0
 while what those groups actually collected was 1.046, 1.059 and **0.825**. A defender's own
 workload is evidence about his clean sheet that his team's aggregate expected goals conceded does
 not carry.
+
+The two series side by side are the whole finding: the near-flat line is what the model
+predicted for each third, and the line that dives at the highest-workload third is what those
+defenders actually collected —
+
+```mermaid
+%%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#B9762A, #1F5F73, #2F7A57"}}}}%%
+xychart-beta
+    title "Clean-sheet points per 90 by defensive workload, 87 defenders"
+    x-axis "third by defensive workload" ["lowest", "middle", "highest"]
+    y-axis "clean-sheet points per 90" 0.7 --> 1.1
+    line [1.016, 0.987, 1.064]
+    line [1.046, 1.059, 0.825]
+```
 
 `defcon_clean_coupling` (0.3) folds that into the quantity it belongs in: a defender with an
 above-average action count has the expected goals conceded feeding his clean-sheet term raised,
@@ -828,7 +935,10 @@ pre-season at all.
 
 ## 5. Fixture congestion
 
-Load beyond league fixtures. Two inputs are **derived from the calendar** and reliable:
+A Premier League match is not the only football a player plays: European ties, cup rounds and
+international travel all compete for his legs. This section tracks that load — and, as the
+measurements below explain, deliberately charges nothing for it. Two inputs are **derived from
+the calendar** and reliable:
 
 - **International breaks** — any gap of 10+ days between gameweek deadlines. The gameweek
   *after* a break routes intercontinental travellers through `long_haul_penalty` and everyone
@@ -846,26 +956,28 @@ Both of those *are* configured in the shipped `config.json` — `long_haul_regio
 Argentina, and `regular_international_regions` carries five more. The reason nothing moves is the
 penalties, not the lists.
 
-### ⚠️ All eight penalties are switched off
+### All eight penalties are switched off
 
-Every one of them ships at **1.00**, so this block moves no score at all and **three of the four**
-hand-maintained season lists are **display-only** — `armband congestion` prints them and
-the agent reads them, but a stale entry there can no longer mis-score a player, only mis-inform a
-human. `TestTheShippedCongestionBlockIsInert` makes re-enabling any of them deliberate.
+Every one of them ships at **1.00**, so this block moves no score at all, and a stale entry in
+the competition windows or the nationality lists can only mis-inform a human — `armband
+congestion` prints them and the agent reads them, but nothing they feed reaches a score. The
+new-coach list (section 6) is display-only for the same reason, through its own penalty shipping
+at 1.00. `TestTheShippedCongestionBlockIsInert` makes re-enabling any of the eight deliberate.
 
-⚠️ **Corrected 2026-08-15: this said all four, and `DefaultRestPlayers` is the exception.** It
-reaches minutes outside this block entirely — `blendFor` applies `restFactor` at `blend.go:165`,
-scaling `MinutesPerMatch` and `StartShare` by `rest_minutes_factor` (0.83, a `Weights` field), at
-GW1 and GW2 only. **The trap is the word**: the two *penalties* named "rest" in this section,
-`ShortRestPenalty` and `VeryShortRest`, are fixture congestion and are genuinely inert; the
-post-tournament *teamsheet* is a different mechanism that happens to share the name. A wrong name
-on it mis-scores a player. The same false claim stood in three other places — see AGENTS.md,
-"Season maintenance".
+**The one hand-maintained list that is live is the post-tournament rest list**, and the reason is
+that it works through a different mechanism entirely: it multiplies expected **minutes**, not the
+score. `blendFor` applies `restFactor` to a player's minutes per match and start share
+(`rest_minutes_factor`, 0.83, at GW1 and GW2 only), so a misspelt name there mis-scores a player
+today. Be careful with the word "rest", because two unrelated things answer to it: the short-rest
+*penalties* in this section, `ShortRestPenalty` and `VeryShortRest`, are congestion multipliers
+and are genuinely inert, while the post-tournament *teamsheet* — covered under
+[role certainty](#post-tournament-rest) — is a different mechanism that happens to share the name.
 
-Six got there by measurement — the three European penalties, both rest penalties, and the
-post-break penalty, each measured as nothing on the channel it is applied to. The remaining
-two, the **domestic cup** and **long-haul travel**, got there by the weaker but sufficient
-argument that **an unmeasured multiplier which moves a score is not neutral, and 1.00 is.** The
+Five of the eight got to 1.00 by measurement — the three European penalties and both short-rest
+penalties, each tested and found to move nothing on the channel it is applied to. The other three,
+covering the domestic cup, long-haul travel and the week after an international break, got there
+by the weaker but sufficient argument that **an unmeasured multiplier which moves a score is not
+neutral, and 1.00 is.** The
 domestic cup was the case that made the point: early rounds are largely reserve sides, which
 would *protect* league starters rather than tire them, so even the sign was never clear.
 
@@ -896,6 +1008,11 @@ wrong in direction, not merely in magnitude. The minutes finding is real and bel
 channel, the way post-tournament rest now does; until something puts it there, 1.00 is the honest
 value. Under *three* days' rest, and the week after an international break, show nothing on either
 channel.
+
+The post-break penalty is the one term whose classification is unsettled: the sentence above reads
+as a measurement, while `TestTheShippedCongestionBlockIsInert` counts it among the three neutralised
+by argument. Nothing downstream turns on it, because the shipped value is 1.00 either way — but do
+not cite it as measured on the strength of this page alone.
 
 **The general lesson, which cost this project real points elsewhere: check what a multiplier
 multiplies before calibrating it.** A term that scales expected minutes and a term that scales
@@ -938,7 +1055,7 @@ matches across roughly twenty gameweeks, not twenty. With `match_dates` set, onl
 within five days of an actual fixture are affected: an Arsenal factor of 0.930 assuming weekly
 European football becomes 0.986 for a single fixture in the horizon.
 
-### ⚠️ Season-specific data
+### Season-specific data
 
 `DefaultEuropeanCampaigns` and `DefaultDomesticCups` encode the 2026/27 contingent and must
 be re-derived every summer. The 2026/27 line-up:
@@ -1068,7 +1185,7 @@ weeks of absence. The final was 19 July, so they were back in training around 9 
 had roughly twelve days of pre-season before the GW1 deadline on 21 August. A four-gameweek
 window ran the penalty to 12 September, nearly two months after the final.
 
-### ⚠️ The discount must be prorated across the horizon
+### The discount must be prorated across the horizon
 
 The minutes figure this multiplies is **already an average over the next five gameweeks**.
 Applying ×0.83 to it flat asserts the player is short of minutes in every one of those gameweeks,
@@ -1101,6 +1218,7 @@ matches from one who watched from the bench. Treat it as a prior for the agent t
 
 ## 7. Availability
 
+The last multiplier is the simplest: FPL's own word on whether a player can play at all.
 Reported chance of playing, or a status-derived fallback: available ×1.0, doubtful ×0.5,
 injured/suspended/unavailable ×0.
 
@@ -1108,7 +1226,9 @@ injured/suspended/unavailable ×0.
 
 ## Squad optimisation
 
-A multi-dimensional knapsack: a fixed budget, 2/5/5/3 positional quotas, max 3 per club.
+The score ranks individual players; buying a squad is a different problem, because FPL's
+constraints bind the choices together. It is a multi-dimensional knapsack: a fixed budget,
+2/5/5/3 positional quotas, max 3 per club.
 
 **The budget is £100m only pre-season.** Once a season is under way, the money that answers "the
 best fifteen available to me" is the squad's *selling* value plus the bank — the wildcard budget —
@@ -1132,7 +1252,7 @@ and it **doubles any error in the top player's score**, which is exactly where t
 reliable. That is a known weakness of the objective when a transfer search reaches for a premium,
 and it is not currently corrected.
 
-### ⚠️ Single swaps are not enough, and paired swaps are not either
+### Single swaps are not enough, and paired swaps are not either
 
 Steepest-ascent 1-for-1 swaps get stuck. The move real managers make constantly — *downgrade a
 bench player to £4.0m fodder and spend the savings on a starter* — requires two coordinated swaps.
@@ -1182,43 +1302,32 @@ keeper's slot is worth the probability the starting keeper blanks; the three out
 worth the probability that at least one, at least two, and at least three outfield starters blank.
 Blanks are near enough independent, so all four probabilities are computed exactly from the eleven.
 
-The blank rate itself is measured, not assumed, and this is the part no guess would have produced.
-Not starting is not the same as not playing — a squad player who comes off the bench records minutes
-and cannot be substituted for. The ratio of "records no minutes" to "does not start" is 0.91 for
-fringe players, 0.51 for rotation players and 0.69–0.80 for near-nailed ones, a U-shape. Fitted over
-the range an actual starting eleven occupies it comes out at **0.624**.
+The blank rate — the chance a starter records no minutes — comes from the single appearance
+estimator of section 4c: one minus `appearanceOdds`, fitted on mean minutes. Estimating it
+properly matters, because not starting is not the same as not playing — a squad player who comes
+off the bench records minutes and cannot be substituted for. The ratio of "records no minutes" to
+"does not start" is 0.91 for fringe players, 0.51 for rotation players and 0.69–0.80 for
+near-nailed ones, a U-shape no single constant captures. An earlier rule fitted a constant to that
+ratio over nailed starters only, and a second consumer then applied it to the whole pool, where
+the ratio is 0.91; against realised appearance rates it read a bias of +0.177 with an rms error of
+0.351, where the mean-minutes estimator reads −0.024 and 0.269. Sharing section 4c's one
+implementation also means the bench weights and the defensive-contribution exposure cannot
+disagree.
 
-⚠️ **That is now the LEGACY rule, and this document is the one the project instructions name as the
-thing to read before changing the scoring — so read this before the paragraph above.** `blankRate` is
-one minus a single mean-minutes appearance estimator (`appearanceOdds`), not a function of start
-share. The 0.624 was fitted over start share 0.70+ only, and a second consumer — the
-defensive-contribution exposure — applied it to the whole pool, where the measured ratio is 0.91.
-Against the realised appearance rate the start-share rule was biased **+0.177** with rms 0.351, where
-the mean-minutes one reads −0.024 and 0.269. `FPL_NO_UNIFIED_APPEARANCE=1` restores it.
+At a reference eleven the derivation produces weights of about 2.49 / 0.92 / 0.22 for the outfield
+slots and 0.37 for the reserve keeper — they sum to four by construction, because `benchSlotScale`
+normalises them there — against a hand-swept 2.4 / 1.0 / 0.4 / 0.2. Near-identical on the two slots
+that matter, which is two independent methods checking each other. They differ
+where a fixed set of numbers cannot help being wrong: the third outfield slot needs *three*
+simultaneous blanks and is worth less than the reserve keeper, who needs only one.
 
-The slot *probabilities* described below were derived under the old rule and have **not** been
-re-derived under the new one. `benchSlotScale` is pinned identical across the change, because the
-reference eleven is specified by the blank rate it must have rather than by a start share; the
-per-eleven weights are not pinned and will differ.
-
-At a reference eleven this produces weights of about 2.55 / 0.98 / 0.24 for the outfield slots and
-0.38 for the reserve keeper, against a hand-swept 2.4 / 1.0 / 0.4 / 0.2 — near-identical on the two
-slots that matter, which is the two methods checking each other. They differ where a fixed set of
-numbers cannot help being wrong: the third outfield slot needs *three* simultaneous blanks and is
-worth less than the reserve keeper, who needs only one.
-
-⚠️ **That four-season figure is retracted, 2026-08-13** — four cells at a GW1 entry, and a `POLICY`
-total at that. **The tie itself is re-measured at 36 cells and confirmed**: four pricing schemes
-span about 12 points a season against per-arm thresholds of 17 to 40. See
-the optimiser-and-squad note, "The bench slot weights", and
-`stats/findings/2026-08-13-benchshape.md`.
-
-The two versions are a dead heat on points across four seasons. The derived one ships on the
-principle that at a tie you prefer the objective that says what the game actually pays over one
-that asserts a shape — particularly when its inputs are measured. It also expresses something a
-fixed shape structurally cannot: depth behind a *fragile* eleven is worth more than depth behind a
-nailed one, and the derived weights sum to 6.72 behind an eleven of rotation risks against 2.79
-behind a nailed one.
+On replayed points the choice of shape is a tie this instrument cannot resolve: four pricing
+schemes span about 12 points a season, against per-arm detection thresholds of 17 to 40
+(`stats/findings/2026-08-13-benchshape.md`). The derived weights ship because at a tie you prefer
+the objective that says what the game actually pays over one that asserts a shape — particularly
+when its inputs are measured. They also express something a fixed shape structurally cannot: depth
+behind a *fragile* eleven is worth more than depth behind a nailed one, and the derived weights
+sum to 6.72 behind an eleven of rotation risks against 2.79 behind a nailed one.
 
 The shape produces the squad human managers actually buy, which is the check that matters: the
 reserve keeper floors out at £4.0m and the first bench slot takes a cheap **nailed** starter rather

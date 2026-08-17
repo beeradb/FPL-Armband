@@ -9,6 +9,36 @@ It pulls live data from the public FPL API, scores every player with a quantitat
 from FPL's actual scoring rules, and hands the results to a language model to reason over, critique
 and turn into a recommendation.
 
+The shape of the system, and where the split falls: everything up to the agent is deterministic
+and costs nothing to run, and the language model is judgement layered on top of numbers it never
+computes itself.
+
+```mermaid
+flowchart LR
+    api["public FPL API<br/>read-only, unauthenticated"]
+    engine["quantitative scoring model<br/>deterministic, never calls the LLM"]
+    freecmds["free commands<br/>squad · transfers · fixtures · chips · brief"]
+    agentloop["LLM agent<br/>review · advise · ask · chat"]
+    search["web search<br/>team news, press conferences"]
+    you["you make the transfers<br/>no authenticated write path back to FPL"]
+
+    api --> engine
+    engine --> freecmds
+    engine -->|"the same numbers,<br/>plus judgement — API billed"| agentloop
+    search --> agentloop
+    freecmds --> you
+    agentloop --> you
+
+    classDef io fill:#F4E0E3,stroke:#A8404E,color:#141A21
+    classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef llm fill:#DFEDE6,stroke:#2F7A57,color:#141A21
+    classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    class api,search io
+    class engine,freecmds pure
+    class agentloop llm
+    class you muted
+```
+
 It beats the baselines you'd otherwise use. A transfer is a question about order, not about hitting
 a points total, so the number to look at is how well a predictor ranks players within a gameweek.
 Measured against the two things every FPL player already does by eye:
@@ -25,17 +55,55 @@ talk you into a captain it has over-rated by two and a half points a week. Full 
 the columns where this is only line-ball with a moving average, are in
 [docs/accuracy.md](docs/accuracy.md).
 
+Drawn to scale, that second column is the whole pitch — the model's edge is how honest it is
+about its own favourites:
+
+```mermaid
+%%{init: {"themeVariables": {"xyChart": {"plotColorPalette": "#B9762A, #1F5F73, #2F7A57"}}}}%%
+xychart-beta
+    title "how far each predictor over-rates its own top 20"
+    x-axis ["this model", "last 5 gameweeks", "season average"]
+    y-axis "points per gameweek" 0 --> 3
+    bar [0.41, 2.57, 1.03]
+```
+
 **It writes to your config, never to FPL.** There is no authenticated write path at all — the
 session cookie, the my-team endpoint and the `auth` command were removed outright, and
 `TestTheClientHasNoAuthenticatedSurface` fails the build if one comes back. You make the transfers.
 
-⚠️ **A review run leaves something behind.** When the agent establishes something the model cannot
-see — a player out for six weeks, one who has lost his place — it records it with
-`set_player_status`, which persists to `config.json` and binds **every later run, the free
-commands included**: an excluded player is not offered again by `squad`, `transfers` or
-`suggest_transfers` until the override is cleared. It refuses to store one without a reason, and
-every standing override is re-reported for review each run. See
+That config write is worth understanding, because **a review run leaves something behind**. When
+the agent establishes something the model cannot see — a player out for six weeks, one who has
+lost his place — it records it with `set_player_status`, which persists to `config.json` and binds
+every later run, the free commands included: an excluded player is not offered again by `squad`,
+`transfers` or `suggest_transfers` until the override is cleared. It refuses to store one without
+a reason, and every standing override is re-reported for review each run. See
 [docs/configuration.md](docs/configuration.md).
+
+The loop is worth seeing whole — one paid run writes a fact down, and every free run afterwards
+is bound by it until it is cleared:
+
+```mermaid
+flowchart LR
+    reviewrun["armband review<br/>the agent establishes something<br/>the model cannot see"]
+    setstatus["set_player_status<br/>refuses to store an override<br/>without a reason"]
+    cfg["config.json<br/>standing override"]
+    freecmds["squad · transfers · suggest_transfers<br/>the player is not offered again"]
+    audit["re-reported for review<br/>on every later run"]
+
+    reviewrun --> setstatus --> cfg
+    cfg --> freecmds
+    cfg --> audit
+    audit -.->|"until cleared"| cfg
+
+    classDef llm fill:#DFEDE6,stroke:#2F7A57,color:#141A21
+    classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
+    classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
+    classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
+    class reviewrun,setstatus llm
+    class cfg test
+    class freecmds pure
+    class audit muted
+```
 
 ---
 
@@ -148,6 +216,9 @@ twenty times. Use `review` when you want it to work on its own.
 
 ## Documentation
 
+Everything in `docs/` is reference — a description of the system as the code stands, nothing
+speculative. Seven documents and an index:
+
 | | |
 |---|---|
 | **[docs/accuracy.md](docs/accuracy.md)** | How well it actually predicts, measured against a five-game average and a season average. **Start here if you want to know whether it works.** |
@@ -156,7 +227,8 @@ twenty times. Use `review` when you want it to work on its own.
 | **[docs/workflow.md](docs/workflow.md)** | The weekly review protocol and chip strategy. |
 | **[docs/architecture.md](docs/architecture.md)** | Code layout, data flow, SDK gotchas, how to extend it. |
 | **[docs/replay.md](docs/replay.md)** | The backtest harness: how a scoring change is validated, and what it can and cannot resolve. |
-| **[docs/README.md](docs/README.md)** | The map. All eight are reference — what the system *is* — and it says why there is nothing else. |
+| **[docs/backfill.md](docs/backfill.md)** | Recovering historical team news from the Internet Archive, and the one rule that must not be got wrong. |
+| **[docs/README.md](docs/README.md)** | The map: what each document covers and how they fit together. |
 
 ---
 
@@ -177,19 +249,24 @@ and position-dependent error.
 minutes and season points is **r = 0.929**. Rotation risk is penalised convexly, weighted
 toward recent gameweeks, with a per-position relaxation for midfielders.
 
-**Uncertainty is priced where it was measured, and switched off where it was not.** The
-summer-signing discount is *calibrated against data* — signings turn out to be marginally
-better per 90 and about 12% less available, so it ships at 0.88 — a multiplier on **`Score`**,
-calibrated *against* the minutes gap rather than applied to minutes. The post-tournament rest
-discount ships at 0.83 and is applied on the **minutes** channel, where it was measured. The two
-are deliberately different, and §6 of [docs/model.md](docs/model.md) says why getting that
-backwards is what retired the new-manager penalty.
+**Uncertainty is priced where it was measured, and switched off where it was not.** Two
+discounts survive because the data supports them, and they deliberately act on different
+channels. The summer-signing discount multiplies `Score` by 0.88: signings turn out to be
+marginally better per 90 but about 12% less available, so the discount is calibrated against
+that availability gap rather than applied to minutes directly. The post-tournament rest
+discount multiplies expected **minutes** by 0.83, because minutes are where its effect was
+measured. Applying a discount on the wrong channel is what retired the new-manager penalty —
+§6 of [docs/model.md](docs/model.md) tells that story.
 
-The new-manager penalty and **six of the eight** congestion penalties measured as nothing *on the
-channel they are applied to*, and now ship at 1.00. ⚠️ The domestic-cup and long-haul penalties were
-**never measured** and ship at 1.00 because that is the neutral value, not because they were
-tested. All nine are reported to the agent and change no number. §5 and §6 of
-[docs/model.md](docs/model.md) say what each was measured at, and which were not.
+The penalties that did not survive measurement ship at 1.00, the neutral value. The
+new-manager penalty and five of the eight congestion penalties — the three European ones and
+both short-rest ones — measured as nothing on the channel they are applied to. The remaining
+three, covering domestic cups, long-haul travel and the week after an international break, sit
+at 1.00 on the weaker but sufficient argument that an unmeasured multiplier which moves a score
+is not neutral and 1.00 is.
+All nine are still reported to the agent so a human can weigh them; none changes a number.
+§5 and §6 of [docs/model.md](docs/model.md) record what each was measured at, and which
+were not.
 
 **The chip plan feeds squad construction.** A wildcard at GW6 shortens the optimiser's
 horizon; a bench boost makes the optimiser buy fifteen playable footballers instead of eleven
@@ -267,11 +344,14 @@ new-manager penalty with them, so a stale competition window, nationality group 
 no longer mis-*score* a player — only mis-inform the agent reading it. `armband congestion` prints
 what was derived from the calendar against what is still missing, and how old it is.
 
-⚠️ **`rest_players` is the exception, and it is live.** It multiplies expected minutes inside
-`blendFor`, so a misspelt name is a **mis-scored player**, not a cosmetic error — and it bites in
-GW1 and GW2, the two gameweeks straight after the maintenance that was supposed to catch it.
+**`rest_players` is the exception, and it is live.** It multiplies expected minutes inside
+`blendFor`, so a misspelt name there is a mis-scored player, not a cosmetic error — and it bites
+in GW1 and GW2, the two gameweeks straight after the summer maintenance that was supposed to
+have checked it.
 
 ## Known limitations
+
+Worth knowing before you trust a recommendation:
 
 - **Free transfers are reconstructed**, not published by FPL. Close, but verify against the
   site if a decision turns on the exact number.
