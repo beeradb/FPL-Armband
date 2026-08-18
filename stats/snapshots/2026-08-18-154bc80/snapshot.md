@@ -19,10 +19,10 @@ Every expensive failure in this project's history is a provenance failure rather
 
 | | |
 |---|---|
-| snapshot taken | 2026-08-18 15:52 EDT |
-| commit | `d4afeb4ab81b` — **working tree was dirty**, so this commit alone does not identify the code that ran |
+| snapshot taken | 2026-08-18 17:22 EDT |
+| commit | `154bc800b023` — **working tree was dirty**, so this commit alone does not identify the code that ran |
 | cells file | `not supplied` |
-| model file | `/tmp/model-ship.csv` |
+| model file | `/tmp/model-fix.csv` |
 
 ### Operator notes
 
@@ -333,7 +333,7 @@ Compared against `2026-08-18-fd1280a`.
 
 | figure | previous | now | change |
 |---|---:|---:|---:|
-| `stamp.commit` | fd1280a8fffb | d4afeb4ab81b | — |
+| `stamp.commit` | fd1280a8fffb | 154bc800b023 | — |
 | `stamp.dirty` | false | true | — |
 
 **Attributing a movement.** Check the constants fingerprint rows first. A figure that moved while the fingerprint held means the code changed and no setting did — a scoring fix, a harness fix, or a bug. A figure that moved *with* the fingerprint means a setting changed, and the constants diff below names which.
