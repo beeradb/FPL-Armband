@@ -49,3 +49,7 @@ standing direction.
 positive per live entry — no majority, and 12 live cells cannot); the shape question for any
 later switch point (only GW8 was pre-registered); and the schedule + taper composition beyond
 the code fix above (no arm has ever run both).
+
+**Recorded after the review:** the accuracy snapshot was regenerated and committed
+(`2026-08-18-fd1280a`, mechanical, driven by `TestSnapshotCoversTheCurrentCode` — the branch
+moved the scored path), and the re-key above covers it.

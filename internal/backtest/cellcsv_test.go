@@ -233,7 +233,7 @@ type cellRow struct {
 	// above and for the same reason: a floor arm whose flips read zero never
 	// changed a gate answer, and its points null is a comparison that never ran.
 	GateFloor GateFloorMediator
-	ChipPrep       ChipPrepMediator
+	ChipPrep  ChipPrepMediator
 
 	// The per-cell fixture dose. See doseCols for the two windows, the two traps,
 	// and why nothing regresses on them here.
