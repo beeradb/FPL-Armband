@@ -584,6 +584,7 @@ func TestTheCellWriterEmitsEveryNewColumn(t *testing.T) {
 			BenchSum: 0.8, CaptainSum: 0.4},
 		HasDose:    true,
 		ActDoubles: 31, ActBlanks: 22, LateDoubles: 29, LateBlanks: 20,
+		GateFloor: GateFloorMediator{Le28: 13, Gt28: 2},
 	}
 	rec := readOneCell(t, row)
 	for _, c := range []struct {
@@ -603,6 +604,7 @@ func TestTheCellWriterEmitsEveryNewColumn(t *testing.T) {
 		{"prep_bench_sum", "0.8"}, {"prep_captain_sum", "0.4"},
 		{"dose_act_doubles", "31"}, {"dose_act_blanks", "22"},
 		{"dose_late_doubles", "29"}, {"dose_late_blanks", "20"},
+		{"floor_flips_le28", "13"}, {"floor_flips_gt28", "2"},
 	} {
 		if got := rec[c.col]; got != c.want {
 			t.Errorf("%s is %q, want %q", c.col, got, c.want)

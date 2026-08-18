@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"armband/internal/analysis"
+	"armband/internal/config"
 	"armband/internal/fpl"
 	"os"
 	"time"
@@ -344,6 +345,12 @@ type SimResult struct {
 	FreeHit      ChipTriggerMediator
 	ChipPrep     ChipPrepMediator
 
+	// GateFloor is the gate-floor counterfactual: how many proposals the
+	// SHIPPED gate would have answered differently, split at the quiet
+	// boundary. Counted on every arm, so a floor arm's null is readable
+	// against its own count and a baseline arm reads zero.
+	GateFloor GateFloorMediator
+
 	// RepairSeries is the held-versus-fresh distance observed every gameweek, and
 	// is nil unless SimConfig.RecordRepairCost is set. See RepairWeek.
 	//
@@ -551,6 +558,16 @@ type FixtureRunMediator struct {
 	// proportional to the adjustment the engine applied on either side. It is a
 	// count of fixtures and never a proxy for what those fixtures were worth.
 	Exposure int
+}
+
+// GateFloorMediator is what the gate-floor counterfactual counted: proposals
+// the shipped gate (FreeCost 2.0, MinGain 0.4) would have answered differently
+// from the arm's gate, split at quietBoundaryGW. A zero on both halves of a
+// floor arm means the floor never changed an answer — the comparison never ran,
+// whatever the points say.
+type GateFloorMediator struct {
+	Le28 int
+	Gt28 int
 }
 
 // TransferHoldMediator is what the free-transfer taper did: how often it was
@@ -857,7 +874,15 @@ type weekHold struct {
 	Charge    float64
 	GateCalls int
 	Flips     int
-	Credit    analysis.ChipCredit
+	// FloorFlipsLe28 and FloorFlipsGt28 are the gate-floor counterfactual, split
+	// at the recorded quiet boundary (GW28 — nothing clears the gain threshold
+	// at any price after it). Unlike the taper's flips these are counted on
+	// EVERY arm and every proposal: the counterfactual asks whether the SHIPPED
+	// gate would have answered differently, so a floor arm's flips are where the
+	// floor actually admitted or refused something.
+	FloorFlipsLe28 int
+	FloorFlipsGt28 int
+	Credit         analysis.ChipCredit
 }
 
 // ChipWeek is one chip placed with hindsight: which gameweek, and what it would
@@ -1859,6 +1884,10 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// one. See TransferHoldMediator and ChipTriggerMediator.
 	var hold TransferHoldMediator
 	var prep ChipPrepMediator
+	// The gate-floor counterfactual, on every arm for the same reason: a floor
+	// arm's null is unreadable without a count of the proposals the shipped gate
+	// would have answered differently. See GateFloorMediator.
+	var floor GateFloorMediator
 	// One state per triggered chip, so a rule fires at most once and never in a
 	// gameweek another chip already occupies. `triggered` is what makes a fired
 	// chip visible to the week's scoring switch; the mediators record why.
@@ -2007,6 +2036,12 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 						prep.CaptainSum += wh.Credit.Captain
 					}
 				}
+				// The gate-floor counterfactual, counted on the same decisions as
+				// everything else above. Split at the quiet boundary: a floor
+				// drop's early flips are where the user's hypothesis lives, and
+				// its late flips are the canary for a scheduled floor.
+				floor.Le28 += wh.FloorFlipsLe28
+				floor.Gt28 += wh.FloorFlipsGt28
 				// The mediator, accumulated only on weeks that actually reached
 				// the decision: a wildcard or a free-hit week is one the banking
 				// rule could not have been asked in, and counting it would put a
@@ -2214,6 +2249,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	res.FixtureRuns = fixtureRuns
 	res.TransferHold = hold
 	res.ChipPrep = prep
+	res.GateFloor = floor
 	// Copied out rather than shared, so a caller holding a SimResult cannot reach
 	// back into the season's live trigger state. The three are read separately
 	// because the levers are switchable separately — a null on one has to be
@@ -2408,13 +2444,31 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 	// than assumed.
 	accept := func(p transferProposal) bool {
 		ok := acceptTransfer(cfg, s, p)
+		// The gate-floor counterfactual, on every arm and every proposal: would
+		// the SHIPPED gate have answered differently? Re-prices the same
+		// proposal at the shipped constants and asks `gateDecision` — pure, like
+		// the taper's counterfactual, and the same population as the decisions
+		// actually taken. The hit branch carries no gain bar, and the
+		// counterfactual preserves that rather than installing one.
+		base := p
+		base.FreeCost = config.Default().Review.FreeTransferValue
+		if base.GainBar != noGainBar {
+			base.GainBar = config.Default().Review.MinGainForTransfer
+		}
+		if gateDecision(cfg, s, base) != ok {
+			if gw <= quietBoundaryGW {
+				wh.FloorFlipsLe28++
+			} else {
+				wh.FloorFlipsGt28++
+			}
+		}
 		if !wh.Consulted {
 			return ok
 		}
 		wh.GateCalls++
-		base := p
-		base.FreeCost = cfg.FreeCost
-		if gateDecision(cfg, s, base) != ok {
+		taperBase := p
+		taperBase.FreeCost = cfg.FreeCost
+		if gateDecision(cfg, s, taperBase) != ok {
 			wh.Flips++
 		}
 		return ok
