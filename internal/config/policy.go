@@ -113,7 +113,7 @@ type ReviewPolicy struct {
 	// larger package is affordable next week, when one more free transfer is in
 	// hand.
 	//
-	// # What it buys, and why it is off
+	// # What it buys, and why it ships on
 	//
 	// A premium upgrade usually needs more than one move: the money is locked in
 	// a player of a different position, so buying him means selling a forward

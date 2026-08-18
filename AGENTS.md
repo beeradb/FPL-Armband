@@ -834,6 +834,12 @@ nothing checks it stays complete.
   a sold player who keeps playing, against −2.223 for the 13% who stop. → **transfer-policy**
 - **The transfer path's noise, measured cleanly, is 303 points of spread** with `HOLD` provably
   byte-identical — the floor for any transfer-policy experiment. → **transfer-policy**
+- **`MinGainHit` 3.0 stands and the hits mostly pay.** The shipped arm's per-hit loss rate is
+  **24.5%** below the gate's own bar (n 98; **29.7%** availability-adjusted, n 74) against a
+  ~50% truncation null, mean package +15.7; the MinGainHit ladder 3/4/5/6 resolves nothing
+  (thresholds 13.5-18.8, no shape); workedOut against a one-week wait is a coin flip (51%, n 47,
+  descriptive, mean +5.7 favouring the hit); no-hits costs −10 a season (unresolved).
+  `stats/findings/2026-08-18-transfer-hit-tuning.md`. → **transfer-policy**
 
 ### Constants
 
