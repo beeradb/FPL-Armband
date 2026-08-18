@@ -50,10 +50,14 @@ type ReplayWeek struct {
 	// Rebuilt marks a week whose squad was replaced wholesale rather than
 	// transferred into, which is what makes the gap above legible.
 	Rebuilt bool
+	// FreeHitSquad is the borrowed fifteen a free hit fielded, and is nil on
+	// every other week. When it is set, the squad table renders IT rather than
+	// the permanent fifteen — a free-hit week that showed the permanent squad
+	// showed a team full of blanks on the one week the chip was spent to avoid
+	// them.
+	FreeHitSquad []ReplayPlayer
 	// Caveat says what the squad table on this week actually shows, when that is
-	// not what a reader would assume. A free-hit week is the case it exists for:
-	// the table is the permanent fifteen, and the points in the header came from
-	// a borrowed one this page never sees.
+	// not what a reader would assume.
 	Caveat string
 }
 
@@ -116,7 +120,15 @@ func HTMLReplay(w io.Writer, weeks []ReplayWeek, title, subtitle string) error {
 
 		// Position order, starters before bench — the order a team sheet is read
 		// in, and the same order the brief's squad table uses.
-		ps := append([]ReplayPlayer(nil), wk.Squad...)
+		//
+		// A free-hit week renders the borrowed fifteen: the permanent squad sat
+		// out, its points did not count, and showing it would display a team
+		// full of blanks on the week the chip was spent to avoid them.
+		ps := wk.Squad
+		if len(wk.FreeHitSquad) > 0 {
+			ps = wk.FreeHitSquad
+		}
+		ps = append([]ReplayPlayer(nil), ps...)
 		rank := map[string]int{"GKP": 0, "DEF": 1, "MID": 2, "FWD": 3}
 		sort.SliceStable(ps, func(a, b int) bool {
 			if ps[a].Started != ps[b].Started {

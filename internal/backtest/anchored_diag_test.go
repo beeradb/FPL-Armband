@@ -141,25 +141,14 @@ const fullSight = 38
 // overruns the season.
 var controlOffsets = struct{ benchBoost, freeHit, tripleCaptain int }{6, 10, 13}
 
-// minAnchorClubs is how many clubs a gameweek must involve before any rule here
-// will treat it as an anchor worth spending a chip on.
+// minAnchorClubs lives in chipsplan.go — one definition for the measurement
+// planner and the functional one, so the two cannot drift into two bars.
 //
-// **Asserted, not measured**, and the lag columns are sensitive to it — so it is
-// stated rather than buried. Without a bar at all, "the first week nothing better
-// is visible ahead of" is satisfied by any local maximum however trivial, and the
-// lag arms committed to two-club features in September: at 2023-24 from a GW1
-// entry, every lag arm played its bench boost on a **two**-club double in GW7 and
-// its free hit on a two-club blank in GW2, against full sight's seven-club double
-// in GW34 and twelve-club blank in GW29. The reveal-lag columns would then have
-// been measuring the absence of a size threshold rather than short sight, and the
-// file's closing instruction — "if the value survives at four it is strategy" —
-// would have read a strawman as a verdict.
-//
-// Four is the floor of the range the arms are choosing among rather than a tuned
-// value: the full-sight anchors across the five archived seasons involve 4 to 12
-// clubs. A two-club double reaches at most two of a fifteen and, in expectation,
-// about one and a half — which no manager holds a chip for.
-const minAnchorClubs = 4
+// **Asserted, not measured**, and the lag columns are sensitive to it. Four is
+// the floor of the range the arms are choosing among rather than a tuned value:
+// the full-sight anchors across the five archived seasons involve 4 to 12
+// clubs, and a two-club double reaches at most two of a fifteen — which no
+// manager holds a chip for.
 
 // anchors are the calendar features a chip plan can be pinned to.
 type anchors struct {

@@ -181,7 +181,18 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 	// Chips, off unless asked for. Reported when set: a season played with a
 	// wildcard is not comparable with one played without, and nothing else in
 	// this command's output would say which you are looking at.
-	chips, chips2, err := chipPlanFromEnv(cfg, season)
+	// `anchored` derives the plan from the season's own calendar: BOTH sets,
+	// all four chips, fallbacks where a set's window has no qualifying week.
+	// That is the plan a real manager plays — every chip the season grants is
+	// used, in the set that grants it. See backtest.FullAnchoredPlan. Checked
+	// BEFORE the spec parser, which would refuse the word as a plan.
+	var chips, chips2 analysis.ChipPlan
+	if strings.TrimSpace(os.Getenv("FPL_CHIP_PLAN")) == "anchored" {
+		sch := backtest.FullAnchoredPlan(cur, base.StartGW)
+		chips, chips2 = sch.First, sch.Second
+	} else {
+		chips, chips2, err = chipPlanFromEnv(cfg, season)
+	}
 	if err != nil {
 		return err
 	}
@@ -534,13 +545,18 @@ func describeChipPlan(p analysis.ChipPlan) string {
 // page is not the team that scored the header's points, and almost none of the
 // borrowed eleven appears in it, so nearly every row files as a substitute. Saying
 // so is the only honest option available without carrying a second fifteen.
-func freeHitCaveat(freeHit bool) string {
+func freeHitCaveat(freeHit, hasSquad bool) string {
 	if !freeHit {
 		return ""
 	}
-	return "Free hit — the eleven that scored these points was a temporary fifteen, " +
-		"handed back afterwards. The squad below is the PERMANENT one, which sat out: " +
-		"its points did not count this week, and it is what the following gameweek resumes from."
+	if hasSquad {
+		return "Free hit — the table is the BORROWED fifteen that scored these points, " +
+			"handed back after this gameweek. The permanent squad sat out and its " +
+			"points did not count this week."
+	}
+	return "Free hit — the borrowed fifteen that scored these points was not " +
+		"recorded. The squad below is the PERMANENT one, which sat out: its points " +
+		"did not count this week."
 }
 
 // splitOnChipReset sorts one flat plan into the two sets a reset season grants.
@@ -664,15 +680,27 @@ func writeReplayHTML(path, season string, cur *backtest.Season, sim *backtest.Si
 			// season total from the rendered rows reported 30 for a season this
 			// command called 37.
 			Transfers: w.Transfers,
-			// Wildcard only. A free hit does rebuild, but only for one week, and
-			// the squad this page can show for that week is the PERMANENT
-			// fifteen: Week.Squad records what was held while Week.XI holds the
-			// borrowed eleven, and almost none of the borrowed players are in the
-			// former. So a free-hit week renders the squad that sat out, with the
-			// points it did not score, under a banner announcing a rebuild —
-			// three wrong claims at once. Caveat says what the table actually is.
+			// Wildcard only. A free hit does rebuild, but only for one week; the
+			// borrowed fifteen is Week.FreeHitSquad and the page renders IT —
+			// the permanent squad sat out and its points did not count.
 			Rebuilt: w.Wildcard,
-			Caveat:  freeHitCaveat(w.FreeHit),
+			Caveat:  freeHitCaveat(w.FreeHit, len(w.FreeHitSquad) > 0),
+		}
+		if len(w.FreeHitSquad) > 0 {
+			for _, id := range w.FreeHitSquad {
+				p := cur.Players[id]
+				if p == nil {
+					continue
+				}
+				rw.FreeHitSquad = append(rw.FreeHitSquad, present.ReplayPlayer{
+					Name: p.WebName, Team: short[p.Team], Position: pos[p.Type],
+					Points: got(id, w.GW), Started: xi[id],
+					Captain: p.WebName == w.Captain,
+					// Not New: the borrowed fifteen was never bought — it is
+					// handed back next gameweek.
+					Opponent: opp[w.GW][p.Team],
+				})
+			}
 		}
 		switch {
 		case w.Wildcard:
