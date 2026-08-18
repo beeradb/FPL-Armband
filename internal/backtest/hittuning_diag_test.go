@@ -60,7 +60,8 @@ package backtest
 // GW, package size, hit_net (the package's realised net over the decided
 // horizon, hit charge included), out_played (all sold legs appeared — a sold
 // player who never appears overstates the hit's net, because an autosub
-// covers him for free; the record puts that at 19% of transfers), and
+// covers him for free; the record puts that at 19% of transfers), hit (which
+// packages paid the −4 — the registered per-hit rates filter on it), and
 // wildcard_after (the week after the plan's wildcard). The no-hits arm emits
 // its FREE packages the same way, so a hit's wait-counterfactual — the same
 // in-player bought later, free — can be matched post-hoc.

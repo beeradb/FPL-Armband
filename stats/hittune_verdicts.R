@@ -23,6 +23,7 @@ if (length(args) < 1) stop("usage: hittune_verdicts.R <hits.csv>")
 h <- read.csv(args[1], stringsAsFactors = FALSE)
 h$out_played <- as.logical(h$out_played)
 h$wildcard_after <- as.logical(h$wildcard_after)
+h$hit <- as.logical(h$hit)
 # One arm per short name, and the floored machine is its OWN arm — the sub
 # must not fold it into the flat baseline.
 h$arm <- sub(", flat( \\(shipped\\))?", "", h$arm)
@@ -32,7 +33,11 @@ h$net3 <- h$hit_net < 3
 h$net0 <- h$hit_net < 0
 h$adj <- h$out_played
 
-hits <- h[grepl("^mgh", h$arm), ]
+# The registered rates are PER HIT — the hit flag carries which packages paid
+# the -4, so the free packages (gated at MinGain 0.4, not MinGainHit 3.0) are
+# excluded before any loss rate is computed. The no-hits arm's free packages
+# stay in `wait` below for the workedOut match.
+hits <- h[grepl("^mgh", h$arm) & h$hit, ]
 baseline <- hits[hits$arm == "mgh3", ]
 
 cat("=== the shipped arm's hits, against the gate's own bar ===\n")
