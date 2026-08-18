@@ -195,3 +195,65 @@ func TestDiagGateFloorUnderExitLevers(t *testing.T) {
 	}
 	runPolicySweep(t, arms, starts)
 }
+
+// TestDiagScheduledFloor is the schedule arm pre-registered in the 2x2's doc
+// comment above: {FreeCost 1.0, MinGain 0.2} through GW8 — the midpoint of the
+// user's "6-10 games" — the shipped {2.0, 0.4} after, under the ON corner, one
+// arm against the ON baseline re-run in the same process.
+//
+//	DIAG=1 EXP=SCHEDFLOOR FPL_CELLS=/tmp/schedfloor.csv \
+//	  scripts/replay -run TestDiagScheduledFloor -v -timeout 2h
+//
+// # The license, restated from the 2x2's canary
+//
+// The level 2x2 read S = -2.5 a season against a threshold of 32.3 (nothing
+// resolves) and its entry-point columns pointed the user's predicted way
+// (+22.7/+26.5 early, -8.4/-41.4 late, six cells each). The pre-registered
+// canary discriminator fired: floor_flips_gt28 is live in 6 of 6 seasons, so
+// the late half is LIVE and the level null does not bind the schedule — the
+// committed conditional licenses this arm even though the committed license
+// (S resolving) did not fire. Both readings are stated rather than conflated.
+//
+// # Registered liveness for the schedule
+//
+//   - floor_flips_le28 >= 4 of 6 seasons (the schedule's early weeks admit
+//     something the shipped floor refuses) or the arm is INSUFFICIENT DATA.
+//   - floor_flips_gt28 = 0 by construction: after GW8 the arm's gate IS the
+//     shipped gate, and the counterfactual re-prices against the shipped
+//     constants — the restore is a confinement, checked rather than assumed.
+//   - moves differ from the ON baseline in the early-exposure columns; the
+//     census is reported per entry point.
+//   - HOLD byte-identical (code fact).
+//
+// One contrast, its own threshold from stats/variance_components.R.
+func TestDiagScheduledFloor(t *testing.T) {
+	if os.Getenv("DIAG") == "" {
+		t.Skip("set DIAG=1")
+	}
+	cfg := loadConfig(t)
+	pairs := loadPairs(t, cfg)
+	starts := sweepStarts()
+
+	fmt.Printf("\n=== the scheduled floor: {1.0,0.2} through GW8, shipped after, levers on\n")
+	fmt.Printf("%s\n", gridLabel(len(pairs), len(starts)))
+	fmt.Printf("FPL_SWEEP_SEASONS=%s  FPL_SWEEP_STARTS=%s  entry points %v\n\n",
+		gridEnv("FPL_SWEEP_SEASONS", "extended (the shipped default)"),
+		gridEnv("FPL_SWEEP_STARTS", "1,6,11,16,21,26 (the shipped default)"), starts)
+
+	leversOn := func(sc *SimConfig) {
+		sc.ChipPlanner = anchoredPlan
+		sc.AnticipateChips = true
+		sc.BankLookahead = true
+		sc.WeeklyXI = true
+	}
+	arms := []policyVariant{
+		{label: "ON baseline", apply: leversOn},
+		{label: "ON + schedule GW8", apply: func(sc *SimConfig) {
+			leversOn(sc)
+			sc.EarlyFloor.FreeTransferValue = 1.0
+			sc.EarlyFloor.MinGainForTransfer = 0.2
+			sc.EarlyFloor.UntilGameweek = 8
+		}},
+	}
+	runPolicySweep(t, arms, starts)
+}

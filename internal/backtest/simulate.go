@@ -1512,6 +1512,11 @@ type SimConfig struct {
 	// wildcard-into-boost play is worth anything beyond the rebuild itself.
 	WildcardIgnoresBoost bool
 
+	// EarlyFloor is the scheduled gate floor: the charge and gain bar applied
+	// up to and including UntilGameweek, the shipped constants after. The zero
+	// value is off. See config.EarlyFloor.
+	EarlyFloor config.EarlyFloor
+
 	// FreeCost is what spending a free transfer is charged, in points across
 	// the horizon. Zero reproduces the original policy, where only MinGain
 	// gated a free move.
@@ -2405,6 +2410,17 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 	}
 	horizon := effectiveHorizon(gateHorizon, gw)
 	freeCost := cfg.FreeCost
+	gainBar := cfg.MinGain
+	// The scheduled floor, off by default and byte-identical when off. It
+	// overrides the BASE charge and gain bar before the taper below scales
+	// them, so a scheduled arm with the taper on pays the schedule's charge
+	// through the taper's curve — schedule first, curve second. The
+	// counterfactual above still re-prices against the shipped constants,
+	// which is what makes a schedule arm's flips mean the schedule.
+	if cfg.EarlyFloor.UntilGameweek > 0 && gw <= cfg.EarlyFloor.UntilGameweek {
+		freeCost = cfg.EarlyFloor.FreeTransferValue
+		gainBar = cfg.EarlyFloor.MinGainForTransfer
+	}
 	// The option-value taper, off by default and byte-identical when off.
 	//
 	// It reprices what a free transfer is CHARGED, from a constant to a function
@@ -2494,7 +2510,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 		// front of shouldBank shows up as consulted weeks falling rather than as
 		// a banking arm that quietly stops firing.
 		wb.Consulted = true
-		bankIt, weighed := shouldBank(e, held, bank, free, limit, gw, horizon, freeCost, cfg, sell)
+		bankIt, weighed := shouldBank(e, held, bank, free, limit, gw, horizon, freeCost, gainBar, cfg, sell)
 		wb.Weighed = weighed
 		if bankIt {
 			wb.Banked = true
@@ -2556,7 +2572,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			// points a season to hits that a single swap would have beaten.
 			solo, _, _ := bestSwap(e, held, bank, sell, credit)
 			soloValue := 0.0
-			if solo.Gain*horizon >= freeCost && solo.Gain >= cfg.MinGain {
+			if solo.Gain*horizon >= freeCost && solo.Gain >= gainBar {
 				soloValue = solo.Gain*horizon - freeCost
 			}
 			// Every leg is priced, hits explicitly and free transfers at what
@@ -2581,7 +2597,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			ok := hitsNeeded <= cfg.hitCeiling() && n <= limit && accept(transferProposal{
 				Moves: pair.moves, Gain: pair.gain, Money: pairMoney,
 				Hits: hitsNeeded, Alternative: soloValue, Strict: true,
-				GainBar: cfg.MinGain, Horizon: horizon, FreeCost: freeCost, GW: gw,
+				GainBar: gainBar, Horizon: horizon, FreeCost: freeCost, GW: gw,
 			})
 			if ok {
 				for i, mv := range pair.moves {
@@ -2623,7 +2639,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			Horizon: horizon, FreeCost: freeCost, GW: gw,
 		}
 		switch {
-		case !useHit && accept(one.withBar(cfg.MinGain)):
+		case !useHit && accept(one.withBar(gainBar)):
 			free--
 		case useHit && hits < cfg.MaxHits && accept(one.asHit()):
 			best.Hit = true
@@ -2698,7 +2714,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 // transfer searches and the whole point of a guard is to decline before paying
 // for that. AdviseBank re-checks them, which is idempotent and cheap.
 func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
-	horizon, freeCost float64, cfg SimConfig, sell map[int]int) (bank_ bool, weighed bool) {
+	horizon, freeCost, minGain float64, cfg SimConfig, sell map[int]int) (bank_ bool, weighed bool) {
 
 	// ⚠️ **`freeCost` here is the NOW-arm's charge, and the later arm is priced at
 	// the same one.** With `TaperFreeTransferValue` on, next week's charge is lower
@@ -2736,8 +2752,8 @@ func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 	limitLater := moveLimit(free+1, cfg.MaxHits, cfg.MaxMoves, cfg.HitCeiling)
 	pkgNow := transferPackages(e, held, bank, limit, gw, horizon, cfg, sell)
 	pkgLater := transferPackages(e, held, bank, limitLater, gw+1, horizon-1, cfg, sell)
-	bestNow, now := analysis.BestPackage(pkgNow, horizon, freeCost, cfg.MinGain)
-	bestLater, later := analysis.BestPackage(pkgLater, horizon-1, freeCost, cfg.MinGain)
+	bestNow, now := analysis.BestPackage(pkgNow, horizon, freeCost, minGain)
+	bestLater, later := analysis.BestPackage(pkgLater, horizon-1, freeCost, minGain)
 	a := analysis.AdviseBank(free, cfg.BankUpTo, horizon, now, later)
 	if cfg.bankLog != nil {
 		cfg.bankLog(bankProbe{
@@ -2752,8 +2768,8 @@ func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 			// Each re-prices the OTHER arm's horizon onto a package set whose chip
 			// credit was amortised over its own, so both carry the same caveat and
 			// both are exact with the preparation switches off. See the field docs.
-			NoHaircut:    analysis.BestPackageValue(pkgLater, horizon, freeCost, cfg.MinGain),
-			NoExtraMove:  analysis.BestPackageValue(pkgNow, horizon-1, freeCost, cfg.MinGain),
+			NoHaircut:    analysis.BestPackageValue(pkgLater, horizon, freeCost, minGain),
+			NoExtraMove:  analysis.BestPackageValue(pkgNow, horizon-1, freeCost, minGain),
 			SamePackages: samePackages(pkgNow, pkgLater),
 			Banked:       a.Bank,
 			Weighed:      a.Weighed(),
