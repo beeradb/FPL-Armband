@@ -52,9 +52,10 @@ cat(sprintf("mean hit_net %+.1f, median %+.1f, spread [%+d, %+d]\n\n",
             mean(baseline$hit_net), median(baseline$hit_net),
             min(baseline$hit_net), max(baseline$hit_net)))
 
-cat("=== loss rates by arm (net < 3), paired per cell ===\n")
+cat("=== loss rates by arm (availability-adjusted net < 3), paired per cell ===\n")
 mk <- function(arm) {
-  a <- aggregate(net3 ~ season + start_gw, hits[hits$arm == arm, ], mean)
+  a <- hits[hits$arm == arm & hits$out_played, ]
+  a <- aggregate(net3 ~ season + start_gw, a, mean)
   names(a)[3] <- "rate"
   a
 }
@@ -70,16 +71,27 @@ cat(sprintf("  floored machine (own arm): net<3 %.1f%% of %d packages; net<0 %.1
 
 cat("\n=== workedOut: hit packages against the no-hits arm's later free purchase ===\n")
 wait <- h[grepl("^no hits", h$arm), ]
+# "Later" is the pre-registered semantics: the same in-player bought in a LATER
+# gameweek, free. The window is gw+1..gw+4, and among several later purchases
+# of one of the hit's in-players the EARLIEST is the counterfactual — "wait
+# one more week" read literally. A same-gw match is excluded: the in-side is
+# identical by construction there, so the comparison degenerates to who was
+# sold rather than whether the hit paid.
 matchNet <- function(season, start, gw, inIds) {
   ids <- unlist(strsplit(inIds, "|", fixed = TRUE))
   w <- wait[wait$season == season & wait$start_gw == start &
-            wait$gw >= gw & wait$gw <= gw + 4, ]
+            wait$gw >= gw + 1 & wait$gw <= gw + 4, ]
   if (nrow(w) == 0) return(NA)
+  best <- NA_real_
+  bestGW <- Inf
   for (i in seq_len(nrow(w))) {
     wids <- unlist(strsplit(w$in_ids[i], "|", fixed = TRUE))
-    if (any(wids %in% ids)) return(w$hit_net[i])
+    if (any(wids %in% ids) && w$gw[i] < bestGW) {
+      best <- w$hit_net[i]
+      bestGW <- w$gw[i]
+    }
   }
-  NA
+  best
 }
 worked <- rep(NA_real_, nrow(baseline))
 for (i in seq_len(nrow(baseline))) {

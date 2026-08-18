@@ -61,10 +61,11 @@ package backtest
 // horizon, hit charge included), out_played (all sold legs appeared — a sold
 // player who never appears overstates the hit's net, because an autosub
 // covers him for free; the record puts that at 19% of transfers), hit (which
-// packages paid the −4 — the registered per-hit rates filter on it), and
-// wildcard_after (the week after the plan's wildcard). The no-hits arm emits
-// its FREE packages the same way, so a hit's wait-counterfactual — the same
-// in-player bought later, free — can be matched post-hoc.
+// packages paid the −4 — the registered per-hit rates filter on it), the
+// in-player ids, and wildcard_after (the week after the plan's wildcard).
+// The no-hits arm emits its FREE packages the same way, so a hit's
+// wait-counterfactual — the same in-player bought later, free — can be
+// matched post-hoc.
 //
 // Registered: (a) the shipped arm's per-hit loss rate against the gate's OWN
 // bar — a calibrated gate gives ~50% by truncation at net < 3, so a rate
