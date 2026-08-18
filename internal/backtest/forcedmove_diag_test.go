@@ -25,6 +25,14 @@ package backtest
 // threshold because nothing is being separated; the decision it feeds is whether
 // a decomposition arm is worth designing, not which arm wins.
 //
+// ⚠️ The insurance identity has TWO halves and this census reports both. The
+// prevalence half is the break rate; the cost half is the burden — the points a
+// caught-short manager misses when the break lands. A break on the eve of a
+// double misses two matches' worth of the player's own points, one in an ordinary
+// week, so a prevalence ratio below 1 can still leave the cost-weighted channel
+// with mass (added 2026-08-18 on the user's note: "it may not be as prevalent in
+// doubles, but it can be twice as costly when it happens" — measured at 1.34x).
+//
 // # The proxy, and what it deliberately is not
 //
 // "Forced" has no expression in an archive: a row cannot say whether a player was
@@ -74,6 +82,8 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 		atRisk     int // regular (element, club) pairs with three preceding appearances
 		breaksSGL  int
 		breaksDBL  int
+		burdenSGL  float64 // sum of expected missed points over single-week breaks
+		burdenDBL  float64 // the same over doubling-week breaks
 		bracketSGL map[string]int
 		bracketDBL map[string]int
 	}
@@ -91,16 +101,17 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 		// Per (element, club), the sequence of played club-gameweeks with the
 		// player's minute totals, ascending. The map holds the sum over a
 		// double's legs; a blank week never appears.
-		type seqEntry struct{ gw, minutes, fixtures int }
+		type seqEntry struct{ gw, minutes, fixtures, points int }
 		seqs := map[[2]int][]seqEntry{}
 		for _, r := range sm.Rows {
 			key := [2]int{r.Element, r.Club}
 			seq := seqs[key]
 			if len(seq) > 0 && seq[len(seq)-1].gw == r.GW {
 				seq[len(seq)-1].minutes += r.Minutes
+				seq[len(seq)-1].points += r.Points
 				continue
 			}
-			seqs[key] = append(seq, seqEntry{r.GW, r.Minutes, sm.clubGWFixtures(r.Club, r.GW)})
+			seqs[key] = append(seq, seqEntry{r.GW, r.Minutes, sm.clubGWFixtures(r.Club, r.GW), r.Points})
 		}
 		// Price in tenths per (element, gw), for the pre-break bracket. The rows
 		// are sorted by (GW, element), so a simple map keeps the loop linear.
@@ -137,10 +148,21 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 				if seq[i].minutes != 0 || seq[i+1].minutes != 0 {
 					continue
 				}
+				// The cost half of the insurance identity: what a manager caught
+				// short misses. The burden is the player's own points per match
+				// over his three preceding appearances, times the legs his club
+				// plays in the break's start week — one match in an ordinary
+				// week, two in a double. A bound on the missed points, not a
+				// valuation: the player might have scored less than his average,
+				// and a manager with a free transfer pays only the difference.
+				ppm := rate(seq[i-3].points+seq[i-2].points+seq[i-1].points,
+					seq[i-3].fixtures+seq[i-2].fixtures+seq[i-1].fixtures)
 				if dbl {
 					st.breaksDBL++
+					st.burdenDBL += ppm * float64(seq[i].fixtures)
 				} else {
 					st.breaksSGL++
+					st.burdenSGL += ppm * float64(seq[i].fixtures)
 				}
 				// The bracket is the player's price the week before the break —
 				// the market's view, not the outcome.
@@ -159,6 +181,7 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 	fmt.Printf("%-9s %6s %6s %6s %6s %9s %9s %7s\n",
 		"season", "playS", "playD", "brkS", "brkD", "rate/S", "rate/D", "ratio")
 	var sumS, sumD, brkS, brkD int
+	var burS, burD float64
 	for _, st := range totals {
 		ratio := math.NaN()
 		if st.breaksSGL > 0 && st.breaksDBL > 0 && st.playedSGL > 0 && st.playedDBL > 0 {
@@ -172,12 +195,22 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 		sumD += st.playedDBL
 		brkS += st.breaksSGL
 		brkD += st.breaksDBL
+		burS += st.burdenSGL
+		burD += st.burdenDBL
 	}
 	fmt.Printf("%-9s %6d %6d %6d %6d %9.4f %9.4f %7.2f\n",
 		"pooled", sumS, sumD, brkS, brkD,
 		rate(brkS, sumS), rate(brkD, sumD),
 		(rate(brkD, sumD) / rate(brkS, sumS)))
 	fmt.Println()
+
+	// The cost half: the insurance value is P(break) x missed points, and a break
+	// on the eve of a double misses two matches' worth. Expected burden per
+	// regular club-gameweek in each week type.
+	expS := burS / float64(sumS)
+	expD := burD / float64(sumD)
+	fmt.Printf("%-9s %10s %10s %7s\n", "burden", "exp/S", "exp/D", "ratio")
+	fmt.Printf("%-9s %10.4f %10.4f %7.2f\n", "pooled", expS, expD, expD/expS)
 
 	// The premium question: the insurance reading names premiums specifically —
 	// they play more, so congestion exposure concentrates on them.
@@ -197,12 +230,12 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 	}
 
 	fmt.Printf(`
-The hypothesis under test: the break rate is HIGHER in doubling weeks than in
-ordinary ones — the mechanism the taper's congestion half prices. A pooled ratio
-near or below 1 means the channel has no mass in the archive and a
-decay-versus-congestion decomposition arm would be measuring an asserted premise
-rather than testing it. A ratio clearly above 1 sizes the channel's mass and the
-premium bracket row answers whose breaks those are. No threshold, no p: this is a
-rate against a calendar, not a comparison between two replayed arms.
+The hypothesis under test: forced-move demand is HIGHER in congested weeks. The
+prevalence half is the rate ratio above; the insurance value is P(break) x the
+points a caught-short manager misses, and the cost half is the burden ratio — a
+break on the eve of a double misses two matches' worth of the player's own points,
+one in an ordinary week. The channel has mass only where the burden ratio exceeds
+1 even if the rate ratio does not. No threshold, no p: this is a rate against a
+calendar, not a comparison between two replayed arms.
 `)
 }

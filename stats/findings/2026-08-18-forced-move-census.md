@@ -43,13 +43,37 @@ reversal below. Read the direction as "no spike", never as "negative mass".
 | 2025-26 | 7,453 | 109 | 416 | 2 | 0.0558 | 0.0183 | 0.33 |
 | **pooled** | **39,592** | **1,975** | **2,341** | **85** | **0.0591** | **0.0430** | **0.73** |
 
-**The hypothesis — the break rate is HIGHER in doubling weeks — is refuted on the
-archive.** Pooled ratio 0.73, below 1 in 5 of 6 seasons; the pooled difference
-(−0.0161) is about 3 SE of a simple binomial reading, which is stated as
+**The prevalence hypothesis — the break rate is HIGHER in doubling weeks — is
+refuted on the archive.** Pooled ratio 0.73, below 1 in 5 of 6 seasons; the pooled
+difference (−0.0161) is about 3 SE of a simple binomial reading, which is stated as
 descriptive because club-gameweeks are not independent and no p belongs to a
 census. The doubling-week exposure is thin (1,975 of 41,567 regular-weeks) and the
 doubling-week break counts are small (2-27 per season); the ratio's season spread
 (0.33-1.14) reflects that.
+
+## The cost half: the insurance identity has two factors
+
+The insurance value is P(break) × the points a caught-short manager misses, and
+the second factor is not constant. The burden is the broken player's own points
+per match over his three preceding appearances, times the legs his club plays in
+the break's start week — one match in an ordinary week, two in a double. Expected
+burden per regular club-gameweek:
+
+| | expected missed points / regular-week | ratio |
+|---|---:|---:|
+| ordinary week | 0.1400 | — |
+| doubling week | 0.1883 | **1.34** |
+
+⚠️ **Added on the user's note, 2026-08-18: *"it may not be as prevalent in
+doubles, but it can be twice as costly when it happens."* Measured: the
+cost-weighted channel DOES concentrate in doubling weeks — 1.34× the expected
+missed points per regular-week, against a prevalence ratio of 0.73.** The burden
+is an upper bound on the caught-short cost (the player scores his own average; a
+manager with a free transfer pays only the replacement difference), and the
+start-week attribution bias inflates the ordinary-week rate and so deflates this
+ratio — 1.34 is conservative. The doublers' lower points-per-match (premiums break
+in doubles zero times in six seasons) is why 1.34 sits below the naive
+0.73 × 2.
 
 ## The premium bracket
 
@@ -70,16 +94,21 @@ prices it.
 
 ## What this settles, and what it does not
 
-**Settles**: the congestion channel has no mass in this archive. A
-decay-versus-congestion decomposition arm would be measuring an asserted premise
-rather than testing one, and it is **not worth designing** on this evidence. The
-taper's live channel is the decay alone — the calendar schedule — which the
-option-decay 2×2 measured as worth +2.3 (ON) / −0.4 (OFF) against thresholds of
-10.7/16.7. The asserted `CongestionSensitivity` 1.0 now has a count against it and
-a refuted mechanism, not merely an absence of a sweep.
+**Settles, on the prevalence half**: regulars' availability does NOT break more
+often in doubling weeks — 0.73× the rate, pooled, 5 of 6 seasons. Any reading of
+the congestion multiplier as pricing *more frequent* forced moves is refuted.
 
-**Does not settle**: whether a *state-dependent* insurance reading could be built
-on a different calendar quantity (the count tests doubling weeks, the multiplier's
-own input — a different input is a different mechanism, unmeasured); and whether
-the proxy's misses (injury-then-sale, GW1-GW3) hide a channel the archive rows
-cannot express.
+**Settles, on the cost half**: the cost-weighted channel has mass — **1.34×** the
+expected missed points per regular-week in doubling weeks. The asserted
+`CongestionSensitivity` 1.0 makes a doubling week double the holding value (factor
+2.0); the archive's own cost-weighted concentration is 1.34, so the asserted
+slope overshoots the measured channel by about a half while the P-only channel
+runs the other way. That is a count against the constant's *size*, not a
+refutation of its sign.
+
+**Does not settle**: the net value — the burden is a bound on the caught-short
+cost, not a valuation, and a manager holding a free transfer pays the replacement
+difference, not the full missed points; whether a *state-dependent* insurance
+reading on a different calendar quantity would differ; and whether the proxy's
+misses (injury-then-sale, GW1-GW3) hide a channel the archive rows cannot
+express.
