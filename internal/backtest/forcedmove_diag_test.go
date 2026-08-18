@@ -25,13 +25,17 @@ package backtest
 // threshold because nothing is being separated; the decision it feeds is whether
 // a decomposition arm is worth designing, not which arm wins.
 //
-// ⚠️ The insurance identity has TWO halves and this census reports both. The
-// prevalence half is the break rate; the cost half is the burden — the points a
-// caught-short manager misses when the break lands. A break on the eve of a
-// double misses two matches' worth of the player's own points, one in an ordinary
-// week, so a prevalence ratio below 1 can still leave the cost-weighted channel
-// with mass (added 2026-08-18 on the user's note: "it may not be as prevalent in
-// doubles, but it can be twice as costly when it happens" — measured at 1.34x).
+// ⚠️ The insurance identity has more than the break rate, and this census
+// reports all of it. The prevalence half is the break rate; the cost half is the
+// burden — the points a caught-short manager misses when the break lands. A break
+// on the eve of a double misses two matches' worth of the player's own points,
+// one in an ordinary week, so a prevalence ratio below 1 can still leave the
+// cost-weighted channel with mass (added 2026-08-18 on the user's note: "it may
+// not be as prevalent in doubles, but it can be twice as costly when it happens"
+// — measured at 1.34x). And the third channel, added on the user's second note
+// the same day — "that's not really the goal of a double, you want full
+// appearance points": the appearance SHORTFALL, a regular who misses a 60-minute
+// leg of the week, measured at 2.07x expected missed appearance points.
 //
 // # The proxy, and what it deliberately is not
 //
@@ -58,14 +62,16 @@ package backtest
 // A congested week is one where the club plays two or more matches
 // (`clubGWFixtures >= 2`).
 //
-// The seasons are the replay's six, so the rates describe exactly the population
-// the taper's congestion half acts on.
+// The seasons are the replay's six, so the rates describe the same calendar the
+// taper's congestion half acts on — the replays' squads are not involved.
 
 import (
 	"fmt"
 	"math"
 	"os"
 	"testing"
+
+	"armband/internal/analysis"
 )
 
 func TestDiagForcedMoveCensus(t *testing.T) {
@@ -84,6 +90,10 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 		breaksDBL  int
 		burdenSGL  float64 // sum of expected missed points over single-week breaks
 		burdenDBL  float64 // the same over doubling-week breaks
+		shortSGL   int     // regular-weeks missing an appearance point (legs60 < fixtures)
+		shortDBL   int
+		appSGL     float64 // missed appearance points: (fixtures - legs60) x 2, summed
+		appDBL     float64
 		bracketSGL map[string]int
 		bracketDBL map[string]int
 	}
@@ -100,21 +110,31 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 
 		// Per (element, club), the sequence of played club-gameweeks with the
 		// player's minute totals, ascending. The map holds the sum over a
-		// double's legs; a blank week never appears.
-		type seqEntry struct{ gw, minutes, fixtures, points int }
+		// double's legs; a blank week never appears. legs60 counts the legs with
+		// at least the appearance-point threshold, so "full appearance points in
+		// a double" — the user's reading of what a double is FOR — is
+		// expressible: legs60 < fixtures means an appearance point was missed.
+		type seqEntry struct{ gw, minutes, fixtures, points, legs60 int }
 		seqs := map[[2]int][]seqEntry{}
+		leg60 := func(minutes int) int {
+			if minutes >= analysis.AppearanceMinutes {
+				return 1
+			}
+			return 0
+		}
 		for _, r := range sm.Rows {
 			key := [2]int{r.Element, r.Club}
 			seq := seqs[key]
 			if len(seq) > 0 && seq[len(seq)-1].gw == r.GW {
 				seq[len(seq)-1].minutes += r.Minutes
 				seq[len(seq)-1].points += r.Points
+				seq[len(seq)-1].legs60 += leg60(r.Minutes)
 				continue
 			}
-			seqs[key] = append(seq, seqEntry{r.GW, r.Minutes, sm.clubGWFixtures(r.Club, r.GW), r.Points})
+			seqs[key] = append(seq, seqEntry{r.GW, r.Minutes,
+				sm.clubGWFixtures(r.Club, r.GW), r.Points, leg60(r.Minutes)})
 		}
-		// Price in tenths per (element, gw), for the pre-break bracket. The rows
-		// are sorted by (GW, element), so a simple map keeps the loop linear.
+		// Price in tenths per (element, gw), for the pre-break bracket.
 		priceAt := map[[2]int]int{}
 		for _, r := range sm.Rows {
 			if r.Value > 0 {
@@ -174,6 +194,30 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 				}
 			}
 		}
+		// The appearance-shortfall channel — the user's reading of what a double
+		// is FOR: full appearance points in every leg, not merely any minutes in
+		// the week. A shortfall is a regular-week with fewer 60-minute legs than
+		// the club plays fixtures; the missed appearance points are the legs'
+		// second appearance point at 2 each. The break above is the all-legs
+		// extreme of the same channel, so shortfall counts are a superset.
+		for _, seq := range seqs {
+			for i := 3; i+1 < len(seq); i++ {
+				if seq[i-3].minutes == 0 || seq[i-2].minutes == 0 || seq[i-1].minutes == 0 {
+					continue
+				}
+				if seq[i].legs60 >= seq[i].fixtures {
+					continue
+				}
+				dbl := seq[i].fixtures >= 2
+				if dbl {
+					st.shortDBL++
+					st.appDBL += float64(seq[i].fixtures-seq[i].legs60) * 2
+				} else {
+					st.shortSGL++
+					st.appSGL += float64(seq[i].fixtures-seq[i].legs60) * 2
+				}
+			}
+		}
 		totals = append(totals, st)
 	}
 
@@ -211,6 +255,26 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 	expD := burD / float64(sumD)
 	fmt.Printf("%-9s %10s %10s %7s\n", "burden", "exp/S", "exp/D", "ratio")
 	fmt.Printf("%-9s %10.4f %10.4f %7.2f\n", "pooled", expS, expD, expD/expS)
+
+	// The appearance-shortfall channel: what a double is FOR is full appearance
+	// points in every leg, and a regular playing one leg of two has missed one.
+	var shS, shD int
+	var apS, apD float64
+	for _, st := range totals {
+		shS += st.shortSGL
+		shD += st.shortDBL
+		apS += st.appSGL
+		apD += st.appDBL
+	}
+	rateShortS := rate(shS, sumS)
+	rateShortD := rate(shD, sumD)
+	expApS := apS / float64(sumS)
+	expApD := apD / float64(sumD)
+	fmt.Printf("\n=== the appearance-shortfall channel: a regular missing a 60-minute leg\n")
+	fmt.Printf("%-9s %8s %8s %8s %8s %10s %10s %7s\n",
+		"", "shortS", "shortD", "rate/S", "rate/D", "appPts/S", "appPts/D", "ratio")
+	fmt.Printf("%-9s %8d %8d %8.4f %8.4f %10.4f %10.4f %7.2f\n",
+		"pooled", shS, shD, rateShortS, rateShortD, expApS, expApD, expApD/expApS)
 
 	// The premium question: the insurance reading names premiums specifically —
 	// they play more, so congestion exposure concentrates on them.

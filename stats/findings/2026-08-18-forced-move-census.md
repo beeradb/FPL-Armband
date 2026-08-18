@@ -1,4 +1,4 @@
-# The forced-move census: congestion has no mass in the archive
+# The forced-move census: breaks are rarer in doubles, and the appearance shortfall is where the congestion mass lives
 
 **Run 2026-08-18**, `TestDiagForcedMoveCensus`, archive rows only — no `Simulate`
 call, no cells file, no points claim, so no detection threshold applies. Every
@@ -12,7 +12,10 @@ P(forced move soon) rises where the fixtures pile up. The option-decay 2×2
 (`stats/findings/2026-08-18-option-decay-2x2.md`) then read the taper's
 interaction as a point-estimate reversal of exactly that channel's prediction.
 This count was the cheapest-first item owed before any decay-versus-congestion
-decomposition arm could be justified — and it decides against one.
+decomposition arm could be justified. **It refutes the prevalence half, and it
+finds the mass in the two channels the prevalence hides: the cost of a break that
+does land on a double, and the appearance shortfall — the user's reading of what a
+double is FOR, full appearance points in every leg.**
 
 ## The proxy
 
@@ -45,11 +48,14 @@ reversal below. Read the direction as "no spike", never as "negative mass".
 
 **The prevalence hypothesis — the break rate is HIGHER in doubling weeks — is
 refuted on the archive.** Pooled ratio 0.73, below 1 in 5 of 6 seasons; the pooled
-difference (−0.0161) is about 3 SE of a simple binomial reading, which is stated as
+difference (−0.0161) is over 3 SE of a simple binomial reading, which is stated as
 descriptive because club-gameweeks are not independent and no p belongs to a
 census. The doubling-week exposure is thin (1,975 of 41,567 regular-weeks) and the
 doubling-week break counts are small (2-27 per season); the ratio's season spread
-(0.33-1.14) reflects that.
+(0.33-1.14) reflects that. ⚠️ Part of the lowness is definitional, and the user
+named it: a regular who plays one leg of a double has "appeared" by this proxy's
+test, where the whole point of a double is full appearance points in both legs.
+The shortfall section below measures that channel directly.
 
 ## The cost half: the insurance identity has two factors
 
@@ -71,9 +77,32 @@ missed points per regular-week, against a prevalence ratio of 0.73.** The burden
 is an upper bound on the caught-short cost (the player scores his own average; a
 manager with a free transfer pays only the replacement difference), and the
 start-week attribution bias inflates the ordinary-week rate and so deflates this
-ratio — 1.34 is conservative. The doublers' lower points-per-match (premiums break
-in doubles zero times in six seasons) is why 1.34 sits below the naive
-0.73 × 2.
+ratio — 1.34 is conservative. The doublers' lower points-per-match is a
+contributor to the 1.34 sitting below the naive 0.73 × 2 (the 10.0+ bracket
+breaks zero times in doubling weeks); it is not a decomposition.
+
+## The appearance-shortfall channel: the double is FOR the full appearance points
+
+The user's second note, 2026-08-18: a regular who plays one leg of two has
+"appeared" by the break proxy, *"but that's not really the goal of a double. You
+want full appearance points."* The shortfall is a regular-week where the player
+records fewer 60-minute legs than the club plays fixtures — the second appearance
+point of at least one leg is lost. The break above is the all-legs extreme of the
+same channel, so shortfall counts are a superset of it.
+
+| | regular-weeks | shortfalls | rate | expected missed appearance pts / regular-week | ratio |
+|---|---:|---:|---:|---:|---:|
+| ordinary week | 39,592 | 11,326 | 0.2861 | 0.5721 | — |
+| doubling week | 1,975 | 827 | **0.4187** | **1.1848** | **2.07** |
+
+**Regulars miss an appearance point in 42% of doubling weeks against 29% of
+ordinary ones, and the expected missed appearance points per regular-week are
+2.07× in doubles.** This is the largest of the three channels, it is the one the
+user predicted, and it is the one the asserted `CongestionSensitivity` 1.0 —
+factor 2.0 at a full double — lands closest to. The independent sibling
+measurement (`TestDiagNailednessInDoubles`) agrees at the per-player level:
+nailed players record 60+ minutes in both legs in 0.66-0.82 of doubling weeks by
+season.
 
 ## The premium bracket
 
@@ -88,9 +117,11 @@ exposure concentrates on them:
 | 8.0-9.9 | 63 | 3 |
 | 10.0+ | **25** | **0** |
 
-Premiums almost never break in doubling weeks — zero in six seasons. The forced
-demand the congestion multiplier insures against is not where the multiplier
-prices it.
+Premiums almost never break in doubling weeks — zero in six seasons. ⚠️ The table
+carries counts, not rates: the per-bracket exposure is not printed, and under a
+uniform rate the expected 10.0+ doubling-week count is ≈1.25, so zero is
+consistent with the premium bracket being absent from doubling breaks rather than
+proof of it.
 
 ## What this settles, and what it does not
 
@@ -99,12 +130,16 @@ often in doubling weeks — 0.73× the rate, pooled, 5 of 6 seasons. Any reading
 the congestion multiplier as pricing *more frequent* forced moves is refuted.
 
 **Settles, on the cost half**: the cost-weighted channel has mass — **1.34×** the
-expected missed points per regular-week in doubling weeks. The asserted
-`CongestionSensitivity` 1.0 makes a doubling week double the holding value (factor
-2.0); the archive's own cost-weighted concentration is 1.34, so the asserted
-slope overshoots the measured channel by about a half while the P-only channel
-runs the other way. That is a count against the constant's *size*, not a
-refutation of its sign.
+expected missed points per regular-week in doubling weeks.
+
+**Settles, on the appearance half**: **2.07×** the expected missed appearance
+points per regular-week in doubling weeks — regulars miss a 60-minute leg in 42%
+of doubles. This is the channel with the mass, it is the one the user predicted
+(*"you want full appearance points"*), and the asserted `CongestionSensitivity`
+1.0 (factor 2.0 at a full double) lands close to it. The asserted constant is
+therefore **defensible on the appearance channel and wrong on the forced-move
+channel** — the mechanism it was written to price is not the mechanism that
+delivers.
 
 **Does not settle**: the net value — the burden is a bound on the caught-short
 cost, not a valuation, and a manager holding a free transfer pays the replacement
