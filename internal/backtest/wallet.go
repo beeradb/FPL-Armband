@@ -19,6 +19,24 @@ func newWallet(bank int) *wallet {
 	return &wallet{bank: bank, bought: map[int]int{}}
 }
 
+// clone is the wallet as it stands right now, detached from every later
+// transaction.
+//
+// It exists for one caller: the frozen-squad observer, which prices a fifteen
+// nobody ever sold against a bank nobody ever spent, alongside a policy that is
+// doing both to the wallet this was copied from. Sharing the live wallet would
+// have the frozen arm's budget move with the evolving arm's transfers, which is
+// the confound the frozen arm exists to remove.
+//
+// The map is copied rather than aliased, because `buy` and `sellAt` write to it.
+func (w *wallet) clone() *wallet {
+	c := &wallet{bank: w.bank, bought: make(map[int]int, len(w.bought))}
+	for id, paid := range w.bought {
+		c.bought[id] = paid
+	}
+	return c
+}
+
 // buy records a purchase at the market price and takes it out of the bank.
 func (w *wallet) buy(id, market int) {
 	w.bought[id] = market
