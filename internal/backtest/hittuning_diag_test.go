@@ -118,7 +118,7 @@ func TestDiagHitTuning(t *testing.T) {
 		defer f.Close()
 		side = csv.NewWriter(f)
 		side.Write([]string{"sweep", "arm", "season", "start_gw", "gw",
-			"n_moves", "hit_net", "out_played", "wildcard_after", "in_ids"})
+			"n_moves", "hit_net", "out_played", "wildcard_after", "in_ids", "hit"})
 	}
 
 	// emit writes one row per package this cell's replay actually took. A
@@ -152,8 +152,7 @@ func TestDiagHitTuning(t *testing.T) {
 			side.Write([]string{"HITTUNE", arm, pair.Name, strconv.Itoa(start),
 				strconv.Itoa(gw), strconv.Itoa(len(vs)), strconv.Itoa(net),
 				strconv.FormatBool(played), strconv.FormatBool(after),
-				joinIDs(ins)})
-			_ = hit
+				joinIDs(ins), strconv.FormatBool(hit)})
 		}
 		side.Flush()
 	}
