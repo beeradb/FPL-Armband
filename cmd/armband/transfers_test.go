@@ -24,9 +24,9 @@ import (
 // engine is touched, which is also why a nil engine is safe here.
 func TestTheBankingSwitchReachesTheRule(t *testing.T) {
 	cfg := config.Default()
-	if cfg.Review.BankTransfersLookahead {
-		t.Fatal("the setting ships off; this test's off-arm would be vacuous")
-	}
+	// The setting ships ON now; the off-arm is written against an explicit off,
+	// which is the state an old config file loads into.
+	cfg.Review.BankTransfersLookahead = false
 	// Off: the rule is not consulted, and the command must therefore print
 	// nothing about a decision nobody made.
 	if _, consulted := adviseBanking(cfg, nil, analysis.SquadState{}, nil, 1, 10, 5); consulted {

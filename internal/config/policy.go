@@ -199,13 +199,28 @@ type ReviewPolicy struct {
 
 // EarlyFloor is the scheduled gate floor the "react faster early" measurement
 // runs: FreeTransferValue and MinGainForTransfer applied up to and including
-// UntilGameweek, the shipped constants after. The zero value is off, which is
-// the whole backfill — a config file without the key gets the shipped
-// behaviour.
+// UntilGameweek, the shipped constants after. A zero UntilGameweek is off — an
+// explicit statement, so Load probes for the KEY rather than the value when
+// backfilling: a config file without the key gets the shipped schedule, one
+// that writes a zero schedule keeps it.
 type EarlyFloor struct {
 	FreeTransferValue  float64 `json:"free_transfer_value"`
 	MinGainForTransfer float64 `json:"min_gain_for_free_transfer"`
 	UntilGameweek      int     `json:"until_gameweek"`
+}
+
+// EffectiveFloor is the week's charge and gain bar, honouring the scheduled
+// early floor. The shipped schedule — {1.0, 0.2} through GW8, measured by
+// stats/findings/2026-08-18-scheduled-floor.md and shipped on the user's
+// ruling — applies only to weeks at or before UntilGameweek; every other week
+// reads the flat constants.
+func (r ReviewPolicy) EffectiveFloor(gw int) (charge, minGain float64) {
+	charge, minGain = r.FreeTransferValue, r.MinGainForTransfer
+	if r.EarlyFloor.UntilGameweek > 0 && gw > 0 && gw <= r.EarlyFloor.UntilGameweek {
+		charge = r.EarlyFloor.FreeTransferValue
+		minGain = r.EarlyFloor.MinGainForTransfer
+	}
+	return
 }
 
 func DefaultReviewPolicy() ReviewPolicy {
@@ -218,6 +233,19 @@ func DefaultReviewPolicy() ReviewPolicy {
 		MaxHitsPerWeek:     1,
 		HitCeiling:         analysis.DefaultHitCeiling,
 		AlwaysActOnInjury:  true,
+		// Shipped 2026-08-18 on the user's ruling, after the measurements: the
+		// banking lookahead that was measured inert as a solo lever is part of
+		// the override-mode corner that resolves (+73/+97 a season), and the
+		// early floor ships on the user's info-density reading at its measured
+		// schedule — +6.7/+4.0 at the live entries, unresolved, accepted on
+		// mechanism rather than resolution. See
+		// stats/findings/2026-08-18-scheduled-floor.md.
+		BankTransfersLookahead: true,
+		EarlyFloor: EarlyFloor{
+			FreeTransferValue:  1.0,
+			MinGainForTransfer: 0.2,
+			UntilGameweek:      8,
+		},
 		Rules: []string{
 			"Do nothing is a valid and usually underrated answer. Only recommend a move when the case is affirmative.",
 			"Never take a hit to chase last week's points. A player who blanked is not thereby a sell.",

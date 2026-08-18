@@ -494,7 +494,17 @@ the vault note the evidence sits in.
   24 cells, `POLICY`. The horizon arm (−8.4 against 21.7) and the horizon-8 floor (−15.8
   against 34, one season carrying 68%) are different arms — **do not compose them into one
   ladder**. The same identity binds `free_transfer_value` from the other side — see its bullet
-  under *Things that have already bitten*. → **transfer-policy**, **constants-and-sweeps**
+  under *Things that have already bitten*. ⚠️ **The floor 2×2 of 2026-08-18 measured the pair**:
+  `free_transfer_value` 1.0 × `min_gain` 0.2 under the override-mode levers, 36 cells/arm —
+  the floor-drop simple reads −2.5 a season against 32.3 (consistent with zero, bounded within
+  ±32), the {2.0, 0.2} corner is byte-identical on the full grid, and the entry-point columns
+  point the user's predicted way at point-estimate size (+22.7/+26.5 early, −8.4/−41.4 late,
+  six cells each). The **scheduled floor** — {1.0, 0.2} through GW8, shipped after — ships ON
+  by the user's ruling (configurable off via `review_policy.early_floor`), on mechanism:
+  measured +1.8 pooled against ≈5.8, live early-entry columns +6.7/+4.0 (2 of 6 cells positive
+  each), unresolved — the user's info-density reading, accepted rather than resolved. The
+  replay's sweep baseline stays flat unless an arm sets the schedule.
+  → **transfer-policy**, **constants-and-sweeps**
 - **The minutes floor's "argmax protection" does not reproduce, and re-measured at −40 the
   direction reverses.** Unmeasurable rather than unresolved: 2 of 6 seasons non-zero caps the
   clustered |t| at 1.58 against `t_crit` 2.571 — quote no p, no interval, no threshold. One cell
