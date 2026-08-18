@@ -180,8 +180,9 @@ for (corner in c("levers off", "levers on")) {
 
 cat("\n--- banked_weeks maxima per arm (expected 0 everywhere: banking inert) ---\n")
 for (v in need) {
-  bw <- cells$banked_weeks[cells$variant == v]
-  cat(sprintf("  %-16s max %d\n", v, max(bw, na.rm = TRUE)))
+  bw <- suppressWarnings(as.numeric(cells$banked_weeks[cells$variant == v]))
+  bw <- bw[!is.na(bw)]
+  cat(sprintf("  %-16s max %g\n", v, if (length(bw)) max(bw) else 0))
 }
 
 cat("\n--- reproduction of the OFF corner's flat rung against the ladder's 2.0 baseline ---\n")

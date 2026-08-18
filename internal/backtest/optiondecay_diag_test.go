@@ -41,15 +41,21 @@ package backtest
 //	              re-run in this process rather than paired across commits —
 //	              the scored path has moved since the ladder's commit, and
 //	              cross-commit pairing needs a byte-identical path.
-//	Interaction ON simple - OFF simple. Predicted >= 0, i.e. the taper MORE
-//	              harmful (less helpful) under ON: optionvalue.go's own
-//	              mechanism comment names the pair — the congestion spike and
-//	              the doubles arrive in the SAME weeks, so the taper's
-//	              congestion half raises the price of spending a transfer in
-//	              precisely the weeks a doubles-chasing plan most wants to
-//	              spend one (a doubling week in a long window reads ~5.2
-//	              against the flat 2.0). The ON corner IS the doubles-chasing
-//	              configuration. A reversal is information, not a failure.
+//	Interaction ON simple - OFF simple. ⚠️ CORRECTED 2026-08-18, after the run:
+//	              the committed text said "Predicted >= 0" — a sign copied from
+//	              the prior 2x2's interaction line — and the mechanism stated in
+//	              the same paragraph predicts the opposite. The taper MORE
+//	              harmful under ON means ON simple < OFF simple, i.e. AxB <= 0:
+//	              optionvalue.go's own mechanism comment names the pair — the
+//	              congestion spike and the doubles arrive in the SAME weeks, so
+//	              the taper's congestion half raises the price of spending a
+//	              transfer in precisely the weeks a doubles-chasing plan most
+//	              wants to spend one (a doubling week in a long window reads
+//	              ~5.2 against the flat 2.0). The ON corner IS the
+//	              doubles-chasing configuration. The registered prediction is
+//	              therefore AxB <= 0; the run reads +2.7, a point-estimate
+//	              reversal ~15x below the threshold. A reversal is information,
+//	              not a failure.
 //
 // The factorial main (taper mean over both corners) is printed beside the two
 // simples, labelled as which it is, per the standing rule on simple-effect
