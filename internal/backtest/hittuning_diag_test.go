@@ -118,7 +118,7 @@ func TestDiagHitTuning(t *testing.T) {
 		defer f.Close()
 		side = csv.NewWriter(f)
 		side.Write([]string{"sweep", "arm", "season", "start_gw", "gw",
-			"n_moves", "hit_net", "out_played", "wildcard_after"})
+			"n_moves", "hit_net", "out_played", "wildcard_after", "in_ids"})
 	}
 
 	// emit writes one row per package this cell's replay actually took. A
@@ -134,10 +134,12 @@ func TestDiagHitTuning(t *testing.T) {
 		}
 		for gw, vs := range byGW {
 			net, played, hit := 0, true, false
+			var ins []string
 			for _, v := range vs {
 				net += v.Net()
 				played = played && v.OutPlayed
 				hit = hit || v.Hit
+				ins = append(ins, strconv.Itoa(v.InID))
 			}
 			// The no-hits arm emits its free packages too — they are the
 			// wait-counterfactual's other side.
@@ -149,7 +151,8 @@ func TestDiagHitTuning(t *testing.T) {
 			}
 			side.Write([]string{"HITTUNE", arm, pair.Name, strconv.Itoa(start),
 				strconv.Itoa(gw), strconv.Itoa(len(vs)), strconv.Itoa(net),
-				strconv.FormatBool(played), strconv.FormatBool(after)})
+				strconv.FormatBool(played), strconv.FormatBool(after),
+				joinIDs(ins)})
 			_ = hit
 		}
 		side.Flush()
@@ -193,4 +196,18 @@ func TestDiagHitTuning(t *testing.T) {
 			}},
 	}
 	runPolicySweep(t, arms, starts)
+}
+
+// joinIDs joins a package's in-player ids with a pipe, so the wait-match in R
+// can pair a hit package with the no-hits arm's later free purchase of the
+// same player.
+func joinIDs(ins []string) string {
+	out := ""
+	for i, id := range ins {
+		if i > 0 {
+			out += "|"
+		}
+		out += id
+	}
+	return out
 }
