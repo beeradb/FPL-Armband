@@ -110,14 +110,22 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 
 		// Per (element, club), the sequence of played club-gameweeks with the
 		// player's minute totals, ascending. The map holds the sum over a
-		// double's legs; a blank week never appears. legs60 counts the legs with
-		// at least the appearance-point threshold, so "full appearance points in
-		// a double" — the user's reading of what a double is FOR — is
-		// expressible: legs60 < fixtures means an appearance point was missed.
-		type seqEntry struct{ gw, minutes, fixtures, points, legs60 int }
+		// double's legs; a blank week never appears. legsPlayed counts the legs
+		// with any minutes and legs60 the legs with at least the
+		// appearance-point threshold, so "full appearance points in a double" —
+		// the user's reading of what a double is FOR — is expressible exactly: a
+		// missed leg costs 2 appearance points, and a leg of 1-59 minutes has
+		// banked 1 and misses the second.
+		type seqEntry struct{ gw, minutes, fixtures, points, legsPlayed, legs60 int }
 		seqs := map[[2]int][]seqEntry{}
 		leg60 := func(minutes int) int {
 			if minutes >= analysis.AppearanceMinutes {
+				return 1
+			}
+			return 0
+		}
+		legPlayed := func(minutes int) int {
+			if minutes > 0 {
 				return 1
 			}
 			return 0
@@ -129,10 +137,11 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 				seq[len(seq)-1].minutes += r.Minutes
 				seq[len(seq)-1].points += r.Points
 				seq[len(seq)-1].legs60 += leg60(r.Minutes)
+				seq[len(seq)-1].legsPlayed += legPlayed(r.Minutes)
 				continue
 			}
 			seqs[key] = append(seq, seqEntry{r.GW, r.Minutes,
-				sm.clubGWFixtures(r.Club, r.GW), r.Points, leg60(r.Minutes)})
+				sm.clubGWFixtures(r.Club, r.GW), r.Points, legPlayed(r.Minutes), leg60(r.Minutes)})
 		}
 		// Price in tenths per (element, gw), for the pre-break bracket.
 		priceAt := map[[2]int]int{}
@@ -197,24 +206,30 @@ func TestDiagForcedMoveCensus(t *testing.T) {
 		// The appearance-shortfall channel — the user's reading of what a double
 		// is FOR: full appearance points in every leg, not merely any minutes in
 		// the week. A shortfall is a regular-week with fewer 60-minute legs than
-		// the club plays fixtures; the missed appearance points are the legs'
-		// second appearance point at 2 each. The break above is the all-legs
-		// extreme of the same channel, so shortfall counts are a superset.
+		// the club plays fixtures. The missed appearance points are the EXACT
+		// FPL valuation: a leg never entered costs both points (2), a leg of
+		// 1-59 minutes has banked the first and misses the second (1). The break
+		// above is the all-legs extreme of the same channel, so shortfall counts
+		// are a superset of it. No persistence bar: a shortfall needs none, so
+		// the loop runs to the end of the sequence (unlike the break loop's
+		// i+1 bound, which exists to see the next played week).
 		for _, seq := range seqs {
-			for i := 3; i+1 < len(seq); i++ {
+			for i := 3; i < len(seq); i++ {
 				if seq[i-3].minutes == 0 || seq[i-2].minutes == 0 || seq[i-1].minutes == 0 {
 					continue
 				}
 				if seq[i].legs60 >= seq[i].fixtures {
 					continue
 				}
+				missed := 2*float64(seq[i].fixtures-seq[i].legsPlayed) +
+					float64(seq[i].legsPlayed-seq[i].legs60)
 				dbl := seq[i].fixtures >= 2
 				if dbl {
 					st.shortDBL++
-					st.appDBL += float64(seq[i].fixtures-seq[i].legs60) * 2
+					st.appDBL += missed
 				} else {
 					st.shortSGL++
-					st.appSGL += float64(seq[i].fixtures-seq[i].legs60) * 2
+					st.appSGL += missed
 				}
 			}
 		}

@@ -86,23 +86,25 @@ breaks zero times in doubling weeks); it is not a decomposition.
 The user's second note, 2026-08-18: a regular who plays one leg of two has
 "appeared" by the break proxy, *"but that's not really the goal of a double. You
 want full appearance points."* The shortfall is a regular-week where the player
-records fewer 60-minute legs than the club plays fixtures — the second appearance
-point of at least one leg is lost. The break above is the all-legs extreme of the
-same channel, so shortfall counts are a superset of it.
+records fewer 60-minute legs than the club plays fixtures. The missed appearance
+points are the exact FPL valuation — a leg never entered costs both points (2), a
+leg of 1-59 minutes has banked the first and misses the second (1). The break
+above is the all-legs extreme of the same channel, so shortfall counts are a
+superset of it.
 
 | | regular-weeks | shortfalls | rate | expected missed appearance pts / regular-week | ratio |
 |---|---:|---:|---:|---:|---:|
-| ordinary week | 39,592 | 11,326 | 0.2861 | 0.5721 | — |
-| doubling week | 1,975 | 827 | **0.4187** | **1.1848** | **2.07** |
+| ordinary week | 39,592 | 11,763 | 0.2971 | 0.4209 | — |
+| doubling week | 1,975 | 827 | **0.4187** | **0.8805** | **2.09** |
 
-**Regulars miss an appearance point in 42% of doubling weeks against 29% of
+**Regulars miss an appearance point in 42% of doubling weeks against 30% of
 ordinary ones, and the expected missed appearance points per regular-week are
-2.07× in doubles.** This is the largest of the three channels, it is the one the
+2.09× in doubles.** This is the largest of the three channels, it is the one the
 user predicted, and it is the one the asserted `CongestionSensitivity` 1.0 —
 factor 2.0 at a full double — lands closest to. The independent sibling
 measurement (`TestDiagNailednessInDoubles`) agrees at the per-player level:
-nailed players record 60+ minutes in both legs in 0.66-0.82 of doubling weeks by
-season.
+nailed players record 60+ minutes in both legs in 0.72-0.82 of doubling weeks
+across the six census seasons.
 
 ## The premium bracket
 
@@ -132,7 +134,7 @@ the congestion multiplier as pricing *more frequent* forced moves is refuted.
 **Settles, on the cost half**: the cost-weighted channel has mass — **1.34×** the
 expected missed points per regular-week in doubling weeks.
 
-**Settles, on the appearance half**: **2.07×** the expected missed appearance
+**Settles, on the appearance half**: **2.09×** the expected missed appearance
 points per regular-week in doubling weeks — regulars miss a 60-minute leg in 42%
 of doubles. This is the channel with the mass, it is the one the user predicted
 (*"you want full appearance points"*), and the asserted `CongestionSensitivity`
