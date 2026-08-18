@@ -20,7 +20,21 @@
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1) stop("usage: hittune_verdicts.R <hits.csv>")
 
-h <- read.csv(args[1], stringsAsFactors = FALSE)
+# The sidecar is not a cells file, so it reads through the shared sidecar
+# reader rather than a raw read.csv — that reader is the sanctioned home, and
+# a raw read here trips the one-implementation guard in the test suite.
+local({
+  a <- commandArgs(trailingOnly = FALSE)
+  f <- sub("^--file=", "", a[grep("^--file=", a)])
+  d <- if (length(f) > 0) dirname(normalizePath(f[1])) else "stats"
+  p <- file.path(d, "cells_common.R")
+  if (!file.exists(p)) {
+    stop("cannot find cells_common.R beside this script (looked in ", d, ")")
+  }
+  source(p, local = FALSE)
+})
+
+h <- read_sidecar(args[1])
 h$out_played <- as.logical(h$out_played)
 h$wildcard_after <- as.logical(h$wildcard_after)
 h$hit <- as.logical(h$hit)
