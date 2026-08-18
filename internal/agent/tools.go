@@ -1068,8 +1068,12 @@ func (t *Toolbox) suggestTransfersFor(ctx context.Context, in suggestTransfersIn
 	if ev := t.Engine.Boot.NextEvent(); ev != nil {
 		chargeGW = ev.ID
 	}
+	// The scheduled early floor applies to the BASE, before the taper's curve —
+	// schedule first, curve second, exactly as the replay's `decide` composes
+	// them. See config.ReviewPolicy.EffectiveFloor.
+	baseCharge, _ := t.Cfg.Review.EffectiveFloor(chargeGW)
 	freeCost := t.Cfg.OptionValue.FreeTransferCharge(
-		t.Cfg.Review.FreeTransferValue, t.Engine, squadIDs, chargeGW)
+		baseCharge, t.Engine, squadIDs, chargeGW)
 
 	type swap struct {
 		Out          playerRow `json:"out"`

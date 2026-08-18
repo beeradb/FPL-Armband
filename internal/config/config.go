@@ -299,6 +299,13 @@ func Load(path string) (Config, error) {
 	if cfg.Review.FreeTransferValue <= 0 {
 		cfg.Review.FreeTransferValue = d.Review.FreeTransferValue
 	}
+	// The early floor's off state is an explicit zero schedule, so an absent key
+	// cannot be told from a deliberate off by value — probe presence the way
+	// BonusPriorWeight does. An old file without the key gets the shipped
+	// schedule, not the flat floor it never chose.
+	if !hasKey(b, "review_policy", "early_floor") {
+		cfg.Review.EarlyFloor = d.Review.EarlyFloor
+	}
 	if cfg.Review.BankUpTo <= 0 {
 		cfg.Review.BankUpTo = d.Review.BankUpTo
 	}
