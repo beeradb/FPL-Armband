@@ -21,7 +21,13 @@ args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1) stop("usage: hittune_verdicts.R <hits.csv>")
 
 h <- read.csv(args[1], stringsAsFactors = FALSE)
-h$arm <- sub(", flat.*|, floored.*| \\(wait\\)", "", h$arm)
+h$out_played <- as.logical(h$out_played)
+h$wildcard_after <- as.logical(h$wildcard_after)
+# One arm per short name, and the floored machine is its OWN arm — the sub
+# must not fold it into the flat baseline.
+h$arm <- sub(", flat( \\(shipped\\))?", "", h$arm)
+h$arm[h$arm == "mgh3, floored machine"] <- "mgh3floored"
+h$arm[h$arm == "no hits (wait)"] <- "no hits"
 h$net3 <- h$hit_net < 3
 h$net0 <- h$hit_net < 0
 h$adj <- h$out_played
@@ -42,15 +48,16 @@ cat(sprintf("mean hit_net %+.1f, median %+.1f, spread [%+d, %+d]\n\n",
             min(baseline$hit_net), max(baseline$hit_net)))
 
 cat("=== loss rates by arm (net < 3), paired per cell ===\n")
-cell <- aggregate(net3 ~ arm + season + start_gw, hits, mean)
-arms <- sort(unique(cell$arm))
-wide <- reshape(cell, idvar = c("season", "start_gw"), timevar = "arm",
-                direction = "wide")
-names(wide) <- sub("^net3\\.", "", names(wide))
+mk <- function(arm) {
+  a <- aggregate(net3 ~ season + start_gw, hits[hits$arm == arm, ], mean)
+  names(a)[3] <- "rate"
+  a
+}
 for (a in c("mgh4", "mgh5", "mgh6")) {
-  d <- wide[[a]] - wide[["mgh3"]]
+  m <- merge(mk("mgh3"), mk(a), by = c("season", "start_gw"), suffixes = c(".3", ".a"))
+  d <- m$rate.a - m$rate.3
   cat(sprintf("  %s - mgh3: mean %+.3f per-cell rate, %d cells, %d negative\n",
-              a, mean(d, na.rm = TRUE), sum(!is.na(d)), sum(d < 0, na.rm = TRUE)))
+              a, mean(d), length(d), sum(d < 0)))
 }
 fl <- hits[hits$arm == "mgh3floored", ]
 cat(sprintf("  floored machine (own arm): net<3 %.1f%% of %d packages; net<0 %.1f%%\n",

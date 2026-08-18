@@ -186,9 +186,10 @@ func TestDiagHitTuning(t *testing.T) {
 			}},
 		{label: "mgh3, floored machine", apply: floored,
 			observe: func(pair seasonPair, start int, res *SimResult) {
-				plan := anchoredPlan(pair.Cur, start)
+				// The resolved plan, both sets, exactly as Simulate routed it.
+				sch := SplitChipSets(pair.Cur.Name, anchoredPlan(pair.Cur, start))
 				emit("mgh3, floored machine", pair, start, res,
-					[]int{plan.Wildcard})
+					[]int{sch.First.Wildcard, sch.Second.Wildcard})
 			}},
 		{label: "no hits (wait)", apply: func(sc *SimConfig) { sc.MaxHits = 0 },
 			observe: func(pair seasonPair, start int, res *SimResult) {
