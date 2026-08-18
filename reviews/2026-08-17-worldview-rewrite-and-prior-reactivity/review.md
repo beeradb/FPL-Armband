@@ -60,3 +60,19 @@ Whether the interaction is big enough to clear its own threshold — that is
 what the run is for. The rough arithmetic says the within-cell pairing buys
 the contrast a factor of two in SE; the registered expectation is a
 direction, not a resolution.
+
+## Postscript — the runs, 2026-08-17
+
+Both diagnostics ran to completion on the committed design (worldview 44m10s,
+exit 0; 2x2 5m01s, exit 0, 48 of 48 cells). Results: REWRITE in 8 of 8
+worldview cells at all three registered cutoffs; the levers contrast resolves
+(+73.0 a season against its own threshold of 36.2, Holm 0.0105), the prior
+contrast does not (−20.4 against 107.7), and the interaction points the
+predicted way without resolving (+19.4 against 67.0). User-driven
+decomposition sharpened the levers verdict — chip WEEK payouts are ≈16 a
+season of the ≈46 raw; the rest is the free hit, anticipation and fielding —
+and that correction is recorded in the finding and in the vault notes beside
+this record. Per the user's direction the results are written to the vault
+notes (recency-and-priors, chips), not AGENTS.md. The accuracy snapshot is
+regenerated for the moved backtest tree. Nothing in this postscript changes
+the review dispositions above.
