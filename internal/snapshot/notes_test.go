@@ -849,7 +849,30 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// file — 149,561 bytes — fits under neither branch's ceiling alone. Raising to
 	// 150 is the arithmetic of that merge, same shape as the 136 raise: the next
 	// entry pays the usual price.
-	const budget = 150 * 1024
+	//
+	// # 80 KB from 2026-08-17 — the compaction, and the budget goes DOWN
+	//
+	// On the user's instruction ("trim and compact as much as possible; we can rely
+	// on the research store for project knowledge"), the derivation narratives moved
+	// out of AGENTS.md and into the vault notes the entries already pointed at —
+	// which is why the one-way-arrow rule was lifted the same day: agent-facing
+	// surfaces may now name the store, so the pointer can be explicit. The file fell
+	// from 149,561 to 76,670 bytes. What stayed: every verdict with the numbers that
+	// keep its line from being rebuilt, every standing rule, every regression-bug
+	// lesson with its pinning test, and the operational sections. What moved: the
+	// worked derivations, the caveats that exist to stop a misreading of a figure
+	// the reader has not seen, and the longer narratives — all now in the vault note
+	// each entry names.
+	//
+	// ⚠️ The standing remedy for a genuinely needed entry is unchanged — RAISE THE
+	// BUDGET and name the claim; never drop a qualifier to fit. What changed is the
+	// first question: does the derivation belong in the vault, with only the verdict
+	// here? The failure this constant exists to prevent — silently dropping the
+	// qualifier that carried the uncertainty — now has a second form: moving the
+	// qualifier somewhere the reader will not follow. A compacted entry whose vault
+	// note does not carry its caveats is that failure; check the note before
+	// trimming an entry further.
+	const budget = 80 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.
