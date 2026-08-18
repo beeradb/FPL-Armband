@@ -15,8 +15,8 @@ branch `re-judge-prior-reactivity-and-option-decay` (tracks `origin/development`
   pre-registration. Then on the OUTPUT (post-run): recomputed every figure against the banked
   cells and reported the five findings below.
 - **fpl-findings-audit — skipped, by triage.** The change does not edit `AGENTS.md`/`CLAUDE.md`;
-  per the user's standing direction, results live in the vault notes and the finding, not in
-  the resident record. Nothing new in its scope.
+  per the user's standing direction, results live in the research record's notes and the
+  finding, not in the resident record. Nothing new in its scope.
 - **fpl-code-review — skipped, by triage.** The diff is a diagnostic test, an R inference
   script, a finding and banked cells; the taper wiring it scores was reviewed when the
   option-value block was built. No scoring path is changed (the lever ships off; the shipped
