@@ -316,16 +316,40 @@ func repairCost(e *analysis.Engine, cur *Season, wal *wallet, held []int, gw, fr
 func repairChanges(e *analysis.Engine, held []int, budget int, minExp float64,
 	cfg SimConfig) (int, bool) {
 
+	fresh, ok := repairSquad(e, held, budget, minExp, cfg)
+	if !ok {
+		return 0, false
+	}
+	return changesBetween(held, fresh), true
+}
+
+// repairSquad is the fresh unconstrained optimum itself, alongside which
+// `repairChanges` counts how much of `held` it would replace. One
+// implementation: both quantities come from this single `Optimize` call, and
+// the worldview-rewrite column (`RepairWeek.FreshChurn`) needs the squad, not
+// merely the count.
+func repairSquad(e *analysis.Engine, held []int, budget int, minExp float64,
+	cfg SimConfig) ([]int, bool) {
+
 	sq, err := e.Optimize(analysis.OptimizeRequest{
 		Budget: budget, MinMinutes: 600,
 		MinExpectedMinutes: minExp, BenchWeight: cfg.openingBenchWeight(),
 	})
 	if err != nil {
-		return 0, false
+		return nil, false
 	}
-	want := make(map[int]bool, 15)
+	fresh := make([]int, 0, 15)
 	for _, p := range sq.Players {
-		want[p.ID] = true
+		fresh = append(fresh, p.ID)
+	}
+	return fresh, true
+}
+
+// changesBetween counts the held players absent from the fresh fifteen.
+func changesBetween(held, fresh []int) int {
+	want := make(map[int]bool, len(fresh))
+	for _, id := range fresh {
+		want[id] = true
 	}
 	changes := 0
 	for _, id := range held {
@@ -333,7 +357,7 @@ func repairChanges(e *analysis.Engine, held []int, budget int, minExp float64,
 			changes++
 		}
 	}
-	return changes, true
+	return changes
 }
 
 // repairCostOf prices a change count in points: the hits, and only the hits.
@@ -363,9 +387,11 @@ func repairCostOf(changes, free int) float64 {
 // `frozenFree` the allowance an arm that never transfers would carry. Both are
 // passed in rather than derived, because the accrual rule lives in `decide` and a
 // second expression of it here is the drift this package keeps paying for.
+// The second return is this week's fresh optimum, handed back so the next
+// week can measure how far it moves; nil when the rebuild failed.
 func observeRepair(e *analysis.Engine, cur *Season, wal, frozenWal *wallet,
-	held, opening []int, gw, evolveFree, frozenFree int, minExp float64,
-	cfg SimConfig) RepairWeek {
+	held, opening, prevFresh []int, gw, evolveFree, frozenFree int, minExp float64,
+	cfg SimConfig) (RepairWeek, []int) {
 
 	// The allowance the week will actually have. Reading `free` raw would price
 	// the repair against one transfer too few — the same correction the trigger
@@ -377,9 +403,17 @@ func observeRepair(e *analysis.Engine, cur *Season, wal, frozenWal *wallet,
 	obs := RepairWeek{GW: gw, Free: avail, FrozenFree: frozenFree}
 
 	obs.Budget = wal.value(cur, held, gw-1)
-	obs.Changes, obs.OK = repairChanges(e, held, obs.Budget, minExp, cfg)
+	// The fresh squad is kept, not merely counted: its week-to-week movement is
+	// the worldview-rewrite column, and the EVOLVING arm computes it anyway.
+	fresh, ok := repairSquad(e, held, obs.Budget, minExp, cfg)
+	obs.OK = ok
 	if obs.OK {
+		obs.Changes = changesBetween(held, fresh)
 		obs.Cost = repairCostOf(obs.Changes, obs.Free)
+		if prevFresh != nil {
+			obs.FreshChurn = changesBetween(prevFresh, fresh)
+			obs.FreshChurnOK = true
+		}
 	}
 
 	obs.FrozenBudget = frozenWal.value(cur, opening, gw-1)
@@ -401,7 +435,7 @@ func observeRepair(e *analysis.Engine, cur *Season, wal, frozenWal *wallet,
 	}
 	obs.FrozenGrossChanges, obs.FrozenGrossOK =
 		repairChanges(e, opening, obs.FrozenGrossBudget, minExp, cfg)
-	return obs
+	return obs, fresh
 }
 
 // squadBlanks reports whether any club the squad holds plays no match in this
