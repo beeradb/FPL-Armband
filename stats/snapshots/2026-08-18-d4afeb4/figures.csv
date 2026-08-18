@@ -1,6 +1,6 @@
 figure,value
 harness.mde.present,false
-stamp.commit,2b7587899fbf
+stamp.commit,d4afeb4ab81b
 stamp.dirty,true
 model.present,true
 model.calibration_drift.model_built_through_gw4.predicted,3.0262
