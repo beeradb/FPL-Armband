@@ -507,6 +507,9 @@ func (r cellRow) asInfeasible() cellRow {
 	r.WildcardTrig, r.BenchBoostTrig, r.FreeHitTrig = ChipTriggerMediator{},
 		ChipTriggerMediator{}, ChipTriggerMediator{}
 	r.ChipPrep = ChipPrepMediator{}
+	// The gate-floor counter goes with them, for the identical reason: it counts
+	// what the accept closure did, and an infeasible cell never ran one.
+	r.GateFloor = GateFloorMediator{}
 	// ⚠️ The DOSE block survives, and that is the arm rule rather than an
 	// oversight: it is a function of the season and the entry gameweek, which an
 	// infeasible cell still has, exactly as it still has `season` and `start_gw`.
@@ -740,6 +743,12 @@ const (
 	// so it cannot flatter one — and it is fatal to reading a fitted slope as "what
 	// targeting doubles is worth". See dose.go.
 	doseCols = 4
+	// floorCols is the gate-floor counterfactual: the proposals the shipped gate
+	// would have answered differently, split at the quiet boundary. Two, and a
+	// block of its own rather than a dose pair, because it is a mediator — it
+	// counts the arm's own decisions — where the dose is a property of the
+	// calendar alone.
+	floorCols = 2
 	// chipWeekCols is the chip block: two gameweeks and two one-off point
 	// totals. Four rather than eight because there are no per-gw columns here —
 	// see cellRow.HasChipWeeks for why a chip must not be normalised by weeks.

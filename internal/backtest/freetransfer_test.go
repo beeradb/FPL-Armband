@@ -494,9 +494,13 @@ func TestTheSinglesProposalCarriesNoAlternativeOrStrictFlag(t *testing.T) {
 				"then update both.", banned)
 		}
 	}
-	if !strings.Contains(block, "withBar(cfg.MinGain)") {
-		t.Fatal("the singles branch no longer gates on withBar(cfg.MinGain): the " +
-			"first half of the free-single bar is not min_gain any more, so the " +
-			"kink identity does not hold")
+	// The bar is the week's gain bar, which is cfg.MinGain except where a
+	// scheduled floor is active — the schedule's own knob, applied before the
+	// proposal is built. The kink identity holds on the shipped path because
+	// the shipped schedule is off.
+	if !strings.Contains(block, "withBar(gainBar)") {
+		t.Fatal("the singles branch no longer gates on withBar(gainBar): the " +
+			"first half of the free-single bar is not the week's gain bar any " +
+			"more, so the kink identity does not hold")
 	}
 }
