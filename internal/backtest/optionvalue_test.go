@@ -60,6 +60,15 @@ func TestTheOptionValueLeversAreOffByDefault(t *testing.T) {
 		z.BenchBoostTrigger || z.FreeHitTrigger {
 		t.Errorf("a zero SimConfig has an option-value lever on: %+v", z)
 	}
+	// The scheduled floor joins the block: its zero value must be off, so a
+	// sweep that sets nothing runs the shipped {2.0, 0.4} floor, and a config
+	// file without the key keeps the shipped behaviour.
+	if z.EarlyFloor.UntilGameweek != 0 {
+		t.Errorf("a zero SimConfig has a scheduled floor: %+v", z.EarlyFloor)
+	}
+	if d := config.Default().Review.EarlyFloor; d.UntilGameweek != 0 {
+		t.Errorf("config.Default() ships a scheduled floor: %+v", d)
+	}
 	// And the curve's own no-ops, which is what makes an unset knob a no-op
 	// rather than a zero — the rule a raw multiply by an unset congestion penalty
 	// broke for two seasons of replays.

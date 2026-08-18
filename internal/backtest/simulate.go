@@ -2442,7 +2442,11 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 		// excludes this gameweek for the same reason. See TransferHoldFactorFor.
 		wh.Load = e.HoldingCongestion(held, gw, cfg.OptionPricing)
 		wh.Factor = e.TransferHoldFactorFor(held, gw, cfg.OptionPricing)
-		freeCost = cfg.FreeCost * wh.Factor
+		// The local freeCost, so a scheduled base flows through the curve —
+		// schedule first, curve second, as the schedule's comment above
+		// commits. When the schedule is off this is cfg.FreeCost and the
+		// line is what it always was.
+		freeCost = freeCost * wh.Factor
 		wh.Charge = freeCost
 	}
 	// accept is the gate, plus the taper's counterfactual.

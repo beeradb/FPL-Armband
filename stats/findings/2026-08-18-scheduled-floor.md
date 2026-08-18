@@ -1,4 +1,4 @@
-# The scheduled floor: live only where it can act, positive at the predicted size, unresolved
+# The scheduled floor: live only where it can act, positive point estimates, unresolved
 
 The schedule arm pre-registered in the gate-floor 2×2's doc comment: `{FreeCost 1.0, MinGain
 0.2}` through GW8 — the midpoint of the user's "6-10 games" — the shipped `{2.0, 0.4}` after,
@@ -20,7 +20,7 @@ rather than conflated.
 ## The result
 
 **POLICY, schedule − baseline: +0.047 pts/gw, +1.8 a season** — CR2 SE 0.059, t 0.80, p 0.460,
-threshold ≈5.8; start-fixed SE 0.064, t 0.74; wild p 0.429, S_eff 6. The second instrument
+threshold ≈5.8; start-fixed SE 0.069, t 0.68; wild p 0.429, S_eff 6. The second instrument
 reads −0.064 pts/gw (`policy_xpoints`) — mixed at point-estimate size. **HOLD is
 byte-identical**, the code fact. Nothing resolves.
 
@@ -36,16 +36,20 @@ third by 3×. The liveness confirms the split exactly:
 - **moves differ in 7 of the 12 early-exposure cells** (GW1: 4, GW6: 3) and 0 of the other 24.
 
 The honest figure is the live-subset one: **+6.7 a season at GW1 entry, +4.0 at GW6** — the
-user's predicted direction, at six cells each, nowhere near a threshold. A pooled figure over
-all 36 cells would be a comparison that is three-quarters confinement.
+user's predicted direction as point estimates, at six cells each, nowhere near a threshold
+(the GW1 column's own CR2 threshold is roughly 32). ⚠️ The sign claim has **no cell-level
+majority**: 2 of 6 cells are positive at each live entry, the column means are carried by two
+large cells, and no size was ever predicted — only a direction. A pooled figure over all 36
+cells would be a comparison that is three-quarters confinement.
 
 ## What this settles, and what it does not
 
 **Settles**: the schedule is wired, live where its window opens (flips 6/6, moves differ in
-the early columns), and reads positive at the predicted size (+6.7/+4.0 at the live entries)
-against a pooled threshold of ≈5.8 — a point estimate in the user's direction with no
-resolution. The knob (`review_policy.early_floor`) ships, off by default, with the zero value
-as its backfill. The shipped floor stays `{2.0, 0.4}`.
+the early columns), and the pooled contrast reads +1.8 against its own threshold of ≈5.8 —
+consistent with zero, nothing resolves. The live columns read +6.7/+4.0 as point estimates
+(2 of 6 cells positive per entry), a sign with no cell-level majority. The knob
+(`review_policy.early_floor`) ships, off by default, with the zero value as its backfill. The
+shipped floor stays `{2.0, 0.4}`.
 
 **Does not settle**: whether the schedule buys points — 12 live cells cannot, and the record
 says an unresolved positive is not a licence to ship one. The early-entry grid is the binding
