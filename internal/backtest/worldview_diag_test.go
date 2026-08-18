@@ -54,15 +54,28 @@ package backtest
 //	OVERREACT churn falls by a third or more head-to-tail: the world is
 //	          rewritten most where information is poorest — the user's
 //	          mechanism, and the case for slower reactions early.
+//	OVERREACT-FIRST-QUARTER the first quarter's mean exceeds the head of the
+//	          middle two quarters by 2+ players/week: the rewrite concentrates
+//	          in exactly the information-poorest weeks the mechanism names,
+//	          before the window the middle read examines. (Plan review: the
+//	          middle-two-quarters window alone cannot see this regime.)
 //	STABLE    mean churn <= 2 players/week: the picture of the world is stable,
 //	          and the standing gap is accumulated once — ownership and budget,
 //	          not weekly rewrites. The prior-reactivity reading would then be
-//	          REFUSED by this observable.
+//	          REFUSED by this observable. ⚠️ STABLE refutes a MID-SEASON
+//	          rewrite only — the first quarter is reported beside it, and a
+//	          quiet middle beside a loud first quarter is OVERREACT-FIRST-
+//	          QUARTER, not STABLE.
+//
+// The 4/week and 2/week cutoffs are asserted, not derived; the per-cell count
+// is therefore printed at (4/2), (3/1) and (5/3) — if the dominant category
+// is the same at all three the cutoffs do not matter, and if it shifts the
+// range is the result.
 //
 // A cell is reported, never pooled across entries: GW1 entries open on one
 // gameweek of data and GW16 on fifteen, and the mechanism says they should
-// differ. The prediction to record beside each cell is which of the three
-// rows it sits on; the verdict is the count of cells per row, split by entry.
+// differ. The prediction to record beside each cell is which row it sits on;
+// the verdict is the count of cells per row, split by entry.
 
 import (
 	"fmt"
@@ -143,35 +156,78 @@ func TestDiagWorldviewRewrite(t *testing.T) {
 		}
 	}
 
-	fmt.Printf("\n=== per-cell readout, middle two quarters only ===\n")
-	fmt.Printf("%-9s %-5s %9s %9s %9s | %-9s\n",
-		"season", "start", "head", "tail", "mean", "reading")
+	fmt.Printf("\n=== per-cell readout, first quarter and middle two quarters ===\n")
+	fmt.Printf("%-9s %-5s %7s %7s %7s %7s | %-18s\n",
+		"season", "start", "q1", "head", "tail", "mean", "reading (4/2)")
 	for _, c := range cells {
-		n := len(c.Churn)
-		if n < 8 {
-			fmt.Printf("%-9s GW%-4d too short (%d weeks)\n", c.Season, c.Start, n)
+		q1, head, tail, mean, ok := churnQuarters(c.Churn)
+		if !ok {
+			fmt.Printf("%-9s GW%-4d too short (%d weeks)\n", c.Season, c.Start, len(c.Churn))
 			continue
 		}
-		lo, hi := n/4, 3*n/4
-		mid := c.Churn[lo:hi]
-		half := len(mid) / 2
-		head := meanInts(mid[:half])
-		tail := meanInts(mid[half:])
-		mean := meanInts(mid)
 		bm := 0.0
 		if len(c.BudgetMove) > 0 {
 			bm = meanInts(c.BudgetMove)
 		}
-		// The reading rule, exactly as registered above: STABLE first (the
-		// level test), then OVERREACT (falls by a third or more head-to-tail,
-		// with a head large enough that the fall is not 2 -> 1), else REWRITE.
-		reading := "REWRITE"
-		if mean <= 2 {
-			reading = "STABLE"
-		} else if head >= 3 && tail <= 2*head/3 {
-			reading = "OVERREACT"
-		}
-		fmt.Printf("%-9s GW%-4d %9.2f %9.2f %9.2f | %-9s (budget %+.0f tenths/wk)\n",
-			c.Season, c.Start, head, tail, mean, reading, bm)
+		fmt.Printf("%-9s GW%-4d %7.2f %7.2f %7.2f %7.2f | %-18s (budget %+.0f tenths/wk)\n",
+			c.Season, c.Start, q1, head, tail, mean,
+			worldviewReading(q1, head, tail, mean, 2), bm)
 	}
+
+	// Cutoff sensitivity, registered before the run: the dominant category
+	// must be the same at stable cuts 2, 1 and 3, or the range is the result.
+	// REWRITE is the residual category, so the stable cut is the only one that
+	// moves cells between categories; the registered >=4 REWRITE level is a
+	// description of where the residual is expected to sit, not a second gate.
+	fmt.Printf("\n=== category counts at three stable cuts ===\n")
+	for _, cut := range []float64{2, 1, 3} {
+		counts := map[string]int{}
+		for _, c := range cells {
+			q1, head, tail, mean, ok := churnQuarters(c.Churn)
+			if !ok {
+				continue
+			}
+			counts[worldviewReading(q1, head, tail, mean, cut)]++
+		}
+		fmt.Printf("  stable <= %.0f:  REWRITE %d  OVERREACT %d  "+
+			"OVERREACT-Q1 %d  STABLE %d\n",
+			cut, counts["REWRITE"], counts["OVERREACT"],
+			counts["OVERREACT-Q1"], counts["STABLE"])
+	}
+}
+
+// churnQuarters splits a churn series into the first quarter and the head and
+// tail halves of the middle two quarters. False when the series is too short
+// to split.
+func churnQuarters(churn []int) (q1, head, tail, mean float64, ok bool) {
+	n := len(churn)
+	if n < 8 {
+		return 0, 0, 0, 0, false
+	}
+	lo, hi := n/4, 3*n/4
+	q1 = meanInts(churn[:lo])
+	mid := churn[lo:hi]
+	half := len(mid) / 2
+	head = meanInts(mid[:half])
+	tail = meanInts(mid[half:])
+	mean = meanInts(mid)
+	return q1, head, tail, mean, true
+}
+
+// worldviewReading applies the registered rule, in order: the first-quarter
+// regime first (the mechanism names the information-poorest weeks), then the
+// middle-window STABLE level test at stableCut, then middle-window OVERREACT
+// (a fall of a third or more head-to-tail, with a head large enough that
+// 2 -> 1 does not fire it), else REWRITE as the residual.
+func worldviewReading(q1, head, tail, mean, stableCut float64) string {
+	if q1 >= head+2 && q1 >= 3 {
+		return "OVERREACT-Q1"
+	}
+	if mean <= stableCut {
+		return "STABLE"
+	}
+	if head >= 3 && tail*3 <= head*2 {
+		return "OVERREACT"
+	}
+	return "REWRITE"
 }

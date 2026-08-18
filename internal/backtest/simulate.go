@@ -436,9 +436,12 @@ type RepairWeek struct {
 	FrozenGrossOK      bool
 
 	// FreshChurn is the week-to-week movement of the FRESH optimum itself: how
-	// many players in this week's from-scratch fifteen were absent from last
-	// week's. The other columns of RepairWeek measure a distance between a held
-	// squad and the optimum; this measures how far the optimum MOVES when one
+	// many players differ between this week's from-scratch fifteen and last
+	// week's. Computed as changesBetween(prevFresh, fresh), which for two
+	// fifteen-player sets is symmetric, so the direction of the set difference
+	// does not matter. The other columns of RepairWeek measure a distance
+	// between a held squad and the optimum; this measures how far the optimum
+	// MOVES when one
 	// gameweek of data arrives — the direct observable of "one gameweek rewrites
 	// the world", which the standing-gap series cannot see.
 	//

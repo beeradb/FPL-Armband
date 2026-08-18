@@ -43,6 +43,29 @@ package backtest
 // Multiplicity: Holm over the three contrasts. Each gets its own threshold
 // from stats/variance_components.R on the banked cells.
 //
+// # Registered limitations, so the verdicts cannot over-read
+//
+// - **No sub-attribution.** The ON corner moves levers together, so if AxB
+//   resolves the finding is "the heavier prior is less harmful (or more
+//   helpful) under the joint chip-and-banking configuration" — not "benefits
+//   from chips", "from anticipation", or "from banking" separately. BankLookahead
+//   is recorded as inert at shipped config, so the corner is effectively chips
+//   plus anticipation, but it is still two.
+// - **The ON corner fields its weeks.** It sets `WeeklyXI` true, because an
+//   arm about chips on doubles and blanks that left it false would switch off
+//   the fielding half of its own mechanism. The OFF arms stay at the shipped
+//   false. The k effect INSIDE the ON corner is clean (both k values field);
+//   the cross-config difference in k effects carries the WeeklyXI change
+//   alongside the levers, as part of the compound configuration the user
+//   asked to re-judge under. The B main effect is "what chips plus correct
+//   fielding buy", not chips alone.
+// - **anchoredPlan is full sight**: it knows every double and blank from
+//   entry, so the B main effect is an UPPER BOUND on what the levers buy; a
+//   real manager's value is lower by the cost of imperfect sight.
+// - **Moderator floor**: if the live count within one entry-point half falls
+//   below 4 of 6 seasons, that half's split is reported as "insufficient
+//   data", not as a finding. Both halves are still printed.
+//
 // # The live-cell moderator, registered before the run
 //
 // Per the user's criterion: a cell can improve only if its window from entry
@@ -95,6 +118,7 @@ func TestDiagPriorReactivityUnderExitLevers(t *testing.T) {
 	fmt.Printf("%-9s %-5s %-4s %-4s %-6s %-6s %-5s %s\n",
 		"season", "start", "WC", "BB", "FH", "TC", "live", "reason")
 	live := 0
+	liveByStart := map[int]int{}
 	for _, p := range pairs {
 		for _, start := range starts {
 			plan := anchoredPlan(p.Cur, start)
@@ -123,6 +147,7 @@ func TestDiagPriorReactivityUnderExitLevers(t *testing.T) {
 			}
 			if isLive {
 				live++
+				liveByStart[start]++
 			}
 			fmt.Printf("%-9s GW%-4d %3d %3d %3d %3d  %-5v %s\n",
 				p.Name, start, plan.Wildcard, plan.BenchBoost, plan.FreeHit,
@@ -131,12 +156,27 @@ func TestDiagPriorReactivityUnderExitLevers(t *testing.T) {
 	}
 	fmt.Printf("\n%d of %d cells live. Both halves are reported; the prediction is\n",
 		live, len(pairs)*len(starts))
-	fmt.Printf("that the k effect and the interaction concentrate in the live half.\n\n")
+	fmt.Printf("that the k effect and the interaction concentrate in the live half.\n")
+	// The registered moderator floor, applied per entry-point half.
+	for _, start := range starts {
+		n := liveByStart[start]
+		verdict := fmt.Sprintf("%d of %d live", n, len(pairs))
+		if n < 4 {
+			verdict += " — INSUFFICIENT DATA for this half (floor is 4)"
+		}
+		fmt.Printf("  entry GW%-3d %s\n", start, verdict)
+	}
+	fmt.Println()
 
 	leversOn := func(sc *SimConfig) {
 		sc.ChipPlanner = anchoredPlan
 		sc.AnticipateChips = true
 		sc.BankLookahead = true
+		// Registered before the run: the ON corner fields its chip weeks on
+		// the imminent gameweek. Leaving WeeklyXI false would leave the
+		// fielding half of a doubles/blanks arm switched off — the package's
+		// own recorded trap. The OFF arms stay at the shipped false.
+		sc.WeeklyXI = true
 	}
 	arms := []policyVariant{
 		{label: "k8, levers off", apply: func(sc *SimConfig) {}},
