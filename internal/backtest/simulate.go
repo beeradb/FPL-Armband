@@ -972,6 +972,13 @@ type Week struct {
 	FreeHit       bool
 	BenchBoost    bool
 	TripleCaptain bool
+	// FreeHitSquad is the borrowed fifteen a free hit fielded, and is nil on
+	// every other week. It exists because the permanent squad sat that week
+	// out — its points did not count — and a report that shows only the
+	// permanent fifteen shows a team full of blanks on the one week the chip
+	// was spent to avoid them. The eleven inside it is Week.XI; the five
+	// beyond it are the bench.
+	FreeHitSquad []int
 }
 
 // Move records one transfer the policy chose to make.
@@ -2144,6 +2151,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 			}
 			fielded = temp
 			week.FreeHit = true
+			week.FreeHitSquad = temp
 		}
 		xi, bench, captain, vice := pickXI(ve, fielded)
 		// The armband oracle, overriding two return values and nothing else. The
