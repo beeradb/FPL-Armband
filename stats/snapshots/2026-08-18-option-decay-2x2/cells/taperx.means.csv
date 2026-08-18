@@ -1,0 +1,19 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TAPERX#1,1787063721-2753083,policy,"taper, levers off",1,"flat, levers off",-0.010983313519544858,36,-
+TAPERX#1,1787063721-2753083,policy,"flat, levers on",2,"flat, levers off",2.562788702948888,36,-
+TAPERX#1,1787063721-2753083,policy,"taper, levers on",3,"flat, levers off",2.6229975846680658,36,-
+TAPERX#1,1787063721-2753083,policy_xpoints,"taper, levers off",1,"flat, levers off",0.004109474265044316,36,-
+TAPERX#1,1787063721-2753083,policy_xpoints,"flat, levers on",2,"flat, levers off",2.7457598694458283,36,-
+TAPERX#1,1787063721-2753083,policy_xpoints,"taper, levers on",3,"flat, levers off",2.777925482787962,36,-
+TAPERX#1,1787063721-2753083,hold,"taper, levers off",1,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold,"flat, levers on",2,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold,"taper, levers on",3,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold_xpoints,"taper, levers off",1,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold_xpoints,"flat, levers on",2,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold_xpoints,"taper, levers on",3,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold_fixedcap,"taper, levers off",1,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold_fixedcap,"flat, levers on",2,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold_fixedcap,"taper, levers on",3,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold_nocap,"taper, levers off",1,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold_nocap,"flat, levers on",2,"flat, levers off",0,36,-
+TAPERX#1,1787063721-2753083,hold_nocap,"taper, levers on",3,"flat, levers off",0,36,-
