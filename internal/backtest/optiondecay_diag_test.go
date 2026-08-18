@@ -54,8 +54,8 @@ package backtest
 //	              ~5.2 against the flat 2.0). The ON corner IS the
 //	              doubles-chasing configuration. The registered prediction is
 //	              therefore AxB <= 0; the run reads +2.7, a point-estimate
-//	              reversal ~15x below the threshold. A reversal is information,
-//	              not a failure.
+//	              reversal about 15% of its threshold (≈6.6x below it). A
+//	              reversal is information, not a failure.
 //
 // The factorial main (taper mean over both corners) is printed beside the two
 // simples, labelled as which it is, per the standing rule on simple-effect

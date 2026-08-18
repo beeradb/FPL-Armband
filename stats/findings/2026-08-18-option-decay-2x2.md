@@ -27,31 +27,34 @@ variance shares by `stats/variance_components.R`; concentration by
 
 ## The three registered contrasts (POLICY, paired per cell ×38)
 
-| contrast | a season | CR2 SE | t (df 5) | p | threshold | Holm | start-fixed t (p) | wild p (S_eff 6) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| **ON simple: taper−flat \| levers on** | **+2.3** | 4.18 | +0.55 | 0.608 | 10.7 | 1.000 | +0.47 (0.642) | 0.593 |
-| OFF simple: taper−flat \| levers off | −0.4 | 6.49 | −0.06 | 0.951 | 16.7 | 1.000 | −0.05 (0.957) | 0.946 |
-| AxB: interaction | +2.7 | 6.96 | +0.39 | 0.713 | 17.9 | 1.000 | +0.35 (0.731) | 0.762 |
+| contrast | a season | CR2 SE | t (df 5) | p | threshold | start-fixed threshold | Holm | start-fixed t (p) | wild p (S_eff 6) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| **ON simple: taper−flat \| levers on** | **+2.3** | 4.18 | +0.55 | 0.608 | 10.7 | 10.0 | 1.000 | +0.47 (0.642) | 0.593 |
+| OFF simple: taper−flat \| levers off | −0.4 | 6.49 | −0.06 | 0.951 | 16.7 | 15.9 | 1.000 | −0.05 (0.957) | 0.946 |
+| AxB: interaction | +2.7 | 6.96 | +0.39 | 0.713 | 17.9 | 16.0 | 1.000 | +0.35 (0.731) | 0.762 |
 
 The factorial main (taper mean over both corners) reads **+0.9 against 10.8**, and the primary
 contrast on the second POLICY-side instrument (`policy_xpoints`) reads **+1.2 against 7.0**.
-MDEs at 80% power on the clustered estimator: ≈14 (ON), ≈22 (OFF), ≈24 (AxB) a season.
+MDEs at 80% power on the clustered estimator: ≈14 (ON), ≈22 (OFF), ≈24 (AxB) a season. The
+wild cluster bootstrap is Webb 6-point, enumerated exactly, `S_eff` 6 on every contrast, so the
+floor is 6/6⁶ = 0.000129 — every null here is a *measurable* tie, and the p's (0.59-0.95) sit
+nowhere near the floor.
 
-**Nothing resolves, and these are the sharpest POLICY thresholds this record has produced.**
-The taper perturbs the charge gently week to week, so the paired arms stay highly correlated
-and the SEs collapse to 4-7 a season — far below the canonical POLICY median of 70. An effect
-of 15-24 a season would have been seen. The reading is therefore *measured and absent at that
-size*, not *unmeasurable*.
+**Nothing resolves, and the ON contrast carries the sharpest POLICY threshold this record has
+produced** (10.7, below the vice-captain fix's recorded 12.7). The taper perturbs the charge
+gently week to week, so the paired arms stay highly correlated and the SEs collapse to 4-7 a
+season — far below the canonical POLICY median of 70. An effect of 15-24 a season would have
+been seen. The reading is therefore *measured and absent at that size*, not *unmeasurable*.
 
 ⚠️ **The interaction direction reverses the mechanism's prediction, at point-estimate size.**
 The committed pre-registration carried a sign error — "Predicted >= 0" copied from the prior
 2×2's interaction line — contradicted in the same paragraph by the mechanism it states: the
 congestion tax on doubles weeks means the taper should be MORE harmful under ON, i.e. AxB ≤ 0
 (the correction is marked in the doc comment, dated 2026-08-18, after the run). Measured AxB
-is **+2.7**, ~15× below its threshold: the point estimate says the taper is slightly HELPFUL
-under the levers (+2.3) and trivially harmful at shipped config (−0.4), where the congestion
-mechanism predicted the opposite sign. A point-estimate reversal, not a refutation — and not a
-clearance.
+is **+2.7**, about 15% of its threshold (≈6.6× below it): the point estimate says the taper is
+slightly HELPFUL under the levers (+2.3) and trivially harmful at shipped config (−0.4), where
+the congestion mechanism predicted the opposite sign. A point-estimate reversal, not a
+refutation — and not a clearance.
 
 ## Liveness: the taper arrived on the scored path, every check pre-registered
 
@@ -94,18 +97,30 @@ GW1/GW6 shape-clean, GW11/GW16 transitional, GW21/GW26 level-cut:
 | **+32.3** | −9.2 | −5.9 | −10.7 | −1.1 | +8.3 |
 
 **No shape.** The GW1 column (+32.3, 5 of 6 cells positive) is the largest — and the record
-already names GW1 the noisiest column on any grid (six season values across a 340-point spread
-in the prior run). Nothing here supports reading it as a season-opening effect, and nothing
-resolves per column either.
+already names GW1 the noisiest column on any grid
+(`stats/findings/2026-08-13-benchshape.md` measured exactly that). Nothing here supports
+reading it as a season-opening effect, and nothing resolves per column either.
 
-## A byproduct, labelled as one: the levers effect at 36 cells
+## A byproduct, labelled as one: the levers effect at 36 cells, at k=8
 
 Not a registered contrast of this run, reported because it corroborates the prior 2×2's
-resolving B: flat-ON minus flat-OFF reads **+97.4 a season** (mean_per_gw +2.5628, CR2 SE
-0.5429, threshold 53.0), against the prior 2×2's +73.0 (threshold 36.2) at 12 cells. Same
-configuration, wider grid, same sign, both above their own thresholds. It does not re-open the
-registered limitations on B (compound corner, full sight, wildcard absent, banking inert) —
-those stand as recorded.
+resolving B. Two pieces, both verified against the banked cells:
+
+- **The shared 12 cells (GW1/GW16) reproduce the prior run byte-identically**: this run's
+  flat-ON and flat-OFF arms equal the prior 2×2's k8-ON and k8-OFF arms on `policy_per_gw`,
+  `moves`, `hits` and `banked_weeks` in all 12 shared cells (GW1 levers effect +38.2, GW16
+  +88.4 — exactly the prior run's). Cross-run reproduction, `bca297a` → `48ebc71`, on the
+  POLICY path.
+- **The wider grid reads +97.4 a season** (mean_per_gw +2.5628, CR2 SE 0.5429, threshold
+  53.0), against the prior run's **k8-only** figure of **+63.3** (the prior B of +73.0 is the
+  mean over k∈{8,24}, so it is not the same configuration and is not the comparison).
+  Entry-point schedule: GW1 +38.2, GW6 +76.2, GW11 +103.1, GW16 +88.4, GW21 +98.2, GW26
+  +180.3 — the pooled figure is pulled up by the late entries, and the schedule is stated
+  rather than pooled away.
+
+Same configuration on the shared cells, same sign everywhere, both above their own
+thresholds. It does not re-open the registered limitations on B (compound corner, full sight,
+wildcard absent, banking inert) — those stand as recorded.
 
 ## What this settles, and what it does not
 
