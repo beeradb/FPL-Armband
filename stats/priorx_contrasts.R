@@ -55,7 +55,7 @@ se_fixed <- function(d) {
   list(se = se, df = df, t = tt, p = 2 * pt(-abs(tt), df))
 }
 
-cells <- read.csv(args[1], stringsAsFactors = FALSE)
+cells <- read_cells(args[1])
 need <- c("k8, levers off", "k24, levers off", "k8, levers on", "k24, levers on")
 stopifnot(all(need %in% cells$variant))
 
