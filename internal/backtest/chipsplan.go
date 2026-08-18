@@ -22,6 +22,19 @@ import "armband/internal/analysis"
 // about one and a half — which no manager holds a chip for.
 const minAnchorClubs = 4
 
+// PlacedChips is how many of a plan's four chips have a week. A full plan is
+// 4; a short one means the window could not hold every chip, and a caller that
+// promised the season's full grant must refuse it rather than play fewer.
+func PlacedChips(p analysis.ChipPlan) int {
+	n := 0
+	for _, gw := range []int{p.Wildcard, p.BenchBoost, p.FreeHit, p.TripleCaptain} {
+		if gw > 0 {
+			n++
+		}
+	}
+	return n
+}
+
 // Full anchored chip plans: the complete plan the user-facing replay and the
 // shipped configuration run — BOTH sets, all four chips, anchored on the
 // calendar within each set's window, with use-it-or-lose-it fallbacks.
@@ -93,23 +106,40 @@ func FullAnchoredPlan(cur *Season, start int) analysis.ChipSchedule {
 		return bestGW
 	}
 
-	// claim marks a week taken, shifting down while it collides, and returns
-	// the week actually used. A pick cannot land at or below the entry point.
-	claim := func(taken map[int]bool, gw, lo int) int {
-		for gw > lo && taken[gw] {
-			gw--
+	// claim marks a week taken, searching for the nearest free week — down
+	// first, then up — and reports false when the window is full. A pick
+	// cannot land at or below the entry point: the window's floor is start+1,
+	// so a full window is the honest failure rather than a collision that
+	// silently reuses a week.
+	claim := func(taken map[int]bool, gw, lo, hi int) (int, bool) {
+		for i := gw; i >= lo; i-- {
+			if !taken[i] {
+				taken[i] = true
+				return i, true
+			}
 		}
-		taken[gw] = true
-		return gw
+		for i := gw + 1; i <= hi; i++ {
+			if !taken[i] {
+				taken[i] = true
+				return i, true
+			}
+		}
+		return 0, false
 	}
 
 	var sch analysis.ChipSchedule
 	for set := 1; set <= sets; set++ {
+		// The window is entry-aware: chips are only worth planning in weeks
+		// the replay will actually play, so a late entry gets the weeks it
+		// has left rather than a plan it can never reach.
 		lo, hi := start+1, 38
 		if sets == 2 && set == 1 {
 			hi = ChipResetGW - 1
 		} else if sets == 2 {
 			lo = ChipResetGW
+			if start+1 > lo {
+				lo = start + 1
+			}
 		}
 		if lo < 1 {
 			lo = 1
@@ -118,35 +148,60 @@ func FullAnchoredPlan(cur *Season, start int) analysis.ChipSchedule {
 			continue
 		}
 		taken := map[int]bool{}
+		ok := true
 		bb := anchor(lo, hi, isDouble, taken)
 		if bb == 0 {
 			bb = hi
 		}
-		bb = claim(taken, bb, lo)
+		bb, ok = claim(taken, bb, lo, hi)
+		if !ok {
+			bb = 0
+		}
 		tc := anchor(lo, hi, isDouble, taken)
 		if tc == 0 {
 			tc = hi - 1
+			if tc < lo {
+				tc = lo
+			}
 		}
-		tc = claim(taken, tc, lo)
+		if ok {
+			tc, ok = claim(taken, tc, lo, hi)
+		}
+		if !ok {
+			tc = 0
+		}
 		fh := anchor(lo, hi, isBlank, taken)
 		if fh == 0 {
 			fh = hi - 2
+			if fh < lo {
+				fh = lo
+			}
 		}
-		fh = claim(taken, fh, lo)
+		if ok {
+			fh, ok = claim(taken, fh, lo, hi)
+		}
+		if !ok {
+			fh = 0
+		}
 		wc := 0
-		switch {
-		case sets == 2 && set == 2:
-			wc = bb - 1 // prepares the boost
-			if wc < lo {
-				wc = lo
+		if ok {
+			switch {
+			case sets == 2 && set == 2:
+				wc = bb - 1 // prepares the boost
+				if wc < lo {
+					wc = lo
+				}
+			default:
+				wc = 4 // the recorded one reliable wildcard week
+				if wc <= start {
+					wc = start + 1
+				}
 			}
-		default:
-			wc = 4 // the recorded one reliable wildcard week
-			if wc <= start {
-				wc = start + 1
+			wc, ok = claim(taken, wc, lo, hi)
+			if !ok {
+				wc = 0
 			}
 		}
-		wc = claim(taken, wc, lo)
 
 		p := analysis.ChipPlan{
 			Wildcard: wc, BenchBoost: bb, FreeHit: fh, TripleCaptain: tc,
