@@ -59,6 +59,14 @@ the only Go change is the sidecar `hit` write inside a diagnostic test, touching
 config, or agent path. fpl-security-review — no authenticated surface or credential path
 touched.
 
+**The suite's own guards, after the reviews** — two fired and were fixed:
+`TestTheSharedCellQuantitiesHaveOneImplementation` caught a raw `read.csv` in
+`stats/hittune_verdicts.R`; the script now reads through `read_sidecar` (the sanctioned
+home), output verified bit-identical. `TestEnvSwitchListIsComplete` caught `FPL_HITS_CSV`
+unregistered; it names an output path, so it joined the skip map beside `FPL_CELLS` with
+the same comment discipline. Both guards fire on idiom, not on harm — the fixes are
+registration, not re-measurement, and no number moved.
+
 **What was declined**: nothing. Every finding above was applied or resolved.
 
 **What could not be checked on this harness**: the wildcard-week-after split — vacuous by

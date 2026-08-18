@@ -135,6 +135,11 @@ func TestEnvSwitchListIsComplete(t *testing.T) {
 	skip := map[string]bool{
 		"FPL_SESSION": true, // a credential; a snapshot is committed
 		"FPL_CELLS":   true, // where to write, not what to compute
+		// Where the hit-verdict sidecar is written, for
+		// stats/hittune_verdicts.R. An output path: the package rows it carries
+		// are the same rows already aggregated into the cells file, so setting
+		// it cannot move a measured number.
+		"FPL_HITS_CSV": true,
 		// Where the CLI backtest writes its clickable replay, and how many
 		// gameweeks it renders. Both are about the PAGE, not the replay: the
 		// simulation runs identically whether or not a page is asked for, and
