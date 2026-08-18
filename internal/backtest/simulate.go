@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"armband/internal/analysis"
+	"armband/internal/config"
 	"armband/internal/fpl"
 	"os"
 	"time"
@@ -344,6 +345,12 @@ type SimResult struct {
 	FreeHit      ChipTriggerMediator
 	ChipPrep     ChipPrepMediator
 
+	// GateFloor is the gate-floor counterfactual: how many proposals the
+	// SHIPPED gate would have answered differently, split at the quiet
+	// boundary. Counted on every arm, so a floor arm's null is readable
+	// against its own count and a baseline arm reads zero.
+	GateFloor GateFloorMediator
+
 	// RepairSeries is the held-versus-fresh distance observed every gameweek, and
 	// is nil unless SimConfig.RecordRepairCost is set. See RepairWeek.
 	//
@@ -551,6 +558,16 @@ type FixtureRunMediator struct {
 	// proportional to the adjustment the engine applied on either side. It is a
 	// count of fixtures and never a proxy for what those fixtures were worth.
 	Exposure int
+}
+
+// GateFloorMediator is what the gate-floor counterfactual counted: proposals
+// the shipped gate (FreeCost 2.0, MinGain 0.4) would have answered differently
+// from the arm's gate, split at quietBoundaryGW. A zero on both halves of a
+// floor arm means the floor never changed an answer — the comparison never ran,
+// whatever the points say.
+type GateFloorMediator struct {
+	Le28 int
+	Gt28 int
 }
 
 // TransferHoldMediator is what the free-transfer taper did: how often it was
@@ -857,7 +874,15 @@ type weekHold struct {
 	Charge    float64
 	GateCalls int
 	Flips     int
-	Credit    analysis.ChipCredit
+	// FloorFlipsLe28 and FloorFlipsGt28 are the gate-floor counterfactual, split
+	// at the recorded quiet boundary (GW28 — nothing clears the gain threshold
+	// at any price after it). Unlike the taper's flips these are counted on
+	// EVERY arm and every proposal: the counterfactual asks whether the SHIPPED
+	// gate would have answered differently, so a floor arm's flips are where the
+	// floor actually admitted or refused something.
+	FloorFlipsLe28 int
+	FloorFlipsGt28 int
+	Credit         analysis.ChipCredit
 }
 
 // ChipWeek is one chip placed with hindsight: which gameweek, and what it would
@@ -1487,6 +1512,11 @@ type SimConfig struct {
 	// wildcard-into-boost play is worth anything beyond the rebuild itself.
 	WildcardIgnoresBoost bool
 
+	// EarlyFloor is the scheduled gate floor: the charge and gain bar applied
+	// up to and including UntilGameweek, the shipped constants after. The zero
+	// value is off. See config.EarlyFloor.
+	EarlyFloor config.EarlyFloor
+
 	// FreeCost is what spending a free transfer is charged, in points across
 	// the horizon. Zero reproduces the original policy, where only MinGain
 	// gated a free move.
@@ -1859,6 +1889,10 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// one. See TransferHoldMediator and ChipTriggerMediator.
 	var hold TransferHoldMediator
 	var prep ChipPrepMediator
+	// The gate-floor counterfactual, on every arm for the same reason: a floor
+	// arm's null is unreadable without a count of the proposals the shipped gate
+	// would have answered differently. See GateFloorMediator.
+	var floor GateFloorMediator
 	// One state per triggered chip, so a rule fires at most once and never in a
 	// gameweek another chip already occupies. `triggered` is what makes a fired
 	// chip visible to the week's scoring switch; the mediators record why.
@@ -2007,6 +2041,12 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 						prep.CaptainSum += wh.Credit.Captain
 					}
 				}
+				// The gate-floor counterfactual, counted on the same decisions as
+				// everything else above. Split at the quiet boundary: a floor
+				// drop's early flips are where the user's hypothesis lives, and
+				// its late flips are the canary for a scheduled floor.
+				floor.Le28 += wh.FloorFlipsLe28
+				floor.Gt28 += wh.FloorFlipsGt28
 				// The mediator, accumulated only on weeks that actually reached
 				// the decision: a wildcard or a free-hit week is one the banking
 				// rule could not have been asked in, and counting it would put a
@@ -2214,6 +2254,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	res.FixtureRuns = fixtureRuns
 	res.TransferHold = hold
 	res.ChipPrep = prep
+	res.GateFloor = floor
 	// Copied out rather than shared, so a caller holding a SimResult cannot reach
 	// back into the season's live trigger state. The three are read separately
 	// because the levers are switchable separately — a null on one has to be
@@ -2369,6 +2410,17 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 	}
 	horizon := effectiveHorizon(gateHorizon, gw)
 	freeCost := cfg.FreeCost
+	gainBar := cfg.MinGain
+	// The scheduled floor, off by default and byte-identical when off. It
+	// overrides the BASE charge and gain bar before the taper below scales
+	// them, so a scheduled arm with the taper on pays the schedule's charge
+	// through the taper's curve — schedule first, curve second. The
+	// counterfactual above still re-prices against the shipped constants,
+	// which is what makes a schedule arm's flips mean the schedule.
+	if cfg.EarlyFloor.UntilGameweek > 0 && gw <= cfg.EarlyFloor.UntilGameweek {
+		freeCost = cfg.EarlyFloor.FreeTransferValue
+		gainBar = cfg.EarlyFloor.MinGainForTransfer
+	}
 	// The option-value taper, off by default and byte-identical when off.
 	//
 	// It reprices what a free transfer is CHARGED, from a constant to a function
@@ -2390,7 +2442,11 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 		// excludes this gameweek for the same reason. See TransferHoldFactorFor.
 		wh.Load = e.HoldingCongestion(held, gw, cfg.OptionPricing)
 		wh.Factor = e.TransferHoldFactorFor(held, gw, cfg.OptionPricing)
-		freeCost = cfg.FreeCost * wh.Factor
+		// The local freeCost, so a scheduled base flows through the curve —
+		// schedule first, curve second, as the schedule's comment above
+		// commits. When the schedule is off this is cfg.FreeCost and the
+		// line is what it always was.
+		freeCost = freeCost * wh.Factor
 		wh.Charge = freeCost
 	}
 	// accept is the gate, plus the taper's counterfactual.
@@ -2408,13 +2464,31 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 	// than assumed.
 	accept := func(p transferProposal) bool {
 		ok := acceptTransfer(cfg, s, p)
+		// The gate-floor counterfactual, on every arm and every proposal: would
+		// the SHIPPED gate have answered differently? Re-prices the same
+		// proposal at the shipped constants and asks `gateDecision` — pure, like
+		// the taper's counterfactual, and the same population as the decisions
+		// actually taken. The hit branch carries no gain bar, and the
+		// counterfactual preserves that rather than installing one.
+		base := p
+		base.FreeCost = config.Default().Review.FreeTransferValue
+		if base.GainBar != noGainBar {
+			base.GainBar = config.Default().Review.MinGainForTransfer
+		}
+		if gateDecision(cfg, s, base) != ok {
+			if gw <= quietBoundaryGW {
+				wh.FloorFlipsLe28++
+			} else {
+				wh.FloorFlipsGt28++
+			}
+		}
 		if !wh.Consulted {
 			return ok
 		}
 		wh.GateCalls++
-		base := p
-		base.FreeCost = cfg.FreeCost
-		if gateDecision(cfg, s, base) != ok {
+		taperBase := p
+		taperBase.FreeCost = cfg.FreeCost
+		if gateDecision(cfg, s, taperBase) != ok {
 			wh.Flips++
 		}
 		return ok
@@ -2440,7 +2514,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 		// front of shouldBank shows up as consulted weeks falling rather than as
 		// a banking arm that quietly stops firing.
 		wb.Consulted = true
-		bankIt, weighed := shouldBank(e, held, bank, free, limit, gw, horizon, freeCost, cfg, sell)
+		bankIt, weighed := shouldBank(e, held, bank, free, limit, gw, horizon, freeCost, gainBar, cfg, sell)
 		wb.Weighed = weighed
 		if bankIt {
 			wb.Banked = true
@@ -2502,7 +2576,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			// points a season to hits that a single swap would have beaten.
 			solo, _, _ := bestSwap(e, held, bank, sell, credit)
 			soloValue := 0.0
-			if solo.Gain*horizon >= freeCost && solo.Gain >= cfg.MinGain {
+			if solo.Gain*horizon >= freeCost && solo.Gain >= gainBar {
 				soloValue = solo.Gain*horizon - freeCost
 			}
 			// Every leg is priced, hits explicitly and free transfers at what
@@ -2527,7 +2601,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			ok := hitsNeeded <= cfg.hitCeiling() && n <= limit && accept(transferProposal{
 				Moves: pair.moves, Gain: pair.gain, Money: pairMoney,
 				Hits: hitsNeeded, Alternative: soloValue, Strict: true,
-				GainBar: cfg.MinGain, Horizon: horizon, FreeCost: freeCost, GW: gw,
+				GainBar: gainBar, Horizon: horizon, FreeCost: freeCost, GW: gw,
 			})
 			if ok {
 				for i, mv := range pair.moves {
@@ -2569,7 +2643,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 			Horizon: horizon, FreeCost: freeCost, GW: gw,
 		}
 		switch {
-		case !useHit && accept(one.withBar(cfg.MinGain)):
+		case !useHit && accept(one.withBar(gainBar)):
 			free--
 		case useHit && hits < cfg.MaxHits && accept(one.asHit()):
 			best.Hit = true
@@ -2644,7 +2718,7 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 // transfer searches and the whole point of a guard is to decline before paying
 // for that. AdviseBank re-checks them, which is idempotent and cheap.
 func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
-	horizon, freeCost float64, cfg SimConfig, sell map[int]int) (bank_ bool, weighed bool) {
+	horizon, freeCost, minGain float64, cfg SimConfig, sell map[int]int) (bank_ bool, weighed bool) {
 
 	// ⚠️ **`freeCost` here is the NOW-arm's charge, and the later arm is priced at
 	// the same one.** With `TaperFreeTransferValue` on, next week's charge is lower
@@ -2682,8 +2756,8 @@ func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 	limitLater := moveLimit(free+1, cfg.MaxHits, cfg.MaxMoves, cfg.HitCeiling)
 	pkgNow := transferPackages(e, held, bank, limit, gw, horizon, cfg, sell)
 	pkgLater := transferPackages(e, held, bank, limitLater, gw+1, horizon-1, cfg, sell)
-	bestNow, now := analysis.BestPackage(pkgNow, horizon, freeCost, cfg.MinGain)
-	bestLater, later := analysis.BestPackage(pkgLater, horizon-1, freeCost, cfg.MinGain)
+	bestNow, now := analysis.BestPackage(pkgNow, horizon, freeCost, minGain)
+	bestLater, later := analysis.BestPackage(pkgLater, horizon-1, freeCost, minGain)
 	a := analysis.AdviseBank(free, cfg.BankUpTo, horizon, now, later)
 	if cfg.bankLog != nil {
 		cfg.bankLog(bankProbe{
@@ -2698,8 +2772,8 @@ func shouldBank(e *analysis.Engine, held []int, bank, free, limit, gw int,
 			// Each re-prices the OTHER arm's horizon onto a package set whose chip
 			// credit was amortised over its own, so both carry the same caveat and
 			// both are exact with the preparation switches off. See the field docs.
-			NoHaircut:    analysis.BestPackageValue(pkgLater, horizon, freeCost, cfg.MinGain),
-			NoExtraMove:  analysis.BestPackageValue(pkgNow, horizon-1, freeCost, cfg.MinGain),
+			NoHaircut:    analysis.BestPackageValue(pkgLater, horizon, freeCost, minGain),
+			NoExtraMove:  analysis.BestPackageValue(pkgNow, horizon-1, freeCost, minGain),
 			SamePackages: samePackages(pkgNow, pkgLater),
 			Banked:       a.Bank,
 			Weighed:      a.Weighed(),

@@ -586,6 +586,7 @@ func sweepConfig(cfg config.Config, start int, weeklyXI bool) SimConfig {
 		MaxHits:    cfg.Review.MaxHitsPerWeek,
 		Budget:     1000,
 		FreeCost:   cfg.Review.FreeTransferValue,
+		EarlyFloor: cfg.Review.EarlyFloor,
 		StartGW:    start,
 		WeeklyXI:   weeklyXI,
 		Oracles:    OraclesFromEnv(),

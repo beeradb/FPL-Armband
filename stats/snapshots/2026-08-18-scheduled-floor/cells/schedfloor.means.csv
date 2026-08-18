@@ -1,0 +1,7 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+SCHEDFLOOR#1,1787072997-2775058,policy,ON + schedule GW8,1,ON baseline,0.04691653375863877,36,-
+SCHEDFLOOR#1,1787072997-2775058,policy_xpoints,ON + schedule GW8,1,ON baseline,-0.06362157152873532,36,-
+SCHEDFLOOR#1,1787072997-2775058,hold,ON + schedule GW8,1,ON baseline,0,36,-
+SCHEDFLOOR#1,1787072997-2775058,hold_xpoints,ON + schedule GW8,1,ON baseline,0,36,-
+SCHEDFLOOR#1,1787072997-2775058,hold_fixedcap,ON + schedule GW8,1,ON baseline,0,36,-
+SCHEDFLOOR#1,1787072997-2775058,hold_nocap,ON + schedule GW8,1,ON baseline,0,36,-

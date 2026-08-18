@@ -228,7 +228,12 @@ type cellRow struct {
 	WildcardTrig   ChipTriggerMediator
 	BenchBoostTrig ChipTriggerMediator
 	FreeHitTrig    ChipTriggerMediator
-	ChipPrep       ChipPrepMediator
+
+	// The gate-floor counterfactual, recorded on the same gate as the funnels
+	// above and for the same reason: a floor arm whose flips read zero never
+	// changed a gate answer, and its points null is a comparison that never ran.
+	GateFloor GateFloorMediator
+	ChipPrep  ChipPrepMediator
 
 	// The per-cell fixture dose. See doseCols for the two windows, the two traps,
 	// and why nothing regresses on them here.
@@ -502,6 +507,9 @@ func (r cellRow) asInfeasible() cellRow {
 	r.WildcardTrig, r.BenchBoostTrig, r.FreeHitTrig = ChipTriggerMediator{},
 		ChipTriggerMediator{}, ChipTriggerMediator{}
 	r.ChipPrep = ChipPrepMediator{}
+	// The gate-floor counter goes with them, for the identical reason: it counts
+	// what the accept closure did, and an infeasible cell never ran one.
+	r.GateFloor = GateFloorMediator{}
 	// ⚠️ The DOSE block survives, and that is the arm rule rather than an
 	// oversight: it is a function of the season and the entry gameweek, which an
 	// infeasible cell still has, exactly as it still has `season` and `start_gw`.
@@ -563,6 +571,7 @@ var cellHeader = []string{
 	"prep_weeks", "prep_credit_weeks", "prep_bench_sum", "prep_captain_sum",
 	"dose_act_doubles", "dose_act_blanks",
 	"dose_late_doubles", "dose_late_blanks",
+	"floor_flips_le28", "floor_flips_gt28",
 	"bench_boost_gw", "bench_boost_pts", "triple_captain_gw", "triple_captain_pts",
 	"bench_boost_oracle_gw", "bench_boost_oracle_pts",
 	"bench_boost_median_pts", "bench_boost_threshold_pts", "bench_boost_bar_pts",
@@ -734,6 +743,12 @@ const (
 	// so it cannot flatter one — and it is fatal to reading a fitted slope as "what
 	// targeting doubles is worth". See dose.go.
 	doseCols = 4
+	// floorCols is the gate-floor counterfactual: the proposals the shipped gate
+	// would have answered differently, split at the quiet boundary. Two, and a
+	// block of its own rather than a dose pair, because it is a mediator — it
+	// counts the arm's own decisions — where the dose is a property of the
+	// calendar alone.
+	floorCols = 2
 	// chipWeekCols is the chip block: two gameweeks and two one-off point
 	// totals. Four rather than eight because there are no per-gw columns here —
 	// see cellRow.HasChipWeeks for why a chip must not be normalised by weeks.
@@ -1164,6 +1179,11 @@ func (s *cellSink) cell(r cellRow) {
 	} else {
 		rec = append(rec, "", "", "", "")
 	}
+	// The gate-floor counterfactual, on the same gate as the funnels: a floor
+	// arm's flips are where the floor changed an answer, split at the quiet
+	// boundary.
+	rec = append(rec,
+		strconv.Itoa(r.GateFloor.Le28), strconv.Itoa(r.GateFloor.Gt28))
 	// Same rule again for the chips, and for the same reason: a blank says the
 	// sweep did not record them, where a zero would say the chip returned
 	// nothing in a week it was never played.

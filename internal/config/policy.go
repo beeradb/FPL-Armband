@@ -100,6 +100,15 @@ type ReviewPolicy struct {
 	// stats/findings/2026-08-17-free-transfer-value-ladder.md.
 	FreeTransferValue float64 `json:"free_transfer_value"`
 
+	// EarlyFloor is the scheduled gate floor the "react faster early"
+	// measurement runs: the charge and gain bar applied up to and including
+	// UntilGameweek, with the shipped constants after. The zero value is off,
+	// which is the whole backfill — a config file without the key gets the
+	// shipped behaviour, and an empty schedule is a statement the way the
+	// campaign maps are. See stats/findings/2026-08-18-gate-floor-2x2.md for
+	// the measurement that licenses the schedule shape.
+	EarlyFloor EarlyFloor `json:"early_floor"`
+
 	// BankTransfersLookahead lets the weekly decision decline a move because a
 	// larger package is affordable next week, when one more free transfer is in
 	// hand.
@@ -186,6 +195,17 @@ type ReviewPolicy struct {
 	// act on it. Six hours is a compromise that clears most Friday pressers
 	// while leaving the evening to decide.
 	LeadHours float64 `json:"scheduled_run_lead_hours"`
+}
+
+// EarlyFloor is the scheduled gate floor the "react faster early" measurement
+// runs: FreeTransferValue and MinGainForTransfer applied up to and including
+// UntilGameweek, the shipped constants after. The zero value is off, which is
+// the whole backfill — a config file without the key gets the shipped
+// behaviour.
+type EarlyFloor struct {
+	FreeTransferValue  float64 `json:"free_transfer_value"`
+	MinGainForTransfer float64 `json:"min_gain_for_free_transfer"`
+	UntilGameweek      int     `json:"until_gameweek"`
 }
 
 func DefaultReviewPolicy() ReviewPolicy {

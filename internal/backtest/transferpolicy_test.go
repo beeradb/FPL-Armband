@@ -332,6 +332,7 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 				row.BenchBoostTrig = res.BenchBoost
 				row.FreeHitTrig = res.FreeHit
 				row.ChipPrep = res.ChipPrep
+				row.GateFloor = res.GateFloor
 				// The per-cell fixture dose. It is NOT a mediator — it is a
 				// function of the season and the entry gameweek alone, identical
 				// on every arm of a cell — and it is read at the horizon this arm

@@ -60,6 +60,15 @@ func TestTheOptionValueLeversAreOffByDefault(t *testing.T) {
 		z.BenchBoostTrigger || z.FreeHitTrigger {
 		t.Errorf("a zero SimConfig has an option-value lever on: %+v", z)
 	}
+	// The scheduled floor joins the block: its zero value must be off, so a
+	// sweep that sets nothing runs the shipped {2.0, 0.4} floor, and a config
+	// file without the key keeps the shipped behaviour.
+	if z.EarlyFloor.UntilGameweek != 0 {
+		t.Errorf("a zero SimConfig has a scheduled floor: %+v", z.EarlyFloor)
+	}
+	if d := config.Default().Review.EarlyFloor; d.UntilGameweek != 0 {
+		t.Errorf("config.Default() ships a scheduled floor: %+v", d)
+	}
 	// And the curve's own no-ops, which is what makes an unset knob a no-op
 	// rather than a zero — the rule a raw multiply by an unset congestion penalty
 	// broke for two seasons of replays.
@@ -195,8 +204,8 @@ func TestTheDoseBlockSitsBetweenTheOptionFunnelsAndTheChips(t *testing.T) {
 		t.Fatalf("the column before the dose block is %q, want the option block's "+
 			"last column", before)
 	}
-	if after := cellHeader[at+doseCols]; after != "bench_boost_gw" {
-		t.Fatalf("the column after the dose block is %q, want the chip block's "+
+	if after := cellHeader[at+doseCols]; after != "floor_flips_le28" {
+		t.Fatalf("the column after the dose block is %q, want the floor block's "+
 			"first column", after)
 	}
 	if n := len(withoutDoseBlock()); n != len(cellHeader)-doseCols {
@@ -216,6 +225,35 @@ func TestTheDoseBlockSitsBetweenTheOptionFunnelsAndTheChips(t *testing.T) {
 	if inf.TransferHold.ConsultedWeeks != 0 {
 		t.Errorf("asInfeasible left the taper funnel populated on a cell that "+
 			"played no gameweek: %+v", inf.TransferHold)
+	}
+}
+
+// TestTheFloorBlockSitsBetweenTheDoseAndTheChips pins the gate-floor block's
+// place and content, in the mould of the dose test beside it.
+func TestTheFloorBlockSitsBetweenTheDoseAndTheChips(t *testing.T) {
+	want := []string{"floor_flips_le28", "floor_flips_gt28"}
+	if floorCols != len(want) {
+		t.Fatalf("floorCols is %d and the block is %d columns", floorCols, len(want))
+	}
+	at := floorBlockAt()
+	if got := cellHeader[at : at+floorCols]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("the %d floor columns are %v, want %v", floorCols, got, want)
+	}
+	if before := cellHeader[at-1]; before != "dose_late_blanks" {
+		t.Fatalf("the column before the floor block is %q, want the dose block's "+
+			"last column", before)
+	}
+	if after := cellHeader[at+floorCols]; after != "bench_boost_gw" {
+		t.Fatalf("the column after the floor block is %q, want the chip block's "+
+			"first column", after)
+	}
+	// And the block survives an infeasible cell blank, not zero: a floor counter
+	// on a cell that played no gameweek is a gap, not a count.
+	inf := cellRow{HasDose: true, GateFloor: GateFloorMediator{Le28: 5, Gt28: 1}}.
+		asInfeasible()
+	if inf.GateFloor.Le28 != 0 || inf.GateFloor.Gt28 != 0 {
+		t.Errorf("asInfeasible left the floor block populated on a cell that "+
+			"played no gameweek: %+v", inf.GateFloor)
 	}
 }
 
@@ -584,6 +622,7 @@ func TestTheCellWriterEmitsEveryNewColumn(t *testing.T) {
 			BenchSum: 0.8, CaptainSum: 0.4},
 		HasDose:    true,
 		ActDoubles: 31, ActBlanks: 22, LateDoubles: 29, LateBlanks: 20,
+		GateFloor: GateFloorMediator{Le28: 13, Gt28: 2},
 	}
 	rec := readOneCell(t, row)
 	for _, c := range []struct {
@@ -603,6 +642,7 @@ func TestTheCellWriterEmitsEveryNewColumn(t *testing.T) {
 		{"prep_bench_sum", "0.8"}, {"prep_captain_sum", "0.4"},
 		{"dose_act_doubles", "31"}, {"dose_act_blanks", "22"},
 		{"dose_late_doubles", "29"}, {"dose_late_blanks", "20"},
+		{"floor_flips_le28", "13"}, {"floor_flips_gt28", "2"},
 	} {
 		if got := rec[c.col]; got != c.want {
 			t.Errorf("%s is %q, want %q", c.col, got, c.want)
