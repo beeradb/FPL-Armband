@@ -434,6 +434,23 @@ type RepairWeek struct {
 	FrozenGrossChanges int
 	FrozenGrossBudget  int
 	FrozenGrossOK      bool
+
+	// FreshChurn is the week-to-week movement of the FRESH optimum itself: how
+	// many players differ between this week's from-scratch fifteen and last
+	// week's. Computed as changesBetween(prevFresh, fresh), which for two
+	// fifteen-player sets is symmetric, so the direction of the set difference
+	// does not matter. The other columns of RepairWeek measure a distance
+	// between a held squad and the optimum; this measures how far the optimum
+	// MOVES when one
+	// gameweek of data arrives — the direct observable of "one gameweek rewrites
+	// the world", which the standing-gap series cannot see.
+	//
+	// The first observed week has no predecessor, so FreshChurnOK is false there
+	// — NO READING rather than zero, the same convention as the OK flags above.
+	// The fresh squad is the one already computed for the EVOLVING arm, so the
+	// column costs no extra `Optimize` call.
+	FreshChurn   int
+	FreshChurnOK bool
 }
 
 // FixtureRunMediator is what the weekly transfer decision did about fixture
@@ -1822,6 +1839,11 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// `decide` applies, one line below where the week's decision would apply it.
 	var frozenWallet *wallet
 	frozenFree := free
+	// prevFresh carries last week's fresh optimum so the observer can measure
+	// how far the optimum MOVES when one gameweek of data arrives — the
+	// worldview-rewrite column. Nil until the second observed week; see
+	// RepairWeek.FreshChurn.
+	var prevFresh []int
 	if cfg.RecordRepairCost {
 		frozenWallet = w.clone()
 	}
@@ -1867,9 +1889,10 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 				if frozenFree < cfg.BankUpTo {
 					frozenFree++
 				}
-				res.RepairSeries = append(res.RepairSeries,
-					observeRepair(pe, cur, w, frozenWallet, held, res.OpeningSquad,
-						gw, free, frozenFree, minExp, cfg))
+				var obs RepairWeek
+				obs, prevFresh = observeRepair(pe, cur, w, frozenWallet, held,
+					res.OpeningSquad, prevFresh, gw, free, frozenFree, minExp, cfg)
+				res.RepairSeries = append(res.RepairSeries, obs)
 			}
 
 			// The two chip state rules that take the transfer decision away are
