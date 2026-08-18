@@ -515,9 +515,16 @@ the vault note the evidence sits in.
   shipped reservation the rule fires in the cell's **second week in 8 of 8 cells**, costs
   20/36/24/32 points at GW1 and 12/12/12/4 at GW16 (7/11/8/10 and 5/5/5/3 players at `free` =
   2), and only the reservation of 20 delays anything (GW16 cells only, one to three weeks). The
-  entry-point contrast excludes information poverty for half the grid; churn vs a standing
-  held-versus-fresh gap is not discriminated (the rule fires once), and the one twice-observed
-  arm reads 12 → 16 and 12 → 24 — the level signature. The lever ships **off**. → **chips**
+  entry-point contrast excludes information poverty for half the grid; the one twice-observed
+  arm reads 12 → 16 and 12 → 24 — the level signature. ⚠️ **The series observer settled the
+  mechanism question 2026-08-17**: `TestDiagRepairCostSeries` (8 cells, four seasons × entry
+  GW1/GW16, observation-only, counts not points) — churn is **refused** (the frozen series rises
+  in 8 of 8 cells) and the **standing gap dominates** (the evolving squad sits a flat 5.8-9.3
+  players from a fresh optimum; the market-value arm exonerates the selling rule). The cost does
+  not fall as data accumulates, so raising the reservation cannot fix the trigger — the
+  *quantity* must change. ⚠️ A rising frozen series still does not separate a standing gap from
+  injury accumulation. `stats/findings/2026-08-17-repair-cost-series.md`. The lever ships
+  **off**. → **chips**
 - **Do not add a lock.** Both recorded locks became no-ops once the underlying bug was fixed. →
   **optimiser-and-squad**
 - **Do not use the olbauday CSV mirror** for a live weekly signal or for priors. It publishes
