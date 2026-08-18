@@ -451,14 +451,19 @@ func adviseBanking(cfg config.Config, e *analysis.Engine, state analysis.SquadSt
 		// policy cannot disagree about what a transfer costs, exactly as they
 		// already cannot disagree about what a package is worth.
 		//
+		// The scheduled early floor applies to the BASE first — schedule first,
+		// curve second — the same composition the replay's `decide` and the swap
+		// tool use, so the shipped schedule reaches the banking comparison.
+		//
 		// ⚠️ Priced at `atGW`, so the later arm gets NEXT week's charge rather
 		// than this week's. That is the asymmetry the replay's shouldBank names
 		// and does not correct; here the arms are already valued at their own
 		// gameweeks, so charging them at their own gameweeks costs nothing.
+		baseCharge, minGain := cfg.Review.EffectiveFloor(atGW)
 		charge := cfg.OptionValue.FreeTransferCharge(
-			cfg.Review.FreeTransferValue, e, heldIDs(state), atGW)
+			baseCharge, e, heldIDs(state), atGW)
 		return analysis.BestPackageValue(packages, over,
-			charge, cfg.Review.MinGainForTransfer)
+			charge, minGain)
 	}
 	now := value(liveMoveLimit(cfg, free), gw, horizon)
 	later := value(liveMoveLimit(cfg, free+1), gw+1, horizon-1)

@@ -141,6 +141,13 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		BankLookahead:        cfg.Review.BankTransfersLookahead,
 		PrepareBenchBoost:    cfg.Review.PrepareForChips,
 		PrepareTripleCaptain: cfg.Review.PrepareForChips,
+		// The scheduled early floor, carried onto the replay for the same
+		// reason as the banking switch above: `armband backtest` scores the
+		// policy the config describes, and a user who edits `early_floor` must
+		// not get a byte-identical null. (The measurement sweepConfig
+		// deliberately does NOT map it — the sweep baseline stays the flat
+		// machine every banked cell was measured on.)
+		EarlyFloor: cfg.Review.EarlyFloor,
 		// The hit ceiling, for the identical reason. `max_hits_per_week` is
 		// carried onto the replay below via `pol.maxHits`, and without this the
 		// ceiling that decides what that number can MEAN would stay at the

@@ -246,11 +246,26 @@ half an answer.
 	}
 
 	fmt.Fprintf(&b, "\n## Weekly review policy\n\nThese thresholds are the manager's standing brief. Work within them.\n\n")
-	fmt.Fprintf(&b, "  - Minimum modelled gain to spend a free transfer: %.2f pts/gameweek\n", cfg.Review.MinGainForTransfer)
+	// The scheduled early floor is part of the brief, and the brief must state
+	// the bar the tools actually apply: the imminent week's scheduled values,
+	// with the flat pair named beside them so the schedule is visible rather
+	// than a silently different number.
+	gw := 1
+	if ev := boot.NextEvent(); ev != nil {
+		gw = ev.ID
+	}
+	charge, minGain := cfg.Review.EffectiveFloor(gw)
+	fmt.Fprintf(&b, "  - Minimum modelled gain to spend a free transfer: %.2f pts/gameweek\n", minGain)
 	fmt.Fprintf(&b, "  - A free transfer is charged %.1f pts before it is worth making. It is not\n"+
 		"    free: replaying three seasons without that charge produced twelve round-trips,\n"+
 		"    players sold and bought back weeks later for nothing. A move that only just\n"+
-		"    clears it is a reason to roll the transfer, not to make it.\n", cfg.Review.FreeTransferValue)
+		"    clears it is a reason to roll the transfer, not to make it.\n", charge)
+	if r := cfg.Review.EarlyFloor; r.UntilGameweek > 0 {
+		fmt.Fprintf(&b, "  - Early season (through GW%d) the floor is %.1f pts charge / %.2f gain;\n"+
+			"    after it the flat %.1f / %.2f apply.\n", r.UntilGameweek,
+			r.FreeTransferValue, r.MinGainForTransfer,
+			cfg.Review.FreeTransferValue, cfg.Review.MinGainForTransfer)
+	}
 	fmt.Fprintf(&b, "  - Minimum net gain across the horizon to justify a -4 hit: %.2f pts\n", cfg.Review.MinGainForHit)
 	fmt.Fprintf(&b, "  - Bank free transfers up to: %d before spending without a specific reason\n", cfg.Review.BankUpTo)
 	// The EFFECTIVE cap, not the raw setting. `analysis.MoveLimit` clamps the hit

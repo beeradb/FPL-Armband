@@ -17,14 +17,15 @@ import (
 //
 // The failure it guards is the one this project has shipped before in the other
 // direction: a value-check migration that never fires because `cfg` starts from
-// Default(). If either default ever moves to true, this test fails, and the fix
-// is a `hasKey` probe rather than a value check — at that point a deliberate
-// `false` and an absent key stop meaning the same thing.
+// Default(). BankTransfersLookahead defaulted ON on 2026-08-18, so the pin this
+// test used to carry flipped with it: the contract now is that the shipped file
+// reads ON, an absent key reads OFF (an old file keeps the behaviour it had),
+// and PrepareForChips still defaults off with no migration.
 func TestTheBankingSettingsSurviveAnOlderConfigFile(t *testing.T) {
-	if d := DefaultReviewPolicy(); d.BankTransfersLookahead || d.PrepareForChips {
-		t.Fatal("both settings ship off; a default of true makes the absent key and " +
-			"a deliberate false different facts, which needs a hasKey migration " +
-			"rather than the nothing this test is pinning")
+	d := DefaultReviewPolicy()
+	if !d.BankTransfersLookahead || d.PrepareForChips {
+		t.Fatal("the shipped defaults are lookahead ON / prepare OFF; anything " +
+			"else means a default moved without this test moving with it")
 	}
 
 	dir := t.TempDir()

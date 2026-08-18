@@ -305,6 +305,20 @@ func Load(path string) (Config, error) {
 	// schedule, not the flat floor it never chose.
 	if !hasKey(b, "review_policy", "early_floor") {
 		cfg.Review.EarlyFloor = d.Review.EarlyFloor
+	} else {
+		// A written schedule is a choice, and it is still validated like the
+		// flat constants are: a non-positive charge or gain bar would make the
+		// gate accept anything through the schedule's window — the same failure
+		// the flat value-guards above exist to refuse.
+		if cfg.Review.EarlyFloor.FreeTransferValue <= 0 {
+			cfg.Review.EarlyFloor.FreeTransferValue = d.Review.FreeTransferValue
+		}
+		if cfg.Review.EarlyFloor.MinGainForTransfer <= 0 {
+			cfg.Review.EarlyFloor.MinGainForTransfer = d.Review.MinGainForTransfer
+		}
+		if cfg.Review.EarlyFloor.UntilGameweek < 0 {
+			cfg.Review.EarlyFloor.UntilGameweek = 0
+		}
 	}
 	if cfg.Review.BankUpTo <= 0 {
 		cfg.Review.BankUpTo = d.Review.BankUpTo
@@ -348,19 +362,15 @@ func Load(path string) (Config, error) {
 	if cfg.Review.LeadHours <= 0 {
 		cfg.Review.LeadHours = d.Review.LeadHours
 	}
-	// BankTransfersLookahead and PrepareForChips need no backfill, and that is a
-	// fact worth stating rather than an omission.
-	//
-	// The standing rule is that a new field gets one so an existing config file
-	// stays valid. It exists because a missing key unmarshals to the zero value,
-	// which for most fields here is not the default. For these two it is: both
-	// default OFF and both are booleans, so a file written before they existed
-	// loads with exactly the behaviour it had. A value-check backfill would be a
-	// no-op and a `hasKey` probe would be worse — it would make an explicit
-	// `false` indistinguishable from an absent key while both mean the same
-	// thing. ⚠️ If either default ever moves to true, this comment stops being
-	// true and a `hasKey` migration becomes mandatory, because at that point a
-	// deliberate `false` and an absent key are different facts.
+	// BankTransfersLookahead defaulted ON on 2026-08-18, so the migration this
+	// block's own predecessor comment predicted is now in force: a deliberate
+	// `false` and an absent key are different facts. An old file without the
+	// key keeps the behaviour it had (off); the shipped config.json writes the
+	// key and gets the default. PrepareForChips still defaults off and still
+	// needs nothing.
+	if !hasKey(b, "review_policy", "bank_transfers_lookahead") {
+		cfg.Review.BankTransfersLookahead = false
+	}
 	if len(cfg.Review.Rules) == 0 {
 		cfg.Review.Rules = d.Review.Rules
 	}
