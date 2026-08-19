@@ -72,6 +72,13 @@ func squadFromCodes(e *analysis.Engine, pool []analysis.PlayerMetrics, codes []i
 		Formation:  formation,
 		ClubCounts: map[string]int{},
 	}
+	// Remaining is what the reader can still spend, and Optimize sets it on its own path.
+	// This one built the squad by hand and left it at zero, so every reload reported an
+	// empty bank -- and the replacement picker spends exactly this figure, so it refused
+	// funded transfers with the arithmetic shown on screen.
+	if budget, _, err := e.AssemblyBudget(); err == nil {
+		sq.Remaining = float64(budget)/10 - totalCost(fifteen)
+	}
 	for _, m := range fifteen {
 		sq.TotalCost += m.Price
 		sq.ClubCounts[m.Team]++
@@ -91,6 +98,37 @@ func squadFromCodes(e *analysis.Engine, pool []analysis.PlayerMetrics, codes []i
 		sq.ViceCaptain = ranked[1]
 	}
 	return sq
+}
+
+// violatesRoster reports whether a stored fifteen breaks the standing corrections.
+//
+// Excluded players must not be in it, locked players must be. Anything else -- budget, the
+// club limit, the position quotas -- is checked where the squad enters, in validateSession,
+// because those are facts about a legal squad rather than about the reader's corrections.
+func violatesRoster(sq *analysis.Squad, req analysis.OptimizeRequest) bool {
+	if sq == nil {
+		return false
+	}
+	in := map[int]bool{}
+	for _, p := range sq.Players {
+		in[p.ID] = true
+	}
+	for _, id := range req.ExcludeIDs {
+		if in[id] {
+			return true
+		}
+	}
+	for _, id := range req.LockIDs {
+		if !in[id] {
+			return true
+		}
+	}
+	for _, id := range req.StartIDs {
+		if !in[id] {
+			return true
+		}
+	}
+	return false
 }
 
 // elementCode maps an element id to the permanent code.
@@ -274,4 +312,13 @@ func formationOf(xi []analysis.PlayerMetrics) string {
 		n[m.Position]++
 	}
 	return fmt.Sprintf("%d-%d-%d", n["DEF"], n["MID"], n["FWD"])
+}
+
+// totalCost is the price of a fifteen, in millions.
+func totalCost(squad []analysis.PlayerMetrics) float64 {
+	var t float64
+	for _, m := range squad {
+		t += m.Price
+	}
+	return t
 }

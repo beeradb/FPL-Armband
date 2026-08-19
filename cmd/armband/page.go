@@ -150,6 +150,20 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	for _, note := range applyRoster(cfg, e, &req) {
 		fmt.Printf("\n%s\n", dim(note))
 	}
+	// The chip plan comes from THIS request's config, not from the one the process
+	// started with. The engine's field is set once in main; a served page whose reader has
+	// placed a chip needs their plan, and assigning it here is what makes the placement
+	// reach ApplyChipPlan and the week views.
+	//
+	// Both of the engine's fields this touches are restored on the way out. The server
+	// holds ONE engine for every request, and ApplyChipPlan shortens Weights.Horizon when a
+	// wildcard is planned — correct for the squad being built, and permanent unless undone.
+	// A reader who planned a wildcard for gameweek 3 truncated the engine to two gameweeks
+	// and left it there: for himself after he removed the chip, and for everyone else using
+	// the same process. The CLI exits and never noticed.
+	priorChips, priorHorizon := e.Chips, e.Weights.Horizon
+	defer func() { e.Chips, e.Weights.Horizon = priorChips, priorHorizon }()
+	e.Chips = cfg.Chips
 	for _, note := range e.ApplyChipPlan(&req) {
 		fmt.Printf("\n%s\n", dim("chip plan: "+note))
 	}
@@ -161,6 +175,21 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 		// is not a team, so it falls through to a fresh build rather than drawing
 		// fourteen players and saying nothing.
 		sq = squadFromCodes(e, e.AllMetrics(), opts.Fixed, opts.Arrange)
+
+		// ⚠️ And the stored team must still obey the standing corrections.
+		//
+		// A block means "never picked, anywhere". A lock means "in every squad". Those
+		// bind through `req`, and `req` is only read on the branch below -- so a stored
+		// squad silently outranked both, and blocking a player left him on the pitch
+		// with a badge as the only sign anything had happened.
+		//
+		// Falling back to a rebuild is the honest answer rather than a repair: the
+		// reader has just said this fifteen is wrong, so the model picks a new one under
+		// the correction. Their ARRANGEMENT is lost with it, which is unavoidable —
+		// there is no eleven that both keeps their shape and omits a player it names.
+		if violatesRoster(sq, req) {
+			sq = nil
+		}
 	}
 	if sq == nil {
 		var err error
@@ -582,7 +611,7 @@ func watchlistFor(e *analysis.Engine, sq analysis.Squad, excluded []present.Over
 		// what you have"; only the gate says "worth a transfer", and the page
 		// prints that threshold two tabs away.
 		w.Rows = append(w.Rows, present.WatchRow{
-			Player: m, Delta: d, ClearsGate: gate > 0 && d >= gate,
+			Player: m, Delta: d, ClearsGate: present.ClearsGate(d, gate),
 		})
 	}
 	for _, r := range w.Rows {

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"armband/internal/fpl"
 )
 
 // ChipPlan records when you intend to play each chip. Zero means unplanned.
@@ -40,37 +42,50 @@ var chipLabels = map[string]string{
 	"3xc":      "Triple Captain",
 }
 
-// firstGameweekChips are the only chips playable in gameweek 1: the bench boost and the
-// triple captain.
+// PlayableChips lists the chips the competition allows in gw, by key, in the order the
+// bootstrap lists them.
 //
-// The wildcard and the free hit are not offered there. The wildcard's redundancy is the
-// evident half — transfers are unlimited until the first deadline, so a chip granting
-// unlimited transfers buys nothing — but that is an observation about why the rule is
-// unsurprising, not a derivation of it. The rule is the game's.
-//
-// It lives here because it is a fact about the competition, alongside the chip windows and
-// the two-set schedule. A page that decided this for itself would be a second statement of
-// a rule the model also has to obey, and the two would disagree the first time either
-// changed.
-var firstGameweekChips = map[string]bool{"bboost": true, "3xc": true}
-
-// PlayableChips lists the chips that may be played in gw, by key, in a stable order.
+// It reads the windows the FEED publishes rather than restating the rules. FPL gives every
+// chip a start and a stop gameweek — on the 2026/27 payload the wildcard and the free hit
+// open at gameweek 2 while the bench boost and the triple captain open at 1 — so "you cannot
+// wildcard in gameweek 1" is already a fact in the data, and writing it out again here would
+// be one rule with two statements that disagree the first time FPL moves a boundary.
 //
 // It answers only "does the competition allow it here", not "is it wise" and not "have you
-// used it" — a plan that has already spent a chip is the schedule's business, and whether a
+// used it": a plan that has already spent a chip is the schedule's business, and whether a
 // week is a good one for it is the model's.
-func PlayableChips(gw int) []string {
-	all := []string{"wildcard", "freehit", "bboost", "3xc"}
-	if gw != 1 {
-		return all
+//
+// A gameweek in no window returns nothing, which is the honest answer — an empty rail beats
+// offering a chip that would be refused.
+func PlayableChips(boot *fpl.Bootstrap, gw int) []string {
+	if boot == nil {
+		return nil
 	}
-	out := make([]string, 0, len(firstGameweekChips))
-	for _, k := range all {
-		if firstGameweekChips[k] {
-			out = append(out, k)
+	var out []string
+	seen := map[string]bool{}
+	for _, c := range boot.Chips {
+		if c.StartEvent == 0 && c.StopEvent == 0 {
+			continue
+		}
+		if gw < c.StartEvent || gw > c.StopEvent || seen[c.Name] {
+			continue
+		}
+		seen[c.Name] = true
+		out = append(out, c.Name)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return chipOrder(out[i]) < chipOrder(out[j]) })
+	return out
+}
+
+// chipOrder fixes the display order, which the bootstrap does not guarantee. An unknown chip
+// sorts last rather than being dropped.
+func chipOrder(key string) int {
+	for i, k := range []string{"wildcard", "freehit", "bboost", "3xc"} {
+		if k == key {
+			return i
 		}
 	}
-	return out
+	return 99
 }
 
 // ChipLabel is the human name for a chip key, or the key itself if it is unknown — an

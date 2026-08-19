@@ -65,9 +65,34 @@ func TestTheAnalysisLayersLocksDoNotBindThePlanner(t *testing.T) {
 
 // TestThePreviewScoresOverAShorterHorizon pins that the flag reaches the engine and that
 // the client is told, rather than left to assume the configured window.
+//
+// It goes through applyPreviewHorizon rather than assigning Weights.Horizon, because the
+// assignment was the part that was never in doubt. The earlier version set the field itself
+// and would have passed just as well with the flag deleted.
 func TestThePreviewScoresOverAShorterHorizon(t *testing.T) {
 	s := fixtureServer(t)
-	s.engine.Weights.Horizon = 4
+
+	configured := s.engine.Weights.Horizon
+	note := applyPreviewHorizon(s.engine, 4)
+	if s.engine.Weights.Horizon != 4 {
+		t.Fatalf("the flag left the engine on a horizon of %d", s.engine.Weights.Horizon)
+	}
+	if note == "" {
+		t.Errorf("narrowing the horizon from %d to 4 said nothing. Every projection on the "+
+			"page moves with this and the reader has no other way to know.", configured)
+	}
+	// Zero is how a reader keeps the configured window, and it must not be an error or a
+	// narrowing to nothing.
+	if again := applyPreviewHorizon(s.engine, 0); again != "" {
+		t.Errorf("-horizon 0 changed something: %q", again)
+	}
+	if s.engine.Weights.Horizon != 4 {
+		t.Errorf("-horizon 0 moved the engine to %d", s.engine.Weights.Horizon)
+	}
+	// And asking for the window it is already on says nothing rather than repeating itself.
+	if again := applyPreviewHorizon(s.engine, 4); again != "" {
+		t.Errorf("re-applying the same horizon announced a change: %q", again)
+	}
 
 	st := getWith(t, s, routeState, nil)
 	if st.Horizon != 4 {

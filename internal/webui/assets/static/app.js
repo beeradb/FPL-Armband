@@ -74,9 +74,12 @@ let STATE=null;    /* the raw document, for anything not mapped below */
 /* The chip spellings the engine uses, mapped to the keys this file already had.
    One direction only: the engine's spelling is authoritative and the client must
    not invent a chip the plan does not name. */
+/* ⚠️ The keys are analysis.chipLabels' keys, exactly. They read "tcap" here for a while
+   and "3xc" in Go, so the triple captain arrived with no icon and chipExplain returned
+   undefined, which was interpolated into innerHTML as the literal word. One spelling. */
 const CHIPKEY={
   'Wildcard':'wildcard', 'Free Hit':'freehit',
-  'Bench Boost':'bboost', 'Triple Captain':'tcap'
+  'Bench Boost':'bboost', 'Triple Captain':'3xc'
 };
 
 /* A player as every panel here draws him. The server sends more than this; the
@@ -252,10 +255,11 @@ const CHIPS=[
    1..15 here, which drew a plausible pitch before any data arrived and would have
    masked a failed fetch as a working page.
 
-   locks and blocks stay Sets because the code below reads them thirty times and a Set
-   is the right shape for that. They are NOT serialisable as they stand -- JSON.stringify
-   silently turns a Set into {} -- so anything sending S to the server goes through
-   snapshot(), never S itself. */
+   locks and blocks stay Sets because the code below reads them repeatedly and a Set is
+   the right shape for that. Nothing serialises S: what goes over the wire is PENDING,
+   which is the server's own session shape and is rebuilt from the served document on
+   every load. That matters beyond tidiness -- JSON.stringify turns a Set into {} without
+   complaining, so a client that sent S would drop every lock and block with a 200. */
 let S={
   gw:1, view:'pitch',
   xi:[], bench:[], benchGk:null,
@@ -282,8 +286,22 @@ const TOKEN=(document.querySelector('meta[name="armband-token"]')||{}).content||
  * better than applying it twice, and a spinner over a page that still reads correctly is
  * better than a page that goes blank. */
 let saving=false;
+/* Saves run one at a time, in the order they were asked for, and none is dropped.
+ *
+ * The mutation runs when its turn comes rather than when the click happens, and that is the
+ * whole design. `hydrate` rebuilds PENDING from the server's answer, so a mutation applied
+ * while an earlier save is in flight would be overwritten by that answer the moment it
+ * lands — the click would appear to work and then quietly undo itself.
+ *
+ * The previous version returned early while a save was in flight, which discarded the
+ * mutation too: change the captain during a bench drag and nothing happened, silently. */
+let CHAIN=Promise.resolve();
 function save(mutate){
-  if(saving) return Promise.resolve();
+  CHAIN=CHAIN.then(()=>sendSave(mutate));
+  return CHAIN;
+}
+
+function sendSave(mutate){
   mutate(PENDING);
   saving=true;
   document.body.classList.add('saving');
@@ -321,21 +339,36 @@ function notify(text){
   notify.t=setTimeout(()=>{el.hidden=true;},6000);
 }
 
+/* Toggle a standing correction on one player, and let the server decide what it means.
+ *
+ * Lock and block are mutually exclusive — config.Roster.Set has the same rule — so setting
+ * one clears the other rather than leaving a player both built around and refused.
+ *
+ * Both the card's icon and the sheet's button come here. They used to disagree: the sheet
+ * saved and the card only re-rendered, so the same action was durable from one surface and
+ * imaginary from the other.
+ *
+ * Nothing is applied locally. A block changes which fifteen the optimiser returns, and
+ * guessing at that on the client would draw a squad the model has not agreed to. */
+function toggleCorrection(id, kind){
+  const code=codeOf(id);
+  if(!code){ notify('That player has no code, so the correction cannot be saved.'); return; }
+  return save(pending=>{
+    const had=((kind==='lock'?pending.lock:pending.excl)||[]).includes(code);
+    pending.lock=(pending.lock||[]).filter(c=>c!==code);
+    pending.excl=(pending.excl||[]).filter(c=>c!==code);
+    /* Clearing a correction the reader made is a deletion, and the server settles it
+       against the dismissal list — so the code goes there too, or a standing override of
+       the same kind read from config.json would simply reappear. */
+    pending.dis=(pending.dis||[]).filter(c=>c!==code);
+    if(had){ pending.dis.push(code); }
+    else { (kind==='lock'?pending.lock:pending.excl).push(code); }
+  });
+}
+
 /* codeOf maps an element id to the permanent code the server keys on. */
 const codeOf=id=>{const p=byId(id);return p?p.code:0;};
 
-/* snapshot is S as something that survives JSON.stringify.
-   HANDOFF.md section 6 says S "maps straight onto a Go struct for Wails bindings". That
-   is true of this function and false of S, because two of its fields are Sets. Sending
-   S directly would drop every lock and block the reader had set, silently and with a
-   200. */
-function snapshot(){
-  return {
-    gw:S.gw, xi:S.xi.slice(), bench:S.bench.slice(), benchGk:S.benchGk,
-    captain:S.cap, vice:S.vc,
-    locks:[...S.locks], blocks:[...S.blocks]
-  };
-}
 const byId=id=>P.find(p=>p.id===id)||POOL.find(p=>p.id===id);
 const gwState=()=>GWS.find(g=>g.gw===S.gw);
 
@@ -434,7 +467,7 @@ function totalPts(){
   const chip=gwState().chip;
   let t=xiPts();
   const cap=xpFor(byId(S.cap));
-  t += chip==='tcap' ? cap*2 : cap;          // captain doubles (triples on TC)
+  t += chip==='3xc' ? cap*2 : cap;          // captain doubles (triples on TC)
   if(chip==='bboost') t += benchPts();
   return t;
 }
@@ -477,7 +510,7 @@ function renderReadout(){
   const mine=xiPts();
   const vsm=+(mine-model).toFixed(2);
   const total=totalPts();
-  const capX=xpFor(byId(S.cap)), mult=chip==='tcap'?3:2;
+  const capX=xpFor(byId(S.cap)), mult=chip==='3xc'?3:2;
 
   document.getElementById('scorebug').innerHTML=`
    <div class="gwlz">GW${S.gw}<small>${gwState().live?'NOW':'PLANNED'}</small></div>
@@ -491,7 +524,7 @@ function renderReadout(){
    <div class="sb-div"></div>
    <div class="sb-cell"><span class="k">Captain</span>
      <div class="v">${esc(byId(S.cap).n)}</div>
-     <div class="sub">${capX.toFixed(2)} → ${(capX*mult).toFixed(2)}${chip==='tcap'?' ×3':''}</div></div>
+     <div class="sub">${capX.toFixed(2)} → ${(capX*mult).toFixed(2)}${chip==='3xc'?' ×3':''}</div></div>
    <div class="sb-div"></div>
    <div class="sb-cell"><span class="k">Bench</span>
      <div class="v">${benchPts().toFixed(1)}<small>pts</small></div>
@@ -547,9 +580,9 @@ function renderChips(){
     offered.map(c=>{
       const isUsed=used.has(c.k);
       const wk=GWS.find(g=>g.chip===c.k);
-      return `<button class="chipbtn${isUsed?' used':''}" data-chip="${c.k}"
+      return `<button class="chipbtn${isUsed?' used':''}" data-chip="${esc(c.k)}"
         aria-pressed="${cur===c.k}" ${isUsed?'disabled title="planned for GW'+wk.gw+'"':''}>
-        <span class="dot"></span>${c.ic} ${c.n}${isUsed?` <span class="k">GW${wk.gw}</span>`:''}</button>`;
+        <span class="dot"></span>${c.ic} ${esc(c.n)}${isUsed?` <span class="k">GW${wk.gw}</span>`:''}</button>`;
     }).join('')+
     (cur?`<span class="chipnote">${chipExplain(cur)}</span>`:
       `<span class="dim" style="font-size:12px;margin-left:4px">Pick one and the projection above re-runs under that chip's rules.</span>`);
@@ -564,7 +597,7 @@ function renderChips(){
 function chipExplain(k){
   return {
     bboost:`Bench boost: all 15 score. Your bench adds ${benchPts().toFixed(1)} pts — order stops mattering, so pick for points not safety.`,
-    tcap:`Triple captain: ${esc(byId(S.cap).n)} scores ×3 (${(xpFor(byId(S.cap))*3).toFixed(1)} pts).`,
+    '3xc':`Triple captain: ${esc(byId(S.cap).n)} scores ×3 (${(xpFor(byId(S.cap))*3).toFixed(1)} pts).`,
     wildcard:`Wildcard: unlimited transfers, no hits. Budget rules still apply — the Players tab is now a full rebuild.`,
     freehit:`Free hit: this week's team only, reverts after GW${S.gw}. Nothing you buy here carries forward.`
   }[k];
@@ -577,18 +610,18 @@ function cardHtml(p,opts={}){
   const lock=S.locks.has(p.id), block=S.blocks.has(p.id);
   const isC=S.cap===p.id, isV=S.vc===p.id;
   const chip=gwState().chip;
-  const x=xpFor(p), mult=chip==='tcap'?3:2;
-  return `<div class="card${lock?' haslock':''}${block?' hasblock':''}${S.swapFrom===p.id?' sel':''}${isC?' iscap':''}${isC&&chip==='tcap'?' tcap':''}${isV?' isvc':''}"
+  const x=xpFor(p), mult=chip==='3xc'?3:2;
+  return `<div class="card${lock?' haslock':''}${block?' hasblock':''}${S.swapFrom===p.id?' sel':''}${isC?' iscap':''}${isC&&chip==='3xc'?' tcap':''}${isV?' isvc':''}"
      draggable="true" data-id="${p.id}" style="--clubc:${CLUBC[p.club]||'#39506A'}">
-    <div class="shirt">${isC?`<span class="bandc">${chip==='tcap'?'3×':'C'}</span>`:''}</div>
-    ${isC?`<span class="armchip${chip==='tcap'?' tc':''}">${chip==='tcap'?'3×':'C'}</span>`:''}
+    <div class="shirt">${isC?`<span class="bandc">${chip==='3xc'?'3×':'C'}</span>`:''}</div>
+    ${isC?`<span class="armchip${chip==='3xc'?' tc':''}">${chip==='3xc'?'3×':'C'}</span>`:''}
     ${isV?`<span class="armchip v">V</span>`:''}
     <div class="chead">
       <span class="lhs"><span class="cl">${esc(p.club)}</span></span>
       <div class="acts">
         <button class="iconbtn arm-btn${isC?' isc':''}${isV?' isv':''}" data-act="arm" data-id="${p.id}"
           title="${isC?'Captain — click to make vice':isV?'Vice-captain — click to clear':'Give him the armband'}">
-          ${isC?(chip==='tcap'?'3×':'C'):isV?'V':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 9h16v6H4z"/><path d="M9 3l-2 6M15 3l2 6"/></svg>'}
+          ${isC?(chip==='3xc'?'3×':'C'):isV?'V':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 9h16v6H4z"/><path d="M9 3l-2 6M15 3l2 6"/></svg>'}
         </button>
         <button class="iconbtn${lock?' on':''}" data-act="lock" data-id="${p.id}" title="Lock into the squad — auto-rebuilds keep him">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></button>
@@ -703,11 +736,7 @@ function wirePitch(){
       if(b){
         e.stopPropagation();
         if(b.dataset.act==='arm'){ cycleArmband(id); return; }
-        if(!S.xi.includes(id) && false){}
-        const set = b.dataset.act==='lock'?S.locks:S.blocks;
-        set.has(id)?set.delete(id):set.add(id);
-        if(b.dataset.act==='lock') S.blocks.delete(id); else S.locks.delete(id);
-        renderAll(); return;
+        toggleCorrection(id, b.dataset.act); return;
       }
       if(S.swapFrom!==null){ doSwap(S.swapFrom,id); S.swapFrom=null; setSwapbar(); return; }
       openSheet(id);
@@ -854,10 +883,10 @@ function openSheet(id){
        <div class="step"><span class="muted">${f?`fixture ${esc(f.opp)} (${esc(f.ha)}) FDR ${f.fdr}`:'no fixture this gameweek'}</span><b>${f?'':'blank'}</b></div>
        <div class="step"><span class="muted">minutes reliability</span><b>${p.rel.toFixed(2)}</b></div>
        <div class="step"><span class="muted">availability</span><b>${(p.availability===undefined?1:p.availability).toFixed(2)}</b></div>
-       ${chip==='tcap'&&S.cap===id?`<div class="step"><span class="muted">× triple captain</span><b>×3</b></div>`:
+       ${chip==='3xc'&&S.cap===id?`<div class="step"><span class="muted">× triple captain</span><b>×3</b></div>`:
          S.cap===id?`<div class="step"><span class="muted">× captain</span><b>×2</b></div>`:''}
        <div class="step total"><span>the model's figure, per gameweek</span>
-         <b>${(xpFor(p)*(S.cap===id?(chip==='tcap'?3:2):1)).toFixed(2)}</b></div>
+         <b>${(xpFor(p)*(S.cap===id?(chip==='3xc'?3:2):1)).toFixed(2)}</b></div>
      </div>
 
      <div class="k" style="margin:14px 0 6px">Next five</div>
@@ -897,17 +926,8 @@ function openSheet(id){
        this page -- so they go to the server and the answer is the squad the model picks
        under them. Applying them locally would show a fifteen the model has not agreed to. */
     if(a==='lock'||a==='block'){
-      const code=codeOf(id);
       closeSheet();
-      save(pending=>{
-        const on=(a==='lock'?pending.lock:pending.excl)||[];
-        const off=(a==='lock'?pending.excl:pending.lock)||[];
-        const has=on.includes(code);
-        pending.lock=(pending.lock||[]).filter(c=>c!==code);
-        pending.excl=(pending.excl||[]).filter(c=>c!==code);
-        if(!has){ (a==='lock'?pending.lock:pending.excl).push(code); }
-        void off;
-      });
+      toggleCorrection(id, a);
       return;
     }
     if(a==='swap'){S.swapFrom=id;closeSheet();setSwapbar();return;}
@@ -918,7 +938,7 @@ function openSheet(id){
 }
 /* Captain picker — ranked by what the armband is actually worth this week */
 function openArmbandPicker(which){
-  const chip=gwState().chip, mult = chip==='tcap'?3:2;
+  const chip=gwState().chip, mult = chip==='3xc'?3:2;
   const rows=[...S.xi].map(id=>byId(id))
     .sort((a,b)=>xpFor(b)-xpFor(a));
   const best=xpFor(rows[0]), floor=xpFor(rows[rows.length-1]), span=Math.max(.01,best-floor);
@@ -926,7 +946,7 @@ function openArmbandPicker(which){
    <header><div style="flex:1">
      <div class="nm">${which==='cap'?'Pick your captain':'Pick your vice-captain'}</div>
      <div class="sub">${which==='cap'
-       ? `armband is worth ×${mult} this week${chip==='tcap'?' — triple captain is on':''}`
+       ? `armband is worth ×${mult} this week${chip==='3xc'?' — triple captain is on':''}`
        : 'plays only if your captain does not start'}</div>
    </div><button class="btn icon ghost" id="sheetclose">✕</button></header>
    <div class="body" style="padding-top:8px">
@@ -1018,7 +1038,7 @@ function renderPlayers(){
   document.getElementById('ptbody').innerHTML=list.map(p=>`
    <tr data-id="${p.id}">
      <td><span class="gate${p.clears?' pass':''}" title="${p.clears?`clears the +${gate.toFixed(2)} transfer gate`:'below the transfer gate'}"></span></td>
-     <td><span class="who">${esc(p.n)}</span><span class="club">${esc(p.club)}</span>${S.blocks.has(p.id)?' <span class="pill bad">blocked</span>':''}</td>
+     <td><span class="who">${esc(p.n)}</span><span class="club">${esc(p.club)}</span></td>
      <td class="k">${esc(p.pos)}</td>
      <td>${fdrHtml(p.club,5,S.gw)}</td>
      <td>${roleChip(p.role)}</td><td class="n">${p.own.toFixed(1)}%</td>
@@ -1331,17 +1351,31 @@ function overClub(c){
   return n>=3;
 }
 
-/* Whether a delta clears the gate, compared at the precision the row PRINTS.
+/* The ONE model rule this client restates, and the reason it has to.
  *
- * A raw float comparison makes a row displaying "+0.40" count as below a +0.40 gate, which
- * is the page contradicting itself on one line. Found by the designer in the prototype. */
-function clearsGate(d){ return +d.toFixed(2) >= +gateOf().toFixed(2); }
+ * Everything else on this page is computed in Go and sent -- see the package comment. The
+ * market's rows carry `clears_gate` from the server and this function is not used for them.
+ * The picker cannot: its delta is against the player being REPLACED, and the server sends
+ * deltas against the weakest starter, so there is no server answer to mirror.
+ *
+ * It is therefore a deliberate copy of present.ClearsGate, kept identical by
+ * TestTheGateIsDecidedTheSameWayInBothLanguages, which runs one table through both. Change
+ * one and the test fails on the other; change the rule and change it in Go first.
+ *
+ * The rounding is the rule, not an implementation detail: a row displaying "+0.40" counting
+ * as below a +0.40 gate is the page contradicting itself on one line. A gate of zero clears
+ * nothing, because an unset threshold is a question nobody asked. */
+function clearsGate(d){ const g=gateOf(); if(g<=0) return false;
+  return +d.toFixed(2) >= +g.toFixed(2); }
 
 function pickerCandidates(){
   const o=byId(R.out);
   if(!o) return [];
   const own=new Set(P.map(p=>p.id));
-  return POOL.filter(c=>c.pos===R.pos && !own.has(c.id) && !S.blocks.has(c.id));
+  /* No block filter here: the server drops a blocked player from the market entirely, so
+     POOL never carries one. Filtering again would read as the panel accounting for blocks
+     when it is the server that does. */
+  return POOL.filter(c=>c.pos===R.pos && !own.has(c.id));
 }
 
 /* The picker is addressable: /app#replace-<id>.
@@ -1376,7 +1410,6 @@ function renderPicker(){
   const clears=all.filter(c=>clearsGate(c.xp-o.xp));
   const clearing=clears.filter(c=>affordGap(c)>=0).length;
   const clearingAbove=clears.length-clearing;
-  const blocked=POOL.filter(c=>c.pos===R.pos&&S.blocks.has(c.id)).length;
 
   const note=browse
     ? `<div class="marketnote rule">A transfer is like-for-like — the squad is always two
@@ -1385,8 +1418,7 @@ function renderPicker(){
        To change a ${esc(R.pos)}, open <b>Replace him…</b> on one of yours.</div>`
     : `<div class="marketnote"><span class="gate pass"></span>
        <b>${clearing}</b> of ${all.length} clear the +${gateOf().toFixed(2)} gate
-       ${clearingAbove?`<span class="sep">·</span> <b>${clearingAbove}</b> more clear it above your budget`:''}
-       ${blocked?`<span class="sep">·</span> <span class="dim">hidden:</span> <span class="badc">${blocked} blocked</span>`:''}</div>`;
+       ${clearingAbove?`<span class="sep">·</span> <b>${clearingAbove}</b> more clear it above your budget`:''}</div>`;
 
   const rows=list.map(c=>pickerRow(c,o,browse)).join('');
   const empty=list.length?'':pickerEmpty(o);

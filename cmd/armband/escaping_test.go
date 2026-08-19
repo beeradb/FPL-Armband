@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -157,6 +158,28 @@ func TestEveryPanelRendersAHostileNameAsText(t *testing.T) {
 		}
 	}
 	assertInert(t, "the application", dom)
+
+	// The replacement picker, which the walk above cannot reach.
+	//
+	// It renders only after a tap, so a dump of the four panels never contains it — and it
+	// is the newest surface AND the only place in the whole client where FPL's `news` prose
+	// reaches the DOM. The single new sink for untrusted external text had no browser-level
+	// escaping test until this line. The deep link exists partly for that.
+	var target int
+	for _, p := range st.Squad.Players {
+		if p.Pos == "MID" {
+			target = p.ID
+			break
+		}
+	}
+	if target == 0 {
+		t.Fatal("no midfielder in the fixture, so the picker cannot be opened")
+	}
+	picker := browsertest.DumpDOM(t, browser, srv.URL+"/app#replace-"+strconv.Itoa(target))
+	if !strings.Contains(picker, "to spend") {
+		t.Fatalf("the picker did not open on #replace-%d, so nothing below is tested", target)
+	}
+	assertInert(t, "the replacement picker", picker)
 }
 
 // TestOverrideProseRendersAsText covers the other free-text channel.

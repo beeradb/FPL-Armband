@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"armband/internal/analysis"
 	"armband/internal/config"
@@ -109,6 +110,37 @@ func readSession(r *http.Request) session {
 		// migrate here rather than guessing field by field.
 		return session{}
 	}
+	return s.settled()
+}
+
+// settled resolves the reader's dismissals against their own lists.
+//
+// A dismissal has two jobs, and only one of them survives being applied late. It suppresses
+// an override that came from config.json — that one has to be re-applied on every request,
+// because config is not the session's to edit. And it clears a lock or a block the reader
+// made themselves — and that one is a deletion, so leaving it to be re-applied later means
+// the stored list and the model disagree for as long as the session lives. The page redraws
+// its badges from the stored list, so the reader sees a block the model is not applying.
+//
+// Settling here makes the session say what the model will do. Callers do not filter.
+func (s session) settled() session {
+	if len(s.Dismissed) == 0 {
+		return s
+	}
+	gone := map[int]bool{}
+	for _, code := range s.Dismissed {
+		gone[code] = true
+	}
+	drop := func(codes []int) []int {
+		out := codes[:0:0]
+		for _, c := range codes {
+			if !gone[c] {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	s.Lock, s.Exclude = drop(s.Lock), drop(s.Exclude)
 	return s
 }
 
@@ -167,6 +199,40 @@ func forPlanner(cfg config.Config) config.Config {
 	return cfg
 }
 
+// chipsInto folds the reader's chip placements into a plan the engine will act on.
+//
+// The session stores gameweek → chip key; the engine reads analysis.ChipPlan, four named
+// gameweek fields. Translating here rather than storing a ChipPlan keeps the session's shape
+// the one the page thinks in — a chip belongs to a week — and keeps the engine's the one it
+// thinks in.
+//
+// The reader's placement REPLACES the configured one for that chip, rather than merging: two
+// answers to "when is the wildcard" is the thing this codebase pays for most often, and the
+// person looking at the page is the one who should win on their own page.
+//
+// Only the first set is filled. The second set exists from GW20 and the planner has no
+// control for it yet; a chip placed in a second-set week would need the schedule's own
+// splitting, which belongs with the schedule rather than here.
+func (s session) chipsInto(plan analysis.ChipSchedule) analysis.ChipSchedule {
+	for week, key := range s.Chips {
+		gw, err := strconv.Atoi(week)
+		if err != nil || gw <= 0 {
+			continue
+		}
+		switch key {
+		case "wildcard":
+			plan.First.Wildcard = gw
+		case "freehit":
+			plan.First.FreeHit = gw
+		case "bboost":
+			plan.First.BenchBoost = gw
+		case "3xc":
+			plan.First.TripleCaptain = gw
+		}
+	}
+	return plan
+}
+
 // applyTo layers the session's standing corrections over the config.
 //
 // The session WINS on conflict — a session exclusion clears a config lock for this page and
@@ -205,6 +271,15 @@ func (s session) applyTo(cfg config.Config, e *analysis.Engine, today string) co
 			})
 		}
 	}
+	// ⚠️ The session's own corrections are filtered by the dismissals too, and they are
+	// filtered BEFORE they are applied.
+	//
+	// They used to be re-added after the filter, which made the cross on a
+	// session-created override inert by construction: the reader blocked a player, pressed
+	// the cross, and nothing happened. Worse, a blocked market player is dropped from the
+	// market list, so there was no row left anywhere to open his sheet from and toggle him
+	// back — the only recovery was deleting the cookie.
+	cfg.Chips = s.chipsInto(cfg.Chips)
 	set("lock", s.Lock, "locked from the planner — browser session")
 	set("exclude", s.Exclude, "blocked from the planner — browser session")
 	return cfg
@@ -235,6 +310,9 @@ func (s session) arrangement() viewmodel.Session {
 		Locked:  s.Lock,
 		Blocked: s.Exclude,
 		Chips:   s.Chips,
+		// Sent although nothing draws it: the client rebuilds its pending session from
+		// the document, so an omitted field is a field it will overwrite with nothing.
+		Dismissed: s.Dismissed,
 	}
 }
 

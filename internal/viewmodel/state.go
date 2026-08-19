@@ -361,6 +361,17 @@ type Session struct {
 	// object cannot have integer keys.
 	Chips map[string]string `json:"chips,omitempty"`
 
+	// Dismissed are the standing overrides this reader has cleared for the session, by
+	// permanent CODE.
+	//
+	// ⚠️ It must be sent even though nothing DRAWS it. The client rebuilds its pending
+	// session from this document on every load, so a field the document omits comes back
+	// as empty and the next save writes that emptiness through — clear an override, move
+	// one player, and the override returns. That is the same "a control that only changed
+	// the page" defect this whole surface was written to remove, arriving by a different
+	// route.
+	Dismissed []int `json:"dismissed,omitempty"`
+
 	// Saved reports that this document was built from a stored team rather than freshly
 	// chosen, which is what lets the page say so honestly instead of implying the model
 	// just picked it.

@@ -39,6 +39,30 @@ import (
 //
 // A single mutex serialises requests. This is a one-user tool and the engine
 // was not written for concurrent access; the mutex is cheaper than auditing it.
+// applyPreviewHorizon narrows the engine to the preview's window and says so.
+//
+// Separate from cmdServe because that function binds a socket, and the thing worth testing
+// here is the decision rather than the server: which window the preview scores over, and
+// whether the reader is told. A test that set Weights.Horizon itself and then checked the
+// document reported it would pass unchanged if the flag stopped being read at all.
+//
+// Zero means "use whatever the config says", which is how a reader turns the preview's
+// shortening off. A negative value means the same rather than an error: the flag's contract
+// is a gameweek count, and there is no sensible engine state for minus two.
+//
+// It returns the sentence to print, or "" when nothing changed. The narrowing is not
+// cosmetic — every projection on the page is over this window — so a silent change of it
+// would leave the page quoting numbers whose meaning the reader cannot see.
+func applyPreviewHorizon(e *analysis.Engine, horizon int) string {
+	if horizon <= 0 || horizon == e.Weights.Horizon {
+		return ""
+	}
+	was := e.Weights.Horizon
+	e.Weights.Horizon = horizon
+	return fmt.Sprintf("Scoring the preview over %d gameweeks rather than the configured %d "+
+		"(-horizon). Every projection on the page is over that window.", horizon, was)
+}
+
 func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 	client *fpl.Client, e *analysis.Engine, weeks int) error {
 
@@ -69,12 +93,8 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 		return err
 	}
 
-	if *horizon > 0 && *horizon != e.Weights.Horizon {
-		fmt.Fprintf(os.Stderr, "%s\n", dim(fmt.Sprintf(
-			"Scoring the preview over %d gameweeks rather than the configured %d "+
-				"(-horizon). Every projection on the page is over that window.",
-			*horizon, e.Weights.Horizon)))
-		e.Weights.Horizon = *horizon
+	if note := applyPreviewHorizon(e, *horizon); note != "" {
+		fmt.Fprintf(os.Stderr, "%s\n", dim(note))
 	}
 	if weeks <= 0 {
 		weeks = e.Weights.Horizon
@@ -186,9 +206,9 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.URL.Path {
 	case routeLanding:
-		s.servePage(w, "landing")
+		s.servePage(w, r, "landing")
 	case routeApp:
-		s.servePage(w, "app")
+		s.servePage(w, r, "app")
 	case routeGate:
 		s.gate(w, r)
 	case routeState:
@@ -330,11 +350,16 @@ func (s *squadServer) effectiveCfg(r *http.Request) config.Config {
 }
 
 func (s *squadServer) effectiveCfgFrom(sess session) config.Config {
-	cfg := forPlanner(*s.cfg)
+	// ⚠️ forPlanner is NOT applied under -persist.
+	//
+	// It strips the analysis layer's locks so they do not bind the reader's planner. Under
+	// -persist the page writes locks into config.json itself, on the reader's instruction —
+	// stripping those would mean the lock button saved a lock to the file and the very next
+	// build removed it, which is the button lying twice over.
 	if s.persist {
-		return cfg
+		return *s.cfg
 	}
-	return sess.applyTo(cfg, s.engine, s.now().Format("2006-01-02"))
+	return sess.applyTo(forPlanner(*s.cfg), s.engine, s.now().Format("2006-01-02"))
 }
 
 // markSessionOverrides flags every override this browser's session owns, so

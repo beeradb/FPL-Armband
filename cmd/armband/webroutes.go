@@ -43,8 +43,48 @@ const (
 	prefixAssets = "/assets/"
 )
 
+// authCookieName marks a browser that has presented the printed token.
+//
+// It exists because the token has to reach the page — the client puts it on every write —
+// and a document is readable by anything that can make a request. Without this, any local
+// process could `curl /app`, lift the token out of the meta tag, and drive the write path;
+// under -persist that means writing a standing override into config.json, which then binds
+// every future agent run. The loopback bind and the Host check do not help, because the
+// attacker there is not a browser.
+//
+// So the token is handed out only in exchange for the token: open the URL the server
+// printed, which carries ?t=, and the answer sets this cookie. A requester that never had
+// the token gets the shell and a page that says where to find the real URL.
+const authCookieName = "fpl_auth"
+
+// authed reports whether this request may be given the write token.
+func (s *squadServer) authed(r *http.Request) bool {
+	if s.token == "" {
+		return false
+	}
+	if c, err := r.Cookie(authCookieName); err == nil && s.tokenOK(c.Value) {
+		return true
+	}
+	// The printed URL itself, which is how a browser gets the cookie in the first place.
+	return s.tokenOK(r.URL.Query().Get("t"))
+}
+
+// grantAuth sets the cookie when the request presented the token in its URL.
+func (s *squadServer) grantAuth(w http.ResponseWriter, r *http.Request) {
+	if !s.tokenOK(r.URL.Query().Get("t")) {
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     authCookieName,
+		Value:    s.token,
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+		HttpOnly: true,
+	})
+}
+
 // servePage writes one of the embedded documents.
-func (s *squadServer) servePage(w http.ResponseWriter, name string) {
+func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name string) {
 	body, err := webui.Page(name)
 	if err != nil {
 		// A route naming a page that is not embedded is a programming error, but it
@@ -95,6 +135,13 @@ func (s *squadServer) servePage(w http.ResponseWriter, name string) {
 	// be re-interpreted as another type on a sniffing browser.
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	s.grantAuth(w, r)
+	if !s.authed(r) {
+		// The shell, with no capability in it. The page's own boot will read an empty
+		// token and every write will be refused, so it says what to do instead.
+		_, _ = w.Write(body)
+		return
+	}
 	_, _ = w.Write(s.withToken(body))
 }
 
@@ -192,6 +239,27 @@ func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 // answerState builds and writes the document for a session. Shared by the read and the
 // write route so the two cannot disagree about what the state IS.
 func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess session) {
+	body, err := s.buildState(r, sess)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeState(w, body)
+}
+
+// writeState sends an already-marshalled document.
+func writeState(w http.ResponseWriter, body []byte) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// The state is rebuilt per request and must never be reused: a cached squad is the
+	// bug the whole no-cache design of this server exists to avoid.
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(body)
+}
+
+// buildState produces the document for a session, or an error naming what went wrong.
+func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) {
 	cfg := s.effectiveCfgFrom(sess)
 	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, pageOpts{
 		Weeks:     s.weeks,
@@ -205,8 +273,7 @@ func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess s
 		},
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 	b.Page.Token = s.token
 	b.Page.SessionMode = !s.persist
@@ -225,29 +292,13 @@ func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess s
 		Saved:     len(sess.Squad) == 15,
 	})
 	if err != nil {
-		// Build's only failure is a number encoding/json would refuse. Answering 500
-		// with its message names the field; letting the encoder fail would produce a
-		// half-written 200 the client would try to parse.
-		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		// Build's only failure is a number encoding/json would refuse. Naming the field
+		// beats letting the encoder fail into a half-written 200 the client would parse.
+		return nil, err
 	}
-
-	// Marshalled to a buffer before anything is written, so an encoding failure answers
-	// a status the client can act on rather than truncating a 200 mid-document. The
-	// served page already does this for the same reason.
-	raw, err := json.Marshal(st)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "serve: marshalling the state: %v\n", err)
-		http.Error(w, "encoding the state failed", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	// The state is rebuilt per request and must never be reused: a cached squad is the
-	// bug the whole no-cache design of this server exists to avoid.
-	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write(raw)
+	// Marshalled here rather than streamed, so a failure is an error a caller can answer
+	// with a status instead of a truncated body.
+	return json.Marshal(st)
 }
 
 // saveSession stores the reader's team and answers with the recomputed document.
@@ -288,6 +339,9 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Version = sessionVersion
+	// Settled before anything reads it, so the document this request answers with and the
+	// cookie it stores are the same session.
+	in = in.settled()
 
 	// Every code must resolve, because a code the bootstrap does not carry becomes a
 	// nameless row the reader cannot clear. The client only ever sends codes it was given,
@@ -297,38 +351,141 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The state is built BEFORE the cookie is written.
+	//
+	// The other order stages a Set-Cookie and can then fail rendering, which stores a
+	// session that cannot be rendered — in an HttpOnly cookie the page cannot clear, so
+	// every later request rebuilds from it and fails the same way, and the reader has to
+	// open devtools to recover. /action already gets this right and says so: the change is
+	// saved before it is adopted, and a failure leaves everything as it was.
+	body, err := s.buildState(r, in)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if err := in.write(w); err != nil {
 		// The ceiling is the interesting failure: a browser drops an oversized cookie
 		// silently, and the reader's work would vanish with no error anywhere.
 		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
 		return
 	}
-	s.answerState(w, r, in)
+	writeState(w, body)
 }
 
-// validateSession refuses anything the bootstrap cannot name.
+// validateSession refuses anything that is not a legal FPL squad.
+//
+// # Why this is more than a well-formedness check
+//
+// It used to check only that every code resolved and that the lists were the right length.
+// That accepted a fifteen of the SAME player fifteen times: bestFormation then finds no
+// legal shape, returns nothing, and the page renders an empty eleven with a zero captain —
+// which is then stored in an HttpOnly cookie the page itself cannot clear, so every reload
+// rebuilds the same broken state and the reader has to go into devtools to escape.
+//
+// It also accepted a squad of any budget, any club distribution and any position mix, which
+// matters because this planner is being positioned as somewhere transfers are decided. A
+// fifteen that could never exist prices moves that could never be made.
+//
+// Budget is deliberately NOT checked. The reader's money is a fact about their entry that
+// this store does not carry, and a squad over budget is a state the optimiser can legitimately
+// be asked about (a wildcard, a hypothetical). The rules checked here are the ones that make
+// a fifteen a fifteen.
 func (s *squadServer) validateSession(in session) error {
-	known := map[int]bool{}
-	for i := range s.engine.Boot.Elements {
-		known[s.engine.Boot.Elements[i].Code] = true
+	type known struct {
+		pos  string
+		club int
 	}
-	for _, group := range [][]int{in.Squad, in.XI, in.Bench, in.Lock, in.Exclude, in.Dismissed} {
+	byCode := map[int]known{}
+	for i := range s.engine.Boot.Elements {
+		el := &s.engine.Boot.Elements[i]
+		byCode[el.Code] = known{pos: s.engine.Boot.PositionShort(el.ElementType), club: el.Team}
+	}
+
+	// Bounded before anything is walked. A list is only ever as long as a squad, and the
+	// cookie ceiling is not a substitute — session.empty() short-circuits before it for a
+	// payload that carries only a bench.
+	const maxList = 64
+	for name, group := range map[string][]int{
+		"squad": in.Squad, "xi": in.XI, "bench": in.Bench,
+		"lock": in.Lock, "exclude": in.Exclude, "dismissed": in.Dismissed,
+	} {
+		if len(group) > maxList {
+			return fmt.Errorf("%s carries %d players, which is more than any squad has", name, len(group))
+		}
 		for _, code := range group {
-			if code != 0 && !known[code] {
-				return fmt.Errorf("no player has code %d", code)
+			if code != 0 {
+				if _, ok := byCode[code]; !ok {
+					return fmt.Errorf("no player has code %d", code)
+				}
 			}
 		}
 	}
 	for _, code := range []int{in.Captain, in.Vice} {
-		if code != 0 && !known[code] {
-			return fmt.Errorf("no player has code %d", code)
+		if code != 0 {
+			if _, ok := byCode[code]; !ok {
+				return fmt.Errorf("no player has code %d", code)
+			}
 		}
 	}
-	if n := len(in.Squad); n != 0 && n != 15 {
-		return fmt.Errorf("a squad is fifteen players, not %d", n)
+	if len(in.Chips) > 64 {
+		return fmt.Errorf("%d chip placements, which is more than a season has gameweeks", len(in.Chips))
 	}
-	if n := len(in.XI); n != 0 && n != 11 {
-		return fmt.Errorf("an eleven is eleven players, not %d", n)
+
+	if len(in.Squad) == 0 {
+		// No team stored: the corrections above are all there is to check.
+		return nil
+	}
+	if len(in.Squad) != 15 {
+		return fmt.Errorf("a squad is fifteen players, not %d", len(in.Squad))
+	}
+
+	seen := map[int]bool{}
+	pos := map[string]int{}
+	club := map[int]int{}
+	for _, code := range in.Squad {
+		if seen[code] {
+			return fmt.Errorf("player %d appears twice; a squad is fifteen different players", code)
+		}
+		seen[code] = true
+		k := byCode[code]
+		pos[k.pos]++
+		club[k.club]++
+	}
+	for want, n := range map[string]int{"GKP": 2, "DEF": 5, "MID": 5, "FWD": 3} {
+		if pos[want] != n {
+			return fmt.Errorf("a squad holds %d %s, not %d", n, want, pos[want])
+		}
+	}
+	for id, n := range club {
+		if n > 3 {
+			return fmt.Errorf("%d players from one club; the limit is three", n)
+		}
+		_ = id
+	}
+
+	if len(in.XI) != 0 {
+		if len(in.XI) != 11 {
+			return fmt.Errorf("an eleven is eleven players, not %d", len(in.XI))
+		}
+		inXI := map[int]bool{}
+		for _, code := range in.XI {
+			if !seen[code] {
+				return fmt.Errorf("player %d is in the eleven but not in the squad", code)
+			}
+			if inXI[code] {
+				return fmt.Errorf("player %d is in the eleven twice", code)
+			}
+			inXI[code] = true
+		}
+		for _, code := range []int{in.Captain, in.Vice} {
+			if code != 0 && !inXI[code] {
+				return fmt.Errorf("player %d wears an armband from outside the eleven", code)
+			}
+		}
+		if in.Captain != 0 && in.Captain == in.Vice {
+			return fmt.Errorf("the captain and the vice-captain are the same player")
+		}
 	}
 	return nil
 }

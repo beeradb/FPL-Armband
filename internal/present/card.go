@@ -2,6 +2,7 @@ package present
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"armband/internal/analysis"
@@ -358,6 +359,30 @@ func bandClass(band string) (string, bool) {
 		return "b5", true
 	}
 	return "", false
+}
+
+// gateDecimals is the precision every surface prints a delta and a gate at.
+//
+// The comparison has to happen here or the page contradicts itself: a row printing "+0.40"
+// beside a "+0.40 gate" and carrying a below-the-gate badge is one line disagreeing with
+// itself, and the reader has no way to see the 0.3999 that explains it.
+const gateDecimals = 2
+
+// ClearsGate decides whether a delta is worth a transfer, at the precision it is shown at.
+//
+// A gate of zero clears nothing. That is not a rounding decision — an unset gate means the
+// threshold was never configured, and answering "everything qualifies" to a question nobody
+// asked is how a page ends up recommending every move in the market.
+func ClearsGate(delta, gate float64) bool {
+	if gate <= 0 {
+		return false
+	}
+	return round(delta, gateDecimals) >= round(gate, gateDecimals)
+}
+
+func round(v float64, places int) float64 {
+	f := math.Pow(10, float64(places))
+	return math.Round(v*f) / f
 }
 
 // WatchRow is one candidate on the watchlist: a player not in the fifteen, and the

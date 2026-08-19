@@ -63,6 +63,7 @@ func Build(in Input) (*State, error) {
 			Locked:    in.Session.Locked,
 			Blocked:   in.Session.Blocked,
 			Chips:     in.Session.Chips,
+			Dismissed: in.Session.Dismissed,
 			Saved:     in.Saved,
 			Optimised: in.Optimised,
 		},
@@ -184,7 +185,7 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap) []Gameweek {
 	out := make([]Gameweek, 0, len(p.Weeks))
 	for _, w := range p.Weeks {
 		var playable []ChipOption
-		for _, key := range analysis.PlayableChips(w.Event) {
+		for _, key := range analysis.PlayableChips(boot, w.Event) {
 			playable = append(playable, ChipOption{Key: key, Label: analysis.ChipLabel(key)})
 		}
 		out = append(out, Gameweek{
