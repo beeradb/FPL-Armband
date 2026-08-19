@@ -25,7 +25,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: image
+  # Per-ref, not one global group. cancel-in-progress protects the RUNNING job
+  # but a new arrival still cancels whatever is QUEUED, so a single group means
+  # three branches pushed in ten minutes leave the middle one with no image at
+  # all -- reported as "cancelled", which reads like somebody pressed the button.
+  # Concurrent sessions are normal in this repo, so that is the common case.
+  group: image-${{ github.ref }}
   # A half-published image is worse than a queued build.
   cancel-in-progress: false
 
@@ -42,7 +47,7 @@ jobs:
     steps:
       # Actions are pinned by commit, matching this repo's existing CI. This job
       # holds packages:write, so a mutable tag here is a supply-chain hole.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.1.7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
 
@@ -53,13 +58,24 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: meta
+        # Passed through env: and quoted, never interpolated into the script.
+        #
+        # A branch name may legally contain a single quote, and this workflow
+        # builds every branch -- so `'${{ github.ref }}'` inside a run: block is
+        # a shell injection with the GHCR push token already on disk from the
+        # login step above, plus packages:write and an OIDC minter in the
+        # environment. ci.yml states this rule for the same reason.
+        env:
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
-          repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+          repo=$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')
           echo "repo=$repo" >> "$GITHUB_OUTPUT"
           # Always tag by commit, so every image names exactly the source it was
           # built from. The floating `main` tag is added only on main.
-          tags="ghcr.io/$repo:${{ github.sha }}"
-          if [ '${{ github.ref }}' = 'refs/heads/main' ]; then
+          tags="ghcr.io/$repo:$SHA"
+          if [ "$REF" = 'refs/heads/main' ]; then
             tags="$tags
           ghcr.io/$repo:main"
           fi
@@ -79,7 +95,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # mode=min, not max: mode=max exports every intermediate layer into the
+          # repo-wide 10 GB Actions cache, which is LRU and shared with the season
+          # archive ci.yml calls load-bearing. Evicting that is silent -- CI still
+          # passes, it just refetches from third-party branches and loses the
+          # reproducibility its own comment claims.
+          cache-to: type=gha,mode=min
           provenance: mode=max
           sbom: true
 
