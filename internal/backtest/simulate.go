@@ -979,6 +979,18 @@ type Week struct {
 	// was spent to avoid them. The eleven inside it is Week.XI; the five
 	// beyond it are the bench.
 	FreeHitSquad []int
+	// Contrib is each player's contribution to Gross, attributed by the same
+	// weekScoreWithChip call that scores it: the armband's extra copies to the
+	// captain (or the vice, when the fallback fires), autosubs to the bench
+	// player who came on, every bench player on a bench-boost week, nothing
+	// for a blanked starter, and nothing for a player outside the fifteen —
+	// which is how a free-hit week reads zero for every permanent-squad
+	// player, because the borrowed fifteen is what was scored. It sums to
+	// Gross by construction. Nothing on the scoring path reads it; the
+	// holding-window transfer verdict does, so a transfer can be judged on
+	// what its incoming player actually contributed instead of on a second
+	// copy of the scoring loop.
+	Contrib map[int]int
 }
 
 // Move records one transfer the policy chose to make.
@@ -2217,6 +2229,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 		}
 		ws := weekScoreWithChip(xiP, benchP, gw, captain, vice, chip)
 		pts := ws.Points
+		week.Contrib = ws.Contrib
 		// What each scoring chip would have been worth here, always against the
 		// *unchipped* week — otherwise a week that actually played one reports
 		// its own gain as zero, and the diagnostic that reads these columns

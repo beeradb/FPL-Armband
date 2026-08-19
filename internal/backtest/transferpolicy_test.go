@@ -59,6 +59,13 @@ const sweepBankLimit = 5
 type policyVariant struct {
 	label string
 	apply func(*SimConfig)
+	// plan installs a full two-set chip schedule from the cell's season and
+	// entry point — the shipped user-facing planner, for arms that measure the
+	// machine a user actually watches rather than the no-chip sweep machine.
+	// Nil for every arm that does not; where set, the schedule overrides
+	// whatever apply installed (the planner path is skipped, so a plan and an
+	// apply-installed ChipPlanner cannot fight over one quantity).
+	plan func(*Season, int) analysis.ChipSchedule
 	// oracles is the hindsight this arm runs under, and it is **not** read from
 	// here: runPolicySweep overwrites it with what apply actually installs, then
 	// checks the label against it. So a hand-written arm cannot claim an oracle it
@@ -217,6 +224,11 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 				// default here would silently move every block that does not.
 				sc := sweepConfig(cfg, start, false)
 				v.apply(&sc)
+				if v.plan != nil {
+					sc.ChipPlanner = nil
+					sch := v.plan(pair.Cur, start)
+					sc.Chips, sc.Chips2 = sch.First, sch.Second
+				}
 				// The stamp is read back out of the config the cell will run
 				// under, so it cannot describe an oracle the simulation did not
 				// get. An arm whose hindsight varies by cell would make the

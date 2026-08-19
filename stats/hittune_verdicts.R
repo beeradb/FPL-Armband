@@ -9,10 +9,13 @@
 # bar (a calibrated gate gives ~50% by truncation at net < 3, so a rate
 # clearly above it is the "not tuned well" signal); (b) the season-level
 # shipped-vs-no-hits contrast (computed by sweep_inference.R on the cells —
-# this script reports the sidecar side). Descriptive: the workedOut table
-# (hitNet - waitedNet >= 4, matched against the no-hits arm's later free
-# purchase of the same in-player), the wildcard-week-after split, and the
-# availability-adjusted rates beside the raw.
+# this script reports the sidecar side); (H) the holding-window clearance —
+# % of hit packages accruing +4 net before their in-players are sold or a
+# wildcard lands, split forced vs preference; (H') the preference-hit share by
+# MinGainHit rung. The earlier workedOut wait-match is superseded by the
+# holding criterion (the user's ruling, 2026-08-18). Descriptive: the
+# wildcard-week-after split and the availability-adjusted rates beside the
+# raw.
 #
 # The package is the unit: a funded pair is one row, its legs summed, its hit
 # charged once — the unit the gate judged.
@@ -38,10 +41,13 @@ h <- read_sidecar(args[1])
 h$out_played <- as.logical(h$out_played)
 h$wildcard_after <- as.logical(h$wildcard_after)
 h$hit <- as.logical(h$hit)
-# One arm per short name, and the floored machine is its OWN arm — the sub
-# must not fold it into the flat baseline.
+h$hold_out_played <- as.logical(h$hold_out_played)
+h$out_was_captain <- as.logical(h$out_was_captain)
+# One arm per short name, and the floored and full-plan machines are their OWN
+# arms — the sub must not fold them into the flat baseline.
 h$arm <- sub(", flat( \\(shipped\\))?", "", h$arm)
 h$arm[h$arm == "mgh3, floored machine"] <- "mgh3floored"
+h$arm[h$arm == "mgh3, full plan (shipped)"] <- "mgh3fullplan"
 h$arm[h$arm == "no hits (wait)"] <- "no hits"
 h$net3 <- h$hit_net < 3
 h$net0 <- h$hit_net < 0
@@ -49,8 +55,9 @@ h$adj <- h$out_played
 
 # The registered rates are PER HIT — the hit flag carries which packages paid
 # the -4, so the free packages (gated at MinGain 0.4, not MinGainHit 3.0) are
-# excluded before any loss rate is computed. The no-hits arm's free packages
-# stay in `wait` below for the workedOut match.
+# excluded before any loss rate is computed. The no-hits arm's packages stay
+# unused: the season-level wait contrast comes from the cells, and the
+# holding criterion needs no counterfactual match.
 hits <- h[grepl("^mgh", h$arm) & h$hit, ]
 baseline <- hits[hits$arm == "mgh3", ]
 
@@ -83,50 +90,56 @@ fl <- hits[hits$arm == "mgh3floored", ]
 cat(sprintf("  floored machine (own arm): net<3 %.1f%% of %d packages; net<0 %.1f%%\n",
             100*mean(fl$net3), nrow(fl), 100*mean(fl$net0)))
 
-cat("\n=== workedOut: hit packages against the no-hits arm's later free purchase ===\n")
-wait <- h[grepl("^no hits", h$arm), ]
-# "Later" is the pre-registered semantics: the same in-player bought in a LATER
-# gameweek, free. The window is gw+1..gw+4, and among several later purchases
-# of one of the hit's in-players the EARLIEST is the counterfactual — "wait
-# one more week" read literally. A same-gw match is excluded: the in-side is
-# identical by construction there, so the comparison degenerates to who was
-# sold rather than whether the hit paid.
-matchNet <- function(season, start, gw, inIds) {
-  ids <- unlist(strsplit(inIds, "|", fixed = TRUE))
-  w <- wait[wait$season == season & wait$start_gw == start &
-            wait$gw >= gw + 1 & wait$gw <= gw + 4, ]
-  if (nrow(w) == 0) return(NA)
-  best <- NA_real_
-  bestGW <- Inf
-  for (i in seq_len(nrow(w))) {
-    wids <- unlist(strsplit(w$in_ids[i], "|", fixed = TRUE))
-    if (any(wids %in% ids) && w$gw[i] < bestGW) {
-      best <- w$hit_net[i]
-      bestGW <- w$gw[i]
-    }
+cat("\n=== the holding-window criterion: +4 net before sale, wildcard or season's end ===\n")
+# The user's ruling replaces the workedOut wait-match: a hit worked iff the
+# package accrued +4 net during the span the squad actually held the incoming
+# players — each leg's Week.Contrib (autosubs, armband, bench boost inside it;
+# a free-hit week contributing nothing) minus the sold player's raw points.
+# The split: forced (the replaced player stopped appearing — the squad was
+# fielding a blank without the move) vs preference (he kept playing — the real
+# bet). The tuned-bets population is the preference one.
+hits$worked4 <- hits$hold_net >= 4
+for (arm in c("mgh3", "mgh3floored", "mgh3fullplan")) {
+  a <- hits[hits$arm == arm, ]
+  pref <- a[a$hold_out_played, ]
+  forced <- a[!a$hold_out_played, ]
+  cat(sprintf("%s: %d hits, %d (%.0f%%) clear +4 in the hold; mean %+.1f, median %+.1f, spread [%+d, %+d]\n",
+              arm, nrow(a), sum(a$worked4), 100*mean(a$worked4),
+              mean(a$hold_net), median(a$hold_net),
+              min(a$hold_net), max(a$hold_net)))
+  cat(sprintf("  preference (sold player kept playing): %d hits, %.0f%% clear +4, mean %+.1f\n",
+              nrow(pref), 100*mean(pref$worked4), mean(pref$hold_net)))
+  cat(sprintf("  forced (replaced player stopped):      %d hits, %.0f%% clear +4, mean %+.1f\n",
+              nrow(forced), 100*mean(forced$worked4), mean(forced$hold_net)))
+  cap <- a$out_was_captain
+  if (any(cap)) {
+    cat(sprintf("  out-leg was last week's captain in %d packages (out-side raw understates)\n", sum(cap)))
   }
-  best
 }
-worked <- rep(NA_real_, nrow(baseline))
-for (i in seq_len(nrow(baseline))) {
-  b <- baseline[i, ]
-  worked[i] <- matchNet(b$season, b$start_gw, b$gw, b$in_ids)
-}
-matched <- !is.na(worked)
-wo <- (baseline$hit_net - worked) >= 4
-cat(sprintf("hit packages: %d; matched to a later free purchase: %d (%.0f%%)\n",
-            nrow(baseline), sum(matched), 100*mean(matched)))
-cat(sprintf("  workedOut (>= +4 vs waiting): %d of %d matched (%.0f%%)\n",
-            sum(wo[matched]), sum(matched), 100*mean(wo[matched])))
-cat(sprintf("  mean hitNet %+.1f vs mean waitedNet %+.1f over the matched pairs\n",
-            mean(baseline$hit_net[matched]), mean(worked[matched])))
 
-cat("\n=== the wildcard-week-after split (floored arm, descriptive) ===\n")
-if (any(fl$wildcard_after)) {
-  wa <- fl[fl$wildcard_after, ]
-  nw <- fl[!fl$wildcard_after, ]
-  cat(sprintf("  after-wildcard packages: %d, net<3 %.0f%%;  other weeks: %d, net<3 %.0f%%\n",
-              nrow(wa), 100*mean(wa$net3), nrow(nw), 100*mean(nw$net3)))
-} else {
-  cat("  no wildcard-after packages recorded\n")
+cat("\n  rung pattern, preference hits only (registered H'):\n")
+for (a in c("mgh3", "mgh4", "mgh5", "mgh6")) {
+  r <- hits[hits$arm == a & hits$hold_out_played, ]
+  cat(sprintf("  %s: %.0f%% clear +4 (%d preference hits)\n", a, 100*mean(r$worked4), nrow(r)))
+}
+
+cat("\n  free packages, holding bar 0 (descriptive):\n")
+frees <- h[grepl("^mgh", h$arm) & !h$hit, ]
+for (arm in c("mgh3", "mgh3floored", "mgh3fullplan")) {
+  a <- frees[frees$arm == arm, ]
+  cat(sprintf("  %s: %d free packages, %.0f%% non-negative hold, mean %+.1f\n",
+              arm, nrow(a), 100*mean(a$hold_net >= 0), mean(a$hold_net)))
+}
+
+cat("\n=== the wildcard-week-after split (descriptive) ===\n")
+for (arm in c("mgh3floored", "mgh3fullplan")) {
+  a <- hits[hits$arm == arm, ]
+  if (any(a$wildcard_after)) {
+    wa <- a[a$wildcard_after, ]
+    nw <- a[!a$wildcard_after, ]
+    cat(sprintf("  %s: after-wildcard hits %d, %.0f%% clear +4 in the hold;  other weeks %d, %.0f%%\n",
+                arm, nrow(wa), 100*mean(wa$worked4), nrow(nw), 100*mean(nw$worked4)))
+  } else {
+    cat(sprintf("  %s: no wildcard-after packages recorded (its plan plays no wildcard)\n", arm))
+  }
 }

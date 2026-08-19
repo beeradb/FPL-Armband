@@ -36,8 +36,13 @@ package backtest
 //     the bar; this arm is the shipping-target baseline, outside the family.
 //   - "no hits (wait)": MaxHits 0 — the wait-everything counterfactual at
 //     season level.
+//   - "mgh3, full plan (shipped)": the floored machine on the shipped
+//     USER-FACING planner — FullAnchoredPlan, both chip sets, all four chips.
+//     The machine the user watches, for the holding criterion to be live
+//     against free hits, bench boosts and wildcards. Outside the family, like
+//     the floored machine.
 //
-// Six seasons × six entry points, 36 cells per arm, 216 cells, POLICY.
+// Six seasons × six entry points, 36 cells per arm, 252 cells, POLICY.
 //
 // # Registered contrasts (Holm over the THREE rungs only)
 //
@@ -70,9 +75,58 @@ package backtest
 // Registered: (a) the shipped arm's per-hit loss rate against the gate's OWN
 // bar — a calibrated gate gives ~50% by truncation at net < 3, so a rate
 // clearly above that is the "not tuned well" signal; (b) the season-level
-// shipped-vs-no-hits paired contrast. Descriptive: the workedOut table
-// (hitNet − waitedNet ≥ 4 — the user's criterion), the wildcard-week-after
-// split, and the availability-adjusted rates beside the raw.
+// shipped-vs-no-hits paired contrast. Descriptive: the wildcard-week-after
+// split, and the availability-adjusted rates beside the raw. ⚠️ The workedOut
+// wait-match the first measurement registered is SUPERSEDED by the
+// holding-window criterion below (the user's ruling, 2026-08-18) — the match
+// reached only 48% of hits and its window was the very artefact being
+// replaced.
+//
+// # The holding-window criterion — the user's ruling, and the two splits
+//
+// 2026-08-18, after the horizon measurement landed: "We should only judge if
+// it was +4 net points before they were either transferred out, or we
+// wildcarded. Anything less than +4 is not worth it for a hit." And:
+// "account for free hits and bench boost too. Captaincy too." And: "separate
+// hits due to injury (the replaced player stops playing) vs due to
+// preference."
+//
+// The horizon criterion judges over the decided horizon — five model
+// gameweeks — which credits a hit with weeks the player later spent in a
+// different squad and cuts it off before a long hold pays. The holding
+// criterion replaces it:
+//
+//   - The window: per leg, from the transfer week until the earlier of the
+//     in-player's sale, a wildcard, or the season's end — the span the squad
+//     actually held him.
+//   - The in-side: Week.Contrib — the incoming player's recorded squad
+//     contribution, from the same scoring pass that produced the week's
+//     Gross: autosubs in, the armband's copies to the captain (or the vice
+//     under the fallback), every bench player on a bench-boost week, and
+//     nothing on a free-hit week (the borrowed fifteen was what scored).
+//   - The out-side: the sold player's raw points — the Judge convention, the
+//     counterfactual eleven being unknowable — skipped on a free-hit week,
+//     and a week whose sold player was the previous week's captain is
+//     flagged, because raw points then understate what the squad gave up.
+//   - The bar: a hit worked iff the package's holding net is ≥ +4; a free
+//     transfer's bar is 0 (descriptive).
+//   - The split: a hit whose sold player stops appearing over the window
+//     (forced — without the move the squad was fielding a blank) is reported
+//     apart from one whose sold player kept playing (preference — the real
+//     bet). The tuned-bets population is the preference one.
+//
+// Registered: (H) the holding-clearance share — % of hit packages clearing +4
+// in the hold — per arm, split forced vs preference; (H') the rung pattern —
+// the preference-hit share by MinGainHit rung 3/4/5/6, where a monotone rise
+// is the bar doing its job on the user's criterion (suggestive evidence to
+// re-open the shipping rule; reported, not shipped). The horizon criterion
+// stays reported beside it, so the record carries what each says.
+//
+// ⚠️ The free-hit, bench-boost and wildcard cuts are LIVE only in the
+// full-plan arm; in the other six arms no chip plays, so the cuts bind
+// nowhere there (a fact, reported). ⚠️ Confinement: the six existing arms'
+// 216 cells must come back byte-identical to the first bank on every integer
+// column — Contrib is recording-only, so no decision may flip.
 //
 // # The shipping rule — pre-registered, so the decision is not post-hoc
 //
@@ -120,7 +174,8 @@ func TestDiagHitTuning(t *testing.T) {
 		defer f.Close()
 		side = csv.NewWriter(f)
 		side.Write([]string{"sweep", "arm", "season", "start_gw", "gw",
-			"n_moves", "hit_net", "out_played", "wildcard_after", "in_ids", "hit"})
+			"n_moves", "hit_net", "out_played", "wildcard_after", "in_ids", "hit",
+			"hold_net", "hold_out_played", "hold_weeks", "out_was_captain"})
 	}
 
 	// emit writes one row per package this cell's replay actually took. A
@@ -143,18 +198,21 @@ func TestDiagHitTuning(t *testing.T) {
 				hit = hit || v.Hit
 				ins = append(ins, strconv.Itoa(v.InID))
 			}
-			// The no-hits arm emits its free packages too — they are the
-			// wait-counterfactual's other side.
+			// The no-hits arm emits its free packages too — the horizon and
+			// holding nets of a free move are the free channel's verdicts.
 			after := false
 			for _, wc := range wcWeeks {
-				if gw == wc+1 {
+				if wc > 0 && gw == wc+1 {
 					after = true
 				}
 			}
+			holdNet, holdWeeks, allPlayed, outWasCap := holdingNet(pair.Cur, res, start, vs, wcWeeks)
 			side.Write([]string{"HITTUNE", arm, pair.Name, strconv.Itoa(start),
 				strconv.Itoa(gw), strconv.Itoa(len(vs)), strconv.Itoa(net),
 				strconv.FormatBool(played), strconv.FormatBool(after),
-				joinIDs(ins), strconv.FormatBool(hit)})
+				joinIDs(ins), strconv.FormatBool(hit),
+				strconv.Itoa(holdNet), strconv.FormatBool(allPlayed),
+				strconv.Itoa(holdWeeks), strconv.FormatBool(outWasCap)})
 		}
 		side.Flush()
 	}
@@ -167,6 +225,13 @@ func TestDiagHitTuning(t *testing.T) {
 		sc.EarlyFloor.FreeTransferValue = 1.0
 		sc.EarlyFloor.MinGainForTransfer = 0.2
 		sc.EarlyFloor.UntilGameweek = 8
+	}
+	fullPlan := func(sc *SimConfig) {
+		floored(sc)
+		// The shipped user-facing planner, both sets and all four chips,
+		// installed through the variant's plan hook — a ChipPlan cannot
+		// express two wildcards, so the planner field cannot carry it.
+		sc.ChipPlanner = nil
 	}
 	arms := []policyVariant{
 		{label: "mgh3, flat (shipped)", apply: func(sc *SimConfig) {},
@@ -196,8 +261,88 @@ func TestDiagHitTuning(t *testing.T) {
 			observe: func(pair seasonPair, start int, res *SimResult) {
 				emit("no hits (wait)", pair, start, res, nil)
 			}},
+		{label: "mgh3, full plan (shipped)", apply: fullPlan,
+			plan: FullAnchoredPlan,
+			observe: func(pair seasonPair, start int, res *SimResult) {
+				sch := FullAnchoredPlan(pair.Cur, start)
+				emit("mgh3, full plan (shipped)", pair, start, res,
+					[]int{sch.First.Wildcard, sch.Second.Wildcard})
+			}},
 	}
 	runPolicySweep(t, arms, starts)
+}
+
+// holdingNet is the package's realised net over its actual holding window —
+// the user's criterion, +4 net before the in-players are sold or a wildcard
+// replaces the squad. Per leg, each gameweek from the transfer to the earlier
+// of the in-player's sale, a wildcard, or the season's end accrues the
+// incoming player's recorded squad contribution (Week.Contrib — autosubs,
+// armband and bench boost inside it, a free-hit week contributing nothing)
+// minus the sold player's raw points. The out-side is the Judge convention —
+// the counterfactual eleven is unknowable — and a week whose sold player was
+// the previous week's captain is flagged, because raw points understate what
+// the squad gave up there. weeks is the longest leg's window; allPlayed is
+// whether every sold leg appeared over its window (the forced-vs-preference
+// split).
+func holdingNet(s *Season, res *SimResult, start int, vs []Verdict, wcWeeks []int) (net, weeks int, allPlayed, outWasCaptain bool) {
+	allPlayed = true
+	// week returns the recorded week for a gameweek. Weeks holds one entry per
+	// gameweek from the entry point onward — `for gw := start` — so a gameweek
+	// is indexed gw-start, and the GW field is the tripwire if that ever
+	// changes.
+	week := func(gw int) (Week, bool) {
+		i := gw - start
+		if i < 0 || i >= len(res.Weeks) {
+			return Week{}, false
+		}
+		w := res.Weeks[i]
+		if w.GW != gw {
+			panic(fmt.Sprintf("holdingNet: weeks misaligned at gw %d (found %d, start %d)", gw, w.GW, start))
+		}
+		return w, true
+	}
+	for _, v := range vs {
+		end := 39 // exclusive: the first gameweek the in-player was no longer held
+		for _, m := range res.Moves {
+			if m.GW > v.GW && m.GW < end && m.OutID == v.InID {
+				end = m.GW
+			}
+		}
+		for _, wc := range wcWeeks {
+			if wc > v.GW && wc < end {
+				end = wc
+			}
+		}
+		leg := 0
+		for gw := v.GW; gw < end && gw <= 38; gw++ {
+			w, ok := week(gw)
+			if !ok {
+				continue
+			}
+			if w.FreeHit {
+				// The permanent squad sat that week out on both sides — the
+				// borrowed fifteen was what scored.
+				continue
+			}
+			leg += w.Contrib[v.InID]
+			if p := s.Players[v.OutID]; p != nil {
+				leg -= p.GWs[gw].Points
+			}
+		}
+		net += leg
+		if end-v.GW > weeks {
+			weeks = end - v.GW
+		}
+		allPlayed = allPlayed && minutesOver(s, v.OutID, v.GW, end-v.GW) > 0
+		if v.GW > start {
+			if w, ok := week(v.GW - 1); ok {
+				if p := s.Players[v.OutID]; p != nil {
+					outWasCaptain = outWasCaptain || w.Captain == p.WebName
+				}
+			}
+		}
+	}
+	return
 }
 
 // joinIDs joins a package's in-player ids with a pipe, so the wait-match in R
