@@ -405,9 +405,14 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	// Refused BEFORE the mutex, and that ordering is the point.
+	//
+	// The lock serialises every render on this server, and a render is seconds. Checking
+	// admission after taking it means a request that is going to be refused still queues
+	// behind one — so the cheapest request an attacker can send costs a mutex acquisition,
+	// and a flood of them is a denial of service made entirely of 403s. Neither check reads
+	// server state that the lock protects: one is a constant-time compare against a token
+	// fixed at startup, the other reads request headers.
 	if s.tokenOK(r.Header.Get("X-Armband-Token")) {
 		// The token is the strongest claim available and settles it.
 	} else if s.sessionWriteNeedsToken() {
@@ -417,6 +422,9 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cross-origin writes are refused", http.StatusForbidden)
 		return
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	var in session
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {

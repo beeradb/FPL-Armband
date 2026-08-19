@@ -20,14 +20,21 @@ import (
 // in about a minute and a half.
 //
 // The first version of this sampled five seeds and quoted the mean. Review enumerated the
-// population and refuted it: the true mean is 0.53 and the five seeds gave 0.88, which sits
-// above the p95 of the five-seed sampling distribution. Worse, those five draws produced
+// population and refuted it: the true mean is 0.526 and the five seeds gave 0.88 — and the
+// worst was 1.448 against the 1.02 they reported, so five draws over-stated the typical cost
+// and under-stated the ceiling at once. Worse, those five draws produced
 // only TWO distinct gap values, because the constrained squad snaps to a small set of
 // alternatives — so the effective sample was about two, not five. "Several seeds, because
 // one is an anecdote" is answered by enumeration, not by four more anecdotes.
 //
-// The lesson generalises past this test: when a mechanism's sample space is small enough to
-// count, no figure about it should ever carry a sampling error.
+// The lesson generalises past this test, with two clauses that are load-bearing: when a
+// mechanism's sample space is small enough to ENUMERATE, and each draw's outcome is
+// DETERMINISTIC given the draw, no figure about it should carry a sampling error OVER THE
+// DRAW. Determinism holds here — `Optimize` is pinned by TestSeedOrderIsDeterministic,
+// TestBandAssignmentIsDeterministic and TestBandTiesBreakTowardTheLowerClubID — and without
+// it enumerating the draw space would remove nothing. And "over the draw" is the whole of
+// what enumeration buys: the capture, the gameweek and the horizon are untouched, which is
+// what the next section is about.
 //
 // # What the census does NOT establish
 //
@@ -36,12 +43,20 @@ import (
 // multiplied by 38 — that convention belongs to a paired realised-points difference per
 // gameweek played in a replay cell, and none of the three things it assumes hold here.
 //
-// The sign of the REALISED cost is not established either. The unconstrained optimum is an
+// The sign of the REALISED cost is not established either. The unconstrained answer is an
 // argmax over players, so by this record's own winner's-curse reasoning it reaches for
-// whichever player the model most over-rates; excluding two of its members and
-// re-optimising is a mild de-biasing move. That is a hypothesis, not a finding — but it
-// means the projected gap is more likely an over-statement of the realised cost than an
-// under-statement.
+// whichever player the model most over-rates; excluding two of its members and re-optimising
+// is a mild de-biasing move.
+//
+// "Mild" is doing real work there, in two ways. The draw never touches the CAPTAIN —
+// buildVariedSquad filters him out along with the goalkeepers — and he carries the largest
+// selection inflation in the fifteen, because his score enters ExpectedPoints twice. So the
+// de-biasing cannot reach the biggest source of the curse. And the constrained squad is
+// itself an argmax, over a pool smaller by two of several hundred, so the reduction is
+// second-order rather than first.
+//
+// That is a hypothesis, not a finding, and it bears on the SIZE of the gap. Whether the bias
+// is large enough to reverse the sign is not established, and nothing here establishes it.
 
 // varietyCensus is a full enumeration of the exclusion pairs, computed once per package run.
 //
