@@ -342,7 +342,8 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
 - **Never let the pair search choose greedily, and charge per move rather than per week.** The
   ranking proxy may filter but must never decide.
 - **A free transfer is not a costless transfer, and four points is the intuitive price and it is
-  wrong.** → **transfer-policy**. Pinned by
+  wrong.** ⚠️ 0.0 is not a rung — the recorded four-against-nothing comparison is still owed.
+  → **transfer-policy**. Pinned by
   `TestTheFreeTransferChargeIsInertOnSinglesBelowTheKink` and
   `TestTheSinglesProposalCarriesNoAlternativeOrStrictFlag`.
 - **FPL banks 5 free transfers, not 2** — `backtest.BankLimitFor` keeps replays on the rule
@@ -354,12 +355,16 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
 - **2019-20's rounds are labelled 1-29 then 39-47.** `renumberGW` maps them;
   `hasRestartGameweeks` refuses a stale cache.
 - **A fixture window must be anchored on the calendar's next GAMEWEEK, never on the club's next
-  FIXTURE.** → **fixtures-and-difficulty**. Five pinning tests, incl.
+  FIXTURE.** → **fixtures-and-difficulty**. Five pinning tests:
+  `TestFreeHitNeverFieldsABlankingClub`, `TestWeekViewsPriceEachWeeksOwnFixtures`,
+  `TestAWildcardIsNotBuiltOnOneWeeksBlanks`, `TestATotalBlankIsWorthNothingToTheTransferSearch`,
   `TestFixtureLoadMatchesTheArchiveOnOneSeason`. ⚠️ **The sharp trap**: a rebuilt wildcard must
   NOT be built on the horizon-1 week engine — a wildcard planned for a heavy blank returns a
   free-hit squad that is then *kept*.
 - **An anchored-chip arm silently lost every 2025-26 cell** — a plan went into the FIRST set
-  wholesale; repaired by `backtest.SplitChipSets`. → **chips**
+  wholesale; repaired by `backtest.SplitChipSets`. ⚠️ No anchored-chip cells are banked
+  anywhere — nothing that used one can be re-derived, only re-measured; the census was 0 of 24
+  refused. → **chips**
 - **`Optimize` is not run-to-run deterministic unless it is made so.**
   `TestSeedOrderIsDeterministic`, `TestBandAssignmentIsDeterministic`,
   `TestBandTiesBreakTowardTheLowerClubID`. ⚠️ Every pre-fix `BandStrength` figure carries that
@@ -382,7 +387,8 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **Neither the clean-sheet factor `f` nor the defensive fixture ladder separates from 1 on the
   stratum that carries the verdict, and the ladder is the higher of the two point estimates rather
   than the established location of the excess.** ⚠️ **No pooled figure may be quoted, except in
-  this sentence, which disowns it.** → **scoring-model**
+  this sentence, which disowns it.** ⚠️ The leak's SIZE is unmeasurable and this does NOT retract
+  the ladder's 1.5688. → **scoring-model**
 - **Do not remove the bonus term for being circular.** → **scoring-model**
 - **Do not penalise a squad for holding two players from the same club, and do not build a
   "talisman" rule.** → **scoring-model**
@@ -393,7 +399,8 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **`min_gain` ships at 0.4 and is inert at or below it.** → **transfer-policy**,
   **constants-and-sweeps**
 - **The minutes floor's "argmax protection" does not reproduce, and re-measured at −40 the
-  direction reverses.** → **constants-and-sweeps**
+  direction reverses** — unmeasurable rather than unresolved; quote no p, no interval, no
+  threshold. → **constants-and-sweeps**
 - **No projection constant re-tuned at 24 cells is "confirmed".** → **constants-and-sweeps**
 - **Twelve cells could not resolve 37 points a season.** → **constants-and-sweeps**
 - **Do not unify the transfer searches.** → **transfer-policy**
@@ -415,24 +422,27 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **Accepting every offered swap costs 82.4 a season on realised `POLICY`** and gains 40.9 gross
   of the transfer charge. → **transfer-policy**
 - **An antisymmetric pair of criteria cancels the common level but not the accept-mass
-  asymmetry.** → **transfer-policy**
+  asymmetry.** → **xppilot**
 - **The gate oracles are a veto on one candidate, not a selector, and they replace the value bar
-  rather than adding to it.** → **transfer-policy**
+  rather than adding to it.** → **xppilot**
 
 ## What has been measured
 
 **A named list — titles and pointers.** The evidence and the numbers live in the vault notes the
 bold names point at; a verdict here cannot be checked from this checkout (never write
-"I verified" when you mean "I re-ran"), and re-measuring is still how a verdict falls. Absence
+"I verified" when you mean "I re-ran"), and re-measuring is still how a verdict falls — when it
+happens, the new number sits *beside* the recorded one, so say which you have. Absence
 from this list is weak evidence of absence — nothing checks it stays complete.
 
 ### What a player is worth: the scoring terms
 
 - **P(appears) ships as one implementation.** → **scoring-model**
-- **A club's expected goals sum to the club on average but not club by club.** → **scoring-model**
+- **A club's expected goals sum to the club on average but not club by club.** The short-clock
+  `FPL_TEAM_FORM` is open and unresolved, built and ships off. → **scoring-model**
 - **The 2026/27 bonus rules are measurable on old football.** → **scoring-model**
-- **The pre-2024-25 bonus-points schedule is decoded, not read off an announcement.** →
-  **scoring-model**
+- **The pre-2024-25 bonus-points schedule is decoded, not read off an announcement.** ⚠️ Do not
+  check "the archive's only goalkeeper goal" with a `position == 'GK'` filter — join
+  `players_raw.csv`'s `element_type` instead. → **scoring-model**
 - **The defcon term is about half redundant for defenders — quote 50%.** → **scoring-model**
 - **Four findings that change nothing shipped.** → **scoring-model**
 - **Fixture multipliers are applied per fixture, not averaged.** → **scoring-model**
@@ -443,7 +453,8 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **Real team news is measured and too small, rather than unmeasurable.** →
   **harness-and-inference**
 - **Perfect minutes is the largest information bound on the *scoring* side — two capabilities,
-  none of it resolves.** → **harness-and-inference**
+  none of it resolves.** ⚠️ Quote ≈93 with its data state — it moved with the starts harvest. →
+  **harness-and-inference**
 
 ### Recency and priors
 
@@ -462,7 +473,8 @@ from this list is weak evidence of absence — nothing checks it stays complete.
   the fixture family that pays.** → **fixtures-and-difficulty**
 - **Fixtures matter hugely per match and barely per horizon.** → **fixtures-and-difficulty**
 - **The model is already position-dependent by construction.** → **fixtures-and-difficulty**
-- **Neither fixture ladder has a shape.** → **fixtures-and-difficulty**
+- **Neither fixture ladder has a shape** — 3 cells, absolute totals, pre-defcon-visibility,
+  *unmeasured on the current grid* rather than a measured null. → **fixtures-and-difficulty**
 - **The model is not timing fixtures in practice, and there is little to time.** →
   **fixtures-and-difficulty**
 - **`fixture_weight` is clamped to [0,1]** — setting 1.4 is silently identical to 1.0.
@@ -476,11 +488,13 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **Expected goals conceded is reconstructed for the four seasons that carry none.** →
   **archive-and-data**
 - **`FPL_NO_XG_REPAIR=1` also disables the xGC reconstruction.** → **archive-and-data**
-- **FPL revises team strength mid-season, in waves, and the revisions are outcome-driven.** →
-  **archive-and-data**
+- **FPL revises team strength mid-season, in waves, and the revisions are outcome-driven.** ⚠️
+  Mechanism, not measurement — this does NOT retract b2 = 1.5688, and "0 of 380 difficulties
+  changed" licenses nothing. → **archive-and-data**
 - **The payloads carry a great deal the code ignores.** → **archive-and-data**
 - **The xG harvest left no coverage hole on goals, and left the assist channel about twice as
-  exposed as a natively-fed season.** → **archive-and-data**
+  exposed as a natively-fed season.** ⚠️ "Goals: closed" rests on the ungated population and is
+  narrower than it reads; a naive `xg+xa > 0` gate would be wrong. → **archive-and-data**
 - **The exposed-return leak into the conversion fit is sized, and dropping those rows is
   refused.** → **scoring-model**
 - **The weekly capture yields nothing this season.** → **archive-and-data**
@@ -514,7 +528,9 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 ### Constants
 
 - **The flat prior ships at k=8.** → **constants-and-sweeps**
-- **`LeagueShrinkK` is split out from `BlendRateK` and ships at 8.** → **constants-and-sweeps**
+- **`LeagueShrinkK` is split out from `BlendRateK` and ships at 8** — the replay reading is
+  **unresolved, not a measured loss** (POLICY −0.843, t −1.94; HOLD a flat null). →
+  **constants-and-sweeps**
 - **`BandStrength` has banked cells and still does not resolve — and the arm that DECIDED it is
   still unrun.** → **constants-and-sweeps**
 - **The fixture mediator's canary is `band_strength` 2, and `band_ready_weeks` is not a canary

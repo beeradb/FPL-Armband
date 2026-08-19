@@ -89,9 +89,9 @@ measurement depends on.**
 
 The archive has known defects, and they are documented rather than patched over — a season
 with two thirds of its expected goals missing, a `starts` column that is zero for a season
-and a half, a gameweek that never happened. The season-by-season inventory is part of the
-research record held outside this repository; before trusting a season you have not used
-before, check what [AGENTS.md](../AGENTS.md) says it can and cannot run.
+and a half, a gameweek that never happened. The season-by-season inventory is
+[What each season can and cannot run](#what-each-season-can-and-cannot-run) below; before
+trusting a season you have not used, check it.
 
 ## The two metrics
 
@@ -215,8 +215,9 @@ removes walks back in through the realised bonus column for an attacker
 exactly where it is used most — recorded rather than fixed, because modelling expected bonus
 is its own closed line. Second, **tuning a constant on xPoints is a closed line** — the
 columns are instrumentation only. Further caveats on the conversion scale — it ships on
-mechanism, is fitted in sample, and recentres cross-season levels — live in
-[AGENTS.md](../AGENTS.md) under "What has been measured".
+mechanism, is fitted in sample, and recentres cross-season levels — are carried by the
+research record outside this repository; the verdict is named, title and pointer, in
+[AGENTS.md](../AGENTS.md) under "Closed lines".
 
 One mechanical note for anyone reading cells files: `runPolicySweep` populates the xPoints
 pair on every cell, but the variance decomposition builds its own row and leaves the pair
@@ -871,11 +872,12 @@ intervention could not run.**
 | all archived seasons | the full five-change 2026/27 bonus figure — no season carries both the modern saves baseline and a `tackled` column | the individual channels **are** measurable; the joint CBI-plus-tackled arm is measurable on 2016-19 and unrun. The four shipped seasons span three bonus regimes, so `Bonus90`'s (the blended per-90 bonus rate a player is scored on) *level* is not comparable across them, though paired comparisons are |
 
 The earliest season that is recognisably the same game is **2013-14** — the introduction of the
-Bonus Points System. → **archive-and-data**
+Bonus Points System. (The arrow the source record carries is dropped here — this file names no
+research-store note.)
 
 ## Where to go next
 
 [`stats/README.md`](../stats/README.md) holds the inference side: the CSV schema, the R
 scripts that read it, and the snapshot recipe. The evidence behind the findings this page
 alludes to is not held in this repository; the verdict of each is named — title and pointer —
-in [AGENTS.md](../AGENTS.md), under "What has been measured".
+in [AGENTS.md](../AGENTS.md), under "What has been measured" and "Closed lines".
