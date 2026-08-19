@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"runtime/pprof"
 	"sort"
 	"time"
 
@@ -48,6 +50,32 @@ type squadPageBuild struct {
 func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	e *analysis.Engine, weeks int, wantPage bool) (squadPageBuild, error) {
 
+	// Temporary stage timing (FPL_SERVE_TIMINGS=1) for the snappy-page work.
+	// Additive printing only; removed once the profile has named the targets.
+	last := time.Now()
+	mark := func(s string) {
+		if os.Getenv("FPL_SERVE_TIMINGS") == "" {
+			return
+		}
+		now := time.Now()
+		fmt.Fprintf(os.Stderr, "TIMING %-14s %6.0fms\n", s, float64(now.Sub(last).Milliseconds()))
+		last = now
+	}
+
+	if pf := os.Getenv("FPL_CPU_PROFILE"); pf != "" {
+		f, err := os.Create(pf)
+		if err != nil {
+			return squadPageBuild{}, err
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return squadPageBuild{}, err
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			_ = f.Close()
+		}()
+	}
+
 	budget, source, err := e.AssemblyBudget()
 	if err != nil {
 		return squadPageBuild{}, err
@@ -73,6 +101,7 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	if err != nil {
 		return squadPageBuild{}, err
 	}
+	mark("optimize")
 
 	// Say what it was allowed to spend, not merely what it spent. A £102.0m
 	// squad is a bug at the opening allowance and correct on a wildcard budget,
@@ -95,15 +124,18 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 		span = e.Weights.Horizon
 	}
 	views := e.WeekViews(sq.Players, span)
+	mark("weekviews")
 	// Projected transfers for the squad you actually own, when there is one.
 	// The reason there is not is carried through and printed, because an
 	// absent section cannot distinguish "no squad yet" from "no move is
 	// worth making", and the second is a recommendation.
 	plan, why := bestPlanForOwnedSquad(ctx, cfg, client, e)
+	mark("transfer plan")
 
 	// The two views behind the eleven. Built here because every value in them
 	// comes from config or the engine, and the renderer may reach for neither.
 	bound, live, lapsed := pageOverrides(cfg, e, sq.Players, time.Now())
+	mark("overrides")
 	var excluded []present.Override
 	for _, o := range live {
 		if o.Kind == "exclude" {
@@ -127,6 +159,7 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 		Codes:              elementCodes(e),
 		Teams:              clubShortNames(e),
 	}
+	mark("page assemble")
 	return squadPageBuild{Page: page, Squad: sq, BudgetLine: budgetLine, Source: source}, nil
 }
 

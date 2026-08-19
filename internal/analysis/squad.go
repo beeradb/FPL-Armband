@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"time"
 )
 
 // The optimiser's sorts run on PlayerMetrics, which is 592 bytes, and they run
@@ -39,6 +40,90 @@ func byScoreDesc(a, b PlayerMetrics) int {
 		return 1
 	}
 	return 0
+}
+
+// permuteByKeys stably orders vals by the parallel key slices, exactly as the
+// old stable value sort with the same comparator did: keyMust[i] true sorts
+// first, within equal keyMust a larger keyScore sorts first, and full ties
+// keep input order — the stable index sort reproduces that, because tied
+// indices stay in input order and ties are all the stability ever carried.
+// The values are then permuted in place by cycle-walking, each moved once.
+// perm is grow-only scratch, rebuilt on every call.
+//
+// # Why sort indices at all
+//
+// The objective's sorts ran over PlayerMetrics, which is 592 bytes, with
+// comparators doing map lookups per comparison; a CPU profile of the
+// optimiser put the sort core at ~37% of the run flat. Indices are eight
+// bytes, the comparator reads two parallel scalar arrays, and the final
+// permutation moves each value exactly once — the same total order, the same
+// stable ties, none of the memmove churn. keyMust may be nil for a pure
+// score sort.
+func permuteByKeys[T any](vals []T, keyMust []bool, keyScore []float64, perm []int) []int {
+	n := len(vals)
+	perm = perm[:0]
+	for i := 0; i < n; i++ {
+		perm = append(perm, i)
+	}
+	slices.SortStableFunc(perm, func(i, j int) int {
+		if keyMust != nil {
+			if keyMust[i] != keyMust[j] {
+				if keyMust[i] {
+					return -1
+				}
+				return 1
+			}
+		}
+		if keyScore[i] > keyScore[j] {
+			return -1
+		}
+		if keyScore[j] > keyScore[i] {
+			return 1
+		}
+		return 0
+	})
+	// Apply in place: vals'[k] = vals[perm[k]], walking each cycle once. -1
+	// marks a visited slot; the permutation is rebuilt from scratch next call.
+	for start := 0; start < n; start++ {
+		if perm[start] < 0 {
+			continue
+		}
+		k, cur := start, vals[start]
+		for {
+			next := perm[k]
+			if next == start {
+				vals[k] = cur
+				perm[k] = -1
+				break
+			}
+			vals[k] = vals[next]
+			perm[k] = -1
+			k = next
+		}
+	}
+	return perm
+}
+
+// foldPair processes a prefix record's (captain, vice) pair through the same
+// sequential update, in that order. A sequence's record folds into any prior
+// state exactly as replaying the sequence would: each update step is a pure
+// function of (captain, vice, x) — captain becomes max(captain, x), vice
+// becomes max(vice, min(old captain, x)) — and the record is the sequential
+// fold from zero. The equivalence is pinned by
+// TestThePairFoldMatchesSequentialPlay over hundreds of thousands of tied
+// random sequences.
+func foldPair(c, v, p, q float64) (float64, float64) {
+	if p > c {
+		c, v = p, c
+	} else if p > v {
+		v = p
+	}
+	if q > c {
+		c, v = q, c
+	} else if q > v {
+		v = q
+	}
+	return c, v
 }
 
 // Squad selection constraints, matching FPL's rules.
@@ -546,7 +631,19 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 		}
 	}
 
+	timing := os.Getenv("FPL_SERVE_TIMINGS") != ""
+	lastT := time.Now()
+	markT := func(l string) {
+		if !timing {
+			return
+		}
+		now := time.Now()
+		fmt.Fprintf(os.Stderr, "TIMING   %-16s %6.0fms\n", l, float64(now.Sub(lastT).Milliseconds()))
+		lastT = now
+	}
+
 	current, bestScore, spend := e.polish(seedSquad, pool, budget, benchWeight, boost, locked, mustStart, true, changes)
+	markT("greedy polish")
 
 	// A local search explores from wherever it starts, and one greedy start is
 	// not enough — funding a premium by restructuring a different position is
@@ -580,6 +677,7 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	seeds := [][]PlayerMetrics{}
 	if changes.unlimited() {
 		seeds = e.dpSeeds(pool, budget, lockedPlayers)
+		markT("dp seeds")
 	}
 	for _, seed := range seeds {
 		seed = repairClubs(seed, pool, budget)
@@ -592,6 +690,7 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	}
 	if bestSeed != nil {
 		cand, score, cost := e.polish(bestSeed, pool, budget, benchWeight, boost, locked, mustStart, true, changes)
+		markT("seed polish")
 		if score > bestScore+1e-9 && squadIsLegal(cand, budget) && holdsLocks(cand, locked) {
 			current, bestScore, spend = cand, score, cost
 		}
@@ -974,6 +1073,26 @@ type xiScratch struct {
 	// for an eleven; slotProbabilities falls back to allocating if ever handed
 	// more, so the bound is an optimisation rather than an assumption.
 	dist, next [16]float64
+	// sortPerm, sortMust and sortScore back the index sorts below: the
+	// objective's four sorts compare keys that are fixed during a search
+	// (must-start flags and scores), so each sort runs over an index
+	// permutation and the values are permuted once. bench* serves the bench
+	// sort in materialise, plain* the two pure byScoreDesc sorts.
+	sortPerm   [4][]int
+	sortMust   [4][]bool
+	sortScore  [4][]float64
+	benchPerm  []int
+	benchMust  []bool
+	benchScore []float64
+	plainPerm  []int
+	plainScore []float64
+	// prefSum, prefCap and prefVice are bestFormation's per-position prefix
+	// records: entry k holds the sum, captain and vice of the first k players
+	// of that position, so each formation's total is a constant-time fold
+	// instead of an eleven-player replay.
+	prefSum  [4][]float64
+	prefCap  [4][]float64
+	prefVice [4][]float64
 }
 
 // posIdx is a position's fixed slot in the scratch arrays, replacing a string
@@ -1031,6 +1150,8 @@ func xiValueOfParts(parts [4][]PlayerMetrics) float64 {
 func (sc *xiScratch) split(squad []PlayerMetrics, mustStart map[int]bool) (forced [4]int) {
 	for i := range sc.byPos {
 		sc.byPos[i] = sc.byPos[i][:0]
+		sc.sortMust[i] = sc.sortMust[i][:0]
+		sc.sortScore[i] = sc.sortScore[i][:0]
 	}
 	for _, p := range squad {
 		i := posIdx(p.Position)
@@ -1038,20 +1159,14 @@ func (sc *xiScratch) split(squad []PlayerMetrics, mustStart map[int]bool) (force
 			continue
 		}
 		sc.byPos[i] = append(sc.byPos[i], p)
+		sc.sortMust[i] = append(sc.sortMust[i], mustStart[p.ID])
+		sc.sortScore[i] = append(sc.sortScore[i], p.Score)
 		if mustStart[p.ID] {
 			forced[i]++
 		}
 	}
 	for i := range sc.byPos {
-		slices.SortStableFunc(sc.byPos[i], func(a, b PlayerMetrics) int {
-			if mustStart[a.ID] != mustStart[b.ID] {
-				if mustStart[a.ID] {
-					return -1
-				}
-				return 1
-			}
-			return byScoreDesc(a, b)
-		})
+		sc.sortPerm[i] = permuteByKeys(sc.byPos[i], sc.sortMust[i], sc.sortScore[i], sc.sortPerm[i])
 	}
 	return forced
 }
@@ -1071,21 +1186,61 @@ func (sc *xiScratch) bestFormation(forced [4]int) (bd, bm, bf int, best float64,
 	nGK, nDEF, nMID, nFWD := len(sc.byPos[0]), len(sc.byPos[1]), len(sc.byPos[2]), len(sc.byPos[3])
 
 	best = -1.0
+	if nGK < 1 {
+		return 0, 0, 0, best, false
+	}
+
+	// Prefix records per position: entry k is the sequential fold of the first
+	// k players — same additions in the same order, same strict captain/vice
+	// updates — so a formation's total folds the four positions' records
+	// instead of replaying its eleven players. The fold equivalence is pinned
+	// by TestThePairFoldMatchesSequentialPlay; the sums are bit-identical
+	// because addition order is preserved.
+	build := func(pos int) {
+		var sum, cap, vice float64
+		ps := sc.byPos[pos]
+		sc.prefSum[pos] = sc.prefSum[pos][:0]
+		sc.prefCap[pos] = sc.prefCap[pos][:0]
+		sc.prefVice[pos] = sc.prefVice[pos][:0]
+		sc.prefSum[pos] = append(sc.prefSum[pos], 0)
+		sc.prefCap[pos] = append(sc.prefCap[pos], 0)
+		sc.prefVice[pos] = append(sc.prefVice[pos], 0)
+		for _, p := range ps {
+			sum += p.Score
+			if p.Score > cap {
+				cap, vice = p.Score, cap
+			} else if p.Score > vice {
+				vice = p.Score
+			}
+			sc.prefSum[pos] = append(sc.prefSum[pos], sum)
+			sc.prefCap[pos] = append(sc.prefCap[pos], cap)
+			sc.prefVice[pos] = append(sc.prefVice[pos], vice)
+		}
+	}
+	for pos := 0; pos < 4; pos++ {
+		build(pos)
+	}
+
+	// The keeper is walked first and is constant across formations.
+	gkCap, gkVice := sc.prefCap[0][1], sc.prefVice[0][1]
+
 	for d := dMin; d <= dMax; d++ {
 		for m := mMin; m <= mMax; m++ {
 			for f := fMin; f <= fMax; f++ {
 				if 1+d+m+f != 11 {
 					continue
 				}
-				if nGK < 1 || nDEF < d || nMID < m || nFWD < f {
+				if nDEF < d || nMID < m || nFWD < f {
 					continue
 				}
 				if forced[0] > 1 || forced[1] > d || forced[2] > m || forced[3] > f {
 					continue
 				}
-				total := xiValueOfParts([4][]PlayerMetrics{
-					sc.byPos[0][:1], sc.byPos[1][:d], sc.byPos[2][:m], sc.byPos[3][:f],
-				})
+				cap, vice := foldPair(gkCap, gkVice, sc.prefCap[1][d], sc.prefVice[1][d])
+				cap, vice = foldPair(cap, vice, sc.prefCap[2][m], sc.prefVice[2][m])
+				cap, vice = foldPair(cap, vice, sc.prefCap[3][f], sc.prefVice[3][f])
+				sum := sc.prefSum[0][1] + sc.prefSum[1][d] + sc.prefSum[2][m] + sc.prefSum[3][f]
+				total := sum + cap + ViceCaptainWeight*vice
 				if total > best {
 					best, bd, bm, bf, ok = total, d, m, f, true
 				}
@@ -1124,16 +1279,18 @@ func (sc *xiScratch) materialise(squad []PlayerMetrics, d, m, f int, ok bool) {
 		}
 	}
 	// Bench order: reserve keeper last, outfield by descending score.
-	slices.SortStableFunc(sc.bench, func(a, b PlayerMetrics) int {
-		if (a.Position == "GKP") != (b.Position == "GKP") {
-			if b.Position == "GKP" {
-				return -1
-			}
-			return 1
-		}
-		return byScoreDesc(a, b)
-	})
-	slices.SortStableFunc(sc.pick, byScoreDesc)
+	sc.benchMust = sc.benchMust[:0]
+	sc.benchScore = sc.benchScore[:0]
+	for _, p := range sc.bench {
+		sc.benchMust = append(sc.benchMust, p.Position != "GKP")
+		sc.benchScore = append(sc.benchScore, p.Score)
+	}
+	sc.benchPerm = permuteByKeys(sc.bench, sc.benchMust, sc.benchScore, sc.benchPerm)
+	sc.plainScore = sc.plainScore[:0]
+	for _, p := range sc.pick {
+		sc.plainScore = append(sc.plainScore, p.Score)
+	}
+	sc.plainPerm = permuteByKeys(sc.pick, nil, sc.plainScore, sc.plainPerm)
 }
 
 // objective is the hot path: the whole evaluation with nothing allocated once the
@@ -1273,7 +1430,11 @@ func (sc *xiScratch) benchValue(xi, bench []PlayerMetrics, benchWeight float64, 
 	}
 	// Best first: that is the order a manager sets, and the order FPL
 	// substitutes in.
-	slices.SortStableFunc(outfield, byScoreDesc)
+	sc.plainScore = sc.plainScore[:0]
+	for _, p := range outfield {
+		sc.plainScore = append(sc.plainScore, p.Score)
+	}
+	sc.plainPerm = permuteByKeys(outfield, nil, sc.plainScore, sc.plainPerm)
 	for i, p := range outfield {
 		w := slots[len(slots)-1]
 		if i < len(slots) {
