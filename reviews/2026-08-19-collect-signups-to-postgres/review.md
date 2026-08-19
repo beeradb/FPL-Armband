@@ -4,7 +4,8 @@
 merge of `origin/main` (`99ae9f2`) taken after the review and re-tested.
 
 **What it is.** `POST /gate` validated an email address, set a cookie, redirected, and threw
-the address away. It now records it. `internal/signup` is a one-method `Store` and a pgx
+the address away. It now records it. `internal/signup` is a two-method `Store` — record and
+release — and a pgx
 implementation; the landing page posts to an absolute `https://fplarmband.com/gate` so the
 copy served by a local `armband serve` captures into the same list; `/gate` answers 204
 rather than a 303 and refuses an unexpected `Origin`.
@@ -68,9 +69,18 @@ on a hostPath the deployment shares with the FPL archive, the proxy cache and Tr
 `acme.json`. Every distinct string is a fresh key, so nothing dedupes it. A filled disk there
 takes certificate renewal down with the list.
 
-Bounded at RFC 5321's 254 octets overall and 64 for the local part, in `Clean` **and** as a
-`CHECK` in the schema — the Google sign-in flow will reach `Add` through a second call site,
-and a bound enforced in one validator is one the next caller can forget.
+Bounded at RFC 5321's 254 octets overall and 64 for the local part, in `Clean` **and** as
+two `CHECK` constraints in the schema — the Google sign-in flow will reach `Add` through a
+second call site, and a bound enforced in one validator is one the next caller can forget.
+
+⚠️ **Corrected after a second documentation pass.** The first version of this record claimed
+both numbers were in the schema when only the 254 was — leaving the second call site bounded
+at 254 and silently not at 64, which is precisely the gap the constraint is justified by. The
+local-part `CHECK` was added rather than the claim softened, and
+`TestTheSchemaRefusesWhatCleanWouldHaveRefused` now calls `Add` directly with input `Clean`
+would never pass. Verified against a real Postgres 17, including that a legal 64-octet local
+part is still accepted — a constraint that only ever refuses would pass a test that only ever
+checks refusals.
 
 ### 4. `Clean` mangled a quoted local part while claiming to protect against exactly that — APPLIED
 
@@ -164,11 +174,19 @@ the backup bullet claims to cover, now stated as "noticed within 30 days".
   error rather than 405. Not on any reachable path.
 - **No NetworkPolicy, and `sslmode=disable`.** Single node, both pods on one box, connection
   never touches a network. The manifest already flags that this dies at a second node.
-- **`landing.html` still carries "✓ Check your inbox — invite is on the way."** The block is
-  hidden and only ever shown carrying a failure message, so the string is unreachable as
-  written — but it is a promise nothing sends. Deferred rather than declined: changing it
-  invalidates nine committed visual-regression goldens, and that is worth doing with the copy
-  decision rather than inside this change.
+- ~~**`landing.html` still carries "✓ Check your inbox — invite is on the way."** Deferred:
+  changing it invalidates nine committed visual-regression goldens.~~ **⚠️ WITHDRAWN and
+  APPLIED — the stated cost was false in three ways**, found by a second documentation pass.
+  There were never nine goldens for that page: there are 15 in total (the merge moved them
+  from `cmd/armband/testdata/golden/` to `internal/webui/testdata/golden/`), and only two
+  render the landing page. More to the point, **both `.done` blocks carry the `hidden`
+  attribute and `landing.js` overwrites their contents with `textContent` before unhiding
+  them**, so the static string renders zero pixels and a text-only change invalidates **zero**
+  goldens. With the cost gone there was nothing left to weigh against a page that now really
+  does collect addresses promising an invite nothing sends: the promise is removed from both
+  blocks, which the script fills on the only path that shows them. Recorded rather than
+  quietly amended, because the withdrawn reason is the instructive part — a deferral priced
+  from a number nobody had checked.
 
 ## Asserted, not verified
 

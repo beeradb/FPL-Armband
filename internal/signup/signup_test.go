@@ -221,6 +221,52 @@ func TestThePostgresStoreRecordsAndDeduplicates(t *testing.T) {
 	}
 }
 
+// TestTheSchemaRefusesWhatCleanWouldHaveRefused is the second call site's bound.
+//
+// Add is exported and the Google sign-in flow will reach it WITHOUT going through the
+// landing page's form, so every length rule that lives only in Clean is one that call site
+// can forget. This calls Add directly with input Clean would never pass, which is exactly
+// what a forgetful caller looks like, and requires the database to refuse it.
+//
+// Both numbers, because a schema carrying only the 254 would let a 4000-octet local part
+// through at the second call site while looking like it had a bound.
+func TestTheSchemaRefusesWhatCleanWouldHaveRefused(t *testing.T) {
+	dsn := os.Getenv("ARMBAND_SIGNUPS_TEST_DSN")
+	if dsn == "" {
+		t.Skip("ARMBAND_SIGNUPS_TEST_DSN is unset — the CHECK constraints that bound " +
+			"a caller which skips Clean are therefore UNTESTED in this run")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	store, err := Open(ctx, dsn)
+	if err != nil {
+		t.Fatalf("opening the store: %v", err)
+	}
+	defer store.Close()
+
+	for name, addr := range map[string]string{
+		"over the total bound":      strings.Repeat("a", 250) + "@x.invalid",
+		"over the local-part bound": strings.Repeat("a", 65) + "@x.invalid",
+	} {
+		err := store.Add(ctx, Record{Email: addr, Source: SourceForm})
+		if err == nil {
+			t.Errorf("%s: the database accepted a %d-octet address from a caller "+
+				"that skipped Clean", name, len(addr))
+		}
+	}
+	// And the bound is not so tight it refuses a legal address — a check that only
+	// ever refuses would pass even if the CHECK were `false`.
+	legal := strings.Repeat("a", 64) + "@x.invalid"
+	if err := store.Add(ctx, Record{Email: legal, Source: SourceForm}); err != nil {
+		t.Errorf("the database refused a legal 64-octet local part: %v", err)
+	}
+	if _, err := store.pool.Exec(ctx, "DELETE FROM signups WHERE email_key = $1",
+		Key(legal)); err != nil {
+		t.Fatalf("clearing the test row: %v", err)
+	}
+}
+
 // TestConcurrentStartupsAgreeOnTheSchema is the multi-pod test.
 //
 // Concurrent CREATE TABLE IF NOT EXISTS is NOT safe in Postgres: the existence check and

@@ -38,15 +38,23 @@ type Postgres struct {
 // email_key exists as a stored column rather than an expression index because ON CONFLICT
 // against an expression index is a spelling nobody remembers, and because the normalising
 // rule then lives in exactly one place: Key, in Go, tested there.
-// The CHECK is not belt and braces over Clean's bound — it is the bound that survives a
-// second call site. The Google sign-in flow will reach Add without going through the
+// The CHECKs are not belt and braces over Clean's bounds — they are the bounds that survive
+// a second call site. The Google sign-in flow will reach Add without going through the
 // landing page's form, and a length rule enforced only in one validator is one the next
 // caller can forget. This is the row that cannot be written, whoever asks.
+//
+// BOTH of RFC 5321's numbers are here, 254 overall and 64 for the local part, because a
+// schema carrying only the first would bound that second call site at 254 and silently not
+// at 64 — which is the half a validator is most likely to be the only holder of. The local
+// part is taken off email_key rather than email: they have the same length, and email_key
+// is the column with the index on it.
 const schema = `
 CREATE TABLE IF NOT EXISTS signups (
     id           bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     email        text        NOT NULL CHECK (length(email) <= 254),
-    email_key    text        NOT NULL UNIQUE CHECK (length(email_key) <= 254),
+    email_key    text        NOT NULL UNIQUE
+                             CHECK (length(email_key) <= 254)
+                             CHECK (length(split_part(email_key, '@', 1)) <= 64),
     source       text        NOT NULL CHECK (length(source) <= 32),
     verified     boolean     NOT NULL DEFAULT false,
     created_at   timestamptz NOT NULL DEFAULT now(),

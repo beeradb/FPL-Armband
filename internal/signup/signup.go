@@ -5,8 +5,8 @@
 // The gate handler's job is to decide whether a submission is well formed and what to
 // answer. Where the address goes is a separate concern with a separate lifetime: it
 // started as "nowhere", it is Postgres now, and the Google sign-in flow will write to it
-// from a second call site. A one-method interface is what keeps the handler from learning
-// any of that.
+// from a second call site. A two-method interface — one to record, one to release — is what
+// keeps the handler from learning any of that.
 //
 // # What is deliberately NOT here
 //
@@ -119,9 +119,9 @@ func Clean(raw string) (string, error) {
 }
 
 // The RFC 5321 bounds, in octets. They are here rather than inline because the schema
-// carries the same numbers as a CHECK constraint — the Google sign-in flow will reach the
-// store through a second call site, and a bound enforced only in this function is a bound
-// that call site can forget.
+// carries both of the same numbers as CHECK constraints — the Google sign-in flow will
+// reach the store through a second call site, and a bound enforced only in this function is
+// a bound that call site can forget.
 const (
 	maxAddress   = 254
 	maxLocalPart = 64
