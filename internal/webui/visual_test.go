@@ -105,6 +105,13 @@ var shots = []shot{
 	{"edges-pitch-mobile", "edges", "/app#pitch", mobile(2000)},
 	{"edges-players-desktop", "edges", "/app#players", desktop(1200)},
 	{"edges-overrides-desktop", "edges", "/app#overrides", desktop(1200)},
+
+	// The replacement picker, reached by its deep link. It is a panel that otherwise only
+	// exists after a tap, and the states worth seeing are the ones a screenshot can hold
+	// still: the default position-and-budget view, and the same panel at 390px where the
+	// sheet becomes a bottom sheet and the staged bar has to stay reachable.
+	{"picker-desktop", "gameweek-one", "/app#replace-542", desktop(1500)},
+	{"picker-mobile", "gameweek-one", "/app#replace-542", mobile(1700)},
 }
 
 func goldenDir() string { return filepath.Join("testdata", "golden") }

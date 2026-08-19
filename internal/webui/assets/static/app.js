@@ -878,6 +878,7 @@ function openSheet(id){
      <div class="sheetacts">
        ${inSquad?`
          <button class="btn primary" data-sact="swap">${onPitch?'Swap out of the XI':'Swap into the XI'}</button>
+         <button class="btn" data-sact="replace">Replace him…</button>
          <button class="btn" data-sact="cap">Make captain</button>
          <button class="btn" data-sact="vc">Make vice</button>
          <button class="btn ghost" data-sact="lock">${S.locks.has(id)?'Unlock':'Lock in'}</button>
@@ -910,6 +911,7 @@ function openSheet(id){
       return;
     }
     if(a==='swap'){S.swapFrom=id;closeSheet();setSwapbar();return;}
+    if(a==='replace'){openPicker(id);return;}
     if(a==='buy'){closeSheet();return;}
     closeSheet();renderAll();
   });
@@ -1254,7 +1256,10 @@ function boot(){
       hydrate(st);
       renderAll();
       /* Honour a panel named in the URL, so a reload lands where the reader was. */
-      if(location.hash) setView(location.hash.slice(1), false);
+      const hash=location.hash.slice(1);
+      const replace=/^replace-(\d+)$/.exec(hash);
+      if(replace){ setView('pitch', false); openPicker(+replace[1]); }
+      else if(hash){ setView(hash, false); }
     })
     .catch(err=>{
       const el=document.getElementById('view-pitch');
@@ -1281,3 +1286,229 @@ if(optimiseBtn) optimiseBtn.onclick=()=>save(pending=>{
 });
 
 boot();
+
+
+/* ============================================================
+   THE REPLACEMENT PICKER
+   ============================================================
+
+   Replacing is not swapping, and the two verbs are deliberately different words for
+   deliberately different acts. SWAP rearranges the fifteen you own and keeps its
+   pitch-to-pitch flow. REPLACE is a transfer -- sell one man, buy from the market -- and its
+   targets are not on screen, so it opens the sheet, the same surface the captain picker uses
+   for "pick one from a ranked list".
+
+   ⚠️ Position is a RULE here, not a filter. An FPL squad is always 2 GKP, 5 DEF, 5 MID and
+   3 FWD, so a single transfer is always like-for-like: a defender cannot replace a
+   midfielder in one move, and a panel offering it would be offering an illegal transfer.
+   The position control is kept, but widening it opens a BROWSE -- price and projection only,
+   with the delta and the gate dot suppressed, because they would price a move that cannot be
+   made -- and a tap on one of those rows is refused with the rule on screen.
+
+   Everything interpolated below goes through esc(). The design prototype had no escaping,
+   because its data was invented; this reads real names and FPL's own injury prose. */
+
+let R={out:null,pos:null,within:true,sel:null};
+
+/* The money. The sale funds the purchase, so the budget is what he raises plus the bank.
+ *
+ * ⚠️ The sale price is his LISTED price. FPL sells at the purchase price plus half of any
+ * rise since, which the contract does not carry -- so for a squad the reader has just built
+ * these agree exactly, and for a squad carried through price changes this is optimistic by
+ * up to half the rise. Stated rather than hidden: the header says "sells for" and it is the
+ * one number here the model has not checked. */
+const sellPriceOf=p=>p.pr;
+const pickerBudget=()=>{const o=byId(R.out);return o?sellPriceOf(o)+bankOf():bankOf();};
+const affordGap=c=>+(pickerBudget()-c.pr).toFixed(1);
+
+/* The club rule: never a fourth from one club. Counted from the fifteen with the outgoing
+   man removed, because he is the one leaving. */
+function overClub(c){
+  const o=byId(R.out);
+  let n=0;
+  for(const p of P){ if(p.id!==R.out && p.club===c.club) n++; }
+  void o;
+  return n>=3;
+}
+
+/* Whether a delta clears the gate, compared at the precision the row PRINTS.
+ *
+ * A raw float comparison makes a row displaying "+0.40" count as below a +0.40 gate, which
+ * is the page contradicting itself on one line. Found by the designer in the prototype. */
+function clearsGate(d){ return +d.toFixed(2) >= +gateOf().toFixed(2); }
+
+function pickerCandidates(){
+  const o=byId(R.out);
+  if(!o) return [];
+  const own=new Set(P.map(p=>p.id));
+  return POOL.filter(c=>c.pos===R.pos && !own.has(c.id) && !S.blocks.has(c.id));
+}
+
+/* The picker is addressable: /app#replace-<id>.
+ *
+ * Not scaffolding. The panel is where a transfer is decided, so it is the thing a reader
+ * wants to come back to -- a reload keeps it open, and a link to it is a link to the
+ * decision rather than to the page it was taken on. It is also what lets the layout suite
+ * screenshot a panel that otherwise only exists after a tap. */
+function openPicker(id){
+  const o=byId(id);
+  if(!o) return;
+  R={out:id,pos:o.pos,within:true,sel:null};
+  renderPicker();
+  document.getElementById('scrim').classList.add('open');
+  if(location.hash!=='#replace-'+id) history.replaceState(null,'','#replace-'+id);
+}
+
+function renderPicker(){
+  const o=byId(R.out);
+  if(!o) return;
+  const browse=R.pos!==o.pos;
+  const all=pickerCandidates();
+  let list=all.slice().sort((a,b)=>b.xp-a.xp);
+  if(R.within&&!browse) list=list.filter(c=>affordGap(c)>=0);
+
+  const B=pickerBudget();
+  /* Split rather than nested. "N of M clear the gate" counts the ones the reader can
+     actually buy; "K more clear it above your budget" counts the rest. Counting ALL
+     clearers in the first figure and the unaffordable ones again in the second says
+     "1 clear the gate · 1 more above your budget" when there is exactly one, which reads
+     as two and is the panel contradicting itself on one line. */
+  const clears=all.filter(c=>clearsGate(c.xp-o.xp));
+  const clearing=clears.filter(c=>affordGap(c)>=0).length;
+  const clearingAbove=clears.length-clearing;
+  const blocked=POOL.filter(c=>c.pos===R.pos&&S.blocks.has(c.id)).length;
+
+  const note=browse
+    ? `<div class="marketnote rule">A transfer is like-for-like — the squad is always two
+       keepers, five defenders, five midfielders and three forwards, so ${esc(o.n)} can only be
+       replaced by a ${esc(R.pos)}. These are shown for reference and cannot be bought here.
+       To change a ${esc(R.pos)}, open <b>Replace him…</b> on one of yours.</div>`
+    : `<div class="marketnote"><span class="gate pass"></span>
+       <b>${clearing}</b> of ${all.length} clear the +${gateOf().toFixed(2)} gate
+       ${clearingAbove?`<span class="sep">·</span> <b>${clearingAbove}</b> more clear it above your budget`:''}
+       ${blocked?`<span class="sep">·</span> <span class="dim">hidden:</span> <span class="badc">${blocked} blocked</span>`:''}</div>`;
+
+  const rows=list.map(c=>pickerRow(c,o,browse)).join('');
+  const empty=list.length?'':pickerEmpty(o);
+
+  document.getElementById('sheet').innerHTML=`
+   <header>
+     <div class="who"><b>Replace ${esc(o.n)}</b>
+       <span class="dim">${esc(o.pos)} · ${esc(o.club)} · ${o.xp.toFixed(2)} xPts/gw · sells for £${sellPriceOf(o).toFixed(1)}m</span>
+     </div>
+     <button class="btn icon ghost" id="pkclose" aria-label="Close">✕</button>
+   </header>
+   <div class="body">
+     <div class="repmath">
+       sells <b>£${sellPriceOf(o).toFixed(1)}m</b> <span class="op">+</span> bank <b>£${bankOf().toFixed(1)}m</b>
+       <span class="op">=</span> <b>£${B.toFixed(1)}m</b> to spend
+       <span class="sep">·</span> gate +${gateOf().toFixed(2)} xPts/gw
+       <span class="sep">·</span> Δ vs ${esc(o.n)}, per gameweek
+     </div>
+     <div class="toolbar" style="margin:10px 0 8px">
+       <div class="seg" id="pkpos">
+         ${['GKP','DEF','MID','FWD'].map(p=>`<button aria-pressed="${R.pos===p}" data-pos="${esc(p)}">${esc(p)}</button>`).join('')}
+       </div>
+       ${browse?'':`<button class="btn sm" id="pkafford" aria-pressed="${R.within}">
+         <span class="gate${R.within?' pass':''}"></span> ${R.within?`Within £${B.toFixed(1)}m`:'All prices'}
+       </button>`}
+     </div>
+     ${note}
+     ${rows}${empty}
+     ${list.length?`<div class="moreline" style="border-top:0;padding:8px">All ${list.length} shown</div>`:''}
+     ${R.sel&&!browse?pickerStage(byId(R.sel),o):''}
+   </div>`;
+  wirePicker();
+}
+
+function pickerRow(c,o,browse){
+  const d=+(c.xp-o.xp).toFixed(2), clears=clearsGate(d), gap=affordGap(c), oc=overClub(c);
+  const av=(c.availability===undefined?1:c.availability);
+  return `<button class="reprow${R.sel===c.id?' on':''}${browse?' browse':''}" data-id="${c.id}">
+    <span class="g">${browse?'':`<span class="gate${clears?' pass':''}"
+      title="${clears?'clears':'below'} the +${gateOf().toFixed(2)} transfer gate"></span>`}</span>
+    <span class="n"><b>${esc(c.n)}</b><span class="club">${esc(c.club)}</span>
+      ${c.ov?`<span class="pill ov">set: ${esc((c.ov.t||'').toLowerCase())}</span>`:''}
+      ${av===0?`<span class="pill bad">ruled out</span>`:av<1?`<span class="pill warn">${Math.round(av*100)}% fit</span>`:''}
+      ${oc?`<span class="pill bad">4th ${esc(c.club)} — over the club limit</span>`:''}</span>
+    <span class="m">£${c.pr.toFixed(1)}m ${roleChip(c.role,true)} ${c.own.toFixed(1)}% ${fdrHtml(c.club,3,S.gw)}
+      ${gap<0?`<span class="short">needs +£${Math.abs(gap).toFixed(1)}m</span>`:''}</span>
+    <span class="x"><b class="xp">${c.xp.toFixed(2)}</b>
+      ${browse?'':`<span class="dd ${clears?'dpos':'dneg'}">${d>0?'+':''}${d.toFixed(2)}</span>`}</span>
+    ${c.news?`<span class="news">${esc(c.news)}</span>`:''}
+  </button>`;
+}
+
+function pickerEmpty(o){
+  const cheapest=pickerCandidates().slice().sort((a,b)=>a.pr-b.pr)[0];
+  const gap=cheapest?Math.abs(affordGap(cheapest)).toFixed(1):null;
+  return `<div class="empty">
+    <div class="big">Nothing at £${pickerBudget().toFixed(1)}m</div>
+    <p>Selling ${esc(o.n)} raises £${sellPriceOf(o).toFixed(1)}m and the bank adds £${bankOf().toFixed(1)}m.
+    ${cheapest?`The cheapest ${esc(R.pos)} on the market is £${cheapest.pr.toFixed(1)}m — £${gap}m short.`:''}</p>
+    <button class="btn sm" id="pkwiden">Show the ${esc(R.pos)}s you can’t afford</button>
+  </div>`;
+}
+
+function pickerStage(c,o){
+  if(!c) return '';
+  const d=+(c.xp-o.xp).toFixed(2), clears=clearsGate(d), gap=affordGap(c);
+  return `<div class="stagebar">
+    <div class="move"><span class="out">${esc(o.n)} £${sellPriceOf(o).toFixed(1)}m</span> <span class="op">→</span>
+      <span class="in"><b>${esc(c.n)}</b> £${c.pr.toFixed(1)}m</span>
+      <span class="sep">·</span> ${gap>=0?`leaves <b>£${gap.toFixed(1)}m</b> in the bank`
+        :`<span class="short" style="display:inline;margin:0">needs +£${Math.abs(gap).toFixed(1)}m — raise it by selling elsewhere first</span>`}</div>
+    <div class="verdict ${clears?'pass':'miss'}">Δ ${d>0?'+':''}${d.toFixed(2)} xPts/gw —
+      ${clears?`clears the +${gateOf().toFixed(2)} gate`:`below the +${gateOf().toFixed(2)} gate`}</div>
+    <div class="acts">
+      <button class="btn primary" id="pkgo" ${gap<0||overClub(c)?'disabled':''}>Make this transfer</button>
+      <button class="btn ghost" id="pkcancel">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function wirePicker(){
+  const close=()=>{
+    document.getElementById('scrim').classList.remove('open');
+    if(location.hash.startsWith('#replace-')) history.replaceState(null,'','#pitch');
+  };
+  document.getElementById('pkclose').onclick=close;
+
+  document.getElementById('pkpos').onclick=e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    R.pos=b.dataset.pos; R.sel=null; renderPicker();
+  };
+  const aff=document.getElementById('pkafford');
+  if(aff) aff.onclick=()=>{ R.within=!R.within; renderPicker(); };
+  const widen=document.getElementById('pkwiden');
+  if(widen) widen.onclick=()=>{ R.within=false; renderPicker(); };
+
+  document.querySelectorAll('.reprow').forEach(b=>b.onclick=()=>{
+    if(b.classList.contains('browse')){
+      /* Refused, not undone -- the pitch's own idiom for an illegal move. */
+      flashInvalid();
+      return;
+    }
+    R.sel=+b.dataset.id; renderPicker();
+  });
+
+  const cancel=document.getElementById('pkcancel');
+  if(cancel) cancel.onclick=()=>{ R.sel=null; renderPicker(); };
+
+  const go=document.getElementById('pkgo');
+  if(go) go.onclick=()=>{
+    const out=R.out, into=R.sel;
+    close();
+    /* The squad changes, so the server decides what the eleven becomes. The client sends
+       the fifteen with one man swapped and redraws from the answer. */
+    save(pending=>{
+      const outCode=codeOf(out), inCode=codeOf(into);
+      pending.squad=(pending.squad||[]).map(c=>c===outCode?inCode:c);
+      /* The lineup mentions a player who has left, so it is dropped rather than repaired
+         here: the server falls back to the model's arrangement for the new fifteen, which
+         is the right default for a squad the reader has just changed. */
+      pending.xi=undefined; pending.bench=undefined;
+      pending.cap=undefined; pending.vc=undefined;
+    });
+  };
+}
