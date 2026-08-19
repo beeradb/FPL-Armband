@@ -1,0 +1,120 @@
+# Build the container image and publish it to GHCR.
+#
+# The image carries the binary alone -- see the Dockerfile. Nothing here names a
+# host, a domain or a deployment, and nothing here needs a cluster credential:
+# this workflow publishes an artifact and stops. Whatever runs the image pulls
+# it by digest.
+name: image
+
+on:
+  push:
+    # Every branch, not just main. An image that has never been built is an
+    # image nobody knows is broken, and the only way to run a change before
+    # merging it is to have a tag for it. Branch builds are identified by
+    # commit SHA; the moving `main` tag is published only from main, below, so
+    # a branch image can never be mistaken for the released one.
+    branches: ["**"]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "go.mod"
+      - "go.sum"
+      - "cmd/**"
+      - "internal/**"
+      - ".github/workflows/image.yml"
+  workflow_dispatch:
+
+concurrency:
+  # Per-ref, not one global group. cancel-in-progress protects the RUNNING job
+  # but a new arrival still cancels whatever is QUEUED, so a single group means
+  # three branches pushed in ten minutes leave the middle one with no image at
+  # all -- reported as "cancelled", which reads like somebody pressed the button.
+  # Concurrent sessions are normal in this repo, so that is the common case.
+  group: image-${{ github.ref }}
+  # A half-published image is worse than a queued build.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Actions are pinned by commit, matching this repo's existing CI. This job
+      # holds packages:write, so a mutable tag here is a supply-chain hole.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+      - uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        # Passed through env: and quoted, never interpolated into the script.
+        #
+        # A branch name may legally contain a single quote, and this workflow
+        # builds every branch -- so `'${{ github.ref }}'` inside a run: block is
+        # a shell injection with the GHCR push token already on disk from the
+        # login step above, plus packages:write and an OIDC minter in the
+        # environment. ci.yml states this rule for the same reason.
+        env:
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          repo=$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          # Always tag by commit, so every image names exactly the source it was
+          # built from. The floating `main` tag is added only on main.
+          tags="ghcr.io/$repo:$SHA"
+          if [ "$REF" = 'refs/heads/main' ]; then
+            tags="$tags
+          ghcr.io/$repo:main"
+          fi
+          {
+            echo 'tags<<EOF'
+            echo "$tags"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - id: build
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
+        with:
+          context: .
+          # linux/amd64 only: that is what the server is, and building an arm64
+          # image under emulation would treble the build time for nothing.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          # mode=min, not max: mode=max exports every intermediate layer into the
+          # repo-wide 10 GB Actions cache, which is LRU and shared with the season
+          # archive ci.yml calls load-bearing. Evicting that is silent -- CI still
+          # passes, it just refetches from third-party branches and loses the
+          # reproducibility its own comment claims.
+          cache-to: type=gha,mode=min
+          provenance: mode=max
+          sbom: true
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ steps.meta.outputs.repo }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Report the digest to deploy
+        run: |
+          {
+            echo "Pull this image by digest, never by tag:"
+            echo '```'
+            echo "ghcr.io/${{ steps.meta.outputs.repo }}@${{ steps.build.outputs.digest }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
