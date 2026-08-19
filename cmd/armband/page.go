@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -10,6 +11,110 @@ import (
 	"armband/internal/fpl"
 	"armband/internal/present"
 )
+
+// squadPageBuild is one run of the shared squad pipeline: the optimal fifteen,
+// the page built around it, and the budget facts the terminal view also prints.
+//
+// A struct rather than five positional returns because the two callers want
+// different halves — `squad` reads the squad and the budget lines, `serve` reads
+// the page — and a ladder of named-but-untyped returns is how the old present.HTML
+// family ended up with a subtitle in its title.
+type squadPageBuild struct {
+	Page present.Page
+	// Squad is the fifteen the page is built around. The terminal pitch prints
+	// it; the page carries its own copy, which the renderer owns.
+	Squad *analysis.Squad
+	// BudgetLine is "Budget £Xm: <source>" — what the build was allowed to
+	// spend and whose money it was. Source answers the same question on its own
+	// for the pitch, which prints the figure separately.
+	BudgetLine, Source string
+}
+
+// buildSquadPage runs the optimiser and assembles the squad page.
+//
+// This is the one pipeline behind both `armband squad -html` and `armband
+// serve`, so a page written to disk and a page served over HTTP cannot drift
+// into two pages. Everything in it reads config or the engine and hands
+// internal/present flat structs it can only draw — the boundary this file
+// exists to keep.
+func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
+	e *analysis.Engine, weeks int) (squadPageBuild, error) {
+
+	budget, source, err := e.AssemblyBudget()
+	if err != nil {
+		return squadPageBuild{}, err
+	}
+	// BenchWeight is deliberately left at zero, which Optimize reads as "use the
+	// configured weight" — config.json's bench_weight, backfilled to
+	// analysis.DefaultBenchWeight. This used to name 0.02 while `brief`'s
+	// model-optimal squad named 0.10, so two commands each claiming to print the
+	// best fifteen from the same money printed different fifteens. See
+	// TestSquadBuildersDoNotNameABenchWeight.
+	req := analysis.OptimizeRequest{
+		Budget:             budget,
+		MinMinutes:         600,
+		MinExpectedMinutes: 55,
+	}
+	for _, note := range applyRoster(cfg, e, &req) {
+		fmt.Printf("\n%s\n", dim(note))
+	}
+	for _, note := range e.ApplyChipPlan(&req) {
+		fmt.Printf("\n%s\n", dim("chip plan: "+note))
+	}
+	sq, err := e.Optimize(req)
+	if err != nil {
+		return squadPageBuild{}, err
+	}
+
+	// Say what it was allowed to spend, not merely what it spent. A £102.0m
+	// squad is a bug at the opening allowance and correct on a wildcard budget,
+	// and the reader cannot tell which without the source.
+	budgetLine := fmt.Sprintf("Budget £%.1fm: %s", float64(budget)/10, source)
+
+	// One eleven under a five-gameweek heading is a mis-statement, so the
+	// page carries a tab per gameweek with that week's eleven, each
+	// player's opponent, and any chip the plan puts there.
+	// Deliberately allowed to exceed the scoring horizon. The squad is
+	// OPTIMISED over the horizon, but a chip is usually planned outside it —
+	// a wildcard at GW6 is invisible on a five-week view — and seeing which
+	// week a chip lands in is most of why anyone opens this page.
+	span := weeks
+	if span <= 0 {
+		span = e.Weights.Horizon
+	}
+	views := e.WeekViews(sq.Players, span)
+	// Projected transfers for the squad you actually own, when there is one.
+	// The reason there is not is carried through and printed, because an
+	// absent section cannot distinguish "no squad yet" from "no move is
+	// worth making", and the second is a recommendation.
+	plan, why := bestPlanForOwnedSquad(ctx, cfg, client, e)
+
+	// The two views behind the eleven. Built here because every value in them
+	// comes from config or the engine, and the renderer may reach for neither.
+	bound, live, lapsed := pageOverrides(cfg, e, sq.Players, time.Now())
+	var excluded []present.Override
+	for _, o := range live {
+		if o.Kind == "exclude" {
+			excluded = append(excluded, o)
+		}
+	}
+	page := present.Page{
+		Title:              fmt.Sprintf("Optimal squad — next %d gameweeks", e.Weights.Horizon),
+		Subtitle:           budgetLine,
+		Squad:              *sq,
+		Plan:               plan,
+		NoPlan:             why,
+		Weeks:              views,
+		Brief:              squadBrief(cfg, e),
+		Analysis:           readAnalysis(),
+		Horizon:            e.Weights.Horizon,
+		Overrides:          bound,
+		FixtureLoadInScore: e.FixtureLoadInScore(),
+		Reasoning:          reasoningFor(cfg, e, sq.Players, live, lapsed),
+		Watch:              watchlistFor(e, *sq, excluded, bound, cfg.Review.MinGainForTransfer),
+	}
+	return squadPageBuild{Page: page, Squad: sq, BudgetLine: budgetLine, Source: source}, nil
+}
 
 // Assembling the squad page's three views.
 //
