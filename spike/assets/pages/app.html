@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FPL Armband — your man on the pitch</title>
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/armband.css">
+</head>
+<body>
+
+<!-- ===================== TOP BAR ===================== -->
+<div class="topbar">
+  <div class="row">
+    <a class="logo" href="/">
+      <svg width="24" height="28" viewBox="0 0 220 260" aria-hidden="true">
+        <rect x="6" y="112" width="208" height="46" rx="9" fill="#1C34A8"/>
+        <path d="M110 16 L192 60 V148 c0 50-34 82-82 100 -48-18-82-50-82-100 V60 Z" fill="#131C26" stroke="#2C3B49" stroke-width="2"/>
+        <g stroke="#4C6072" stroke-width="3" fill="none" stroke-linecap="round">
+          <path d="M110 40 V220"/><path d="M110 62 H82 V96"/><path d="M110 62 H138 V96"/>
+          <path d="M110 198 H82 V166"/><path d="M110 198 H138 V166"/></g>
+        <g fill="#4C6072"><circle cx="110" cy="38" r="6"/><circle cx="82" cy="100" r="6"/><circle cx="138" cy="100" r="6"/><circle cx="110" cy="222" r="6"/><circle cx="82" cy="162" r="6"/><circle cx="138" cy="162" r="6"/></g>
+        <path d="M28 112 H192 V158 H28 Z" fill="#2F53F0"/>
+        <text x="110" y="149" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-size="46" font-weight="800" fill="#fff">C</text>
+      </svg>
+      <span class="wordmark">FPL <em>Armband</em></span>
+    </a>
+    <span class="pill on" id="previewPill">Preview</span>
+    <span class="spacer"></span>
+    <div class="deadline">
+      <span class="k" id="ddlLabel">GW1 deadline</span>
+      <span class="t" id="ddl">1d 22h 41m</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== GAMEWEEK RAIL ===================== -->
+<div class="gwrail">
+  <div class="inner" id="gwrail" role="tablist" aria-label="Gameweek"></div>
+</div>
+
+<!-- ===================== SECTION NAV (desktop) ===================== -->
+<nav class="mainnav">
+  <div class="inner" role="tablist">
+    <button data-view="pitch"    aria-selected="true">Pitch</button>
+    <button data-view="players"  aria-selected="false">Players <span class="c" id="poolCount">—</span></button>
+    <button data-view="overrides" aria-selected="false">Overrides <span class="c" id="ovCount">—</span></button>
+    <button data-view="brief"    aria-selected="false">Brief</button>
+  </div>
+</nav>
+
+<!-- swap-mode banner: the touch fallback for drag and drop -->
+<div class="swapbar" id="swapbar">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+  <span id="swaptext">Tap a player to swap with <b>Kinsky</b></span>
+  <button class="btn sm ghost x" id="swapcancel" style="height:26px;border-color:rgba(255,255,255,.4)">Cancel</button>
+</div>
+
+<div class="wrap">
+
+<!-- ============================================================
+     VIEW: PITCH
+     ============================================================ -->
+<section id="view-pitch">
+
+  <!-- the score bug: one number is the product -->
+  <div class="scorebug" id="scorebug"></div>
+
+  <!-- chip planner for this gameweek -->
+  <div class="chiprow" id="chiprow"></div>
+
+  <div class="pitchgrid">
+  <div class="pitchwrap">
+    <div class="pitchhud">
+      <span class="k">Formation</span>
+      <span class="form" id="formation">3-5-2</span>
+      <span class="valid" id="validity">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l6 6L20 6"/></svg> legal
+      </span>
+      <span class="pill" id="clubcap">max 3/club ✓</span>
+      <button class="pill armpill" id="capPick"><b>C</b> <span id="capName">—</span></button>
+      <button class="pill armpill v" id="vcPick"><b>V</b> <span id="vcName">—</span></button>
+      <span class="delta" id="vsmodel"></span>
+    </div>
+
+    <div class="pitch" id="pitch">
+      <div class="sixyard"></div><div class="spot"></div>
+      <div class="line" data-pos="GKP"></div>
+      <div class="line" data-pos="DEF"></div>
+      <div class="line" data-pos="MID"></div>
+      <div class="line" data-pos="FWD"></div>
+    </div>
+
+    <div class="rolekey">
+      <span class="k">Role</span>
+      <!-- Five bands, matching analysis.rotationLabel. The design named four and the
+           model has always had five; a legend short of a band leaves one dot colour on
+           the pitch with nothing explaining it. -->
+      <span class="role r1">Nailed</span><span class="role r2">Likely</span>
+      <span class="role r3">Rotation</span><span class="role r4">Squad</span>
+      <span class="role r5">Fringe</span>
+    </div>
+
+    <div class="bench">
+      <div class="benchhead">
+        <span class="k">Bench — substitution order</span>
+        <span class="pill" id="benchval">2.5 <span class="unit">xPts</span></span>
+        <span class="hint">Drag to reorder · 1 comes on first</span>
+      </div>
+      <div class="benchrow" id="benchrow"></div>
+    </div>
+  </div>
+
+  <div class="pitchside">
+  <!-- WHY: the marginal calls -->
+  <div class="why" style="margin-top:0">
+    <h3>
+      Why this eleven
+      <span class="pill ov" style="margin-left:auto" id="ovBinding"></span>
+    </h3>
+    <div id="whyrows"></div>
+  </div>
+
+  <div class="why" style="margin-top:0">
+    <h3>Every shape this fifteen can make</h3>
+    <div class="shapes" id="shapes"></div>
+  </div>
+
+  <div class="storenote">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/></svg>
+    Your team stays yours. This preview reads the model and does not write to it yet, so changes you make here last until you reload. Make the changes on FPL when you're happy.
+  </div>
+  </div><!-- /pitchside -->
+  </div><!-- /pitchgrid -->
+</section>
+
+<!-- ============================================================
+     VIEW: PLAYERS  (was "Watchlist")
+     ============================================================ -->
+<section id="view-players" hidden>
+  <div class="readout four">
+    <div><div class="k">Bank</div><div class="v" id="bank">—</div><div class="sub" id="bankSub"></div></div>
+    <div><div class="k">Squad value</div><div class="v" id="squadValue">—</div><div class="sub" id="squadValueSub"></div></div>
+    <!-- The free-transfer count is not in the contract, and this cell asserted
+         "unlimited / until the GW1 deadline" as a literal that nothing updates -- true
+         for one week a season, and stated next to a market recommending moves. It says
+         what the policy is instead, which the contract does carry. -->
+    <div><div class="k">Bank up to</div><div class="v acc" id="bankUpTo">—</div><div class="sub">free transfers the policy will hold</div></div>
+    <div><div class="k">Transfer gate</div><div class="v" id="gateValue">—</div><div class="sub">the bar a swap must clear</div></div>
+  </div>
+
+  <div class="panel" style="padding:11px 13px;font-size:12.5px;color:var(--ink2);line-height:1.5;">
+    <b style="color:var(--ink)">Δ is the comparison a transfer actually has to win</b> — the gap to the
+    <em>weakest starter you already own in that position</em>, not a league rank.
+    <span class="dim" id="benchLegend"></span>
+  </div>
+
+  <div class="toolbar">
+    <div class="seg" id="posfilter">
+      <button aria-pressed="true" data-pos="ALL">All</button>
+      <button aria-pressed="false" data-pos="GKP">GKP</button>
+      <button aria-pressed="false" data-pos="DEF">DEF</button>
+      <button aria-pressed="false" data-pos="MID">MID</button>
+      <button aria-pressed="false" data-pos="FWD">FWD</button>
+    </div>
+    <input class="search" id="psearch" placeholder="Search player or club…">
+    <button class="btn sm" id="affordToggle" aria-pressed="false">
+      <span class="gate"></span> Affordable only
+    </button>
+  </div>
+
+  <div class="marketnote" id="marketnote"></div>
+
+  <!-- desktop table -->
+  <div class="panel marketpanel">
+    <table class="ptable" id="ptable">
+      <thead><tr>
+        <th></th><th>Player</th><th>Pos</th><th>Next 5</th>
+        <th>Role</th><th class="n">Own</th><th class="n">£</th>
+        <th class="n">xPts</th><th class="n">Δ vs yours</th><th>Replaces</th>
+      </tr></thead>
+      <tbody id="ptbody"></tbody>
+    </table>
+    <!-- mobile list -->
+    <div class="plist" id="plist" style="padding:8px"></div>
+    <div id="emptyState"></div>
+  </div>
+  <div class="moreline" id="moreline"></div>
+</section>
+
+<!-- ============================================================
+     VIEW: OVERRIDES
+     ============================================================ -->
+<section id="view-overrides" hidden>
+  <div class="ovhead">
+    <div style="flex:1;min-width:220px">
+      <div class="k">Standing overrides</div>
+      <p style="margin-top:6px">
+        Hand-set corrections that bind every squad build and transfer search. An expiry is a guess
+        made when the injury happened, and it is wrong in both directions — so each one carries the
+        date it was set, the date it lapses, and when you last checked it.
+      </p>
+    </div>
+    <div class="acts">
+      <button class="btn sm primary" id="addOv">+ New override</button>
+      <button class="btn sm" id="showLib">Suggested library</button>
+      <button class="btn sm ghost" id="resetOv">Reset to defaults</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="seg" id="ovfilter">
+      <!-- The kinds are config.Roster's own, not a second vocabulary. These read "min",
+           "excl" and "team" until review found that every one of them matched nothing:
+           the server sends "lock", "exclude", "minutes" and "club", so all three filters
+           rendered the empty state, which reads as a fact about the configuration rather
+           than a broken control. -->
+      <button aria-pressed="true" data-kind="ALL">All <span class="dim" id="ovAll"></span></button>
+      <button aria-pressed="false" data-kind="minutes">Minutes</button>
+      <button aria-pressed="false" data-kind="lock">Locked</button>
+      <button aria-pressed="false" data-kind="exclude">Excluded</button>
+      <button aria-pressed="false" data-kind="club">Team-level</button>
+    </div>
+    <span class="pill warn" id="staleCount"></span>
+  </div>
+
+  <div id="ovlist"></div>
+
+  <div class="why" id="libpanel" style="margin-top:18px">
+    <h3>Suggested library <span class="dim" style="letter-spacing:0;text-transform:none;font-family:var(--ui)">— add any of these, then edit the reasoning</span></h3>
+    <div style="padding:12px 13px">
+      <div class="lib" id="liblist"></div>
+    </div>
+  </div>
+
+  <div class="storenote">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/></svg>
+    These are the standing overrides the model is running under, read from the configuration this server was started with. Editing them from here is not wired up yet.
+  </div>
+</section>
+
+<!-- ============================================================
+     VIEW: BRIEF
+     ============================================================ -->
+<section id="view-brief" hidden>
+  <div class="briefgrid" style="margin-top:14px">
+  <div class="why" style="margin-top:0">
+    <h3>The verdict</h3>
+    <!-- The weekly verdict is not wired up. What stood here was prose written by hand
+         against one GW1 build -- a captain, a chip plan, and the one thing that would
+         change it -- and none of it came from the model, so it would have kept saying
+         the same thing in April.
+
+         The material for a real one is computed on every request and thrown away:
+         buildSquadPage produces a transfer plan, a briefing and the engine's chip plan,
+         and internal/viewmodel carries none of them to the client yet. Saying so is the
+         honest state; asserting last August's judgement is not. -->
+    <div style="padding:14px 15px;font-size:14px;line-height:1.6;color:var(--ink2);max-width:70ch">
+      <p style="margin-top:0">The weekly verdict — whether to hold or act, who takes the
+      armband, and the one thing that would change it — is not wired through to this page
+      yet. Run <code>armband brief</code> for it in the meantime.</p>
+      <p>What is below is real: the model's own account of where it cannot see.</p>
+    </div>
+  </div>
+  <div class="why" style="margin-top:0">
+    <h3>Where the model says it is blind</h3>
+    <div id="blindrows"></div>
+  </div>
+  </div>
+</section>
+
+</div><!-- /wrap -->
+
+<!-- ===================== MOBILE TAB BAR ===================== -->
+<nav class="tabbar" role="tablist">
+  <button data-view="pitch" aria-selected="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18M12 3v18"/><circle cx="12" cy="12" r="3"/></svg>Pitch</button>
+  <button data-view="players" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 11h5M19.5 8.5v5"/></svg>Players</button>
+  <button data-view="overrides" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>Overrides</button>
+  <button data-view="brief" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l4 4v14H5z"/><path d="M8 11h8M8 15h8M8 7h4"/></svg>Brief</button>
+</nav>
+
+<!-- ===================== PLAYER SHEET ===================== -->
+<div class="sheet-scrim" id="scrim">
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+</div>
+
+<script src="/assets/app.js" defer></script>
+<script src="/assets/spike.js" defer></script>
+</body>
+</html>

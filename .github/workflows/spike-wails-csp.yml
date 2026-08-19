@@ -1,0 +1,144 @@
+# THROWAWAY. Delete this file and spike/ once the question below is answered.
+#
+# The desktop build's design rests on one unproven assumption: that the strict
+# Content-Security-Policy cmd/armband/webroutes.go ships survives being served through
+# a Wails webview. Windows serves the app from `http://wails.localhost`, an ordinary
+# tuple origin, and is not in doubt. macOS serves it from `wails://wails`, a
+# WKURLSchemeHandler scheme, and whether WebKit resolves `'self'` for a non-special
+# scheme could not be settled from the Wails source. If it does not, fetch('/api/state')
+# is blocked and the desktop build needs a relaxed policy.
+#
+# There is no console and no screen on a CI runner, so the page reports its verdict
+# back over HTTP and the spike binary turns it into an exit status.
+#
+# Scoped to THIS ONE BRANCH, and `contents: read`. This runs a GUI process on paid
+# runners, so it must never be reachable from main or from any other branch.
+#
+# ⚠️ It is a `push` trigger rather than `workflow_dispatch` for a mechanical reason,
+# not a preference: GitHub only registers a workflow for manual dispatch when the file
+# is on the DEFAULT branch. Dispatching this one would mean landing it on `main` first,
+# which is exactly what a throwaway must not do. Naming the branch in `branches:` keeps
+# the blast radius identical to a manual run.
+name: Spike — Wails CSP
+
+on:
+  push:
+    branches: ["worktree-spike-wails-csp"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spike-wails-csp-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # bash on all three platforms, so one script serves the matrix. Git Bash is
+    # present on the Windows runners.
+    shell: bash
+
+jobs:
+  spike:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: darwin (wails://wails)
+            # wv2runtime.* is a Windows concern; naming it here would be noise.
+            tags: desktop,production
+          - os: windows-latest
+            label: windows (http://wails.localhost)
+            # The strategy the desktop build has already decided on, so the spike
+            # exercises the shipped configuration rather than a neighbouring one.
+            tags: desktop,production,wv2runtime.embed
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          # The root go.mod, deliberately: the spike module pins the same toolchain,
+          # and reading the version from two places is how they drift.
+          go-version-file: go.mod
+          cache: false
+
+      # ⚠️ LOAD-BEARING. The spike embeds spike/csp.txt as the policy it serves. If
+      # that file and the shipped header ever disagree, the spike passes against a
+      # document nobody ships -- a green run that verified nothing, which is the
+      # failure mode this repository names most often.
+      - name: Assert the spike serves the shipped policy
+        run: |
+          shipped=$(sed -n '/Content-Security-Policy", strings.Join(\[\]string{/,/}, "; "/p' \
+                      cmd/armband/webroutes.go \
+                    | grep -oE '^[[:space:]]+"[^"]+",$' \
+                    | sed -E 's/^[[:space:]]+"//; s/",$//' \
+                    | paste -sd'@' - | sed 's/@/; /g')
+          embedded=$(tr -d '\r\n' < spike/csp.txt)
+          echo "shipped:  $shipped"
+          echo "embedded: $embedded"
+          if [ -z "$shipped" ]; then
+            echo "::error::Extracted an EMPTY policy from cmd/armband/webroutes.go."
+            echo "::error::The header block moved; this check is no longer reading it."
+            exit 1
+          fi
+          if [ "$shipped" != "$embedded" ]; then
+            echo "::error::spike/csp.txt has drifted from cmd/armband/webroutes.go."
+            exit 1
+          fi
+
+      # The one edit made to the copied document. Asserted rather than assumed, so a
+      # bad copy shows up here instead of as a mysterious timeout.
+      - name: Assert the copied document is the shipped one plus the probe
+        run: |
+          diff <(grep -v '/assets/spike.js' spike/assets/pages/app.html) \
+               internal/webui/assets/pages/app.html
+          diff spike/assets/static/app.js internal/webui/assets/static/app.js
+          diff spike/assets/static/armband.css internal/webui/assets/static/armband.css
+
+      - name: Build
+        working-directory: spike
+        run: go build -tags ${{ matrix.tags }} -o spike${{ runner.os == 'Windows' && '.exe' || '' }} .
+
+      # A bare Mach-O has no bundle identity, and a process with no bundle cannot
+      # reliably become a regular foreground application -- which is the difference
+      # between a webview that loads and one that never does. Building the bundle here
+      # also exercises the Info.plist that Phase 3 will need anyway.
+      - name: Wrap in an app bundle (macOS)
+        if: runner.os == 'macOS'
+        working-directory: spike
+        run: |
+          app=Spike.app/Contents/MacOS
+          mkdir -p "$app"
+          cp spike "$app/spike"
+          cat > Spike.app/Contents/Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key><string>spike</string>
+            <key>CFBundleIdentifier</key><string>dev.armband.spike</string>
+            <key>CFBundleName</key><string>Spike</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>0.0.0</string>
+            <key>CFBundleVersion</key><string>0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          codesign --force --sign - Spike.app
+          codesign --verify --verbose Spike.app
+
+      - name: Run the spike (macOS)
+        if: runner.os == 'macOS'
+        working-directory: spike
+        run: ./Spike.app/Contents/MacOS/spike
+
+      - name: Run the spike (Windows)
+        if: runner.os == 'Windows'
+        working-directory: spike
+        run: ./spike.exe
