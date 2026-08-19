@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FPL Armband — your man on the pitch</title>
+<meta name="description" content="Every Fantasy Premier League player scored from FPL's own rules, with the working shown. Set your eleven, order your bench, give the armband. Open preview.">
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/armband.css">
+<style>
+/* ---- landing-only ---- */
+.lbg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
+.lbg::before{
+  content:'';position:absolute;top:-30%;left:50%;transform:translateX(-50%);
+  width:1100px;height:900px;border-radius:50%;
+  background:radial-gradient(circle,rgba(47,83,240,.22),transparent 62%);
+}
+.lbg::after{
+  content:'';position:absolute;bottom:-40%;right:-10%;
+  width:900px;height:900px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,232,138,.10),transparent 62%);
+}
+.lbg .grid{
+  position:absolute;inset:0;opacity:.5;
+  background:
+    linear-gradient(rgba(120,160,190,.045) 1px,transparent 1px) 0 0/100% 46px,
+    linear-gradient(90deg,rgba(120,160,190,.045) 1px,transparent 1px) 0 0/46px 100%;
+  mask-image:linear-gradient(180deg,#000,transparent 78%);
+}
+
+.lnav{display:flex;align-items:center;gap:12px;padding:16px 0;}
+.lnav .spacer{flex:1;}
+
+/* the tagline. Sits with the mark, never with the H1 — they do different jobs. */
+.tagline{
+  font-family:var(--display);font-weight:500;font-size:13.5px;letter-spacing:-.01em;
+  color:var(--ink2);white-space:nowrap;
+}
+.lnav .tagline{
+  padding-left:12px;border-left:1px solid var(--line2);
+}
+.lockup{display:flex;flex-direction:column;align-items:center;gap:9px;margin-bottom:6px;}
+.lockup .tagline{font-size:15px;color:var(--ink2);}
+.lockup .logo .wordmark{font-size:20px;}
+
+.hero{padding:38px 0 46px;display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center;}
+.hero h1{
+  font-family:var(--display);font-weight:800;letter-spacing:-.045em;line-height:1.02;
+  font-size:clamp(38px,5.4vw,62px);margin:14px 0 16px;text-wrap:balance;
+}
+.hero h1 .u{
+  background:linear-gradient(180deg,transparent 62%,rgba(47,83,240,.55) 62%);
+  padding:0 2px;
+}
+.hero .lede{font-size:17px;color:var(--ink2);max-width:52ch;margin:0 0 24px;line-height:1.55;}
+.hero .lede b{color:var(--ink);font-weight:600;}
+
+.gatecard{
+  display:block;width:100%;max-width:520px;
+  padding:16px;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-lg);
+  box-shadow:var(--shadow);
+}
+.gatecard .lbl{margin-bottom:9px;}
+.gateform{display:flex;gap:8px;}
+.gateform input{
+  flex:1;min-width:0;height:46px;padding:0 14px;border-radius:var(--r-sm);
+  background:var(--bg2);border:1px solid var(--line2);color:var(--ink);font-size:15px;
+}
+.gateform input::placeholder{color:var(--ink3);}
+.gateform input:focus{outline:2px solid var(--band);outline-offset:-1px;border-color:var(--band);}
+.gateform .btn{height:46px;padding:0 20px;font-size:14px;flex:0 0 auto;}
+.gatefoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px;font-size:12px;color:var(--ink3);}
+.gatefoot .dotsep{color:var(--line2);}
+.counter{font-family:var(--mono);color:var(--acc);font-weight:700;}
+
+/* the preview card on the right */
+.peek{
+  border:1px solid var(--line2);border-radius:var(--r-lg);overflow:hidden;
+  background:var(--panel);box-shadow:var(--shadow);transform:perspective(1400px) rotateY(-7deg) rotateX(3deg);
+}
+.peek .bar{
+  display:flex;align-items:center;gap:7px;padding:8px 11px;background:var(--bg2);
+  border-bottom:1px solid var(--line);
+}
+.peek .bar i{width:8px;height:8px;border-radius:50%;background:var(--line2);display:block;}
+.peek .bar .t{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:5px;}
+.miniline{display:flex;justify-content:center;gap:5px;margin-bottom:7px;}
+.mini{
+  width:74px;border-radius:7px;padding:5px;background:linear-gradient(180deg,rgba(16,23,31,.94),rgba(10,15,21,.97));
+  border:1px solid rgba(120,150,175,.22);position:relative;
+}
+.mini .sh{height:4px;border-radius:2px 2px 0 0;margin:-5px -5px 5px;}
+.mini .n{font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mini .p{font-family:var(--display);font-weight:800;font-size:12px;color:var(--acc);letter-spacing:-.03em;margin-top:1px;}
+.mini.cap{border-color:#6A85FF;box-shadow:0 0 14px rgba(47,83,240,.4);}
+.mini.cap .sh{height:9px;background:linear-gradient(180deg,#4A6BFF,#2F53F0)!important;
+  display:flex;align-items:center;padding:0 4px;}
+.mini .arm{font-family:var(--display);font-weight:800;font-size:7px;color:#fff;line-height:1;}
+
+/* proof strip */
+.proof{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin:10px 0 54px;
+}
+.proof > div{background:var(--panel);padding:14px 16px;}
+.proof .v{font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:-.035em;margin-top:3px;}
+.proof .d{font-size:12px;color:var(--ink3);margin-top:4px;line-height:1.4;}
+
+/* features */
+.sechead{max-width:60ch;margin:0 0 22px;}
+.sechead h2{
+  font-family:var(--display);font-weight:800;letter-spacing:-.035em;
+  font-size:clamp(25px,3.4vw,34px);margin:8px 0 10px;
+}
+.sechead p{color:var(--ink2);font-size:15px;margin:0;}
+.feats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:56px;}
+.feat{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:18px;display:flex;flex-direction:column;
+}
+.feat h3{font-family:var(--display);font-weight:800;font-size:17px;letter-spacing:-.02em;margin:10px 0 7px;}
+.feat p{font-size:13px;color:var(--ink2);margin:0 0 14px;line-height:1.55;}
+.feat .demo{margin-top:auto;background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px;}
+.ico{
+  width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  background:var(--band-lo);border:1px solid #2A3C8C;color:#8AA0FF;
+}
+.ico svg{width:17px;height:17px;}
+
+.cta{
+  text-align:center;padding:44px 20px;border:1px solid var(--line2);border-radius:var(--r-lg);
+  background:linear-gradient(180deg,var(--panel),var(--bg2));margin-bottom:38px;
+}
+.cta h2{font-family:var(--display);font-weight:800;font-size:clamp(24px,3.4vw,34px);letter-spacing:-.035em;margin:12px 0 8px;}
+.cta p{color:var(--ink2);margin:0 auto 20px;max-width:46ch;font-size:14.5px;}
+.cta .gatecard{margin:0 auto;}
+
+footer{border-top:1px solid var(--line);padding:22px 0 40px;font-size:12.5px;color:var(--ink3);}
+footer .r{display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
+footer .spacer{flex:1;}
+
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr;gap:30px;padding:26px 0 34px;}
+  .peek{transform:none;}
+  .proof{grid-template-columns:repeat(2,1fr);}
+  .feats{grid-template-columns:1fr;}
+}
+@media (max-width:720px){
+  body{padding-bottom:0;}
+  .hero h1{font-size:clamp(32px,9vw,42px);}
+  .hero .lede{font-size:15.5px;}
+  .gateform{flex-direction:column;}
+  .gateform .btn{width:100%;}
+  .lnav .hideSm{display:none;}
+  .lockup .tagline{font-size:14px;}
+  .lnav .btn{padding:0 12px;}
+}
+</style>
+</head>
+<body>
+<div class="lbg"><div class="grid"></div></div>
+
+<div class="wrap">
+
+  <nav class="lnav">
+    <a class="logo" href="#">
+      <svg width="26" height="31" viewBox="0 0 220 260" aria-hidden="true">
+        <rect x="6" y="112" width="208" height="46" rx="9" fill="#1C34A8"/>
+        <path d="M110 16 L192 60 V148 c0 50-34 82-82 100 -48-18-82-50-82-100 V60 Z" fill="#131C26" stroke="#2C3B49" stroke-width="2"/>
+        <g stroke="#4C6072" stroke-width="3" fill="none" stroke-linecap="round">
+          <path d="M110 40 V220"/><path d="M110 62 H82 V96"/><path d="M110 62 H138 V96"/>
+          <path d="M110 198 H82 V166"/><path d="M110 198 H138 V166"/>
+        </g>
+        <g fill="#4C6072"><circle cx="110" cy="38" r="6"/><circle cx="82" cy="100" r="6"/><circle cx="138" cy="100" r="6"/><circle cx="110" cy="222" r="6"/><circle cx="82" cy="162" r="6"/><circle cx="138" cy="162" r="6"/></g>
+        <path d="M28 112 H192 V158 H28 Z" fill="#2F53F0"/>
+        <text x="110" y="149" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-size="46" font-weight="800" fill="#fff">C</text>
+      </svg>
+      <span class="wordmark">FPL <em>Armband</em></span>
+    </a>
+    <span class="tagline hideSm">Your man on the pitch.</span>
+    <span class="spacer"></span>
+    <span class="pill on">Open preview</span>
+    <a class="btn sm ghost" href="/app"><span class="hideSm">I have access</span> →</a>
+  </nav>
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div>
+      <div class="k">2026/27 · Gameweek 1 opens Fri 21 Aug 17:30</div>
+      <h1>Pick your XI.<br>See <span class="u">the working.</span></h1>
+      <p class="lede">
+        Every player scored from <b>FPL's own scoring rules</b> — minutes, fixtures, set pieces, the lot.
+        Then Armband shows you the arithmetic behind the number, and lets you argue with it.
+        Drag your eleven, order your bench, plan your chips across the gameweeks ahead.
+      </p>
+
+      <form class="gatecard">
+        <div class="k lbl">Get preview access</div>
+        <div class="gateform">
+          <input type="email" placeholder="you@email.com" required aria-label="Email address">
+          <button class="btn primary" type="submit">Claim my armband</button>
+        </div>
+        <div class="gatefoot">
+          <span><span class="counter">2,418</span> managers in the preview</span>
+          <span class="dotsep">·</span><span>No card. No FPL login.</span>
+          <span class="dotsep">·</span><span>One email, then you're in.</span>
+        </div>
+        <div class="done" hidden style="margin-top:11px"><div class="chipnote">✓ Check your inbox — invite is on the way.</div></div>
+      </form>
+    </div>
+
+    <!-- peek -->
+    <div class="peek" aria-hidden="true">
+      <div class="bar"><i></i><i></i><i></i><span class="t">gameweek 1 · 3-5-2 · 51.9 xPts</span></div>
+      <div style="background:repeating-linear-gradient(180deg,#0A1F19 0 40px,#0D261E 40px 80px);padding:14px 10px 10px;">
+        <div class="miniline"><div class="mini"><div class="sh" style="background:#132257"></div><div class="n">Kinsky</div><div class="p">3.48</div></div></div>
+        <div class="miniline">
+          <div class="mini"><div class="sh" style="background:#C8102E"></div><div class="n">Virgil</div><div class="p">4.32</div></div>
+          <div class="mini"><div class="sh" style="background:#132257"></div><div class="n">Senesi</div><div class="p">4.14</div></div>
+          <div class="mini"><div class="sh" style="background:#241F20"></div><div class="n">Thiaw</div><div class="p">3.47</div></div>
+        </div>
+        <div class="miniline">
+          <div class="mini cap"><div class="sh" style="background:#DA291C"><span class="arm">C</span></div><div class="n">B.Fernandes</div><div class="p">5.37</div></div>
+          <div class="mini"><div class="sh" style="background:#6CABDD"></div><div class="n">Anderson</div><div class="p">4.17</div></div>
+          <div class="mini"><div class="sh" style="background:#003399"></div><div class="n">Ndiaye</div><div class="p">4.15</div></div>
+        </div>
+        <div class="miniline">
+          <div class="mini"><div class="sh" style="background:#6CABDD"></div><div class="n">Haaland</div><div class="p">5.28</div></div>
+          <div class="mini"><div class="sh" style="background:#E30613"></div><div class="n">Thiago</div><div class="p">4.41</div></div>
+        </div>
+      </div>
+      <div style="padding:10px 12px;background:var(--bg2);border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <span class="pill acc">▲ 46.5 xPts XI</span>
+        <span class="pill ov">9 overrides binding</span>
+        <span class="pill">£0.0m ITB</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROOF ============ -->
+  <div class="proof">
+    <div><div class="k">Players scored</div><div class="v">590</div><div class="d">every registered player, re-scored on every data pull</div></div>
+    <div><div class="k">Seasons replayed</div><div class="v">6</div><div class="d">the model is backtested against finished seasons, not vibes</div></div>
+    <div><div class="k">Planning window</div><div class="v">Rolling</div><div class="d">lineup and chips projected across the gameweeks ahead</div></div>
+    <div><div class="k">Costs you</div><div class="v acc">£0</div><div class="d">free while it's in open preview — no card, no FPL login</div></div>
+  </div>
+
+  <!-- ============ FEATURES ============ -->
+  <div class="sechead">
+    <div class="k">What you get</div>
+    <h2>A number is not an answer. Armband hands you both.</h2>
+    <p>Most tools give you a ranking. This one gives you the ranking, the derivation underneath it, and a switch to overrule it when you know something the data doesn't.</p>
+  </div>
+
+  <div class="feats">
+    <div class="feat">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg></div>
+      <h3>Drag the pitch, keep it legal</h3>
+      <p>Formation rules enforced live. Drop a fourth forward and Armband tells you why it won't take. Bench order is drag-to-rank, not a dropdown.</p>
+      <div class="demo">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <span style="font-family:var(--display);font-weight:800;font-size:19px;">3-5-2</span>
+          <span class="pill acc">✓ legal</span>
+          <span class="pill" style="margin-left:auto">4-4-2 → −0.50</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="feat">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg></div>
+      <h3>Every number, opened up</h3>
+      <p>Tap any player for the full derivation: points per 90, the fixture adjustment, the minutes model, the reliability score, and anything a human hand has changed.</p>
+      <div class="demo deriv" style="font-size:11.5px">
+        <div class="step"><span class="dim">base per 90</span><b>3.65</b></div>
+        <div class="step"><span class="dim">× fixtures (2.8 avg)</span><b>3.68</b></div>
+        <div class="step"><span class="dim">× minutes 88/90</span><b>3.60</b></div>
+        <div class="step total"><span>xPts / gw</span><b>3.48</b></div>
+      </div>
+    </div>
+
+    <div class="feat">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div>
+      <h3>Overrule it, on the record</h3>
+      <p>The model can't see a lost place or a pre-season injury. Lock a player in, block one out, or hand-set his minutes — with your reasoning saved beside it and an expiry date.</p>
+      <div class="demo">
+        <div style="display:flex;gap:9px;align-items:flex-start;">
+          <span class="pill ov">NAILED</span>
+          <div style="font-size:11.5px;color:var(--ink2);line-height:1.45;">
+            <b style="color:var(--ink)">Kinsky</b> <span class="dim">TOT</span><br>
+            Named first choice for 26/27. His record is backup minutes; the role isn't.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CTA ============ -->
+  <div class="cta">
+    <div class="lockup">
+      <a class="logo" href="#">
+        <svg width="30" height="35" viewBox="0 0 220 260" aria-hidden="true">
+          <rect x="6" y="112" width="208" height="46" rx="9" fill="#1C34A8"/>
+          <path d="M110 16 L192 60 V148 c0 50-34 82-82 100 -48-18-82-50-82-100 V60 Z" fill="#131C26" stroke="#2C3B49" stroke-width="2"/>
+          <g stroke="#4C6072" stroke-width="3" fill="none" stroke-linecap="round">
+            <path d="M110 40 V220"/><path d="M110 62 H82 V96"/><path d="M110 62 H138 V96"/>
+            <path d="M110 198 H82 V166"/><path d="M110 198 H138 V166"/></g>
+          <g fill="#4C6072"><circle cx="110" cy="38" r="6"/><circle cx="82" cy="100" r="6"/><circle cx="138" cy="100" r="6"/><circle cx="110" cy="222" r="6"/><circle cx="82" cy="162" r="6"/><circle cx="138" cy="162" r="6"/></g>
+          <path d="M28 112 H192 V158 H28 Z" fill="#2F53F0"/>
+          <text x="110" y="149" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-size="46" font-weight="800" fill="#fff">C</text>
+        </svg>
+        <span class="wordmark">FPL <em>Armband</em></span>
+      </a>
+      <span class="tagline">Your man on the pitch.</span>
+    </div>
+    <span class="pill on">Open preview · 2026/27</span>
+    <h2>Gameweek 1 locks Friday.</h2>
+    <p>Get in now and set your eleven with the working in front of you.</p>
+    <form class="gatecard">
+      <div class="gateform">
+        <input type="email" placeholder="you@email.com" required aria-label="Email address">
+        <button class="btn primary" type="submit">Claim my armband</button>
+      </div>
+      <div class="gatefoot" style="justify-content:center"><span>We'll only email you about the preview. Unsubscribe in one click.</span></div>
+      <div class="done" hidden style="margin-top:11px"><div class="chipnote">✓ Check your inbox — invite is on the way.</div></div>
+    </form>
+  </div>
+
+  <footer>
+    <div class="r">
+      <span><b style="color:var(--ink2)">Your team stays yours.</b> Plan it here, argue with it, get it how you want it — then make the changes on FPL when you're happy.</span>
+      <span class="spacer"></span>
+      <a href="#">Privacy</a><a href="#">GitHub</a><a href="#">Method</a>
+    </div>
+  </footer>
+</div>
+<script src="/assets/landing.js" defer></script>
+</body>
+</html>

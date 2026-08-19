@@ -1,5 +1,9 @@
-// Package present renders squads and transfers for a human — a pitch in the
-// terminal, or a self-contained HTML file.
+// Package present renders for a human — a pitch in the terminal, the briefing document,
+// and the replayed-season pages.
+//
+// The self-contained squad-and-transfers page it used to write is retired; `armband serve`
+// hosts the application instead. See the note above Render in html.go for what survives
+// here and why.
 //
 // # Why this is its own package
 //

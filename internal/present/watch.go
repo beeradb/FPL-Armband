@@ -5,9 +5,13 @@ import (
 	"strings"
 )
 
-// WatchPageSize is how many watchlist rows one page holds. The served page
-// slices fifty at a time; the static export shows all rows, so this binds the
-// served page only.
+// WatchPageSize is how many watchlist rows one page holds.
+//
+// ⚠️ Neither this nor WatchCap binds the product any more. Both apply inside Apply,
+// which is reached only from Render — and Render has no product caller since the
+// application replaced the served page. /api/state sends every row and the client
+// paginates. They are described below as they behave, not as they bind; removing
+// them is real work and is owed.
 const WatchPageSize = 50
 
 // WatchCap is how many rows the UNFILTERED watchlist shows at most. It is a

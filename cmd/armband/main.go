@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -82,11 +83,10 @@ Flags:
   -plain           Print squads as a plain list rather than a pitch. The list
                    carries per-player detail the pitch has no room for —
                    rotation risk, role factors, set-piece notes
-  -html string     Also write the squad, transfer sheet or briefing to a
-                   self-contained HTML file — squad, transfers and brief all
-                   take it. It opens offline from a file:// URL and fetches
-                   nothing
-  -weeks int       Gameweeks in the HTML week-by-week view. Defaults to the
+  -html string     Also write the BRIEFING to a self-contained HTML file. The
+                   squad and transfer pages are served rather than written now:
+                   run "armband serve" and open the printed URL
+  -weeks int       Gameweeks in the week-by-week view. Defaults to the
                    scoring horizon, and may exceed it — a chip is usually
                    planned outside the horizon, so a wildcard at GW6 is
                    invisible on a five-week view
@@ -760,18 +760,17 @@ func cmdSquad(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// The page half is built only when a page is wanted: the transfer plan,
 	// watchlist and week views cost network calls and pool-wide passes that
 	// the terminal pitch would throw away.
-	b, err := buildSquadPage(ctx, cfg, client, e, weeks, htmlPath != "")
+	// Refused before the optimiser runs. Answering after a squad has been built
+	// would make the reader wait for the work, then be told the output they asked
+	// for does not exist.
+	if htmlPath != "" {
+		return errPageRetired
+	}
+	b, err := buildSquadPage(ctx, cfg, client, e, weeks, false, time.Now())
 	if err != nil {
 		return err
 	}
 	sq := b.Squad
-
-	if htmlPath != "" {
-		if err := writeSquadHTML(htmlPath, b.Page); err != nil {
-			return err
-		}
-		fmt.Printf("\n%s\n", dim("wrote "+htmlPath))
-	}
 
 	// The pitch is the default because a squad is a shape before it is a list.
 	// -plain keeps the per-player detail line, which carries rotation risk, role
@@ -803,9 +802,6 @@ func cmdSquad(ctx context.Context, cfg config.Config, client *fpl.Client,
 	return nil
 }
 
-// writeSquadHTML writes the team sheet to a local file. Deliberately a file and
-// not a hosted page: it is self-contained, it opens offline, and nothing about a
-// squad needs to leave the machine to be looked at.
 // squadBrief is the handful of facts that decide what the squad below means.
 //
 // Built here rather than in internal/present because every one of them comes from the
@@ -863,23 +859,24 @@ func squadBrief(cfg config.Config, e *analysis.Engine) *present.Brief {
 	return b
 }
 
-func writeSquadHTML(path string, p present.Page) error {
-	// 0600 rather than os.Create's 0644. The page carries the full text of every
-	// standing override reason, FPL's injury notes, and the squad's value and bank —
-	// none of it a credential, all of it this user's, and on a shared host 0644 hands
-	// it to every other local account. It grew a great deal when the reasoning and
-	// watchlist views were added; the mode had not been revisited since it was a
-	// team sheet.
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return fmt.Errorf("write squad HTML: %w", err)
-	}
-	defer f.Close()
-	if err := present.Render(f, p); err != nil {
-		return fmt.Errorf("render squad HTML: %w", err)
-	}
-	return f.Close()
-}
+// errPageRetired is what `squad -html` and `transfers -html` answer now.
+//
+// The self-contained page they wrote was a second implementation of the product: the
+// same squad, drawn by a different renderer, kept in step by hand. It is replaced by
+// `armband serve`, which hosts the real application against the same pipeline.
+//
+// It is an ERROR rather than a silent no-op, and rather than a flag that quietly
+// disappeared. A script that has been writing a page every week should be told the page
+// is gone, at the moment it asks for one -- not leave the operator to notice that a file
+// stopped being updated.
+//
+// `brief -html` is unaffected. It goes through present.Doc, a Markdown converter, and is
+// a document rather than a second view of the model.
+var errPageRetired = errors.New(
+	"the self-contained squad page is retired: it was a second renderer for a squad the " +
+		"application already draws.\n" +
+		"Run `armband serve` and open the printed URL. `brief -html` still writes its " +
+		"briefing document.")
 
 func printPlayer(p analysis.PlayerMetrics) {
 	var notes []string

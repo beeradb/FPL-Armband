@@ -88,9 +88,13 @@ import (
 // for per-player history that is cumulative and therefore reconstructable from the
 // weekly `bootstrap-static` series, so it multiplies the cost by 250 to record
 // something the capture already implies.
+//
+// Spelled through the two constants rather than as literals, so the endpoint names have
+// one spelling in this package. A capture written under one spelling and read under
+// another is a miss that looks exactly like an absent capture.
 var Endpoints = []string{
-	"/bootstrap-static/",
-	"/fixtures/",
+	BootstrapEndpoint,
+	FixturesEndpoint,
 }
 
 // Fetcher is the one method a capture needs. Narrow on purpose: an interface this

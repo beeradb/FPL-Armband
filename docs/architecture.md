@@ -172,6 +172,39 @@ that expire.
 
 Markdown reports to `reports/`, dated, never clobbering an earlier file from the same day.
 
+### `internal/viewmodel`
+
+The contract between the model and every client that draws it: plain Go structs with JSON
+tags and nothing about transport in them.
+
+It exists because there are three hosts for one application — `armband serve` over HTTP, a
+Wails desktop build binding to Go directly, and a website. If the shape a client reads were
+defined inside an HTTP handler, the desktop build would have to restate it, and one shape
+with two statements is the failure this codebase pays for most often.
+
+It computes nothing. Every figure is copied off `analysis.Squad`, `analysis.PlayerMetrics`,
+`present.Watchlist` or config — the same rule `internal/present` states for itself, and what
+lets the client stay dumb: a number the client needs and does not have gets added here
+rather than worked out there.
+
+`Build` returns an error on one condition only, a non-finite float. That is not defensive:
+`encoding/json` refuses `NaN` and `+Inf` outright, so one bad value fails the whole document
+and names neither the player nor the field.
+
+### `internal/webui`
+
+The client application — two documents, the design system and self-hosted font subsets —
+compiled into the binary with `//go:embed`.
+
+Embedded rather than read from disk because a Wails build has no directory to read from and
+no network to fetch from, so anything needed at first paint has to be inside the binary. It
+also means `serve` cannot half-work: a missing stylesheet is a build failure rather than a
+blank page in front of a reader.
+
+`assets/pages` holds the documents, each reachable at exactly one URL; `assets/static` holds
+everything they reference, under `/assets/`. The split is what stops the application having
+two front doors.
+
 ### The supporting packages
 
 Seven more packages fill gaps in what the FPL API publishes. None of them is on the path of
