@@ -51,3 +51,12 @@ package assumption (the charge is 4 per hit ROW, not a season-level subtraction;
 MaxHits ≥ 2 sweep must charge per hit leg), and the week header pluralises for a
 hypothetical multi-hit week ("8 hits"). Both are wording; no number moves, and the replay
 test's pinned arithmetic string still passes.
+
+**Added for the main merge (afbe713), covered by this record**: development merged
+origin/main's disowned-stratum retraction (69d6f1f, which carries its own review record,
+`reviews/2026-08-17-the-disowned-pooled-stratum/`). The conflict resolution: development's
+compacted AGENTS.md kept everywhere, with main's rewritten clean-sheet bullet substituted
+verbatim — the retraction supersedes the compacted "the ladder runs hot" claim, which the
+disowned run forbids quoting. The resident budget returns to 110 KB for the retraction's
+5 KB of hedges (named in the budget comment). No text was edited during the resolution;
+both sides' words survive intact.
