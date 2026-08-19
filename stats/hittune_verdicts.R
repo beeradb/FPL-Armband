@@ -134,6 +134,10 @@ cat("\n=== the holding-window criterion: the charge in the sum, non-negative net
 # (no cut binds); floored machine = bench boost + free hit + triple captain
 # (wildcard cut absent); full plan = all four (every cut live).
 hits$hold_net <- hits$hold_net - 4          # the charge comes out of the sum
+# The charge is 4 PER HIT ROW, not a season-level subtraction: the bank carries
+# exactly one hit-flagged leg per hit package (MaxHits is 1, and the reviewers
+# verified no package carries two), so this subtracts one -4 per hit taken. A
+# future MaxHits >= 2 sweep must charge per hit leg instead.
 hits$worked <- hits$hold_net >= 0
 hits$workedH <- hits$hit_net >= 0           # hit_net is already net of the -4
 for (arm in c("mgh3", "mgh3floored", "mgh3fullplan")) {

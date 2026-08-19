@@ -1020,7 +1020,7 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
       <span>{{.Formation}}</span>
       <span>captain <b style="font-size:.9rem">{{.Captain}}</b></span>
       {{if .Actual}}<span>
-        {{if .Hit}}<b style="font-size:.9rem">{{printf "%.0f" (gross .Expected .Hit)}}</b> &minus; <span class="hitmark">{{.Hit}} hit</span> = <b style="font-size:.9rem">{{printf "%.0f" .Expected}}</b> pts
+        {{if .Hit}}<b style="font-size:.9rem">{{printf "%.0f" (gross .Expected .Hit)}}</b> &minus; <span class="hitmark">{{.Hit}} hit{{if gt .Hit 4}}s{{end}}</span> = <b style="font-size:.9rem">{{printf "%.0f" .Expected}}</b> pts
         {{else}}<b style="font-size:.9rem">{{printf "%.0f" .Expected}}</b> pts scored{{end}}</span>
         <span>{{.Running}} to date</span>{{else}}<span><b style="font-size:.9rem">{{pts1 .Expected}}</b> pts projected</span>{{end}}
       {{if .Chip}}<span class="chip">{{.Chip}}</span>{{end}}
