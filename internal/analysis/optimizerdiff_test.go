@@ -229,10 +229,33 @@ type diffCase struct {
 	benchWeigh float64
 }
 
+// diffScore is the gridded score, or a continuous one when scoreGrid <= 0.
+func diffScore(rng *rand.Rand, scoreGrid int) float64 {
+	if scoreGrid <= 0 {
+		return rng.Float64() * 12
+	}
+	return float64(rng.Intn(scoreGrid)) * 0.25
+}
+
 // diffPlayer builds a candidate with ties made likely on purpose. Score sits on
 // a coarse grid so two players collide often, while ExpectedMinutes is drawn
 // independently — which is what makes a tie observable in the objective, since
 // blankRate reads the minutes and slotProbabilities convolves in sorted order.
+//
+// # scoreGrid <= 0 means continuous scores, and it is here to cover a blind spot
+//
+// ⚠️ **Every gridded score is an exact multiple of 0.25.** Sums of eleven of them
+// are exactly representable, so ANY regrouping of such a sum is bit-identical by
+// construction — 0 of 200k trials, against 39% once scores are continuous. This
+// corpus therefore had NO power against a re-associated sum, which is exactly
+// what bestFormation's prefix records are: it adds four per-position partials
+// where the code it replaced ran one accumulator across all eleven. That
+// restructuring shipped in d8d2897 described as bit-identical, and this file was
+// green throughout because it could not see the change.
+//
+// The continuous arm closes it for arithmetic. What it deliberately does NOT do
+// is force ties, and that limit is the interesting part — see the grid list in
+// optimizerDiffCases.
 func diffPlayer(rng *rand.Rand, id int, pos string, scoreGrid int) PlayerMetrics {
 	return PlayerMetrics{
 		ID:              id,
@@ -240,7 +263,7 @@ func diffPlayer(rng *rand.Rand, id int, pos string, scoreGrid int) PlayerMetrics
 		Position:        pos,
 		Team:            fmt.Sprintf("T%02d", rng.Intn(20)),
 		Price:           float64(39+rng.Intn(112)) / 10,
-		Score:           float64(rng.Intn(scoreGrid)) * 0.25,
+		Score:           diffScore(rng, scoreGrid),
 		ExpectedMinutes: float64(rng.Intn(91)),
 		StartShare:      float64(rng.Intn(101)) / 100,
 		Status:          "available",
@@ -272,8 +295,24 @@ func optimizerDiffCases(t *testing.T) []diffCase {
 
 	weights := []float64{0.02, DefaultBenchWeight, 0.15, 0.35}
 
-	// Score grids from "everybody ties" to "ties are rare".
-	for _, grid := range []int{1, 2, 3, 8, 40, 400} {
+	// Score grids from "everybody ties" to "ties are rare", plus 0 for
+	// continuous scores — the arm that gives this corpus power over the
+	// ARITHMETIC, per diffPlayer's note on the 0.25 grid.
+	//
+	// ⚠️ **Do NOT add a decimal grid such as tenths, and this is not a style
+	// preference — it fails today.** Tenths are the one corpus that is both
+	// non-dyadic (so a regrouped sum really does differ in the last bits) and
+	// coarse enough for two FORMATIONS to tie exactly, and where those two meet,
+	// the ULP decides the tie. bestFormation's prefix fold picks a different
+	// formation from refBestXIWith on about 2.6% of such squads (103 of 4000
+	// measured 2026-08-19), against 0 of 4000 on quarters and 0 of 4000 on
+	// continuous. That divergence is real, it is a tie-break direction rather
+	// than a wrong number — the two formations are within a ULP — and it is
+	// accepted deliberately: the fold is what made the formation scan
+	// constant-time, real Score is continuous, and a 36-cell replay A/B across
+	// six seasons came back exactly equal on every cell. Adding tenths here would
+	// re-fail that decision as a mystery rather than re-open it as one.
+	for _, grid := range []int{1, 2, 3, 8, 40, 400, 0} {
 		for rep := 0; rep < 60; rep++ {
 			squad := diffSquad(rng, grid)
 			bw := weights[rng.Intn(len(weights))]
@@ -464,6 +503,36 @@ func TestOptimizerHotPathIsBitExact(t *testing.T) {
 		got := objectiveWith(c.squad, c.benchWeigh, c.mustStart, false)
 		if !sameFloat(got, want) {
 			t.Fatalf("%s: objectiveWith = %s, want %s", c.label, bits(got), bits(want))
+		}
+	}
+
+	// One scratch across every case, which is how the search actually runs it.
+	//
+	// polish holds a single xiScratch for a whole search and hands it down by
+	// pointer, so every buffer in it is reused and grow-only across millions of
+	// evaluations of differently-shaped squads. A stale tail, or a length that
+	// outlives the squad that set it, is therefore a live failure mode — and it
+	// is invisible to every arm above, because objectiveWith and bestXIWith each
+	// start from `var sc xiScratch`. pickIDs, added when the bench membership
+	// test moved off the 592-byte structs, is exactly such a buffer.
+	//
+	// Reading pick and bench straight off the scratch also checks that the
+	// objective leaves them in the orders materialise promises: pick by
+	// descending score, bench with the reserve keeper last.
+	var shared xiScratch
+	for _, c := range cases {
+		want := refObjectiveWith(c.squad, c.benchWeigh, c.mustStart)
+		got := shared.objective(c.squad, c.benchWeigh, c.mustStart, false)
+		if !sameFloat(got, want) {
+			t.Fatalf("%s: objective on a shared scratch = %s, want %s",
+				c.label, bits(got), bits(want))
+		}
+		wantXI, wantBench, _ := refBestXIWith(c.squad, c.mustStart)
+		if err := sameSelection(shared.pick, wantXI); err != nil {
+			t.Fatalf("%s: XI on a shared scratch: %v", c.label, err)
+		}
+		if err := sameSelection(shared.bench, wantBench); err != nil {
+			t.Fatalf("%s: bench on a shared scratch: %v", c.label, err)
 		}
 	}
 
