@@ -147,7 +147,8 @@ understates by little. Free transfers read 64-73% non-negative on the same crite
 **The registered rung pattern (H') — no suggestive shape.** On the preference population
 with BOTH criteria net-of-charge (bar ≥ 0), the holding-minus-horizon clearance gap by
 rung reads **−1 / −2 / 0 / −7** percentage
-points (78-79, 73-76, 74-74, 67-73) at n 73 / 45 / 39 / 30 — small, non-monotone, and not
+points (78-79, 73-76, 74-74, 67-73; the gaps are computed on the unrounded shares, so the
+pairs and the gaps each round independently) at n 73 / 45 / 39 / 30 — small, non-monotone, and not
 the pre-registered widening, so no
 evidence the bar buys horizon-net quality that does not survive the hold. The clearance
 share declines overall with a blip at rung 5 on the holding criterion (78→73→74→67; the
