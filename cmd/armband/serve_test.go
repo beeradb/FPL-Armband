@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -97,6 +100,10 @@ func newActionServer(t *testing.T) (*squadServer, string) {
 		token:   "tok",
 		cfg:     &config.Config{},
 		cfgPath: path,
+		// The config-write tests run in persist mode: the default session
+		// store never touches the file, which is exactly what they assert
+		// against.
+		persist: true,
 		engine: &analysis.Engine{Boot: &fpl.Bootstrap{Elements: []fpl.Element{
 			{Code: 456, ID: 1, WebName: "Booted"},
 			{Code: 999, ID: 2, WebName: "Other"},
@@ -300,6 +307,105 @@ func TestWatchQueryParsesAndDefaults(t *testing.T) {
 	}
 }
 
+// TestTheSessionStoreWritesACookieNotTheConfig pins the default: the page's
+// overrides live in a browser-session cookie, and config.json stays a
+// default. Persisting is the opt-in, not the baseline.
+func TestTheSessionStoreWritesACookieNotTheConfig(t *testing.T) {
+	s, path := newActionServer(t)
+	s.persist = false
+
+	// Boot in session mode: a cookie comes back, the config file is never
+	// written.
+	w := postAction(t, s, url.Values{"t": {"tok"}, "a": {"boot"}, "c": {"456"}})
+	if w.Code != 303 {
+		t.Fatalf("boot answered %d, want 303", w.Code)
+	}
+	cookies := w.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != "fpl_overrides" {
+		t.Fatalf("the session store is not in the response cookies: %+v", cookies)
+	}
+	if cookies[0].HttpOnly != true || cookies[0].SameSite != http.SameSiteStrictMode {
+		t.Errorf("the session cookie is not hardened: %+v", cookies[0])
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("a session-mode action wrote config.json")
+	}
+	if len(s.cfg.Roster.Exclude) != 0 {
+		t.Error("a session-mode action changed the in-memory config")
+	}
+
+	// The cookie decodes to the booted code.
+	raw, err := base64.StdEncoding.DecodeString(cookies[0].Value)
+	if err != nil {
+		t.Fatalf("the cookie value is not base64: %v", err)
+	}
+	var so sessionOverrides
+	if err := json.Unmarshal(raw, &so); err != nil {
+		t.Fatalf("the cookie value is not session JSON: %v", err)
+	}
+	if len(so.Exclude) != 1 || so.Exclude[0] != 456 {
+		t.Errorf("the cookie holds %+v, want the booted code 456", so)
+	}
+
+	// Lock the same player: he moves from exclude to lock in the cookie, and
+	// the next action carries the running session along (the request cookie).
+	req := httptest.NewRequest("POST", "/action", strings.NewReader(
+		url.Values{"t": {"tok"}, "a": {"lock"}, "c": {"456"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Host = "127.0.0.1:8080"
+	req.AddCookie(cookies[0])
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	cookies = w.Result().Cookies()
+	raw, _ = base64.StdEncoding.DecodeString(cookies[0].Value)
+	_ = json.Unmarshal(raw, &so)
+	if len(so.Lock) != 1 || len(so.Exclude) != 0 {
+		t.Errorf("the cookie after lock holds %+v, want the code locked only", so)
+	}
+
+	// Unlock empties the store, and the response clears the cookie rather
+	// than carrying an empty one.
+	req = httptest.NewRequest("POST", "/action", strings.NewReader(
+		url.Values{"t": {"tok"}, "a": {"unlock"}, "c": {"456"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Host = "127.0.0.1:8080"
+	req.AddCookie(cookies[0])
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	cookies = w.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].MaxAge >= 0 {
+		t.Errorf("an empty session should clear the cookie, got %+v", cookies)
+	}
+}
+
+// TestTheSessionOverridesRideOnTopOfTheConfig. The effective config is the
+// real one plus the session: a session boot clears a config lock for the
+// page (never the file), and a session lock survives beside untouched
+// config lists.
+func TestTheSessionOverridesRideOnTopOfTheConfig(t *testing.T) {
+	s, _ := newActionServer(t)
+	s.persist = false
+	s.cfg.Roster.Lock = []config.RosterOverride{{Code: 999, Name: "Other"}}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Host = "127.0.0.1:8080"
+	raw, _ := json.Marshal(sessionOverrides{Exclude: []int{999}, Lock: []int{456}})
+	req.AddCookie(&http.Cookie{Name: overrideCookieName,
+		Value: base64.StdEncoding.EncodeToString(raw)})
+
+	cfg := s.effectiveCfg(req)
+	if len(cfg.Roster.Exclude) != 1 || cfg.Roster.Exclude[0].Code != 999 {
+		t.Errorf("a session boot did not clear the config lock for the page: %+v",
+			cfg.Roster.Exclude)
+	}
+	if len(cfg.Roster.Lock) != 1 || cfg.Roster.Lock[0].Code != 456 {
+		t.Errorf("a session lock did not join the effective config: %+v", cfg.Roster.Lock)
+	}
+	if len(s.cfg.Roster.Lock) != 1 || s.cfg.Roster.Lock[0].Code != 999 {
+		t.Error("the session store mutated the real config")
+	}
+}
+
 // TestTheActionSavesBeforeItAdopts. A save failure must leave the running
 // config untouched — adopting first would show an override on the page that
 // every later run silently lacks, which is the page lying about the state of
@@ -313,6 +419,7 @@ func TestTheActionSavesBeforeItAdopts(t *testing.T) {
 	}
 	s := &squadServer{
 		token: "tok", cfg: &config.Config{}, cfgPath: filepath.Join(blocker, "config.json"),
+		persist: true,
 		engine: &analysis.Engine{Boot: &fpl.Bootstrap{Elements: []fpl.Element{
 			{Code: 456, ID: 1, WebName: "Booted"},
 		}}},

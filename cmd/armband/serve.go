@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
@@ -42,6 +44,8 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := fs.String("addr", "127.0.0.1:8080", "address to serve on (loopback only)")
+	persist := fs.Bool("persist", false, "write lock/boot overrides back to config.json; "+
+		"without it they live in a browser-session cookie")
 	if err := fs.Parse(flag.Args()[1:]); err != nil {
 		return err
 	}
@@ -60,26 +64,38 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 		client:  client,
 		engine:  e,
 		weeks:   weeks,
+		persist: *persist,
 	}
 
 	fmt.Fprintf(os.Stderr, "\n%s\n", dim("Serving the squad page on http://"+*addr+"/?t="+token))
 	fmt.Fprintf(os.Stderr, "%s\n", dim("Open that exact URL — the token gates the page's write actions."))
+	if *persist {
+		fmt.Fprintf(os.Stderr, "%s\n", dim("Overrides write back to "+cfgPath+" (-persist)."))
+	} else {
+		fmt.Fprintf(os.Stderr, "%s\n", dim("Overrides live in a browser-session cookie — "+
+			"config.json is untouched. Run serve -persist to write them back instead."))
+	}
 	fmt.Fprintf(os.Stderr, "%s\n\n", dim("Ctrl-C stops the server."))
 	return http.ListenAndServe(*addr, s)
 }
 
-// squadServer is the whole server: the page, and later the write actions.
+// squadServer is the whole server: the page and the write actions.
 type squadServer struct {
 	mu    sync.Mutex
 	token string
 	cfg   *config.Config
-	// cfgPath is where POSTs persist changes. It may be empty, which makes the
-	// server read-only in effect — an override that cannot be saved must not be
-	// applied, because the page would show it and the next run would not.
+	// cfgPath is where -persist saves changes. It may be empty, which makes a
+	// persisted override unsaveable — and the handler refuses the action
+	// rather than showing an override the next run would not have.
 	cfgPath string
 	client  *fpl.Client
 	engine  *analysis.Engine
 	weeks   int
+	// persist switches the write actions' store: true writes back to
+	// config.json, the default false keeps them in a browser-session cookie.
+	// The default config stays a default — the page never mutates it unless
+	// the user asked.
+	persist bool
 }
 
 func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -108,13 +124,18 @@ func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	b, err := buildSquadPage(r.Context(), *s.cfg, s.client, s.engine, s.weeks, true)
+	b, err := buildSquadPage(r.Context(), s.effectiveCfg(r), s.client, s.engine, s.weeks, true)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	b.Page.Token = s.token
 	b.Page.WatchQuery = watchQuery(r)
+	b.Page.View = viewParam(r)
+	b.Page.SessionMode = !s.persist
+	if !s.persist {
+		markSessionOverrides(&b.Page, readSessionOverrides(r))
+	}
 	// The whole request URI, not just the query: the redirect after an action
 	// must be path-relative, and a bare query would be rejected by the
 	// path-prefix check in action as an open redirect.
@@ -195,15 +216,31 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if s.cfgPath == "" {
-		http.Error(w, "no config path — the override was not saved", http.StatusInternalServerError)
-		return
+
+	if s.persist {
+		// Saved before adopted: a failed save leaves the server and the
+		// config exactly as they were.
+		if s.cfgPath == "" {
+			http.Error(w, "no config path — the override was not saved", http.StatusInternalServerError)
+			return
+		}
+		if err := config.Save(s.cfgPath, next); err != nil {
+			http.Error(w, fmt.Sprintf("saving config: %v", err), http.StatusInternalServerError)
+			return
+		}
+		s.cfg = &next
+	} else {
+		// The default store is the browser session: the cookie mutates, the
+		// config file stays a default. Session overrides ride on top of the
+		// config for every build of this page, and they die with the browser
+		// session.
+		so := readSessionOverrides(r).apply(act, code)
+		if err := so.setCookie(w); err != nil {
+			http.Error(w, fmt.Sprintf("encoding the session overrides: %v", err),
+				http.StatusInternalServerError)
+			return
+		}
 	}
-	if err := config.Save(s.cfgPath, next); err != nil {
-		http.Error(w, fmt.Sprintf("saving config: %v", err), http.StatusInternalServerError)
-		return
-	}
-	s.cfg = &next
 
 	// Back to the view the reader acted from, token included. The redirect is
 	// what makes the page regenerate: the browser now GETs it fresh, with the
@@ -213,6 +250,191 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 		ret = "/?t=" + s.token
 	}
 	http.Redirect(w, r, ret, http.StatusSeeOther)
+}
+
+// sessionOverrides is the lock/boot state of ONE browser session — the
+// page's default store. Codes only: the bootstrap is authoritative for
+// names, and a code that stops resolving is dropped at build time rather
+// than carried. It is deliberately not the config.RosterOverride struct —
+// this store has no reasons and no dates, it is a scratch surface for one
+// reader's session, not the standing record.
+type sessionOverrides struct {
+	Lock    []int `json:"lock"`
+	Exclude []int `json:"exclude"`
+}
+
+// overrideCookieName is the session cookie carrying the overrides. The value
+// is base64 JSON because a bare JSON array contains commas, which the cookie
+// grammar forbids; base64's alphabet is entirely cookie-safe.
+const overrideCookieName = "fpl_overrides"
+
+func readSessionOverrides(r *http.Request) sessionOverrides {
+	c, err := r.Cookie(overrideCookieName)
+	if err != nil {
+		return sessionOverrides{}
+	}
+	raw, err := base64.StdEncoding.DecodeString(c.Value)
+	if err != nil {
+		return sessionOverrides{}
+	}
+	var so sessionOverrides
+	if err := json.Unmarshal(raw, &so); err != nil {
+		return sessionOverrides{}
+	}
+	return so
+}
+
+// setCookie writes the session store, or clears the cookie when the session
+// holds nothing — an empty override set and a dead cookie must not read
+// differently on the next request.
+func (so sessionOverrides) setCookie(w http.ResponseWriter) error {
+	if len(so.Lock) == 0 && len(so.Exclude) == 0 {
+		http.SetCookie(w, &http.Cookie{Name: overrideCookieName, Path: "/", MaxAge: -1})
+		return nil
+	}
+	raw, err := json.Marshal(so)
+	if err != nil {
+		return err
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     overrideCookieName,
+		Value:    base64.StdEncoding.EncodeToString(raw),
+		Path:     "/",
+		SameSite: http.SameSiteStrictMode,
+		// HttpOnly: the page's script never reads the store — it posts
+		// actions and the server answers with the next render.
+		HttpOnly: true,
+	})
+	return nil
+}
+
+// apply mirrors config.Roster.Set/Remove semantics on the session store:
+// lock and boot are mutually exclusive, unlock and unboot lift one list.
+func (so sessionOverrides) apply(action string, code int) sessionOverrides {
+	drop := func(codes []int, code int) []int {
+		out := codes[:0:0]
+		for _, c := range codes {
+			if c != code {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	add := func(codes []int, code int) []int {
+		for _, c := range codes {
+			if c == code {
+				return codes
+			}
+		}
+		return append(codes, code)
+	}
+	switch action {
+	case "lock":
+		so.Exclude = drop(so.Exclude, code)
+		so.Lock = add(so.Lock, code)
+	case "boot":
+		so.Lock = drop(so.Lock, code)
+		so.Exclude = add(so.Exclude, code)
+	case "unlock":
+		so.Lock = drop(so.Lock, code)
+	case "unboot":
+		so.Exclude = drop(so.Exclude, code)
+	}
+	return so
+}
+
+// effectiveCfg is the config this request builds the page from: the real
+// config with the session's overrides applied on top. Session wins on
+// conflict — a session boot clears a config lock for THIS page, never the
+// file — so the page's controls always express the reader's latest decision
+// without touching config.json. In persist mode the session is ignored and
+// the config is the one store.
+func (s *squadServer) effectiveCfg(r *http.Request) config.Config {
+	cfg := *s.cfg
+	if s.persist {
+		return cfg
+	}
+	so := readSessionOverrides(r)
+	if len(so.Lock) == 0 && len(so.Exclude) == 0 {
+		return cfg
+	}
+	today := time.Now().Format("2006-01-02")
+	entry := func(code int, mode, name string) config.RosterOverride {
+		reason := "locked from the squad page — browser session"
+		if mode == "exclude" {
+			reason = "booted from the squad page — browser session"
+		}
+		return config.RosterOverride{
+			Code: code, Name: name, Reason: reason, SetOn: today, LastChecked: today,
+		}
+	}
+	// A code the bootstrap no longer contains is dropped: the session is a
+	// scratch surface, and a nameless override would litter the page exactly
+	// as it would litter config.
+	for _, code := range so.Exclude {
+		if name := s.playerName(code); name != "" {
+			_ = cfg.Roster.Set("exclude", entry(code, "exclude", name))
+		}
+	}
+	for _, code := range so.Lock {
+		if name := s.playerName(code); name != "" {
+			_ = cfg.Roster.Set("lock", entry(code, "lock", name))
+		}
+	}
+	return cfg
+}
+
+// markSessionOverrides flags every override this browser's session owns, so
+// the page renders their controls as live — and config-sourced ones as
+// disabled, because the session-mode page cannot clear what it does not own.
+func markSessionOverrides(p *present.Page, so sessionOverrides) {
+	if len(so.Lock) == 0 && len(so.Exclude) == 0 {
+		return
+	}
+	isSession := func(code int) bool {
+		for _, c := range so.Lock {
+			if c == code {
+				return true
+			}
+		}
+		for _, c := range so.Exclude {
+			if c == code {
+				return true
+			}
+		}
+		return false
+	}
+	for id, ov := range p.Overrides {
+		if isSession(ov.Code) {
+			ov.Session = true
+			p.Overrides[id] = ov
+		}
+	}
+	if p.Reasoning != nil {
+		for i := range p.Reasoning.Overrides {
+			if isSession(p.Reasoning.Overrides[i].Code) {
+				p.Reasoning.Overrides[i].Session = true
+			}
+		}
+	}
+	if p.Watch != nil {
+		for i := range p.Watch.Excluded {
+			if isSession(p.Watch.Excluded[i].Code) {
+				p.Watch.Excluded[i].Session = true
+			}
+		}
+	}
+}
+
+// viewParam reads which tab the page opens on. The watchlist's links carry
+// v=watch so a filter, sort or page lands the reader back on the list, not
+// on the eleven.
+func viewParam(r *http.Request) string {
+	switch r.URL.Query().Get("v") {
+	case "team", "why", "watch":
+		return r.URL.Query().Get("v")
+	}
+	return ""
 }
 
 // safeRetPath reports whether a form-supplied redirect target is path-relative.

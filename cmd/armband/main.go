@@ -33,8 +33,12 @@ Usage:
   armband serve             Serve the squad page over HTTP (no AI, no API cost).
                             Loopback only: open the printed URL, which carries
                             a per-startup token that gates the page's write
-                            actions. Flags go AFTER the command: -addr
-                            127.0.0.1:9999
+                            actions. Lock and boot update the page in place;
+                            rows slide in and out. Flags go AFTER the command:
+                            -addr 127.0.0.1:9999, -persist (write overrides to
+                            config.json — the default keeps them in a
+                            browser-session cookie, so config.json stays a
+                            default)
   armband transfers         Best transfers for the squad you own, as a team sheet
                             (no AI, no API cost)
   armband fixtures          Fixture difficulty table (no AI, no API cost)

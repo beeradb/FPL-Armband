@@ -349,6 +349,104 @@ func TestTheWatchlistColoursAgainstTheGateAndNotAgainstZero(t *testing.T) {
 	}
 }
 
+// TestTheEnhancementScriptRendersOnlyWhenServed. The progressive-enhancement
+// script rides on the served page alone: the static export must stay
+// script-free — TestTheThreeViewPageIsStillSelfContained guards the offline
+// promise — and the served page's rows must carry the permanent-code keys the
+// script reconciles on.
+func TestTheEnhancementScriptRendersOnlyWhenServed(t *testing.T) {
+	static := briefedPage(t, func(p *Page) {
+		p.Watch = &Watchlist{Rows: []WatchRow{{Player: analysis.PlayerMetrics{
+			ID: 7, Name: "X", Team: "AAA", Position: "MID", Score: 5, Price: 6}}}}
+	})
+	if strings.Contains(static, "<script") {
+		t.Error("the static export carries the enhancement script; it must stay script-free")
+	}
+	if strings.Contains(static, "data-pid") {
+		t.Error("the static export carries row keys it has no script to use")
+	}
+
+	served := briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.Codes = map[int]int{p.Squad.StartingXI[0].ID: 987654, p.Squad.Bench[0].ID: 111}
+	})
+	for _, want := range []string{"fetch(\"/action\"", "data-pid=\"987654\"",
+		`"slide-in"`, `"slide-out"`} {
+		if !strings.Contains(served, want) {
+			t.Errorf("the served page lacks %q", want)
+		}
+	}
+}
+
+// TestTheSessionModePageDisablesConfigSourcedControls. On the session-mode
+// page, an override that lives in config.json renders its control disabled —
+// the page cannot clear what it does not own — while a session-sourced one
+// stays live.
+func TestTheSessionModePageDisablesConfigSourcedControls(t *testing.T) {
+	sq := sampleSquad()
+	out := briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.SessionMode = true
+		p.Codes = map[int]int{sq.StartingXI[0].ID: 987654}
+		p.Overrides = map[int]Override{
+			sq.StartingXI[0].ID: {Kind: "lock", Label: "LOCK", Code: 987654},
+		}
+	})
+	if !strings.Contains(out, `class="actbtn on" type="button" disabled`) {
+		t.Error("a config-sourced lock renders a live unlock button on the " +
+			"session-mode page; it cannot clear what it does not own")
+	}
+	if !strings.Contains(out, "Restart serve with -persist") {
+		t.Error("the disabled lock does not explain why")
+	}
+
+	out = briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.SessionMode = true
+		p.Codes = map[int]int{sq.StartingXI[0].ID: 987654}
+		p.Overrides = map[int]Override{
+			sq.StartingXI[0].ID: {Kind: "lock", Label: "LOCK", Code: 987654, Session: true},
+		}
+	})
+	if strings.Contains(out, `type="button" disabled`) {
+		t.Error("a session-sourced lock renders disabled; the page owns it and " +
+			"must be able to clear it")
+	}
+	if !strings.Contains(out, `name="a" value="unlock"`) {
+		t.Error("a session-sourced lock does not offer unlock")
+	}
+
+	// The excluded card: config-sourced exclusions carry a note, session ones
+	// the bring-back button.
+	out = briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.SessionMode = true
+		p.Watch = &Watchlist{
+			Excluded: []Override{{Kind: "exclude", Label: "EXCL", Player: "X",
+				Code: 987654, Reason: "r"}},
+			Rows: []WatchRow{{Player: analysis.PlayerMetrics{
+				ID: 7, Name: "Y", Team: "AAA", Position: "MID", Score: 5, Price: 6}}},
+		}
+	})
+	if !strings.Contains(out, "restart serve with -persist") {
+		t.Error("a config-sourced exclusion carries no explanation on the " +
+			"session-mode page")
+	}
+	out = briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.SessionMode = true
+		p.Watch = &Watchlist{
+			Excluded: []Override{{Kind: "exclude", Label: "EXCL", Player: "X",
+				Code: 987654, Reason: "r", Session: true}},
+			Rows: []WatchRow{{Player: analysis.PlayerMetrics{
+				ID: 7, Name: "Y", Team: "AAA", Position: "MID", Score: 5, Price: 6}}},
+		}
+	})
+	if !strings.Contains(out, `name="a" value="unboot"`) {
+		t.Error("a session-sourced exclusion does not offer the bring-back button")
+	}
+}
+
 // TestTheWatchlistControlsRenderOnlyWhenServed. The served watchlist carries a
 // filter form, sort links and a pager over 50-row pages; the static export
 // shows the same rows sorted the same default way, with no controls — a sort
@@ -382,8 +480,8 @@ func TestTheWatchlistControlsRenderOnlyWhenServed(t *testing.T) {
 		`<form class="wfilter" method="get" action="/">`,
 		`name="pos"`, `name="team"`, `name="q"`,
 		// The active column's link flips the direction.
-		`href="?dir=asc&sort=price"`,
-		`<a class="sort on" href="?dir=asc&sort=price">&pound; ↓</a>`,
+		`href="?dir=asc&sort=price&v=watch"`,
+		`<a class="sort on" href="?dir=asc&sort=price&v=watch">&pound; ↓</a>`,
 		"1–50 of 60", "page 1 of 2", "next ›",
 	} {
 		if !strings.Contains(served, want) {

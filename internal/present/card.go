@@ -45,6 +45,11 @@ type Override struct {
 	// action keyed on one would come back next August attached to a different
 	// footballer. Empty for club overrides, which have no player to write.
 	Code int
+	// Session marks an override set by this browser session rather than read
+	// from config.json. On the session-mode page it is the difference between
+	// "you can clear this" and "this is a standing override — change it in
+	// config, or run serve -persist".
+	Session bool
 	// Label is the badge text and it always carries the VALUE, never just the kind.
 	// "MIN 88" and "MIN 15" are opposite interventions — one is holding a backup
 	// keeper in the eleven, the other is writing an injured defender down — and a
