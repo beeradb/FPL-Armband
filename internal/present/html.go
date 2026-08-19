@@ -1590,10 +1590,10 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
 /* Progressive enhancement, and nothing but: the forms above work without this
    script — a lock or boot posts to /action and the server redirects to a
    freshly rendered page. This intercepts those posts so the page updates in
-   place instead: the response IS the server's next render, fetched through
-   the redirect, and the browser rearranges what the server already decided.
-   Roster rows that leave slide out, rows that join slide in, everything else
-   swaps silently. It computes no squad state client-side. */
+   place instead: the enhanced field makes the server answer with the page the
+   action produced, and the browser rearranges what the server already
+   decided. Roster rows that leave slide out, rows that join slide in,
+   everything else swaps silently. It computes no squad state client-side. */
 (function () {
   "use strict";
   if (!window.fetch || !window.DOMParser || !document.querySelector) return;
@@ -1666,7 +1666,14 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
     if (busy) { e.preventDefault(); return; }
     e.preventDefault();
     busy = true;
-    fetch("/action", { method: "POST", body: new FormData(form), credentials: "same-origin" })
+    // The enhanced field makes the server answer with the page the action
+    // produced — one request, and the morph never depends on a just-set
+    // cookie surviving a redirect. A plain form submission sends no such
+    // field and still gets the 303, where browsers apply the cookie before
+    // following.
+    var data = new FormData(form);
+    data.append("enhanced", "1");
+    fetch("/action", { method: "POST", body: data, credentials: "same-origin" })
       .then(function (r) { if (!r.ok) throw new Error("status " + r.status); return r.text(); })
       .then(function (html) { morph(html); busy = false; })
       .catch(function () { window.location.reload(); });

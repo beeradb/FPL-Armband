@@ -76,7 +76,17 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 			"config.json is untouched. Run serve -persist to write them back instead."))
 	}
 	fmt.Fprintf(os.Stderr, "%s\n\n", dim("Ctrl-C stops the server."))
-	return http.ListenAndServe(*addr, s)
+	// ListenAndServe never looks at the context, and signal.NotifyContext
+	// replaces the default SIGINT/SIGTERM behaviour — so without this, Ctrl-C
+	// cancels the context and the server keeps serving, which is the one
+	// failure mode a user WILL hit. Closing the listener on cancellation is
+	// what makes "Ctrl-C stops the server" true.
+	srv := &http.Server{Addr: *addr, Handler: s}
+	go func() {
+		<-ctx.Done()
+		_ = srv.Close()
+	}()
+	return srv.ListenAndServe()
 }
 
 // squadServer is the whole server: the page and the write actions.
@@ -123,8 +133,18 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.render(w, r, s.effectiveCfg(r), readSessionOverrides(r))
+}
 
-	b, err := buildSquadPage(r.Context(), s.effectiveCfg(r), s.client, s.engine, s.weeks, true)
+// render writes the squad page for one request: the given config (already
+// merged with the session when not persisting) and session state for the
+// ownership marking, stamped with the token, query, view and return path.
+//
+// Both GET / and an enhanced action POST land here — the enhanced response
+// must be the page the action produced, which is how the page updates in
+// place without relying on a just-set cookie surviving the redirect.
+func (s *squadServer) render(w http.ResponseWriter, r *http.Request, cfg config.Config, so sessionOverrides) {
+	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, s.weeks, true)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -134,7 +154,7 @@ func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 	b.Page.View = viewParam(r)
 	b.Page.SessionMode = !s.persist
 	if !s.persist {
-		markSessionOverrides(&b.Page, readSessionOverrides(r))
+		markSessionOverrides(&b.Page, so)
 	}
 	// The whole request URI, not just the query: the redirect after an action
 	// must be path-relative, and a bare query would be rejected by the
@@ -217,6 +237,12 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The enhanced path (the page's script) wants the answer to BE the fresh
+	// page, built from the action's own result — no redirect, no reliance on
+	// a just-set cookie surviving one. A plain form submission still gets the
+	// 303, where browsers apply the cookie before following.
+	enhanced := r.PostFormValue("enhanced") == "1"
+
 	if s.persist {
 		// Saved before adopted: a failed save leaves the server and the
 		// config exactly as they were.
@@ -229,6 +255,10 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.cfg = &next
+		if enhanced {
+			s.render(w, r, next, sessionOverrides{})
+			return
+		}
 	} else {
 		// The default store is the browser session: the cookie mutates, the
 		// config file stays a default. Session overrides ride on top of the
@@ -238,6 +268,10 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 		if err := so.setCookie(w); err != nil {
 			http.Error(w, fmt.Sprintf("encoding the session overrides: %v", err),
 				http.StatusInternalServerError)
+			return
+		}
+		if enhanced {
+			s.render(w, r, s.effectiveCfgFrom(so), so)
 			return
 		}
 	}
@@ -350,11 +384,14 @@ func (so sessionOverrides) apply(action string, code int) sessionOverrides {
 // without touching config.json. In persist mode the session is ignored and
 // the config is the one store.
 func (s *squadServer) effectiveCfg(r *http.Request) config.Config {
+	return s.effectiveCfgFrom(readSessionOverrides(r))
+}
+
+func (s *squadServer) effectiveCfgFrom(so sessionOverrides) config.Config {
 	cfg := *s.cfg
 	if s.persist {
 		return cfg
 	}
-	so := readSessionOverrides(r)
 	if len(so.Lock) == 0 && len(so.Exclude) == 0 {
 		return cfg
 	}
