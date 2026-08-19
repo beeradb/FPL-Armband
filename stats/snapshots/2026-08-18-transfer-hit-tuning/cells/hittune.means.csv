@@ -1,31 +1,37 @@
 sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
-HITTUNE#1,1787091468-2822101,policy,"mgh4, flat",1,"mgh3, flat (shipped)",0.05197717254353486,36,-
-HITTUNE#1,1787091468-2822101,policy,"mgh5, flat",2,"mgh3, flat (shipped)",0.15674046833467198,36,-
-HITTUNE#1,1787091468-2822101,policy,"mgh6, flat",3,"mgh3, flat (shipped)",0.054881897702264676,36,-
-HITTUNE#1,1787091468-2822101,policy,"mgh3, floored machine",4,"mgh3, flat (shipped)",2.6097052367075264,36,-
-HITTUNE#1,1787091468-2822101,policy,no hits (wait),5,"mgh3, flat (shipped)",-0.26391569698205725,36,-
-HITTUNE#1,1787091468-2822101,policy_xpoints,"mgh4, flat",1,"mgh3, flat (shipped)",-0.046105593168987054,36,-
-HITTUNE#1,1787091468-2822101,policy_xpoints,"mgh5, flat",2,"mgh3, flat (shipped)",-0.10846790125362264,36,-
-HITTUNE#1,1787091468-2822101,policy_xpoints,"mgh6, flat",3,"mgh3, flat (shipped)",-0.11494291851054111,36,-
-HITTUNE#1,1787091468-2822101,policy_xpoints,"mgh3, floored machine",4,"mgh3, flat (shipped)",2.682138297917094,36,-
-HITTUNE#1,1787091468-2822101,policy_xpoints,no hits (wait),5,"mgh3, flat (shipped)",-0.3232640680105864,36,-
-HITTUNE#1,1787091468-2822101,hold,"mgh4, flat",1,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold,"mgh5, flat",2,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold,"mgh6, flat",3,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold,"mgh3, floored machine",4,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold,no hits (wait),5,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_xpoints,"mgh4, flat",1,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_xpoints,"mgh5, flat",2,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_xpoints,"mgh6, flat",3,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_xpoints,"mgh3, floored machine",4,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_xpoints,no hits (wait),5,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_fixedcap,"mgh4, flat",1,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_fixedcap,"mgh5, flat",2,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_fixedcap,"mgh6, flat",3,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_fixedcap,"mgh3, floored machine",4,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_fixedcap,no hits (wait),5,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_nocap,"mgh4, flat",1,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_nocap,"mgh5, flat",2,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_nocap,"mgh6, flat",3,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_nocap,"mgh3, floored machine",4,"mgh3, flat (shipped)",0,36,-
-HITTUNE#1,1787091468-2822101,hold_nocap,no hits (wait),5,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,policy,"mgh4, flat",1,"mgh3, flat (shipped)",0.05197717254353486,36,-
+HITTUNE#1,1787103153-2847891,policy,"mgh5, flat",2,"mgh3, flat (shipped)",0.15674046833467198,36,-
+HITTUNE#1,1787103153-2847891,policy,"mgh6, flat",3,"mgh3, flat (shipped)",0.054881897702264676,36,-
+HITTUNE#1,1787103153-2847891,policy,"mgh3, floored machine",4,"mgh3, flat (shipped)",2.6097052367075264,36,-
+HITTUNE#1,1787103153-2847891,policy,no hits (wait),5,"mgh3, flat (shipped)",-0.26391569698205725,36,-
+HITTUNE#1,1787103153-2847891,policy,"mgh3, full plan (shipped)",6,"mgh3, flat (shipped)",2.5685270389694494,36,-
+HITTUNE#1,1787103153-2847891,policy_xpoints,"mgh4, flat",1,"mgh3, flat (shipped)",-0.046105593168987054,36,-
+HITTUNE#1,1787103153-2847891,policy_xpoints,"mgh5, flat",2,"mgh3, flat (shipped)",-0.10846790125362264,36,-
+HITTUNE#1,1787103153-2847891,policy_xpoints,"mgh6, flat",3,"mgh3, flat (shipped)",-0.11494291851054111,36,-
+HITTUNE#1,1787103153-2847891,policy_xpoints,"mgh3, floored machine",4,"mgh3, flat (shipped)",2.682138297917093,36,-
+HITTUNE#1,1787103153-2847891,policy_xpoints,no hits (wait),5,"mgh3, flat (shipped)",-0.3232640680105864,36,-
+HITTUNE#1,1787103153-2847891,policy_xpoints,"mgh3, full plan (shipped)",6,"mgh3, flat (shipped)",2.737356021704496,36,-
+HITTUNE#1,1787103153-2847891,hold,"mgh4, flat",1,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold,"mgh5, flat",2,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold,"mgh6, flat",3,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold,"mgh3, floored machine",4,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold,no hits (wait),5,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold,"mgh3, full plan (shipped)",6,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_xpoints,"mgh4, flat",1,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_xpoints,"mgh5, flat",2,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_xpoints,"mgh6, flat",3,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_xpoints,"mgh3, floored machine",4,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_xpoints,no hits (wait),5,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_xpoints,"mgh3, full plan (shipped)",6,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_fixedcap,"mgh4, flat",1,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_fixedcap,"mgh5, flat",2,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_fixedcap,"mgh6, flat",3,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_fixedcap,"mgh3, floored machine",4,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_fixedcap,no hits (wait),5,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_fixedcap,"mgh3, full plan (shipped)",6,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_nocap,"mgh4, flat",1,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_nocap,"mgh5, flat",2,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_nocap,"mgh6, flat",3,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_nocap,"mgh3, floored machine",4,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_nocap,no hits (wait),5,"mgh3, flat (shipped)",0,36,-
+HITTUNE#1,1787103153-2847891,hold_nocap,"mgh3, full plan (shipped)",6,"mgh3, flat (shipped)",0,36,-
