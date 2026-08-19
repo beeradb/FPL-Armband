@@ -207,17 +207,20 @@ func TestTheActionsWriteAndLiftOverridesByPermanentCode(t *testing.T) {
 		}
 	}
 
-	// An off-site ret is refused; the reader lands on the root with the token.
+	// An off-site ret is refused; the reader lands on the application. The
+	// fallback used to be the root with the token on it, which is now the landing
+	// page -- a reader who had just locked a player would have been bounced out to
+	// the marketing hero.
 	w = postAction(t, s, url.Values{"t": {"tok"}, "a": {"boot"}, "c": {code},
 		"ret": {"//evil.example"}})
-	if loc := w.Header().Get("Location"); loc != "/?t=tok" {
+	if loc := w.Header().Get("Location"); loc != routeApp {
 		t.Errorf("an off-site ret was honoured: %q", loc)
 	}
 	// A backslash ret is the same attack: browsers read "/\\" as the authority
 	// delimiter, so it must be refused too.
 	w = postAction(t, s, url.Values{"t": {"tok"}, "a": {"boot"}, "c": {code},
 		"ret": {`/\evil.example`}})
-	if loc := w.Header().Get("Location"); loc != "/?t=tok" {
+	if loc := w.Header().Get("Location"); loc != routeApp {
 		t.Errorf("a backslash ret was honoured: %q", loc)
 	}
 }
@@ -399,39 +402,16 @@ func TestTheSessionOverridesRideOnTopOfTheConfig(t *testing.T) {
 	}
 }
 
-// TestTheEnhancedAnswerReadsTheReadersState pins the review finding: the
-// enhanced render must carry the reader's filters, sort, page and view from
-// the POSTed ret — rendering from the action URL would morph the watchlist
-// back to its default state while the address bar still shows the query.
-func TestTheEnhancedAnswerReadsTheReadersState(t *testing.T) {
-	req := httptest.NewRequest("POST", "/action",
-		strings.NewReader(url.Values{
-			"ret": {"/?q=sal&sort=score&dir=asc&pos=MID&p=2&v=watch"},
-		}.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Host = "127.0.0.1:8080"
-
-	got := readerRequest(req)
-	if got.URL.Query().Get("q") != "sal" || got.URL.Query().Get("sort") != "score" ||
-		got.URL.Query().Get("p") != "2" || got.URL.Query().Get("v") != "watch" {
-		t.Errorf("the enhanced render reads %q, want the reader's query", got.URL.RawQuery)
-	}
-	if got.URL.Path != "/" {
-		t.Errorf("the enhanced render reads path %q, want the reader's /", got.URL.Path)
-	}
-
-	// An absent or unsafe ret falls back to the action request itself, so
-	// the render can never read a foreign origin's state.
-	for _, ret := range []string{"", "//evil.example", `/\\evil.example`} {
-		bad := httptest.NewRequest("POST", "/action",
-			strings.NewReader(url.Values{"ret": {ret}}.Encode()))
-		bad.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		bad.Host = "127.0.0.1:8080"
-		if got := readerRequest(bad); got != bad {
-			t.Errorf("ret %q was not refused; the render would read attacker state", ret)
-		}
-	}
-}
+// The enhanced-answer test that stood here is gone with the thing it tested.
+//
+// /action could answer with a freshly rendered page for the page's own script to morph
+// into place, and the finding it pinned was that the render had to read the READER's
+// filters and sort out of the POSTed ret rather than the action URL. There is no
+// server-rendered page any more -- the application re-fetches /api/state -- so the
+// handler always answers a 303 and there is no second request to mis-read.
+//
+// The open-redirect half of that finding survives, in safeRetPath, and is still tested
+// by TestTheActionsWriteAndLiftOverridesByPermanentCode.
 
 // TestTheActionSavesBeforeItAdopts. A save failure must leave the running
 // config untouched — adopting first would show an override on the page that

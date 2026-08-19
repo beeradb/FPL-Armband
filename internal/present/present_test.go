@@ -173,8 +173,11 @@ func TestHTMLEscapesNames(t *testing.T) {
 	sq.Players[0].Name = sq.StartingXI[0].Name
 
 	var b strings.Builder
-	if err := HTML(&b, sq, nil, "T", ""); err != nil {
-		t.Fatalf("HTML: %v", err)
+	// Through Render directly. HTML was a one-line wrapper over it and is gone with
+	// the self-contained page it wrote; the escaping this asserts is the template's,
+	// which is unchanged and still live behind HTMLReplay.
+	if err := Render(&b, Page{Title: "T", Squad: sq}); err != nil {
+		t.Fatalf("Render: %v", err)
 	}
 	out := b.String()
 	if strings.Contains(out, "<script>alert(1)</script>") {
@@ -188,8 +191,8 @@ func TestHTMLEscapesNames(t *testing.T) {
 
 func TestHTMLIsSelfContained(t *testing.T) {
 	var b strings.Builder
-	if err := HTML(&b, sampleSquad(), nil, "T", "sub"); err != nil {
-		t.Fatalf("HTML: %v", err)
+	if err := Render(&b, Page{Title: "T", Subtitle: "sub", Squad: sampleSquad()}); err != nil {
+		t.Fatalf("Render: %v", err)
 	}
 	out := b.String()
 	// No external fetches: the page must open from file:// with the network off.

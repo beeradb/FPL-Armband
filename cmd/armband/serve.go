@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -12,7 +11,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -167,11 +165,6 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // page renders the full squad page, rebuilt from scratch for this request.
-func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.render(w, r, s.effectiveCfg(r), readSessionOverrides(r))
-}
 
 // render writes the squad page for one request: the given config (already
 // merged with the session when not persisting) and session state for the
@@ -180,42 +173,6 @@ func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 // Both GET / and an enhanced action POST land here — the enhanced response
 // must be the page the action produced, which is how the page updates in
 // place without relying on a just-set cookie surviving the redirect.
-func (s *squadServer) render(w http.ResponseWriter, r *http.Request, cfg config.Config, so sessionOverrides) {
-	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, s.weeks, true, s.now())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	b.Page.Token = s.token
-	b.Page.WatchQuery = watchQuery(r)
-	b.Page.View = viewParam(r)
-	b.Page.SessionMode = !s.persist
-	if !s.persist {
-		markSessionOverrides(&b.Page, so)
-	}
-	// The whole request URI, not just the query: the redirect after an action
-	// must be path-relative, and a bare query would be rejected by the
-	// path-prefix check in action as an open redirect.
-	b.Page.Ret = r.URL.RequestURI()
-	// The page is never meant to be framed: a hostile page could iframe it and
-	// clickjack the lock/boot buttons, whose forms carry a valid token from
-	// the framed page's own DOM — the token gate cannot see that the click
-	// did not come from the reader.
-	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	// Rendered to a buffer, then written once: a template execution error
-	// must answer 500 rather than a truncated 200, because the enhancement
-	// script treats a 200 as "a complete page" and would morph a partial one
-	// into the live DOM. An error status makes the script reload, which is
-	// the consistent answer.
-	var buf bytes.Buffer
-	if err := present.Render(&buf, b.Page); err != nil {
-		fmt.Fprintf(os.Stderr, "render: %v\n", err)
-		http.Error(w, "rendering the page failed", http.StatusInternalServerError)
-		return
-	}
-	_, _ = buf.WriteTo(w)
-}
 
 // action applies one lock or boot and answers with a redirect, so the browser
 // re-fetches the page and the squad regenerates with the override in force.
@@ -285,18 +242,11 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The enhanced path (the page's script) wants the answer to BE the fresh
-	// page, built from the action's own result — no redirect, no reliance on
-	// a just-set cookie surviving one. A plain form submission still gets the
-	// 303, where browsers apply the cookie before following.
-	enhanced := r.PostFormValue("enhanced") == "1"
-	// The fresh page must be the page the reader was ON — their filters, sort
-	// and view — not the action URL, or the morph would swap the watchlist
-	// back to its default state while the URL still shows the query.
-	pageReq := r
-	if enhanced {
-		pageReq = readerRequest(r)
-	}
+	// Always a redirect. This used to be able to answer with a freshly rendered
+	// page for the page's own script to morph into place; there is no
+	// server-rendered page any more, and the application re-fetches /api/state
+	// instead. A 303 is also the answer browsers apply a just-set cookie before
+	// following, which is what the session store needs.
 
 	if s.persist {
 		// Saved before adopted: a failed save leaves the server and the
@@ -310,10 +260,6 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.cfg = &next
-		if enhanced {
-			s.render(w, pageReq, next, sessionOverrides{})
-			return
-		}
 	} else {
 		// The default store is the browser session: the cookie mutates, the
 		// config file stays a default. Session overrides ride on top of the
@@ -325,18 +271,14 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 				http.StatusInternalServerError)
 			return
 		}
-		if enhanced {
-			s.render(w, pageReq, s.effectiveCfgFrom(so), so)
-			return
-		}
 	}
 
-	// Back to the view the reader acted from, token included. The redirect is
-	// what makes the page regenerate: the browser now GETs it fresh, with the
-	// override already in force.
+	// Back where the reader acted from. The redirect is what applies the cookie:
+	// browsers set it before following a 303, so the next request already carries
+	// the override.
 	ret := r.PostFormValue("ret")
 	if !safeRetPath(ret) {
-		ret = "/?t=" + s.token
+		ret = routeApp
 	}
 	http.Redirect(w, r, ret, http.StatusSeeOther)
 }
@@ -524,30 +466,10 @@ func markSessionOverrides(p *present.Page, so sessionOverrides) {
 // render the action URL's state (defaults) and the morph would silently
 // discard what the reader was looking at while the address bar still shows
 // it. An absent or unsafe ret falls back to the request itself.
-func readerRequest(r *http.Request) *http.Request {
-	ret := r.PostFormValue("ret")
-	if !safeRetPath(ret) {
-		return r
-	}
-	u, err := url.Parse(ret)
-	if err != nil {
-		return r
-	}
-	req := r.Clone(r.Context())
-	req.URL = r.URL.ResolveReference(u)
-	return req
-}
 
 // viewParam reads which tab the page opens on. The watchlist's links carry
 // v=watch so a filter, sort or page lands the reader back on the list, not
 // on the eleven.
-func viewParam(r *http.Request) string {
-	switch r.URL.Query().Get("v") {
-	case "team", "why", "watch":
-		return r.URL.Query().Get("v")
-	}
-	return ""
-}
 
 // safeRetPath reports whether a form-supplied redirect target is path-relative.
 //

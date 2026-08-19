@@ -90,19 +90,19 @@ type Page struct {
 	SessionMode bool
 }
 
-// HTML writes a squad and its transfers as a self-contained page: no external CSS, no
-// fonts, no scripts — it opens from a file:// URL with nothing fetched, which is the
-// point of writing it to disk rather than hosting it.
+// HTML, the self-contained squad-and-transfers page, is gone. `armband serve` hosts the
+// application instead, and a page written to disk was a second renderer for a squad the
+// application already draws.
 //
-// html/template, not text/template, and not fmt.Fprintf. Player names and club names
-// come from FPL's API and are attacker-adjacent in the weak sense that nobody here
-// controls them; a name containing a quote or an angle bracket would otherwise break
-// the document or worse. This project already treats FPL-supplied strings as untrusted
-// where they reach the agent, and a file the user opens in a browser deserves the same
-// care.
-func HTML(w io.Writer, sq analysis.Squad, plan *analysis.Plan, title, subtitle string) error {
-	return Render(w, Page{Title: title, Subtitle: subtitle, Squad: sq, Plan: plan})
-}
+// Render survives below with no product caller. It is what this package's page tests
+// drive, and those tests are the only coverage pageTmpl has for anything but the replay
+// views -- so removing it would delete the coverage along with the entry point. The
+// template itself is still live: HTMLReplay renders the replayed-season pages through it.
+//
+// The helpers behind Render (newCard and the watch, reasoning and card view builders) are
+// now reachable only from those tests. Removing them is a real cleanup and a separate one;
+// doing it here would have meant triaging seven hundred lines of tests in the same change
+// that moved the product onto a different renderer.
 
 // Render writes the page.
 func Render(w io.Writer, p Page) error {

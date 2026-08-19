@@ -99,21 +99,7 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	}
 
 	if htmlPath != "" {
-		f, err := os.Create(htmlPath)
-		if err != nil {
-			return fmt.Errorf("write transfers HTML: %w", err)
-		}
-		defer f.Close()
-		sq := planSquad(best)
-		if err := present.HTML(f, sq, &best,
-			fmt.Sprintf("Transfers for GW%d", board.GW),
-			fmt.Sprintf("entry %d · bank £%.1fm", cfg.EntryID, float64(bank)/10)); err != nil {
-			return fmt.Errorf("render transfers HTML: %w", err)
-		}
-		if err := f.Close(); err != nil {
-			return err
-		}
-		fmt.Printf("  %s\n\n", dim("wrote "+htmlPath))
+		return errPageRetired
 	}
 	return nil
 }

@@ -29,6 +29,14 @@ var fixtureNow = time.Date(2026, 8, 19, 13, 48, 0, 0, time.UTC)
 // and it is also the honest state for a pre-season page, where there is no squad to price.
 func fixtureServer(t *testing.T) *squadServer {
 	t.Helper()
+	return fixtureServerNamed(t, nil)
+}
+
+// fixtureServerNamed is fixtureServer with a hook to rename a player before the engine is
+// built. It exists for the escaping test, which needs a name the browser would execute if
+// the client interpolated it raw.
+func fixtureServerNamed(t *testing.T, rename func(name string) string) *squadServer {
+	t.Helper()
 	dir := filepath.Join("..", "..", "data", "captures", capture.LiveCapture)
 	boot, fixtures, err := capture.Replay(dir)
 	if err != nil {
@@ -36,6 +44,11 @@ func fixtureServer(t *testing.T) *squadServer {
 		// repository rather than an absent dependency, and skipping would turn every
 		// assertion below into a silent pass.
 		t.Fatalf("replaying the committed capture: %v", err)
+	}
+	if rename != nil {
+		for i := range boot.Elements {
+			boot.Elements[i].WebName = rename(boot.Elements[i].WebName)
+		}
 	}
 	cfg := config.Default()
 	cfg.EntryID = 0

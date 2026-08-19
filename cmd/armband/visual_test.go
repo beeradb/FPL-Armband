@@ -117,6 +117,10 @@ func (s shot) capture(t *testing.T, browser, base, workdir string) []byte {
 		// what makes the suite both quick and reliable: a fixed sleep is either too
 		// short on a loaded machine or wasted on an idle one.
 		"--virtual-time-budget=8000",
+		// Wait for the compositor to finish before the frame is captured. Without it
+		// the screenshot can be taken mid-draw, which is a flake that looks exactly
+		// like a regression.
+		"--run-all-compositor-stages-before-draw",
 		"--disable-dev-shm-usage",
 		fmt.Sprintf("--window-size=%d,%d", s.w, s.h),
 		"--screenshot=" + out,
@@ -234,13 +238,29 @@ type diffResult struct {
 	image            []byte
 }
 
+// justAntialiasing is the largest per-channel difference this comparison ignores.
+//
+// It is 1 — the least significant bit of an 8-bit channel — and it is not a fuzz factor
+// added to make a failing test pass. The first version of this comparison had no
+// tolerance at all, on the reasoning that pinned inputs must produce identical pixels.
+// That reasoning is right about the DATA and wrong about the RENDERER: text
+// rasterisation in a real browser is not bit-reproducible between runs, and the suite
+// duly failed with 66 pixels of 1,014,000 differing by exactly 1.
+//
+// A threshold of 1 cannot hide anything worth catching. Every failure this suite exists
+// for — a moved card, a collapsed strip, a colour token going the wrong way, a panel
+// rendering empty — moves whole regions by tens or hundreds of levels. Nothing changes a
+// colour by one part in 255 and matters.
+//
+// ⚠️ If this ever needs raising, that is evidence about the harness, not about the page.
+// Find what is moving instead.
+const justAntialiasing = 1
+
 // compare decodes two PNGs and reports where they differ, producing a third PNG that
 // shows it.
 //
 // Pure standard library: image/png is in the toolchain, and a screenshot differ is not
-// worth a dependency. There is no tolerance and no fuzz — the inputs are pinned, so two
-// runs of the same code must produce the same pixels, and a threshold here would only
-// hide the drift it was added to tolerate.
+// worth a dependency.
 func compare(wantPNG, gotPNG []byte) (diffResult, error) {
 	want, err := png.Decode(bytes.NewReader(wantPNG))
 	if err != nil {
@@ -268,7 +288,7 @@ func compare(wantPNG, gotPNG []byte) (diffResult, error) {
 			gr, gg, gbl, _ := got.At(x, y).RGBA()
 			d := maxInt(absInt(int(wr)-int(gr)), absInt(int(wg)-int(gg)), absInt(int(wbl)-int(gbl)))
 			d >>= 8
-			if d == 0 {
+			if d <= justAntialiasing {
 				// Unchanged pixels are dimmed rather than dropped, so the diff reads
 				// as the page with the changes lit up on it.
 				r, g, b, _ := got.At(x, y).RGBA()
