@@ -113,6 +113,23 @@ type squadServer struct {
 	// The default config stays a default — the page never mutates it unless
 	// the user asked.
 	persist bool
+	// clock is the wall clock, injectable so a test can pin the date the page
+	// is ABOUT. It is the only non-determinism left in a rendered page: the
+	// squad is a function of the bootstrap, but the override staleness rule
+	// asks how many days ago each override was last checked, so a page built
+	// today and the same page built tomorrow differ. Nil means time.Now — see
+	// now().
+	clock func() time.Time
+}
+
+// now is the clock the page build reads. A nil clock means the real one, so
+// every existing construction of squadServer keeps working and only a test has
+// to say anything.
+func (s *squadServer) now() time.Time {
+	if s.clock == nil {
+		return time.Now()
+	}
+	return s.clock()
 }
 
 func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +168,7 @@ func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 // must be the page the action produced, which is how the page updates in
 // place without relying on a just-set cookie surviving the redirect.
 func (s *squadServer) render(w http.ResponseWriter, r *http.Request, cfg config.Config, so sessionOverrides) {
-	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, s.weeks, true)
+	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, s.weeks, true, s.now())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -225,7 +242,7 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 	}
 
 	next := *s.cfg
-	today := time.Now().Format("2006-01-02")
+	today := s.now().Format("2006-01-02")
 	// The reasons are canned rather than free text: this is a button, not the
 	// agent's review, and a free-text field would carry whatever the browser
 	// sent into the system prompt of every future run. Provenance is what a
@@ -420,7 +437,7 @@ func (s *squadServer) effectiveCfgFrom(so sessionOverrides) config.Config {
 	if len(so.Lock) == 0 && len(so.Exclude) == 0 {
 		return cfg
 	}
-	today := time.Now().Format("2006-01-02")
+	today := s.now().Format("2006-01-02")
 	entry := func(code int, mode, name string) config.RosterOverride {
 		reason := "locked from the squad page — browser session"
 		if mode == "exclude" {

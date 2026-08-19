@@ -47,8 +47,17 @@ type squadPageBuild struct {
 // whole pool, and WeekViews re-optimises chip weeks. Computing all of it to
 // throw it away would give the plain command network fetches and a transfer
 // search it never had.
+//
+// now is the clock the override staleness rule reads, and it is a parameter
+// rather than a time.Now() inside because it is the build's ONLY dependence on
+// wall time — everything else here is a function of the bootstrap and the
+// config. Passing it makes the whole page reproducible, which is what the
+// visual-regression goldens are compared against. It is deliberately not an
+// environment variable: a new FPL_* switch has to be registered in
+// internal/snapshot's fingerprint list, and a switch that can change what the
+// model computes belongs in the fingerprint, not in a page renderer.
 func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
-	e *analysis.Engine, weeks int, wantPage bool) (squadPageBuild, error) {
+	e *analysis.Engine, weeks int, wantPage bool, now time.Time) (squadPageBuild, error) {
 
 	// Stage timings for the page build (FPL_SERVE_TIMINGS=1), printed to stderr.
 	//
@@ -68,9 +77,13 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 		if os.Getenv("FPL_SERVE_TIMINGS") == "" {
 			return
 		}
-		now := time.Now()
-		fmt.Fprintf(os.Stderr, "TIMING %-14s %6.0fms\n", s, float64(now.Sub(last).Milliseconds()))
-		last = now
+		// Deliberately the wall clock, and deliberately not the `now`
+		// parameter: this measures how long the build took, which is a fact
+		// about this machine, while `now` is the date the page is ABOUT. A
+		// pinned `now` must not make the timings read as zero.
+		at := time.Now()
+		fmt.Fprintf(os.Stderr, "TIMING %-14s %6.0fms\n", s, float64(at.Sub(last).Milliseconds()))
+		last = at
 	}
 
 	if pf := os.Getenv("FPL_CPU_PROFILE"); pf != "" {
@@ -145,7 +158,7 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 
 	// The two views behind the eleven. Built here because every value in them
 	// comes from config or the engine, and the renderer may reach for neither.
-	bound, live, lapsed := pageOverrides(cfg, e, sq.Players, time.Now())
+	bound, live, lapsed := pageOverrides(cfg, e, sq.Players, now)
 	mark("overrides")
 	var excluded []present.Override
 	for _, o := range live {
