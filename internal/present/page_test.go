@@ -1,6 +1,7 @@
 package present
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -77,6 +78,54 @@ func TestTheRosterNeverLabelsANailedStarter(t *testing.T) {
 	if strings.Contains(out, `class="risk"`) {
 		t.Error("the .risk span is back — it printed the rotation band unconditionally " +
 			"in the bad colour, which is what made every nailed starter look flagged")
+	}
+}
+
+// TestTheLockAndBootFormsRenderOnlyWhenServed pins the boundary between the two
+// forms of the page. The static export and the replay must carry no write
+// forms at all — a lock button on a file:// page posts to nothing — and the
+// served page's forms must carry the PERMANENT player code, never the
+// season-scoped element id, which an override keyed on would come back next
+// August attached to a different footballer.
+func TestTheLockAndBootFormsRenderOnlyWhenServed(t *testing.T) {
+	// The static page: no forms anywhere. The CSS class is shared by every
+	// page, so the assertion is on the rendered elements, not the stylesheet.
+	out := briefedPage(t, nil)
+	if strings.Contains(out, "action=\"/action\"") {
+		t.Error("the static page renders write forms; its buttons would post to nothing")
+	}
+	if strings.Contains(out, `td class="c-act"`) {
+		t.Error("the static page renders the action column; it is served-page furniture")
+	}
+
+	// The served page: an action column, one boot form per row, the lock form
+	// flipped to unlock where a lock override binds the player.
+	sq := sampleSquad()
+	locked := sq.StartingXI[0]
+	out = briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.Codes = map[int]int{sq.StartingXI[0].ID: 987654, sq.Bench[0].ID: 111}
+		p.Overrides = map[int]Override{locked.ID: {Kind: "lock", Label: "LOCK"}}
+	})
+	if n := strings.Count(out, `name="a" value="boot"`); n != 15 {
+		t.Errorf("the served page renders %d boot forms for a fifteen-man squad, want 15", n)
+	}
+	if n := strings.Count(out, `name="a" value="lock"`); n != 14 {
+		t.Errorf("the served page renders %d lock forms beside one locked player, want 14", n)
+	}
+	if !strings.Contains(out, `name="a" value="unlock"`) {
+		t.Error("the locked player's form still offers lock; his lock icon must flip to unlock")
+	}
+	// The form posts the permanent code, not the element id.
+	if !strings.Contains(out, `name="c" value="987654"`) {
+		t.Error("the lock form does not carry the permanent player code")
+	}
+	if strings.Contains(out, fmt.Sprintf(`name="c" value="%d"`, locked.ID)) {
+		t.Error("the lock form carries the element id, which FPL reassigns every summer")
+	}
+	// The CSRF token rides in every form.
+	if n := strings.Count(out, `name="t" value="tok"`); n != 30 {
+		t.Errorf("the token appears in %d forms, want one per form (30)", n)
 	}
 }
 

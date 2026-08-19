@@ -10,7 +10,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"armband/internal/analysis"
 	"armband/internal/config"
@@ -83,6 +86,8 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/":
 		s.page(w, r)
+	case "/action":
+		s.action(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -98,6 +103,11 @@ func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	b.Page.Token = s.token
+	// The whole request URI, not just the query: the redirect after an action
+	// must be path-relative, and a bare query would be rejected by the
+	// path-prefix check in action as an open redirect.
+	b.Page.Ret = r.URL.RequestURI()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := present.Render(w, b.Page); err != nil {
 		// The template is static text compiled once; an execution error is a
@@ -105,6 +115,98 @@ func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 		// the only honest report is to the server's own stderr.
 		fmt.Fprintf(os.Stderr, "render: %v\n", err)
 	}
+}
+
+// action applies one lock or boot and answers with a redirect, so the browser
+// re-fetches the page and the squad regenerates with the override in force.
+//
+// The whole write path: the CSRF token gates it, the action and the code are
+// validated, the change is SAVED before it is adopted — a failed save leaves
+// the server and the config exactly as they were, rather than showing an
+// override the next run will not have — and the redirect lands the reader back
+// on the view and query they acted from.
+func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.tokenOK(r.PostFormValue("t")) {
+		http.Error(w, "missing or wrong token", http.StatusForbidden)
+		return
+	}
+	act := r.PostFormValue("a")
+	code, err := strconv.Atoi(r.PostFormValue("c"))
+	if err != nil {
+		http.Error(w, "the action needs a player code", http.StatusBadRequest)
+		return
+	}
+
+	next := *s.cfg
+	today := time.Now().Format("2006-01-02")
+	// The reasons are canned rather than free text: this is a button, not the
+	// agent's review, and a free-text field would carry whatever the browser
+	// sent into the system prompt of every future run. Provenance is what a
+	// page-created override owes its reviewer, and the date is carried by
+	// SetOn.
+	pageOverride := func(name, reason string) config.RosterOverride {
+		return config.RosterOverride{
+			Code: code, Name: name, Reason: reason,
+			SetOn: today, LastChecked: today,
+		}
+	}
+	switch act {
+	case "lock":
+		err = next.Roster.Set("lock", pageOverride(s.playerName(code), "locked from the squad page"))
+	case "boot":
+		err = next.Roster.Set("exclude", pageOverride(s.playerName(code), "booted from the squad page"))
+	case "unlock":
+		err = next.Roster.Remove("lock", code)
+	case "unboot":
+		err = next.Roster.Remove("exclude", code)
+	default:
+		http.Error(w, fmt.Sprintf("unknown action %q", act), http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if s.cfgPath == "" {
+		http.Error(w, "no config path — the override was not saved", http.StatusInternalServerError)
+		return
+	}
+	if err := config.Save(s.cfgPath, next); err != nil {
+		http.Error(w, fmt.Sprintf("saving config: %v", err), http.StatusInternalServerError)
+		return
+	}
+	s.cfg = &next
+
+	// Back to the view the reader acted from, token included. The redirect is
+	// what makes the page regenerate: the browser now GETs it fresh, with the
+	// override already in force.
+	ret := r.PostFormValue("ret")
+	if ret == "" || !strings.HasPrefix(ret, "/") || strings.HasPrefix(ret, "//") {
+		ret = "/?t=" + s.token
+	}
+	http.Redirect(w, r, ret, http.StatusSeeOther)
+}
+
+// playerName is the override's display name, from the bootstrap by permanent
+// code. WebName rather than FirstName+SecondName, because that is the name the
+// page displays on every row — an override named "Bukayo Saka" for a player
+// the squad lists as "Saka" reads as a different footballer. The code came
+// from the page's own map, so the element always exists; an empty name would
+// mean the bootstrap changed under the server, and is carried rather than
+// guessed at.
+func (s *squadServer) playerName(code int) string {
+	if s.engine == nil {
+		return ""
+	}
+	for i := range s.engine.Boot.Elements {
+		if s.engine.Boot.Elements[i].Code == code {
+			return s.engine.Boot.Elements[i].WebName
+		}
+	}
+	return ""
 }
 
 // newServeToken is a per-startup secret that gates the write actions.

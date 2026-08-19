@@ -52,6 +52,22 @@ type Page struct {
 	FixtureLoadInScore bool
 	Reasoning          *Reasoning
 	Watch              *Watchlist
+	// Token switches the page into its interactive form: with it, roster rows
+	// carry lock and boot forms posting to /action, and the excluded cards an
+	// un-boot. Empty renders the static page exactly as before — the file
+	// export and the replay set nothing, and a served page cannot forget to set
+	// it without also losing every write action.
+	Token string
+	// Codes maps an element id to its permanent player code, so the write
+	// actions post the code and never the season-scoped id. Element ids are
+	// reassigned every summer; an override keyed on one comes back next August
+	// attached to a different footballer. The caller builds it from the
+	// bootstrap, the one place both ids meet.
+	Codes map[int]int
+	// Ret is the current request's raw query, echoed into every form so a POST
+	// returns the reader to the view, sort and page they were on. Empty on the
+	// static page.
+	Ret string
 }
 
 // HTML writes a squad and its transfers as a self-contained page: no external CSS, no
@@ -86,6 +102,9 @@ func Render(w io.Writer, p Page) error {
 		Watch:     p.Watch,
 		HasWhy:    p.Reasoning.Any(),
 		HasWatch:  p.Watch.Any(),
+		Token:     p.Token,
+		Codes:     p.Codes,
+		Ret:       p.Ret,
 	}
 	data.Tabs = data.HasWhy || data.HasWatch
 
@@ -104,6 +123,14 @@ func Render(w io.Writer, p Page) error {
 		c := newCard(m, p.Squad.Captain.ID, p.Squad.ViceCaptain.ID, p.Overrides,
 			p.FixtureLoadInScore)
 		c.ScorePct = pct(m.Score, best)
+		// The permanent code rides on the card rather than the metrics: it is a
+		// fact about the FOOTBALLER for the write actions, and PlayerMetrics is
+		// the scoring struct the agent reasons over. The caller's map is the one
+		// place element id and code meet. The token and the return path ride
+		// along for the same reason the code does: the acts template only sees
+		// the card.
+		c.Code = p.Codes[m.ID]
+		c.Token, c.Ret = p.Token, p.Ret
 		return c
 	}
 
@@ -305,6 +332,12 @@ type pageData struct {
 	// built without the reasoning and watchlist data. A tab bar with one tab is
 	// furniture pretending to be a control.
 	Tabs, HasWhy, HasWatch bool
+	// Token, Codes and Ret mirror Page: the write-action gate, the id→code map,
+	// and the current query for the redirect. Token non-empty is the page's
+	// whole "is this interactive" condition.
+	Token string
+	Codes map[int]int
+	Ret   string
 }
 
 // replaySummary is the shape of the season, read before any single week.
@@ -441,6 +474,14 @@ type htmlMove struct {
 
 type htmlCard struct {
 	ID                         int
+	// Code is the player's permanent FPL code, for the interactive page's
+	// write actions. Zero on the static page, where no form is rendered anyway.
+	Code int
+	// Token and Ret are the served page's write-action credentials, filled on
+	// every card when the page is interactive. A card carries them because the
+	// acts template is invoked with the card as its data, and $ inside an
+	// invoked template is that data — not the page root.
+	Token, Ret                 string
 	Name, Team, Position, Slot string
 	// Risk is free-text carried by the replay only, where it marks a player who has
 	// just arrived. It is NOT the rotation band — see Band.
@@ -714,6 +755,27 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
   .ovr p { margin:0; max-width:70ch; font-size:.88rem; color:var(--ink2); }
   .ovr .touches { margin:.45rem 0 0; font-size:.82rem; color:var(--ink3); }
 
+  /* ---- lock and boot: the served page's write actions ---- */
+  /* Quiet until needed: the icons sit in ink3 like any other annotation, and
+     only the hover and the active lock state speak. A page-created lock IS a
+     hand-set override, so its active state takes the override violet — the
+     page's own hue for authorship — not green or red, which would read as a
+     verdict on the player. */
+  td.c-act { white-space:nowrap; text-align:right; padding-left:.2rem; }
+  .act { display:inline-block; margin-left:.18rem; }
+  .actbtn { background:none; border:1px solid transparent; border-radius:3px;
+            color:var(--ink3); cursor:pointer; padding:.2rem .28rem; line-height:0;
+            vertical-align:middle; }
+  .actbtn svg { display:block; }
+  .actbtn:hover { color:var(--ink); border-color:var(--line); background:var(--panel2); }
+  .actbtn.on { color:var(--ovink); border-color:var(--ovline); background:var(--ovbg); }
+  .actbtn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .xbtn { background:none; border:1px solid var(--line); border-radius:3px; color:var(--ink2);
+          cursor:pointer; font-family:var(--mono); font-size:.66rem; padding:.18rem .5rem;
+          margin-top:.55rem; }
+  .xbtn:hover { border-color:var(--line2); color:var(--ink); background:var(--panel2); }
+  .xbtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
   /* ---- the why-card ---- */
   /* A div rather than a span: the card contains block content (rows, rules,
      paragraphs), and flow content inside a span is invalid HTML. It parses correctly
@@ -873,7 +935,7 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
      would be forty pages. Why-cards are hover objects and their content is
      duplicated unhidden in the other views. */
   @media print {
-    .viewtabs, .tabs { display:none; }
+    .viewtabs, .tabs, .c-act { display:none; }
     .view { display:block !important; }
     .view + .view { border-top:2px solid var(--ink); margin-top:2rem; padding-top:1rem; }
     .pop { display:none; }
@@ -974,6 +1036,7 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
       {{if .Replay}}<th>Opponent</th>{{else}}<th class="c-fix">Next {{.Horizon}}</th><th class="c-min">Mins</th>{{end}}
       <th class="c-score">{{if .Replay}}Pts{{else}}Score{{end}}</th>
       {{if not .Replay}}<th class="c-price">&pound;</th>{{end}}
+      {{if .Token}}<th class="c-act" aria-label="Lock and boot"></th>{{end}}
     </tr></thead>
     <tbody>
     {{range .Rows}}{{range .Players}}<tr{{if .IsCaptain}} class="iscap"{{end}}>
@@ -983,8 +1046,9 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
       {{else}}<td class="c-fix">{{template "fdr" .}}</td><td class="c-min">{{mins .ExpMins}}</td>{{end}}
       <td class="c-score"><span class="bar" style="width:{{.ScorePct}}%"></span><span class="fig">{{pts .Score}}</span></td>
       {{if not $.Replay}}<td class="c-price">{{money .Price}}</td>{{end}}
+      {{if $.Token}}<td class="c-act">{{template "acts" .}}</td>{{end}}
     </tr>{{end}}{{end}}
-    {{if .Bench}}<tr class="sub"><td colspan="6"><span class="k">Bench &mdash; substitution order</span></td></tr>
+    {{if .Bench}}<tr class="sub"><td colspan="{{if .Token}}7{{else}}6{{end}}"><span class="k">Bench &mdash; substitution order</span></td></tr>
     {{range .Bench}}<tr class="benchrow">
       <td class="pos">{{.Position}}</td>
       <td>{{template "rostername" .}}{{if .Slot}}<span class="tag v">{{.Slot}}</span>{{end}}</td>
@@ -992,6 +1056,7 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
       {{else}}<td class="c-fix">{{template "fdr" .}}</td><td class="c-min">{{mins .ExpMins}}</td>{{end}}
       <td class="c-score"><span class="bar" style="width:{{.ScorePct}}%"></span><span class="fig">{{pts .Score}}</span></td>
       {{if not $.Replay}}<td class="c-price">{{money .Price}}</td>{{end}}
+      {{if $.Token}}<td class="c-act">{{template "acts" .}}</td>{{end}}
     </tr>{{end}}{{end}}
     </tbody>
   </table></div>
@@ -1244,6 +1309,13 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
       {{if .NeedsCheck}}<span class="flag">{{.Flag}}</span>{{end}}
     </div>
     <p>{{.Reason}}</p>
+    {{if and $.Token .Code}}<form class="act" method="post" action="/action">
+      <input type="hidden" name="t" value="{{$.Token}}">
+      <input type="hidden" name="c" value="{{.Code}}">
+      <input type="hidden" name="ret" value="{{$.Ret}}">
+      <input type="hidden" name="a" value="unboot">
+      <button class="xbtn" type="submit">bring back into contention</button>
+    </form>{{end}}
   </article>{{end}}
 </section>{{end}}{{end}}
 </div>{{end}}{{/* end view-watch */}}
@@ -1261,6 +1333,47 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
      once, silently. The difficulty digit is always printed, so the tint is redundant
      encoding and is never the sole carrier of the rating. */}}
 {{define "fdr"}}{{if .Fixtures}}<span class="fdr">{{range .Fixtures}}<i class="d{{.Diff}}" title="GW{{.Event}} {{.Opponent}} ({{.Where}}) difficulty {{.Diff}}">{{.Diff}}</i>{{end}}{{if .MoreFix}}<i class="more">+{{.MoreFix}}</i>{{end}}</span>{{else}}<span class="fdr"><span class="none">no fixture</span></span>{{end}}{{end}}
+
+{{/* The lock and boot write actions, rendered only on the served page (Token
+     non-empty — the static file and the replay set none, so they render no
+     forms). Each form POSTs /action with the CSRF token, the PERMANENT player
+     code (never the season-scoped element id), and the current query, so the
+     redirect lands the reader back on the view they acted from. The lock
+     button flips with the player's state; boot is always offered, because a
+     booted player cannot appear in this table — the un-boot lives on the
+     excluded card in the watchlist view. */}}
+{{define "acts"}}
+<form class="act" method="post" action="/action">
+  <input type="hidden" name="t" value="{{.Token}}">
+  <input type="hidden" name="c" value="{{.Code}}">
+  <input type="hidden" name="ret" value="{{.Ret}}">
+  {{if and .Override (eq .Override.Kind "lock")}}
+  <input type="hidden" name="a" value="unlock">
+  <button class="actbtn on" type="submit" aria-pressed="true"
+          title="Locked &mdash; the optimiser keeps this player in every squad. Click to unlock."
+          aria-label="Unlock {{.Name}}">
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2.5" y="6" width="11" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 6V4.5a3.5 3.5 0 1 1 7 0V6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="9.5" r="1" fill="currentColor"/><path d="M8 10.5v1.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+  </button>
+  {{else}}
+  <input type="hidden" name="a" value="lock">
+  <button class="actbtn" type="submit" aria-pressed="false"
+          title="Lock &mdash; keep this player in the squad; the optimiser builds around them."
+          aria-label="Lock {{.Name}}">
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 7V5a3.5 3.5 0 1 1 7 0v1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+  </button>
+  {{end}}
+</form>
+<form class="act" method="post" action="/action">
+  <input type="hidden" name="t" value="{{.Token}}">
+  <input type="hidden" name="c" value="{{.Code}}">
+  <input type="hidden" name="ret" value="{{.Ret}}">
+  <input type="hidden" name="a" value="boot">
+  <button class="actbtn" type="submit" aria-label="Boot {{.Name}}"
+          title="Boot &mdash; exclude this player from every squad. The page re-picks without them.">
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6.5 13.5H3.2a1.2 1.2 0 0 1-1.2-1.2V3.7a1.2 1.2 0 0 1 1.2-1.2h3.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6.2 8h7.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="m11 5.5 2.3 2.5-2.3 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</form>
+{{end}}
 
 {{/* The badges, in one fixed order so a scanning eye learns one position per
      meaning: armband, then who overrode this, then how nailed he is, then set

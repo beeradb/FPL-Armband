@@ -112,8 +112,24 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 		FixtureLoadInScore: e.FixtureLoadInScore(),
 		Reasoning:          reasoningFor(cfg, e, sq.Players, live, lapsed),
 		Watch:              watchlistFor(e, *sq, excluded, bound, cfg.Review.MinGainForTransfer),
+		Codes:             elementCodes(e),
 	}
 	return squadPageBuild{Page: page, Squad: sq, BudgetLine: budgetLine, Source: source}, nil
+}
+
+// elementCodes maps element id to permanent player code.
+//
+// The page's write actions post the CODE, never the element id: ids are
+// reassigned every summer, and an override keyed on one comes back next August
+// attached to a different footballer. The bootstrap is the one place both ids
+// meet, so this is where the map is built — the renderer receives it and
+// never asks.
+func elementCodes(e *analysis.Engine) map[int]int {
+	m := make(map[int]int, len(e.Boot.Elements))
+	for i := range e.Boot.Elements {
+		m[e.Boot.Elements[i].ID] = e.Boot.Elements[i].Code
+	}
+	return m
 }
 
 // Assembling the squad page's three views.
@@ -175,7 +191,7 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 	// and re-deciding it here would be a second implementation of Expired.
 	player := func(kind, label string, o config.RosterOverride, lapsedNow bool) present.Override {
 		ov := present.Override{
-			Kind: kind, Label: label, Reason: o.Reason, Player: o.Name,
+			Kind: kind, Label: label, Reason: o.Reason, Player: o.Name, Code: o.Code,
 			SetOn: o.SetOn, Until: lapses(o.UntilGameweek),
 			Checked:      checkedAge(o, now),
 			CheckAge:     o.CheckAge(now),

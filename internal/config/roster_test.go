@@ -50,6 +50,33 @@ func TestRosterSetReplacesRatherThanDuplicates(t *testing.T) {
 	}
 }
 
+// TestRosterRemoveClearsOneListOnly — lifting one override must not touch the
+// others. The squad page locks and boots players the agent may also have given
+// a minutes correction; a removal that swept all three lists would discard a
+// fact the agent established, silently.
+func TestRosterRemoveClearsOneListOnly(t *testing.T) {
+	r := Roster{
+		Lock:    []RosterOverride{{Code: 1, Name: "Locked"}},
+		Exclude: []RosterOverride{{Code: 2, Name: "Booted"}},
+		Minutes: []RosterOverride{{Code: 3, Name: "Corrected"}},
+	}
+	if err := r.Remove("lock", 1); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Lock) != 0 {
+		t.Errorf("lock removal left %+v", r.Lock)
+	}
+	if len(r.Exclude) != 1 || r.Exclude[0].Code != 2 {
+		t.Errorf("removing a lock touched the exclude list: %+v", r.Exclude)
+	}
+	if len(r.Minutes) != 1 || r.Minutes[0].Code != 3 {
+		t.Errorf("removing a lock touched the minutes list: %+v", r.Minutes)
+	}
+	if err := r.Remove("nonsense", 1); err == nil {
+		t.Error("an unknown removal mode was accepted")
+	}
+}
+
 // TestRosterOverridesExpire guards the failure mode that has bitten this
 // codebase before: a hand-maintained list that outlives the situation it
 // described and keeps applying silently.

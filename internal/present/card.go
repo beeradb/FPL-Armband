@@ -39,6 +39,12 @@ type Override struct {
 	// Kind is one of lock, lockXI, exclude, minutes, club. It drives nothing but
 	// the sort order; the badge reads Label.
 	Kind string
+	// Code is the player's PERMANENT FPL code, carried so the interactive page
+	// can act on the override (un-lock, un-boot) without reaching for the
+	// season-scoped element id. Element ids are reassigned every summer; a write
+	// action keyed on one would come back next August attached to a different
+	// footballer. Empty for club overrides, which have no player to write.
+	Code int
 	// Label is the badge text and it always carries the VALUE, never just the kind.
 	// "MIN 88" and "MIN 15" are opposite interventions — one is holding a backup
 	// keeper in the eleven, the other is writing an injured defender down — and a
