@@ -111,6 +111,9 @@ for (a in c("mgh4", "mgh5", "mgh6")) {
 fl <- hits[hits$arm == "mgh3floored", ]
 cat(sprintf("  floored machine (own arm): net<3 %.1f%% of %d packages; net<0 %.1f%%\n",
             100*mean(fl$net3), nrow(fl), 100*mean(fl$net0)))
+fp <- hits[hits$arm == "mgh3fullplan", ]
+cat(sprintf("  full plan (own arm): net<3 %.1f%% of %d packages; net<0 %.1f%%\n",
+            100*mean(fp$net3), nrow(fp), 100*mean(fp$net0)))
 
 cat("\n=== the holding-window criterion: +4 net before sale, wildcard or season's end ===\n")
 # The user's ruling replaces the workedOut wait-match: a hit worked iff the
@@ -140,7 +143,7 @@ for (arm in c("mgh3", "mgh3floored", "mgh3fullplan")) {
               nrow(pref), 100*mean(pref$worked4), mean(pref$hold_net)))
   cat(sprintf("  forced (replaced player stopped):      %d hits, %.0f%% clear +4, mean %+.1f\n",
               nrow(forced), 100*mean(forced$worked4), mean(forced$hold_net)))
-  cat(sprintf("  hold length (weeks): mean %.1f, median %d, max %d\n",
+  cat(sprintf("  hold length (weeks): mean %.1f, median %.0f, max %.0f\n",
               mean(a$hold_weeks), median(a$hold_weeks), max(a$hold_weeks)))
   cap <- a$out_was_captain
   if (any(cap)) {
