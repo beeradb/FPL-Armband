@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +16,7 @@ import (
 	"armband/internal/analysis"
 	"armband/internal/capture"
 	"armband/internal/config"
+	"armband/internal/signup"
 	"armband/internal/viewmodel"
 )
 
@@ -203,29 +207,62 @@ func TestTheAssetTreeIsNotAFileSystem(t *testing.T) {
 	}
 }
 
-// TestTheGateAcceptsAnythingAndKeepsNothing pins the placeholder's whole contract.
-//
-// Accepting anything is deliberate: the gate stands in for a signup flow that does not
-// exist, and refusing would pretend to a capability nothing behind it has. Keeping nothing
-// is the half worth testing hardest — the alternative is a file of personal data in a
-// working tree with no retention answer, created before anyone decided one was wanted.
-func TestTheGateAcceptsAnythingAndKeepsNothing(t *testing.T) {
-	s := &squadServer{}
+// recordingStore is a signup.Store that keeps what it was given, and can be told to fail.
+type recordingStore struct {
+	got  []signup.Record
+	fail error
+}
 
+func (r *recordingStore) Add(_ context.Context, rec signup.Record) error {
+	if r.fail != nil {
+		return r.fail
+	}
+	r.got = append(r.got, rec)
+	return nil
+}
+func (r *recordingStore) Close() {}
+
+// TestTheGateRecordsWhatItAccepts is the test that turns the capture on.
+//
+// The route's previous contract was that it kept NOTHING, and that was correct while
+// there was nowhere to put an address with a retention answer behind it. This is the
+// replacement claim, and it is the half worth testing hardest now: a gate that answers
+// success without writing is indistinguishable, from the page, from one that works.
+func TestTheGateRecordsWhatItAccepts(t *testing.T) {
 	for _, method := range []string{"POST", "PUT"} {
-		form := url.Values{"email": {"someone@example.com"}}
+		store := &recordingStore{}
+		s := &squadServer{signups: store}
+
+		// A display name and surrounding whitespace, because Clean is what strips
+		// them and the handler must be the thing that calls it.
+		form := url.Values{"email": {"  Someone <Someone@Example.com>  "}}
 		req := httptest.NewRequest(method, "/gate", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Host = "127.0.0.1:8080"
 		w := httptest.NewRecorder()
 		s.ServeHTTP(w, req)
 
-		if w.Code != http.StatusSeeOther {
-			t.Errorf("%s /gate answered %d, want 303", method, w.Code)
+		if w.Code != http.StatusNoContent {
+			t.Errorf("%s /gate answered %d, want 204", method, w.Code)
 		}
-		if loc := w.Header().Get("Location"); loc != "/app" {
-			t.Errorf("%s /gate redirected to %q, want /app", method, loc)
+		if len(store.got) != 1 {
+			t.Fatalf("%s /gate recorded %d submissions, want 1", method, len(store.got))
 		}
+		if got := store.got[0].Email; got != "Someone@Example.com" {
+			t.Errorf("%s /gate recorded %q, want the parsed address with its case kept",
+				method, got)
+		}
+		if store.got[0].Source != signup.SourceForm {
+			t.Errorf("%s /gate recorded source %q, want %q",
+				method, store.got[0].Source, signup.SourceForm)
+		}
+		// A typed address is a claim. Only an identity provider may set this, and a
+		// gate that marked its own input verified would make the column meaningless.
+		if store.got[0].Verified {
+			t.Errorf("%s /gate marked a typed address verified", method)
+		}
+
+		// The cookie rides with the successful write and nowhere else.
 		var gate *http.Cookie
 		for _, c := range w.Result().Cookies() {
 			if c.Name == gateCookieName {
@@ -247,10 +284,84 @@ func TestTheGateAcceptsAnythingAndKeepsNothing(t *testing.T) {
 	}
 }
 
+// TestTheGateRefusesWhenTheWriteFails pins the direction the failure runs in.
+//
+// The landing page's original bug was a form that reported success and sent nothing. A
+// gate that let a reader through over a failed write is that same bug with a database
+// behind it, and it is worse: the reader believes they have signed up and will not retry.
+func TestTheGateRefusesWhenTheWriteFails(t *testing.T) {
+	s := &squadServer{signups: &recordingStore{fail: errors.New("the database is down")}}
+	form := url.Values{"email": {"someone@example.com"}}
+	req := httptest.NewRequest("POST", "/gate", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Host = "127.0.0.1:8080"
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("/gate answered %d over a failed write, want 500", w.Code)
+	}
+	for _, c := range w.Result().Cookies() {
+		if c.Name == gateCookieName {
+			t.Error("/gate set the gate cookie over a failed write, so the reader " +
+				"is marked as having signed up when nothing was recorded")
+		}
+	}
+	// The reader's address must not travel in the message a failed write produces.
+	if strings.Contains(w.Body.String(), "someone@example.com") {
+		t.Error("/gate put the submitted address in its error body")
+	}
+}
+
+// TestTheGateRefusesWhenNoStoreIsConfigured is the test that stops this change
+// re-shipping the bug it was written to remove.
+//
+// The tempting behaviour is to accept and discard, as this route did before there was
+// anywhere to put an address. But 204 means "recorded" to landing.js, so a deployment that
+// had lost its database URL — a misspelled env var, an empty Secret — would tell every
+// reader they had signed up, forever, while the table stayed empty and nothing failed.
+// That is the original defect with a database behind it.
+//
+// It costs nothing locally: the local landing page posts to the live site and never
+// reaches this handler at all.
+func TestTheGateRefusesWhenNoStoreIsConfigured(t *testing.T) {
+	s := &squadServer{}
+
+	for _, method := range []string{"POST", "PUT"} {
+		form := url.Values{"email": {"someone@example.com"}}
+		req := httptest.NewRequest(method, "/gate", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Host = "127.0.0.1:8080"
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s /gate answered %d with no store, want 503. Anything in the "+
+				"2xx range tells the reader they signed up when nothing was "+
+				"written.", method, w.Code)
+		}
+		for _, c := range w.Result().Cookies() {
+			if c.Name == gateCookieName {
+				t.Errorf("%s /gate set the gate cookie with no store, marking a "+
+					"reader as signed up when nothing was recorded", method)
+			}
+		}
+	}
+}
+
 // TestTheGateRejectsSomethingThatIsNotAnAddress pins the one check it does make. This is
 // about telling a reader he has fat-fingered his address, not about validating identity.
 func TestTheGateRejectsSomethingThatIsNotAnAddress(t *testing.T) {
-	s := &squadServer{}
+	store := &recordingStore{}
+	s := &squadServer{signups: store}
+	defer func() {
+		// The order matters and the test would not otherwise see it: a handler
+		// that recorded before validating would still answer 400 and look correct.
+		if len(store.got) != 0 {
+			t.Errorf("/gate recorded %d rows for input it then rejected",
+				len(store.got))
+		}
+	}()
 	form := url.Values{"email": {"not an address"}}
 	req := httptest.NewRequest("POST", "/gate", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -422,5 +533,147 @@ func TestTheSquadsElevenAndBenchAreDisjointAndComplete(t *testing.T) {
 		if !inXI {
 			t.Errorf("player %d wears an armband from outside the eleven", id)
 		}
+	}
+}
+
+// TestTheGateEchoesOnlyLoopbackOrigins pins the one CORS exception in this server.
+//
+// The rule everywhere else is that no route may grow an Access-Control-Allow-Origin
+// header, because the loopback bind and the Host check are what stop a foreign page
+// reading the squad. /gate is the exception, on its content: it answers 204 with no body.
+// The exception must stay exactly that narrow — a public origin asking to read the answer
+// to somebody else's submission is a thing to refuse.
+func TestTheGateEchoesOnlyLoopbackOrigins(t *testing.T) {
+	for _, tc := range []struct {
+		origin string
+		// echo is the Access-Control-Allow-Origin expected back, "" for none.
+		echo string
+		// accepted says whether the WRITE is allowed to happen at all. This is the
+		// half that matters: withholding the echo hides the receipt, not the effect.
+		accepted bool
+	}{
+		{"http://127.0.0.1:8080", "http://127.0.0.1:8080", true},
+		{"http://localhost:9999", "http://localhost:9999", true},
+		{"http://[::1]:8080", "http://[::1]:8080", true},
+		// The site's own origin. Same-origin needs no echo and must still be served.
+		{signupOrigin, "", true},
+		// Absent Origin: a same-origin form post, or a non-browser client. Allowed,
+		// because refusing buys nothing — anything that can omit a header can forge
+		// one — and would break every client that does not send it.
+		{"", "", true},
+		{"https://evil.example", "", false},
+		// The rebinding shape the Host check exists for, spelled as an origin.
+		{"http://127.0.0.1.evil.example", "", false},
+		// A loopback NAME over https is somebody's proxy; no local armband serves one.
+		{"https://localhost:8080", "", false},
+	} {
+		store := &recordingStore{}
+		s := &squadServer{signups: store}
+		form := url.Values{"email": {"someone@example.com"}}
+		req := httptest.NewRequest("POST", "/gate", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if tc.origin != "" {
+			req.Header.Set("Origin", tc.origin)
+		}
+		req.Host = "127.0.0.1:8080"
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		if got := w.Header().Get("Access-Control-Allow-Origin"); got != tc.echo {
+			t.Errorf("origin %q was echoed as %q, want %q", tc.origin, got, tc.echo)
+		}
+		// ⚠️ The load-bearing assertion. CORS never stops a simple cross-origin POST
+		// from being SENT, so a gate that merely withheld the header would let any
+		// page on the internet insert rows into the one table here holding personal
+		// data — and only decline to tell it so. The write must not happen.
+		if wrote := len(store.got) > 0; wrote != tc.accepted {
+			t.Errorf("origin %q: wrote=%v, want %v — withholding the CORS header "+
+				"hides the answer, not the effect", tc.origin, wrote, tc.accepted)
+		}
+		if !tc.accepted && w.Code != http.StatusForbidden {
+			t.Errorf("origin %q answered %d, want 403", tc.origin, w.Code)
+		}
+		// Credentials must never be allowed cross-origin here: the gate cookie is
+		// worth nothing locally, and allowing it would make the echo above a much
+		// larger grant than the empty body it is justified by.
+		if w.Header().Get("Access-Control-Allow-Credentials") != "" {
+			t.Errorf("origin %q got Access-Control-Allow-Credentials", tc.origin)
+		}
+	}
+}
+
+// TestTheSignupOriginIsSpelledOnceInEffect pins the two spellings equal.
+//
+// signupOrigin enters the Content-Security-Policy; landing.js is where the fetch actually
+// goes. One quantity with two implementations is this project's signature failure, and
+// this pair fails particularly quietly: changing one leaves a page whose own policy blocks
+// its only control, which no build and no other test would notice.
+func TestTheSignupOriginIsSpelledOnceInEffect(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "internal", "webui", "assets",
+		"static", "landing.js"))
+	if err != nil {
+		t.Fatalf("reading landing.js: %v", err)
+	}
+	js := string(raw)
+
+	// The whole URL, built from BOTH constants rather than spelled here. routeGate is
+	// what the mux actually serves, so renaming the route without touching the script
+	// fails this test instead of silently 404ing every submission.
+	want := "'" + signupOrigin + routeGate + "'"
+	if !strings.Contains(js, want) {
+		t.Errorf("landing.js does not name %s, so the Content-Security-Policy built "+
+			"from signupOrigin does not describe where the page posts", want)
+	}
+	// ⚠️ Containment is not use. A previous version of this test asserted only that the
+	// URL APPEARED in the file, which would pass with the constant left assigned and
+	// dead beside a fetch that had been reverted to a relative '/gate' — the exact
+	// regression the absolute URL exists to prevent, and it would put a local reader's
+	// address in a local list nobody collects. So the fetch must be the thing that
+	// takes it.
+	if !strings.Contains(js, "fetch(GATE,") {
+		t.Error("landing.js does not fetch(GATE, ...), so the constant it declares " +
+			"may be dead and the submission going somewhere else")
+	}
+	// And nothing else may be fetched from the landing page. A second destination
+	// would be blocked by connect-src at runtime, which is a broken page rather than
+	// a failing test — so it is caught here.
+	if n := strings.Count(js, "fetch("); n != 1 {
+		t.Errorf("landing.js makes %d fetch calls, want exactly 1", n)
+	}
+}
+
+// TestThePolicyPermitsTheGateItShips is the mirror of the test above, on the header rather
+// than the script. A check that the policy NAMES the origin is worth little without one
+// that the page can actually reach what it names.
+func TestThePolicyPermitsTheGateItShips(t *testing.T) {
+	s := &squadServer{}
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Host = "127.0.0.1:8080"
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+
+	csp := w.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "connect-src 'self' "+signupOrigin) {
+		t.Errorf("the landing page's connect-src does not permit %s, so its signup "+
+			"form cannot post. Policy: %s", signupOrigin, csp)
+	}
+	// The exception is one named host on one directive, not a loosening. A foreign
+	// origin on script-src would give an injected string somewhere to run from, which
+	// is what the whole out-of-line-script arrangement exists to prevent.
+	if strings.Contains(csp, "script-src 'self' http") {
+		t.Errorf("script-src grew a foreign origin: %s", csp)
+	}
+
+	// The mirror, and the half with the power: a check that the landing page CAN
+	// reach the origin proves nothing about whether the application was widened
+	// alongside it. /app holds the squad and must reach nothing but itself.
+	req = httptest.NewRequest("GET", "/app", nil)
+	req.Host = "127.0.0.1:8080"
+	w = httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	if app := w.Header().Get("Content-Security-Policy"); strings.Contains(app, signupOrigin) {
+		t.Errorf("the application's policy names %s. That page renders FPL's prose "+
+			"by innerHTML, and connect-src 'self' is what stops an injected string "+
+			"sending the squad anywhere. Policy: %s", signupOrigin, app)
 	}
 }

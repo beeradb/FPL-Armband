@@ -193,7 +193,9 @@ it is replay documentation, needed when running a sweep, not every run. → **ar
   authenticated surface there; `TestTheClientHasNoAuthenticatedSurface` guards its absence
   and is scoped to `internal/fpl` — it says nothing about `armband serve`'s own inbound
   listener, which is token-gated, writes config under `-persist`, and now also accepts a
-  gate POST). Performance changes what is
+  gate POST that records an email address to Postgres — the only personal data this
+  project COLLECTS, as against the published FPL payloads it archives. Performance
+  changes what is
   affordable to run, the binding constraint on this enterprise; velocity is the same argument one
   layer up; a scoring fix changes `Score`, therefore the ordering, therefore which footballers
   get bought.

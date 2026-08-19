@@ -5,14 +5,29 @@
  * whatever an injected string manages to open. With both scripts external the page can
  * carry script-src 'self' and mean it.
  *
- * What the gate does today is let you through. It posts to /gate, which validates the shape
- * of the address, stores nothing anywhere, sets a session cookie and redirects. The form
- * shipped as `onsubmit="event.preventDefault()"` with no action and no name on the input,
- * so it showed "check your inbox" and sent nothing -- the one state it had was success.
- * Pending and failure exist here because the network can fail even when the server cannot.
+ * The gate posts to https://fplarmband.com/gate, which validates the shape of the address,
+ * records it, and answers 204. The form shipped as `onsubmit="event.preventDefault()"` with
+ * no action and no name on the input, so it showed "check your inbox" and sent nothing --
+ * the one state it had was success. Pending and failure exist here because the address now
+ * goes somewhere, and a write that fails must not read as a write that worked.
+ *
+ * The URL is ABSOLUTE on purpose. This page is served both by the live site and by a local
+ * `armband serve`, and a relative /gate would put a local reader's address in a local list
+ * nobody collects -- the same lost submission as the discard this replaced. Absolute, both
+ * copies of the page capture to one place. Locally that is a cross-origin post, which is
+ * why the server echoes an Access-Control-Allow-Origin for loopback origins and answers
+ * 204 rather than the redirect it used to: fetch would follow a redirect to /app and be
+ * blocked by CORS, turning a submission that SUCCEEDED into a reported failure.
+ *
+ * ⚠️ This origin is also spelled in cmd/armband/webroutes.go, where it enters the
+ * Content-Security-Policy that permits this fetch. The two are pinned equal by a test.
  */
 (function () {
   'use strict';
+
+  /* Must match signupOrigin in cmd/armband/webroutes.go, which puts this host in the
+     Content-Security-Policy that permits the fetch below. Pinned equal by a test. */
+  var GATE = 'https://fplarmband.com/gate';
 
   function wire(form) {
     var input = form.querySelector('input[type=email]');
@@ -35,16 +50,22 @@
       button.disabled = true;
       button.textContent = 'One moment…';
 
-      fetch('/gate', {
+      fetch(GATE, {
         method: 'POST',
+        /* same-origin, so the public copy of this page sends and receives the gate
+           cookie and the local copy sends nothing. The local copy does not need it:
+           /app is reachable directly, which is what the "I have access" link does. */
         credentials: 'same-origin',
+        /* Form encoding keeps this a CORS "simple request", so the local cross-origin
+           post needs no preflight -- and the server needs no OPTIONS route to answer
+           one. A JSON body would have cost both. */
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'email=' + encodeURIComponent(input.value)
       })
         .then(function (r) {
-          /* The handler answers 303 to /app. fetch follows redirects, so a success is an
-             ok response whose URL is the application -- and going there is the whole
-             point of the gate. */
+          /* 204 means recorded. Anything else is not a success to report as one --
+             400 for an address the server would not take, 500 for a write that did
+             not land, and the reader can act on both by retrying. */
           if (!r.ok) throw new Error('the server answered ' + r.status);
           window.location.href = '/app';
         })
