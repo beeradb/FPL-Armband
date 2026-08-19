@@ -506,9 +506,12 @@ func TestTheWatchlistSaysWhenNothingClearsTheGate(t *testing.T) {
 			Rows: []WatchRow{{Player: analysis.PlayerMetrics{Name: "X"}, Delta: 0.81}},
 		}
 	})
-	if !strings.Contains(out, "Nothing on this list does") {
-		t.Error("the watchlist does not say that no candidate clears the gate; " +
-			"without it a column of positive deltas reads as a list of upgrades")
+	// The sentence names the scale it counts over — the whole candidate pool,
+	// not the capped hundred — so "none of 2" is stated against 2.
+	if !strings.Contains(out, "None of the 2 players outside your fifteen does") {
+		t.Error("the watchlist does not say that no candidate clears the gate, " +
+			"against the pool it counted; without it a column of positive deltas " +
+			"reads as a list of upgrades")
 	}
 	if !strings.Contains(out, "£10.1m") {
 		t.Error("the benchmark's price is missing from the group header, so the " +

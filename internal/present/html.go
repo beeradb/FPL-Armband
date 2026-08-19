@@ -1491,7 +1491,8 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
     the comparison a transfer actually has to win, where a league rank is not:
     {{range $i, $bm := .Watch.Benchmarks}}{{if $i}} &middot; {{end}}<b>{{$bm.Position}}</b> vs {{$bm.Name}} {{pts $bm.Score}}, {{money $bm.Price}}{{end}}.
     {{with .Watch}}{{if .Gate}}<br><b>Green clears the free-transfer gate of {{pts .Gate}} pts/gw.</b>
-    {{if .Clearing}}{{.Clearing}} of {{.Count}} do.{{else}}<b>Nothing on this list does</b> &mdash;
+    {{if .Clearing}}<b>{{.Clearing}} of the {{.Count}} players outside your fifteen do.</b>
+    {{else}}<b>None of the {{.Count}} players outside your fifteen does</b> &mdash;
     these are ordered, not recommended.{{end}}{{end}}{{end}}</p>
 
   {{if .WatchQ.Interactive}}<form class="wfilter" method="get" action="/">
@@ -1673,7 +1674,15 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
     // following.
     var data = new FormData(form);
     data.append("enhanced", "1");
-    fetch("/action", { method: "POST", body: data, credentials: "same-origin" })
+    var btn = form.querySelector("button[type=submit]");
+    if (btn) btn.disabled = true;
+    // An action renders the whole page server-side, which takes seconds; a
+    // stalled request must not leave the page deaf forever. The abort
+    // rejects the fetch, the catch reloads, and the reload shows the truth.
+    var ctl = new AbortController();
+    setTimeout(function () { ctl.abort(); }, 20000);
+    fetch("/action", { method: "POST", body: data, credentials: "same-origin",
+      signal: ctl.signal })
       .then(function (r) { if (!r.ok) throw new Error("status " + r.status); return r.text(); })
       .then(function (html) { morph(html); busy = false; })
       .catch(function () { window.location.reload(); });

@@ -148,9 +148,9 @@ position and club — a filter searches the whole pool, not just the hundred —
 every column but the fixture strip (price first), with each candidate measured not against the
 league but against the weakest starter you already own in that position — named in the legend
 above the list — and the Δ column giving the gap, green marking what clears the free-transfer
-gate. On this run's data, two of a hundred do.
+gate. On this run's data, two of the whole pool do.
 
-![The watchlist tab, from the same 2026-08-19 run: the hundred best available players not in the fifteen, as one list. The legend above it names the weakest starter already owned in each position — Kinsky for goalkeepers, Thiaw for defenders, E.Le Fée for midfielders, Thiago for forwards — and every row shows the position, the club, the next five fixtures, expected minutes, ownership, the model's score, the gap to that starter, and the price. Two gaps are shown in green; the note above the table says two of 100 clear the free-transfer gate of 0.40 points per gameweek.](docs/images/watchlist.png)
+![The watchlist tab, from the same 2026-08-19 run: the best hundred players not in the fifteen by default, as one list. The legend above it names the weakest starter already owned in each position — Kinsky for goalkeepers, Thiaw for defenders, E.Le Fée for midfielders, Thiago for forwards — and every row shows the position, the club, the next five fixtures, expected minutes, ownership, the model's score, the gap to that starter, and the price. Two gaps are shown in green; the note above the table says two of the 575 players outside the fifteen clear the free-transfer gate of 0.40 points per gameweek.](docs/images/watchlist.png)
 
 The baselines are not straw men; they are what an FPL manager actually reasons from today.
 **Recent form** here is a player's mean score over his last five gameweeks — the same idea as

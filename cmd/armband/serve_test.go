@@ -406,6 +406,40 @@ func TestTheSessionOverridesRideOnTopOfTheConfig(t *testing.T) {
 	}
 }
 
+// TestTheEnhancedAnswerReadsTheReadersState pins the review finding: the
+// enhanced render must carry the reader's filters, sort, page and view from
+// the POSTed ret — rendering from the action URL would morph the watchlist
+// back to its default state while the address bar still shows the query.
+func TestTheEnhancedAnswerReadsTheReadersState(t *testing.T) {
+	req := httptest.NewRequest("POST", "/action",
+		strings.NewReader(url.Values{
+			"ret": {"/?q=sal&sort=score&dir=asc&pos=MID&p=2&v=watch"},
+		}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Host = "127.0.0.1:8080"
+
+	got := readerRequest(req)
+	if got.URL.Query().Get("q") != "sal" || got.URL.Query().Get("sort") != "score" ||
+		got.URL.Query().Get("p") != "2" || got.URL.Query().Get("v") != "watch" {
+		t.Errorf("the enhanced render reads %q, want the reader's query", got.URL.RawQuery)
+	}
+	if got.URL.Path != "/" {
+		t.Errorf("the enhanced render reads path %q, want the reader's /", got.URL.Path)
+	}
+
+	// An absent or unsafe ret falls back to the action request itself, so
+	// the render can never read a foreign origin's state.
+	for _, ret := range []string{"", "//evil.example", `/\\evil.example`} {
+		bad := httptest.NewRequest("POST", "/action",
+			strings.NewReader(url.Values{"ret": {ret}}.Encode()))
+		bad.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		bad.Host = "127.0.0.1:8080"
+		if got := readerRequest(bad); got != bad {
+			t.Errorf("ret %q was not refused; the render would read attacker state", ret)
+		}
+	}
+}
+
 // TestTheActionSavesBeforeItAdopts. A save failure must leave the running
 // config untouched — adopting first would show an override on the page that
 // every later run silently lacks, which is the page lying about the state of

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -11,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -86,7 +88,12 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 		<-ctx.Done()
 		_ = srv.Close()
 	}()
-	return srv.ListenAndServe()
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	// ErrServerClosed is the shutdown the go routine above asked for — the
+	// deliberate end of the command, not an error to print and exit 1 on.
+	return nil
 }
 
 // squadServer is the whole server: the page and the write actions.
@@ -160,13 +167,24 @@ func (s *squadServer) render(w http.ResponseWriter, r *http.Request, cfg config.
 	// must be path-relative, and a bare query would be rejected by the
 	// path-prefix check in action as an open redirect.
 	b.Page.Ret = r.URL.RequestURI()
+	// The page is never meant to be framed: a hostile page could iframe it and
+	// clickjack the lock/boot buttons, whose forms carry a valid token from
+	// the framed page's own DOM — the token gate cannot see that the click
+	// did not come from the reader.
+	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := present.Render(w, b.Page); err != nil {
-		// The template is static text compiled once; an execution error is a
-		// programming error, and it arrives after the response has started, so
-		// the only honest report is to the server's own stderr.
+	// Rendered to a buffer, then written once: a template execution error
+	// must answer 500 rather than a truncated 200, because the enhancement
+	// script treats a 200 as "a complete page" and would morph a partial one
+	// into the live DOM. An error status makes the script reload, which is
+	// the consistent answer.
+	var buf bytes.Buffer
+	if err := present.Render(&buf, b.Page); err != nil {
 		fmt.Fprintf(os.Stderr, "render: %v\n", err)
+		http.Error(w, "rendering the page failed", http.StatusInternalServerError)
+		return
 	}
+	_, _ = buf.WriteTo(w)
 }
 
 // action applies one lock or boot and answers with a redirect, so the browser
@@ -242,6 +260,13 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 	// a just-set cookie surviving one. A plain form submission still gets the
 	// 303, where browsers apply the cookie before following.
 	enhanced := r.PostFormValue("enhanced") == "1"
+	// The fresh page must be the page the reader was ON — their filters, sort
+	// and view — not the action URL, or the morph would swap the watchlist
+	// back to its default state while the URL still shows the query.
+	pageReq := r
+	if enhanced {
+		pageReq = readerRequest(r)
+	}
 
 	if s.persist {
 		// Saved before adopted: a failed save leaves the server and the
@@ -256,7 +281,7 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 		}
 		s.cfg = &next
 		if enhanced {
-			s.render(w, r, next, sessionOverrides{})
+			s.render(w, pageReq, next, sessionOverrides{})
 			return
 		}
 	} else {
@@ -271,7 +296,7 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if enhanced {
-			s.render(w, r, s.effectiveCfgFrom(so), so)
+			s.render(w, pageReq, s.effectiveCfgFrom(so), so)
 			return
 		}
 	}
@@ -461,6 +486,26 @@ func markSessionOverrides(p *present.Page, so sessionOverrides) {
 			}
 		}
 	}
+}
+
+// readerRequest is the request the enhanced page render should read its
+// state from: the POST's `ret` field, which carries the reader's full URI —
+// their filters, sort, page and view. Without it the enhanced answer would
+// render the action URL's state (defaults) and the morph would silently
+// discard what the reader was looking at while the address bar still shows
+// it. An absent or unsafe ret falls back to the request itself.
+func readerRequest(r *http.Request) *http.Request {
+	ret := r.PostFormValue("ret")
+	if !safeRetPath(ret) {
+		return r
+	}
+	u, err := url.Parse(ret)
+	if err != nil {
+		return r
+	}
+	req := r.Clone(r.Context())
+	req.URL = r.URL.ResolveReference(u)
+	return req
 }
 
 // viewParam reads which tab the page opens on. The watchlist's links carry
