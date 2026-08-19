@@ -137,7 +137,14 @@ func (s shot) capture(t *testing.T, browser, base, workdir string) []byte {
 	cmd := exec.Command(browser, args...)
 	// A private profile per run. Sharing the user's real one would both pollute it and
 	// make the screenshot depend on whatever is in it.
-	cmd.Env = append(os.Environ(), "HOME="+workdir)
+	//
+	// TZ is pinned for the same reason the clock and the token are. The rail formats its
+	// deadlines with toLocaleDateString, which reads the BROWSER's zone -- so without
+	// this the goldens are only reproducible in the timezone they were generated in.
+	// Measured: running the suite under TZ=Pacific/Auckland moves 491 pixels with a worst
+	// channel delta of 104, which is a contributor failing the gate for no real reason,
+	// or running -update and committing a golden that fails for everyone else.
+	cmd.Env = append(os.Environ(), "HOME="+workdir, "TZ=UTC")
 	var stderr []byte
 	if b, err := cmd.CombinedOutput(); err != nil {
 		stderr = b
@@ -209,7 +216,7 @@ func TestVisualRegression(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if diff.differing <= noiseFloor {
+			if !diff.resized && diff.differing <= noiseFloor {
 				return
 			}
 			// The artefacts go next to the golden, named for the shot, so a failure is
@@ -217,6 +224,14 @@ func TestVisualRegression(t *testing.T) {
 			base := filepath.Join(goldenDir(), "diff-"+s.name)
 			writeArtefact(t, base+"-got.png", got)
 			writeArtefact(t, base+".png", diff.image)
+			if diff.resized {
+				base := filepath.Join(goldenDir(), "diff-"+s.name)
+				writeArtefact(t, base+"-got.png", got)
+				t.Errorf("%s is a different SIZE from its golden. The page's layout height "+
+					"or width changed; the pixel comparison cannot say anything useful "+
+					"about that.\n  wrote %s-got.png", s.name, base)
+				return
+			}
 			t.Errorf("%s differs from its golden: %d of %d pixels (%.3f%%) differ by more "+
 				"than %d, which is over the %d-pixel noise floor. Worst channel delta %d.\n"+
 				"  wrote %s-got.png and %s.png — look at them before running -update",
@@ -237,7 +252,10 @@ func writeArtefact(t *testing.T, path string, body []byte) {
 type diffResult struct {
 	differing, total int
 	worst            int
-	image            []byte
+	// resized is set when the two images are not the same size. It is separate from the
+	// pixel counts on purpose: it must not be comparable against the noise floor.
+	resized bool
+	image   []byte
 }
 
 // justAntialiasing is the largest per-channel difference this comparison ignores.
@@ -293,8 +311,13 @@ func compare(wantPNG, gotPNG []byte) (diffResult, error) {
 	if wb != gb {
 		// A size change is a real difference and must not be silently cropped into a
 		// comparison of the overlapping part.
-		return diffResult{differing: 1, total: 1,
-			image: gotPNG}, nil
+		//
+		// Reported through its own field rather than as a differing-pixel count. It used
+		// to signal itself as differing:1 total:1, which failed correctly against a
+		// zero-tolerance caller and then passed silently the moment a noise floor of 32
+		// was added -- 1 <= 32. A sentinel that travels as a magnitude gets compared
+		// against a threshold sooner or later.
+		return diffResult{resized: true, image: gotPNG}, nil
 	}
 
 	out := image.NewRGBA(wb)

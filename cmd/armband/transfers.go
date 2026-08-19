@@ -27,6 +27,14 @@ import (
 func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	e *analysis.Engine, plain bool, htmlPath string) error {
 
+	// Before anything else, and before the network. cmdSquad refuses on the same
+	// footing: answering after the search has run makes the reader wait for work whose
+	// output does not exist. Checking it at the END, as this did, also missed the two
+	// outcomes that return early -- so a week where the policy banked or found nothing
+	// exited 0 with no file and no message.
+	if htmlPath != "" {
+		return errPageRetired
+	}
 	if cfg.EntryID == 0 {
 		return fmt.Errorf("no entry_id in config.json, so there is no squad to improve.\n" +
 			"Set one, or use `armband squad` to build a fifteen from scratch")
@@ -98,9 +106,6 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 		fmt.Println()
 	}
 
-	if htmlPath != "" {
-		return errPageRetired
-	}
 	return nil
 }
 

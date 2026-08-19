@@ -30,9 +30,14 @@ const CLUBC={TOT:'#132257',LIV:'#C8102E',NEW:'#241F20',MUN:'#DA291C',MCI:'#6CABD
    pinned by TestEveryNameIsEscapedInEveryView. Moving rendering to the client
    dropped that guarantee silently, which is the whole reason this helper exists.
 
-   The rule: any ${...} holding a STRING goes through esc(). Numbers formatted by
-   toFixed do not need it, but they do not suffer from it either. When in doubt,
-   escape. */
+   The rule is about the SINK, not the source: any ${...} inside a template that
+   becomes innerHTML goes through esc() unless it is a number formatted by toFixed.
+
+   Stating it the other way round -- "escape the player name, escape the club" -- is how
+   three sites were missed on the first pass. Each of them had a name in it that did not
+   LOOK like one at the point of use: renderShapes joins names into a sentence, so the
+   interpolation reads ${missing.join}; the swap bar reads ${byId(...).n}. The one in
+   renderShapes was reachable on first paint with no interaction at all. */
 function esc(v){
   if(v===null||v===undefined) return '';
   return String(v).replace(/[&<>"']/g, c => ({
@@ -110,7 +115,10 @@ function hydrate(st){
   FIX={};
   for(const p of P.concat(POOL)){
     if(FIX[p.club]||!p.fixtures.length) continue;
-    FIX[p.club]=p.fixtures.map(f=>[f.opp, f.home?'H':'A', f.fdr]);
+    /* The gameweek is KEPT. The server sends the next N upcoming fixtures, so position in
+       this array is not gameweek -- it only looks like it at GW1, which is where the test
+       fixture is pinned. Everything below asks for a gameweek by number. */
+    FIX[p.club]=p.fixtures.map(f=>({gw:f.gw, opp:f.opp, ha:f.home?'H':'A', fdr:f.fdr}));
   }
 
   OV=(st.overrides.live||[]).map((o,i)=>({
@@ -251,18 +259,25 @@ function role(band){
 const roleChip=(band,sm)=>{const r=role(band);
   return `<span class="role ${r.c}${sm?' sm':''}">${esc(sm?r.s:r.l)}</span>`;};
 
-function fdrHtml(club,n=5,from=0){
-  const f=(FIX[club]||[]).slice(from,from+n);
+/* The strip for `n` gameweeks starting at `from`, which is a GAMEWEEK NUMBER and not an
+   index into the fixture list. */
+function fdrHtml(club,n=5,from=S.gw){
+  const all=FIX[club]||[];
+  const f=all.filter(x=>x.gw>=from && x.gw<from+n);
   // pad to a constant width so card rhythm survives the end of the horizon
   const pad=Array(Math.max(0,n-f.length)).fill(null);
   return '<span class="fdr">'+
-    f.map(x=>`<i class="f${x[2]}" title="${esc(x[0])} (${esc(x[1])}) difficulty ${x[2]}">${x[2]}</i>`).join('')+
+    f.map(x=>`<i class="f${x.fdr}" title="${esc(x.opp)} (${esc(x.ha)}) difficulty ${x.fdr}">${x.fdr}</i>`).join('')+
     pad.map(()=>'<i class="blank" title="beyond the projected horizon">·</i>').join('')+
     '</span>';
 }
+/* The club's fixture in a given gameweek, or null. A blank week is a real answer and the
+   callers say so, rather than falling back to a different week's opponent -- which is what
+   this did, and which quietly attributed one week's fixture to another. */
+function fixtureIn(club,gw){ return (FIX[club]||[]).find(x=>x.gw===gw)||null; }
 function nextFix(club){
-  const f=(FIX[club]||[])[S.gw-1]||(FIX[club]||[])[0];
-  return f?`${esc(f[0])} (${esc(f[1])})`:'—';
+  const f=fixtureIn(club,S.gw);
+  return f?`${esc(f.opp)} (${esc(f.ha)})`:'blank';
 }
 function shape(){
   const c={GKP:0,DEF:0,MID:0,FWD:0};
@@ -275,25 +290,54 @@ function legal(){
   return c.GKP===1 && c.DEF>=3 && c.DEF<=5 && c.MID>=2 && c.MID<=5 && c.FWD>=1 && c.FWD<=3
     && S.xi.length===11;
 }
-/* gameweek-scaled projection so switching weeks moves real numbers */
-function xpFor(p,gw){
-  const f=(FIX[p.club]||[])[gw-1];
-  if(!f) return p.xp;
-  const base=p.p90*(p.mn/90);
-  const adj=1+(3-f[2])*0.055;
-  return +(base*adj).toFixed(2);
-}
-const xiPts=()=>S.xi.reduce((s,id)=>s+xpFor(byId(id),S.gw),0);
-const benchPts=()=>[...S.bench,S.benchGk].reduce((s,id)=>s+xpFor(byId(id),S.gw),0);
+/* A player's projection, as the model produced it.
+ *
+ * ⚠️ This used to SCORE the player here, and it is the reason the rule at the top of this
+ * file is worth taking seriously. It read:
+ *
+ *     const base = p.p90 * (p.mn/90);
+ *     const adj  = 1 + (3 - fdr) * 0.055;
+ *     return base * adj;
+ *
+ * Five things wrong with it at once. `p.p90` is FixtureAdjXP90, which is ALREADY averaged
+ * over each fixture's own difficulty, so the hand-rolled 0.055 ladder -- a constant that
+ * exists nowhere in the Go model -- counted fixtures twice. It dropped
+ * AvailabilityFactor, whose most important value is 0, so a ruled-out player showed a
+ * positive projection on his card and 0.00 in the market on the same page. It dropped
+ * Congestion and RoleFactor. It dropped FixtureLoad, so a blanking club scored as though
+ * it played and a doubling club as though it played once. And it used minutes/90 where
+ * the model uses a reliability figure that is a different quantity.
+ *
+ * The number it produced drove the score bug, the captain's arithmetic, the formation
+ * comparison and the armband picker -- every headline figure on the pitch -- while
+ * squad.xi_score and squad.expected arrived from the model and were never read.
+ *
+ * There is no per-player, per-gameweek projection in the contract today; Score is an
+ * average over the horizon. The honest answer is to show that number and to add a
+ * per-week one to internal/viewmodel if the rail needs to move, NOT to invent one here.
+ */
+function xpFor(p){ return p.xp; }
+const xiPts=()=>S.xi.reduce((s,id)=>s+xpFor(byId(id)),0);
+const benchPts=()=>[...S.bench,S.benchGk].reduce((s,id)=>s+xpFor(byId(id)),0);
 function totalPts(){
   const chip=gwState().chip;
   let t=xiPts();
-  const cap=xpFor(byId(S.cap),S.gw);
+  const cap=xpFor(byId(S.cap));
   t += chip==='tcap' ? cap*2 : cap;          // captain doubles (triples on TC)
   if(chip==='bboost') t += benchPts();
   return t;
 }
 const spend=()=>P.reduce((s,p)=>s+p.pr,0);
+/* The money, as the model priced it.
+ *
+ * ⚠️ Not `100 - spend()`. That asserts the opening allowance as a literal and is correct
+ * for one week of the season: a mid-season squad is worth whatever it is worth, a
+ * wildcard budget is not 100, and the bank is the entry's, not a subtraction. The server
+ * sends squad.bank and squad.cost off Engine.AssemblyBudget, which knows all three. */
+const bankOf=()=>(STATE&&STATE.squad&&typeof STATE.squad.bank==='number')?STATE.squad.bank:0;
+const squadCost=()=>(STATE&&STATE.squad&&typeof STATE.squad.cost==='number')?STATE.squad.cost:spend();
+/* The bar a swap has to clear, from review_policy.min_gain_for_free_transfer. */
+const gateOf=()=>(STATE&&STATE.market&&typeof STATE.market.gate==='number')?STATE.market.gate:0;
 function clubCounts(){const m={};P.forEach(p=>m[p.club]=(m[p.club]||0)+1);return m;}
 
 /* ============================================================
@@ -318,11 +362,11 @@ function renderRail(){
 let lastTotal=null, deltaTimer=null;
 function renderReadout(){
   const chip=gwState().chip, c=CHIPS.find(x=>x.k===chip);
-  const model=S.modelXi.reduce((s,id)=>s+xpFor(byId(id),S.gw),0);
+  const model=S.modelXi.reduce((s,id)=>s+xpFor(byId(id)),0);
   const mine=xiPts();
   const vsm=+(mine-model).toFixed(2);
   const total=totalPts();
-  const capX=xpFor(byId(S.cap),S.gw), mult=chip==='tcap'?3:2;
+  const capX=xpFor(byId(S.cap)), mult=chip==='tcap'?3:2;
 
   document.getElementById('scorebug').innerHTML=`
    <div class="gwlz">GW${S.gw}<small>${gwState().live?'NOW':'PLANNED'}</small></div>
@@ -343,7 +387,7 @@ function renderReadout(){
      <div class="sub">${chip==='bboost'?'counting':'not counting'}</div></div>
    <div class="sb-div"></div>
    <div class="sb-cell"><span class="k">In the bank</span>
-     <div class="v">£${(100-spend()).toFixed(1)}m</div>
+     <div class="v">£${bankOf().toFixed(1)}m</div>
      <div class="sub">squad £${spend().toFixed(1)}m</div></div>
    <div class="sb-div"></div>
    <div class="sb-cell"><span class="k">Chip</span>
@@ -400,7 +444,7 @@ function renderChips(){
 function chipExplain(k){
   return {
     bboost:`Bench boost: all 15 score. Your bench adds ${benchPts().toFixed(1)} pts — order stops mattering, so pick for points not safety.`,
-    tcap:`Triple captain: ${esc(byId(S.cap).n)} scores ×3 (${(xpFor(byId(S.cap),S.gw)*3).toFixed(1)} pts).`,
+    tcap:`Triple captain: ${esc(byId(S.cap).n)} scores ×3 (${(xpFor(byId(S.cap))*3).toFixed(1)} pts).`,
     wildcard:`Wildcard: unlimited transfers, no hits. Budget rules still apply — the Players tab is now a full rebuild.`,
     freehit:`Free hit: this week's team only, reverts after GW${S.gw}. Nothing you buy here carries forward.`
   }[k];
@@ -413,7 +457,7 @@ function cardHtml(p,opts={}){
   const lock=S.locks.has(p.id), block=S.blocks.has(p.id);
   const isC=S.cap===p.id, isV=S.vc===p.id;
   const chip=gwState().chip;
-  const x=xpFor(p,S.gw), mult=chip==='tcap'?3:2;
+  const x=xpFor(p), mult=chip==='tcap'?3:2;
   return `<div class="card${lock?' haslock':''}${block?' hasblock':''}${S.swapFrom===p.id?' sel':''}${isC?' iscap':''}${isC&&chip==='tcap'?' tcap':''}${isV?' isvc':''}"
      draggable="true" data-id="${p.id}" style="--clubc:${CLUBC[p.club]||'#39506A'}">
     <div class="shirt">${isC?`<span class="bandc">${chip==='tcap'?'3×':'C'}</span>`:''}</div>
@@ -437,7 +481,7 @@ function cardHtml(p,opts={}){
     <div class="xp">${isC
       ?`<span class="pre">${x.toFixed(2)}</span><span class="arw">→</span><b>${(x*mult).toFixed(2)}</b><span class="u">xPts</span>`
       :`<b>${x.toFixed(2)}</b><span class="u">xPts</span>`}</div>
-    ${fdrHtml(p.club,opts.fdr||3,S.gw-1)}
+    ${fdrHtml(p.club,opts.fdr||3,S.gw)}
     ${p.ov?`<div class="ovtag">set: ${esc(p.ov.t.toLowerCase())}</div>`:''}
   </div>`;
 }
@@ -542,7 +586,7 @@ function wirePitch(){
 /* armband cycle: nothing → captain → vice → nothing. Starters only. */
 function cycleArmband(id){
   if(!S.xi.includes(id)){ flashInvalid(); return; }
-  const others=()=>S.xi.filter(x=>x!==id).sort((a,b)=>xpFor(byId(b),S.gw)-xpFor(byId(a),S.gw));
+  const others=()=>S.xi.filter(x=>x!==id).sort((a,b)=>xpFor(byId(b))-xpFor(byId(a)));
   if(S.cap===id){                       // captain → vice
     S.cap = S.vc && S.vc!==id ? S.vc : others()[0];
     S.vc  = id;
@@ -557,7 +601,7 @@ function setSwapbar(){
   const bar=document.getElementById('swapbar');
   if(S.swapFrom===null){bar.classList.remove('on');}
   else{bar.classList.add('on');
-    document.getElementById('swaptext').innerHTML=`Tap any player to swap with <b>${byId(S.swapFrom).n}</b>`;}
+    document.getElementById('swaptext').innerHTML=`Tap any player to swap with <b>${esc(byId(S.swapFrom).n)}</b>`;}
   renderPitch();
 }
 document.getElementById('swapcancel').onclick=()=>{S.swapFrom=null;setSwapbar();};
@@ -568,10 +612,10 @@ document.getElementById('swapcancel').onclick=()=>{S.swapFrom=null;setSwapbar();
    ============================================================ */
 function bestFor(d,m,f){
   const pick=(pos,n)=>P.filter(p=>p.pos===pos&&!S.blocks.has(p.id))
-    .sort((a,b)=>xpFor(b,S.gw)-xpFor(a,S.gw)).slice(0,n);
+    .sort((a,b)=>xpFor(b)-xpFor(a)).slice(0,n);
   const xi=[...pick('GKP',1),...pick('DEF',d),...pick('MID',m),...pick('FWD',f)];
   if(xi.length<11) return null;
-  return {ids:xi.map(p=>p.id), pts:xi.reduce((s,p)=>s+xpFor(p,S.gw),0), swing:xi};
+  return {ids:xi.map(p=>p.id), pts:xi.reduce((s,p)=>s+xpFor(p),0), swing:xi};
 }
 function renderShapes(){
   const cur=formationStr(), mine=xiPts(), out=[];
@@ -586,14 +630,14 @@ function renderShapes(){
     const missing=o.ids.filter(id=>!S.xi.includes(id)).map(id=>byId(id).n);
     return `<button class="shape-row" data-shape="${o.d}-${o.m}-${o.f}" aria-current="${is}">
       <span class="f">${o.k}</span>
-      <span class="who">${is?'your shape now':missing.length?'brings in '+missing.join(', '):'same eleven'}</span>
+      <span class="who">${is?'your shape now':missing.length?'brings in '+missing.map(esc).join(', '):'same eleven'}</span>
       <span class="dd ${is?'':diff>0?'pos':'neg'}">${is?o.pts.toFixed(1):(diff>0?'+':'')+diff.toFixed(2)}</span>
     </button>`;}).join('');
   document.querySelectorAll('[data-shape]').forEach(b=>b.onclick=()=>{
     const [d,m,f]=b.dataset.shape.split('-').map(Number);
     const best=bestFor(d,m,f); if(!best) return;
     S.xi=best.ids;
-    if(!S.xi.includes(S.cap)) S.cap=S.xi.slice().sort((x,y)=>xpFor(byId(y),S.gw)-xpFor(byId(x),S.gw))[0];
+    if(!S.xi.includes(S.cap)) S.cap=S.xi.slice().sort((x,y)=>xpFor(byId(y))-xpFor(byId(x)))[0];
     if(S.vc&&!S.xi.includes(S.vc)) S.vc=null;
     S.bench=P.filter(p=>!S.xi.includes(p.id)&&p.pos!=='GKP').map(p=>p.id);
     S.benchGk=P.find(p=>p.pos==='GKP'&&!S.xi.includes(p.id)).id;
@@ -637,8 +681,7 @@ function renderWhy(){
    ============================================================ */
 function openSheet(id){
   const p=byId(id), chip=gwState().chip;
-  const f=(FIX[p.club]||[])[S.gw-1]||['—','',3];
-  const adj=1+(3-f[2])*0.055;
+  const f=fixtureIn(p.club,S.gw);
   const inSquad=P.some(x=>x.id===id);
   const onPitch=S.xi.includes(id);
   const sheet=document.getElementById('sheet');
@@ -653,8 +696,8 @@ function openSheet(id){
    </header>
    <div class="body">
      <div class="statgrid">
-       <div><div class="k">xPts this GW</div><div class="v acc">${xpFor(p,S.gw).toFixed(2)}</div></div>
-       <div><div class="k">Per £m</div><div class="v">${(xpFor(p,S.gw)/p.pr).toFixed(2)}</div></div>
+       <div><div class="k">xPts this GW</div><div class="v acc">${xpFor(p).toFixed(2)}</div></div>
+       <div><div class="k">Per £m</div><div class="v">${(xpFor(p)/p.pr).toFixed(2)}</div></div>
        <div><div class="k">Role</div><div class="v" style="font-size:12px;padding-top:3px">${roleChip(p.role)}</div>
             <div class="dim" style="font-family:var(--mono);font-size:10px;margin-top:3px">${p.mn} min/gw modelled</div></div>
        <div><div class="k">Reliability</div><div class="v">${p.rel.toFixed(2)}</div>
@@ -664,18 +707,18 @@ function openSheet(id){
      <div class="k" style="margin-bottom:6px">How the number is built</div>
      <div class="deriv panel" style="padding:10px 12px">
        <div class="step"><span class="muted">points per 90</span><b>${p.p90.toFixed(2)}</b></div>
-       <div class="step"><span class="muted">× fixture ${esc(f[0])} (${esc(f[1])}) FDR ${f[2]}</span><b>×${adj.toFixed(3)}</b></div>
+       <div class="step"><span class="muted">${f?`fixture ${esc(f.opp)} (${esc(f.ha)}) FDR ${f.fdr}`:'no fixture this gameweek'}</span><b>${f?'':'blank'}</b></div>
        <div class="step"><span class="muted">× minutes ${p.mn}/90</span><b>×${(p.mn/90).toFixed(3)}</b></div>
        ${chip==='tcap'&&S.cap===id?`<div class="step"><span class="muted">× triple captain</span><b>×3</b></div>`:
          S.cap===id?`<div class="step"><span class="muted">× captain</span><b>×2</b></div>`:''}
        <div class="step total"><span>projected GW${S.gw}</span>
-         <b>${(xpFor(p,S.gw)*(S.cap===id?(chip==='tcap'?3:2):1)).toFixed(2)}</b></div>
+         <b>${(xpFor(p)*(S.cap===id?(chip==='tcap'?3:2):1)).toFixed(2)}</b></div>
      </div>
 
      <div class="k" style="margin:14px 0 6px">Next five</div>
-     ${fdrHtml(p.club,5,S.gw-1)}
+     ${fdrHtml(p.club,5,S.gw)}
      <div class="dim" style="font-family:var(--mono);font-size:11px;margin-top:6px">
-       ${(FIX[p.club]||[]).slice(S.gw-1,S.gw+4).map(x=>`${esc(x[0])}(${esc(x[1])},${x[2]})`).join(' · ')}
+       ${(FIX[p.club]||[]).filter(x=>x.gw>=S.gw&&x.gw<S.gw+5).map(x=>`${esc(x.opp)}(${esc(x.ha)},${x.fdr})`).join(' · ')||'no fixtures in the projected window'}
      </div>
 
      ${p.ov?`<div class="reason">
@@ -715,8 +758,8 @@ function openSheet(id){
 function openArmbandPicker(which){
   const chip=gwState().chip, mult = chip==='tcap'?3:2;
   const rows=[...S.xi].map(id=>byId(id))
-    .sort((a,b)=>xpFor(b,S.gw)-xpFor(a,S.gw));
-  const best=xpFor(rows[0],S.gw), floor=xpFor(rows[rows.length-1],S.gw), span=Math.max(.01,best-floor);
+    .sort((a,b)=>xpFor(b)-xpFor(a));
+  const best=xpFor(rows[0]), floor=xpFor(rows[rows.length-1]), span=Math.max(.01,best-floor);
   document.getElementById('sheet').innerHTML=`
    <header><div style="flex:1">
      <div class="nm">${which==='cap'?'Pick your captain':'Pick your vice-captain'}</div>
@@ -726,14 +769,14 @@ function openArmbandPicker(which){
    </div><button class="btn icon ghost" id="sheetclose">✕</button></header>
    <div class="body" style="padding-top:8px">
      ${rows.map(p=>{
-       const x=xpFor(p,S.gw), gain=+(x*(mult-1)).toFixed(2), isC=S.cap===p.id, isV=S.vc===p.id;
-       const f=(FIX[p.club]||[])[S.gw-1]||['—','',3];
+       const x=xpFor(p), gain=+(x*(mult-1)).toFixed(2), isC=S.cap===p.id, isV=S.vc===p.id;
+       const f=fixtureIn(p.club,S.gw);
        return `<button class="caprow${isC||isV?' on':''}" data-pick="${p.id}">
          <span class="armslot">${isC?'C':isV?'V':''}</span>
          <span class="cn"><b>${esc(p.n)}</b> <span class="dim" style="font-family:var(--mono);font-size:10.5px">${esc(p.club)} ${esc(p.pos)}</span>
            <span style="display:block;margin-top:3px">${roleChip(p.role,true)}
-             <span class="dim" style="font-family:var(--mono);font-size:10px">vs ${esc(f[0])} (${esc(f[1])})</span>
-             <i style="font-style:normal">${fdrHtml(p.club,1,S.gw-1)}</i></span></span>
+             <span class="dim" style="font-family:var(--mono);font-size:10px">${f?`vs ${esc(f.opp)} (${esc(f.ha)})`:'blank gameweek'}</span>
+             <i style="font-style:normal">${fdrHtml(p.club,1,S.gw)}</i></span></span>
          <span class="cx"><b>${x.toFixed(2)}</b><span class="dim">xPts</span>
            <span class="gain">${which==='cap'?`+${gain.toFixed(2)} from the armband`:'backup'}</span></span>
          <span class="mb"><span class="mbar"><span style="width:${Math.max(3,Math.round((x-floor)/span*100))}%"></span></span></span>
@@ -761,7 +804,7 @@ document.getElementById('scrim').onclick=e=>{if(e.target.id==='scrim')closeSheet
    RENDER — players market
    ============================================================ */
 function renderPlayers(){
-  const bank=100-spend();
+  const bank=bankOf(), gate=gateOf();
   document.getElementById('bank').textContent='£'+bank.toFixed(1)+'m';
   /* The rest of this panel's header. Every one of these was a literal in the markup,
      which is how the squad came to be worth £99.5m on the pitch and £100.0m here. */
@@ -770,9 +813,10 @@ function renderPlayers(){
   document.getElementById('bankSub').textContent=`of £${(cost+bank).toFixed(1)}m budget`;
   document.getElementById('squadValue').textContent='£'+cost.toFixed(1)+'m';
   document.getElementById('squadValueSub').textContent=`${(st.squad.players||[]).length} players`;
-  const gate=st.market.gate||0;
   document.getElementById('gateValue').innerHTML=
     `+${gate.toFixed(2)}<small>xPts/gw</small>`;
+  const upTo=document.getElementById('bankUpTo');
+  if(upTo) upTo.textContent=(STATE&&STATE.policy&&STATE.policy.bank_up_to)||'—';
   document.getElementById('benchLegend').textContent=
     BENCHMARKS.map(b=>`${b.pos} vs ${b.name} ${b.score.toFixed(2)}`).join(' · ');
   let list=POOL.filter(p=>S.posFilter==='ALL'||p.pos===S.posFilter)
@@ -781,13 +825,16 @@ function renderPlayers(){
   const weakest=pos=>P.filter(p=>p.pos===pos).sort((a,b)=>a.xp-b.xp)[0];
   list=list.map(p=>{
     const w=weakest(p.pos);
-    return {...p,d:+(p.xp-WEAKEST[p.pos]).toFixed(2),afford:bank+w.pr-p.pr, out:w};
+    /* d and clears come from the server: MarketRow.Delta and MarketRow.ClearsGate.
+       Colouring the gap against a hardcoded bar was the page recommending in colour what
+       the policy refuses in prose -- the same defect this once had against zero. */
+    return {...p,d:p.delta,clears:p.clears,afford:bank+w.pr-p.pr, out:w};
   });
-  const reachable=list.filter(p=>p.afford>=0).length, clears=list.filter(p=>p.d>=0.4).length;
+  const reachable=list.filter(p=>p.afford>=0).length, clears=list.filter(p=>p.clears).length;
   if(S.affordOnly) list=list.filter(p=>p.afford>=0);
   list.sort((a,b)=>b.d-a.d);
   document.getElementById('marketnote').innerHTML=`
-    <span class="gate pass"></span><b>${clears}</b> of ${POOL.length} clear the +0.40 transfer gate
+    <span class="gate pass"></span><b>${clears}</b> of ${POOL.length} clear the +${gate.toFixed(2)} transfer gate
     <span class="sep">·</span>
     <b>${reachable}</b> are reachable with £${bank.toFixed(1)}m in the bank
     ${bank<0.5?`<span class="sep">·</span><span class="warnc">every other move needs you to sell first</span>`:''}`;
@@ -796,7 +843,7 @@ function renderPlayers(){
   const MOB_CAP=40, shown=list.slice(0,S.showAll?list.length:MOB_CAP);
   const emptyHtml=`<div class="empty">
       <div class="big">Nothing clears this filter</div>
-      <p>No player matches ${S.q?`“${S.q}”`:'these settings'}${S.affordOnly?' inside your budget':''}.</p>
+      <p>No player matches ${S.q?`“${esc(S.q)}”`:'these settings'}${S.affordOnly?' inside your budget':''}.</p>
       <button class="btn sm" id="clearFilters">Show all ${POOL.length} players</button>
     </div>`;
   document.getElementById('emptyState').innerHTML=list.length?'':emptyHtml;
@@ -808,29 +855,29 @@ function renderPlayers(){
 
   document.getElementById('ptbody').innerHTML=list.map(p=>`
    <tr data-id="${p.id}">
-     <td><span class="gate${p.d>=0.4?' pass':''}" title="${p.d>=0.4?'clears the +0.40 transfer gate':'below the transfer gate'}"></span></td>
+     <td><span class="gate${p.clears?' pass':''}" title="${p.clears?`clears the +${gate.toFixed(2)} transfer gate`:'below the transfer gate'}"></span></td>
      <td><span class="who">${esc(p.n)}</span><span class="club">${esc(p.club)}</span>${S.blocks.has(p.id)?' <span class="pill bad">blocked</span>':''}</td>
      <td class="k">${esc(p.pos)}</td>
-     <td>${fdrHtml(p.club,5,S.gw-1)}</td>
+     <td>${fdrHtml(p.club,5,S.gw)}</td>
      <td>${roleChip(p.role)}</td><td class="n">${p.own.toFixed(1)}%</td>
      <td class="n">£${p.pr.toFixed(1)}${p.afford<0?`<span class="short">needs +£${Math.abs(p.afford).toFixed(1)}m</span>`:''}</td>
      <td class="n" style="font-weight:700">${p.xp.toFixed(2)}</td>
-     <td class="n ${p.d>=0.4?'dpos':'dneg'}">${p.d>0?'+':''}${p.d.toFixed(2)}</td>
+     <td class="n ${p.clears?'dpos':'dneg'}">${p.d>0?'+':''}${p.d.toFixed(2)}</td>
      <td class="n"><button class="btn sm" data-buy="${p.id}" title="Transfer in ${esc(p.n)}, sell ${esc(p.out.n)}">${esc(p.out.n.length>10?p.out.n.slice(0,10)+'…':p.out.n)}</button></td>
    </tr>`).join('');
 
   document.getElementById('plist').innerHTML=shown.map(p=>`
    <div class="prow" data-id="${p.id}">
      <div>
-       <div class="l1"><span class="gate${p.d>=0.4?' pass':''}"></span>
+       <div class="l1"><span class="gate${p.clears?' pass':''}"></span>
          <span class="nm">${esc(p.n)}</span><span class="k">${esc(p.pos)}</span>
          <span class="club" style="font-family:var(--mono);font-size:10px;color:var(--ink3)">${esc(p.club)}</span></div>
-       <div class="l2">£${p.pr.toFixed(1)}m ${roleChip(p.role,true)} ${p.own.toFixed(1)}% ${fdrHtml(p.club,3,S.gw-1)}
+       <div class="l2">£${p.pr.toFixed(1)}m ${roleChip(p.role,true)} ${p.own.toFixed(1)}% ${fdrHtml(p.club,3,S.gw)}
          ${p.afford<0?`<span class="short">needs +£${Math.abs(p.afford).toFixed(1)}m</span>`:''}</div>
      </div>
      <div class="r">
        <div class="xp">${p.xp.toFixed(2)}</div>
-       <div class="dd ${p.d>=0.4?'dpos':'dneg'}">${p.d>0?'+':''}${p.d.toFixed(2)}</div>
+       <div class="dd ${p.clears?'dpos':'dneg'}">${p.d>0?'+':''}${p.d.toFixed(2)}</div>
        <span class="vs">vs ${esc(p.out.n)}</span>
      </div>
    </div>`).join('');

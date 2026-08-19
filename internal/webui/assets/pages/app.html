@@ -141,7 +141,11 @@
   <div class="readout four">
     <div><div class="k">Bank</div><div class="v" id="bank">—</div><div class="sub" id="bankSub"></div></div>
     <div><div class="k">Squad value</div><div class="v" id="squadValue">—</div><div class="sub" id="squadValueSub"></div></div>
-    <div><div class="k">Free transfers</div><div class="v acc">unlimited</div><div class="sub">until the GW1 deadline</div></div>
+    <!-- The free-transfer count is not in the contract, and this cell asserted
+         "unlimited / until the GW1 deadline" as a literal that nothing updates -- true
+         for one week a season, and stated next to a market recommending moves. It says
+         what the policy is instead, which the contract does carry. -->
+    <div><div class="k">Bank up to</div><div class="v acc" id="bankUpTo">—</div><div class="sub">free transfers the policy will hold</div></div>
     <div><div class="k">Transfer gate</div><div class="v" id="gateValue">—</div><div class="sub">the bar a swap must clear</div></div>
   </div>
 
@@ -206,10 +210,16 @@
 
   <div class="toolbar">
     <div class="seg" id="ovfilter">
+      <!-- The kinds are config.Roster's own, not a second vocabulary. These read "min",
+           "excl" and "team" until review found that every one of them matched nothing:
+           the server sends "lock", "exclude", "minutes" and "club", so all three filters
+           rendered the empty state, which reads as a fact about the configuration rather
+           than a broken control. -->
       <button aria-pressed="true" data-kind="ALL">All <span class="dim" id="ovAll"></span></button>
-      <button aria-pressed="false" data-kind="min">Role</button>
-      <button aria-pressed="false" data-kind="excl">Excluded</button>
-      <button aria-pressed="false" data-kind="team">Team-level</button>
+      <button aria-pressed="false" data-kind="minutes">Minutes</button>
+      <button aria-pressed="false" data-kind="lock">Locked</button>
+      <button aria-pressed="false" data-kind="exclude">Excluded</button>
+      <button aria-pressed="false" data-kind="club">Team-level</button>
     </div>
     <span class="pill warn" id="staleCount"></span>
   </div>
@@ -235,16 +245,21 @@
 <section id="view-brief" hidden>
   <div class="briefgrid" style="margin-top:14px">
   <div class="why" style="margin-top:0">
-    <h3>The verdict — Gameweek 1</h3>
+    <h3>The verdict</h3>
+    <!-- The weekly verdict is not wired up. What stood here was prose written by hand
+         against one GW1 build -- a captain, a chip plan, and the one thing that would
+         change it -- and none of it came from the model, so it would have kept saying
+         the same thing in April.
+
+         The material for a real one is computed on every request and thrown away:
+         buildSquadPage produces a transfer plan, a briefing and the engine's chip plan,
+         and internal/viewmodel carries none of them to the client yet. Saying so is the
+         honest state; asserting last August's judgement is not. -->
     <div style="padding:14px 15px;font-size:14px;line-height:1.6;color:var(--ink2);max-width:70ch">
-      <p style="margin-top:0"><b style="color:var(--ink)">Hold the build. Captain B.Fernandes.</b>
-      Nothing in the pre-season data justifies a hit before a ball is kicked, and 9 of the 15 places
-      are decided by hand-set corrections rather than measured minutes.</p>
-      <div class="chipnote" style="margin:14px 0">Chip plan confirmed: wildcard GW6 · bench boost GW8 · triple captain GW9 · free hit GW16</div>
-      <p><b style="color:var(--ink)">The one thing that would change my mind before Friday 17:30:</b>
-      the promoted sides' predicted XIs. If van Ewijk and Thomas are confirmed starters at Coventry,
-      they are the enablers that unlock the premium spine. If neither is nailed, the whole cheap-defender
-      structure changes and the optimiser wants a different minutes floor.</p>
+      <p style="margin-top:0">The weekly verdict — whether to hold or act, who takes the
+      armband, and the one thing that would change it — is not wired through to this page
+      yet. Run <code>armband brief</code> for it in the meantime.</p>
+      <p>What is below is real: the model's own account of where it cannot see.</p>
     </div>
   </div>
   <div class="why" style="margin-top:0">
