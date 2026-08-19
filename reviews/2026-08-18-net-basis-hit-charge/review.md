@@ -44,3 +44,10 @@ and every figure was re-derived from the banked files by the reviewers.
 **The verdict recorded**: 78-79% of hits clear their charge in the hold (mean +31 to +41
 net of the −4) on all three machines; H' reads −1/−2/0/−7 — no shape; MinGainHit 3.0 stands
 and nothing ships; the page now shows the gross − hit = net arithmetic.
+
+**Added after the reviews (6723ac5), covered by the same record**: the per-hit-charge
+clarification the user asked for — the R transform's comment now names the one-hit-per-
+package assumption (the charge is 4 per hit ROW, not a season-level subtraction; a future
+MaxHits ≥ 2 sweep must charge per hit leg), and the week header pluralises for a
+hypothetical multi-hit week ("8 hits"). Both are wording; no number moves, and the replay
+test's pinned arithmetic string still passes.
