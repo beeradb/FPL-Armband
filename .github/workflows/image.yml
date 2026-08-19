@@ -8,7 +8,12 @@ name: image
 
 on:
   push:
-    branches: [main]
+    # Every branch, not just main. An image that has never been built is an
+    # image nobody knows is broken, and the only way to run a change before
+    # merging it is to have a tag for it. Branch builds are identified by
+    # commit SHA; the moving `main` tag is published only from main, below, so
+    # a branch image can never be mistaken for the released one.
+    branches: ["**"]
     paths:
       - "Dockerfile"
       - ".dockerignore"
@@ -49,7 +54,20 @@ jobs:
 
       - id: meta
         run: |
-          echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+          repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          # Always tag by commit, so every image names exactly the source it was
+          # built from. The floating `main` tag is added only on main.
+          tags="ghcr.io/$repo:${{ github.sha }}"
+          if [ '${{ github.ref }}' = 'refs/heads/main' ]; then
+            tags="$tags
+          ghcr.io/$repo:main"
+          fi
+          {
+            echo 'tags<<EOF'
+            echo "$tags"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
 
       - id: build
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
@@ -59,9 +77,7 @@ jobs:
           # image under emulation would treble the build time for nothing.
           platforms: linux/amd64
           push: true
-          tags: |
-            ghcr.io/${{ steps.meta.outputs.repo }}:${{ github.sha }}
-            ghcr.io/${{ steps.meta.outputs.repo }}:main
+          tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: mode=max
