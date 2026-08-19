@@ -145,6 +145,70 @@ func TestNeitherCaptainNorViceDoubledWhenBothBlank(t *testing.T) {
 	}
 }
 
+// TestContribSumsToGross pins the per-player attribution: the scoring pass that
+// produces a week's total also records who contributed it, and the two can never
+// diverge. The holding-window transfer verdict reads Contrib — autosubs, the
+// armband and bench boost are all in it — so a drift would silently hand one
+// player's points to another.
+func TestContribSumsToGross(t *testing.T) {
+	s := mkSeason()
+	xi := idsToPlayers(s, []int{1, 3, 4, 5, 8, 9, 10, 11, 13, 14, 15})
+	bench := idsToPlayers(s, []int{2, 6, 7, 12})
+	sum := func(c map[int]int) int {
+		n := 0
+		for _, v := range c {
+			n += v
+		}
+		return n
+	}
+
+	// A normal week: everyone plays, the captain's return is doubled.
+	tot := weekScoreWithChip(xi, bench, 5, 13, 14, chipNone)
+	if got, want := sum(tot.Contrib), tot.Points; got != want {
+		t.Errorf("contrib sums to %d, Points %d", got, want)
+	}
+	if got, want := tot.Contrib[13], 2*s.Players[13].GWs[5].Points; got != want {
+		t.Errorf("captain contributed %d, want %d (doubled)", got, want)
+	}
+
+	// The captain blanks; the vice takes the armband and its extra copy.
+	s.Players[13].GWs[5] = GW{Points: 0, Minutes: 0, Value: 80}
+	tot = weekScoreWithChip(xi, bench, 5, 13, 14, chipNone)
+	if got, want := tot.Contrib[14], 2*s.Players[14].GWs[5].Points; got != want {
+		t.Errorf("vice contributed %d, want %d (doubled by the fallback)", got, want)
+	}
+	if tot.Contrib[13] != 0 {
+		t.Errorf("blanking captain contributed %d, want nothing", tot.Contrib[13])
+	}
+
+	// A blanked defender is covered from the bench, formation-legal.
+	s.Players[3].GWs[5] = GW{Points: 0, Minutes: 0, Value: 50}
+	tot = weekScoreWithChip(xi, bench, 5, 13, 14, chipNone)
+	if got, want := tot.Contrib[6], s.Players[6].GWs[5].Points; got != want {
+		t.Errorf("autosubbed defender contributed %d, want %d", got, want)
+	}
+	if got, want := sum(tot.Contrib), tot.Points; got != want {
+		t.Errorf("contrib sums to %d, Points %d (autosub week)", got, want)
+	}
+
+	// A triple captain triples, and a bench boost pays every benched player who
+	// appeared.
+	s.Players[13].GWs[5] = GW{Points: 6, Minutes: 90, Value: 80}
+	tot = weekScoreWithChip(xi, bench, 5, 13, 14, chipTripleCaptain)
+	if got, want := tot.Contrib[13], 3*s.Players[13].GWs[5].Points; got != want {
+		t.Errorf("triple captain contributed %d, want %d (tripled)", got, want)
+	}
+	tot = weekScoreWithChip(xi, bench, 5, 13, 14, chipBenchBoost)
+	for _, id := range []int{6, 7, 12} {
+		if got, want := tot.Contrib[id], s.Players[id].GWs[5].Points; got != want {
+			t.Errorf("bench player %d contributed %d, want %d (bench boost)", id, got, want)
+		}
+	}
+	if got, want := sum(tot.Contrib), tot.Points; got != want {
+		t.Errorf("contrib sums to %d, Points %d (bench boost week)", got, want)
+	}
+}
+
 // TestCaptaincyRungsRemoveOnlyTheArmband pins the two diagnostic rungs
 // HoldCaptaincyWeekly builds on top of HOLD.
 //

@@ -1,5 +1,7 @@
 package config
 
+import "armband/internal/analysis"
+
 // ReviewPolicy is the standing brief for the weekly review. You set the
 // thresholds and the rules; the agent decides within them.
 //
@@ -83,11 +85,99 @@ type ReviewPolicy struct {
 	// 2.5 beats zero on all three seasons; 2 is the middle of that range. The
 	// exact value is not resolvable on three seasons, so treat it as a knob
 	// rather than a calibrated constant.
+	//
+	// Re-measured 2026-08-17 as a flat ladder — 1.0/1.5/3.0/4.0 against 2.0, 36
+	// cells on the six-season grid, POLICY: +8.8/+6.5/-23.0/-10.5 a season against
+	// per-arm thresholds of 15 to 34, Holm >= 0.56 on the clustered p, and no
+	// shape (non-monotone, 3.0 worse than 4.0). So "not resolvable on three
+	// seasons" is not a grid-width problem — it does not resolve on six either.
+	// ⚠️ 0.0 was NOT a rung, so the "beats zero" comparison above is still the
+	// only record of that comparator and has not been re-run.
+	// ⚠️ A ladder spanning 2.0 crosses a kink: a free single's bar is
+	// max(MinGainForTransfer, FreeTransferValue/H), and at the shipped horizon 5
+	// this constant's 2.0 IS MinGainForTransfer's 0.4 exactly, so below 2.0 the
+	// singles channel cannot move. See
+	// stats/findings/2026-08-17-free-transfer-value-ladder.md.
 	FreeTransferValue float64 `json:"free_transfer_value"`
+
+	// EarlyFloor is the scheduled gate floor the "react faster early"
+	// measurement runs: the charge and gain bar applied up to and including
+	// UntilGameweek, with the shipped constants after. The zero value is off,
+	// which is the whole backfill — a config file without the key gets the
+	// shipped behaviour, and an empty schedule is a statement the way the
+	// campaign maps are. See stats/findings/2026-08-18-gate-floor-2x2.md for
+	// the measurement that licenses the schedule shape.
+	EarlyFloor EarlyFloor `json:"early_floor"`
+
+	// BankTransfersLookahead lets the weekly decision decline a move because a
+	// larger package is affordable next week, when one more free transfer is in
+	// hand.
+	//
+	// # What it buys, and why it ships on
+	//
+	// A premium upgrade usually needs more than one move: the money is locked in
+	// a player of a different position, so buying him means selling a forward
+	// *and* funding the gap. The paired search can express that and almost never
+	// gets the chance, because the weekly decision is greedy — it spends a free
+	// transfer the moment any move clears the gate. Traced cost: in 2025-26 the
+	// model rated Haaland above Salah from GW7 and could not buy him until GW13,
+	// because nothing ever compared "spend one now" against "bank two and buy the
+	// premium".
+	//
+	// It is also how a chip gets prepared for. With a bench boost or triple
+	// captain planned inside the horizon, the *later* arm of the comparison
+	// carries that chip's credit one week nearer, so waiting is worth more
+	// exactly when the squad is being assembled for a chip.
+	//
+	// **Ships off**, and that is a statement about evidence rather than about the
+	// mechanism. The recorded verdict is that the policy never banks a transfer
+	// and that banking is not the fix — reached, it turns out, with nothing
+	// counting whether the rule ever fired, which is why the replay now records
+	// the funnel from decision weeks down to banked weeks. Until a sweep carries
+	// those columns there is no measured case for turning it on, and shipping a
+	// default on an unmeasured claim is what this project has a rule against.
+	// Turning it on is supported, explained in the transfer output, and yours to
+	// judge.
+	BankTransfersLookahead bool `json:"bank_transfers_lookahead"`
+
+	// PrepareForChips lets the transfer search value a planned bench boost or
+	// triple captain that falls inside its horizon.
+	//
+	// Without it a squad is assembled for the average week and the chip is played
+	// on whatever fifteen happens to be owned. With it, the bench a boost will
+	// pay for and the armband a triple captain will treble are worth something to
+	// the search *before* the chip week arrives — which is the only channel by
+	// which a chip can be prepared for at all.
+	//
+	// The credit is amortised over the same horizon the gate is about to multiply
+	// it back by, so it prices what the chip actually pays once rather than once
+	// per gameweek. A wildcard between now and the chip closes the window: that
+	// squad does not survive to play it.
+	//
+	// Off by default for the reason above it: the mechanism is real and the
+	// points question is unresolved. It does nothing at all unless a chip is
+	// actually planned in `chip_plan`.
+	PrepareForChips bool `json:"prepare_squad_for_chips"`
 
 	// MaxHitsPerWeek caps points deliberately spent on extra transfers.
 	// Zero means never take a hit.
 	MaxHitsPerWeek int `json:"max_hits_per_week"`
+
+	// HitCeiling is the largest value MaxHitsPerWeek can MEAN. Zero takes
+	// analysis.DefaultHitCeiling, which is 1 and is what ships.
+	//
+	// # Why there are two knobs and not one
+	//
+	// `analysis.MoveLimit` clamped the hit allowance to 1 unconditionally, so
+	// setting `max_hits_per_week: 2` here changed nothing at all and said nothing
+	// about it. The clamp has an argument behind it — see
+	// `analysis.DefaultHitCeiling` — but an unreachable clamp makes the routine
+	// two-hit week unexpressible, and this record's rule is that a knob which
+	// silently means something else is worse than one that is absent.
+	//
+	// Raise this to raise the ceiling; raise `max_hits_per_week` to spend into it.
+	// A ceiling below `max_hits_per_week` wins, which is what a ceiling is.
+	HitCeiling int `json:"max_hits_ceiling"`
 
 	// AlwaysActOnInjury forces a move when a starter is ruled out, regardless
 	// of the gain thresholds — an unavailable player scores zero, which no
@@ -107,6 +197,32 @@ type ReviewPolicy struct {
 	LeadHours float64 `json:"scheduled_run_lead_hours"`
 }
 
+// EarlyFloor is the scheduled gate floor the "react faster early" measurement
+// runs: FreeTransferValue and MinGainForTransfer applied up to and including
+// UntilGameweek, the shipped constants after. A zero UntilGameweek is off — an
+// explicit statement, so Load probes for the KEY rather than the value when
+// backfilling: a config file without the key gets the shipped schedule, one
+// that writes a zero schedule keeps it.
+type EarlyFloor struct {
+	FreeTransferValue  float64 `json:"free_transfer_value"`
+	MinGainForTransfer float64 `json:"min_gain_for_free_transfer"`
+	UntilGameweek      int     `json:"until_gameweek"`
+}
+
+// EffectiveFloor is the week's charge and gain bar, honouring the scheduled
+// early floor. The shipped schedule — {1.0, 0.2} through GW8, measured by
+// stats/findings/2026-08-18-scheduled-floor.md and shipped on the user's
+// ruling — applies only to weeks at or before UntilGameweek; every other week
+// reads the flat constants.
+func (r ReviewPolicy) EffectiveFloor(gw int) (charge, minGain float64) {
+	charge, minGain = r.FreeTransferValue, r.MinGainForTransfer
+	if r.EarlyFloor.UntilGameweek > 0 && gw > 0 && gw <= r.EarlyFloor.UntilGameweek {
+		charge = r.EarlyFloor.FreeTransferValue
+		minGain = r.EarlyFloor.MinGainForTransfer
+	}
+	return
+}
+
 func DefaultReviewPolicy() ReviewPolicy {
 	return ReviewPolicy{
 		MinGainForTransfer: 0.4,
@@ -115,7 +231,21 @@ func DefaultReviewPolicy() ReviewPolicy {
 		BankUpTo:           5,
 		LeadHours:          6,
 		MaxHitsPerWeek:     1,
+		HitCeiling:         analysis.DefaultHitCeiling,
 		AlwaysActOnInjury:  true,
+		// Shipped 2026-08-18 on the user's ruling, after the measurements: the
+		// banking lookahead that was measured inert as a solo lever is part of
+		// the override-mode corner that resolves (+73/+97 a season), and the
+		// early floor ships on the user's info-density reading at its measured
+		// schedule — +6.7/+4.0 at the live entries, unresolved, accepted on
+		// mechanism rather than resolution. See
+		// stats/findings/2026-08-18-scheduled-floor.md.
+		BankTransfersLookahead: true,
+		EarlyFloor: EarlyFloor{
+			FreeTransferValue:  1.0,
+			MinGainForTransfer: 0.2,
+			UntilGameweek:      8,
+		},
 		Rules: []string{
 			"Do nothing is a valid and usually underrated answer. Only recommend a move when the case is affirmative.",
 			"Never take a hit to chase last week's points. A player who blanked is not thereby a sell.",

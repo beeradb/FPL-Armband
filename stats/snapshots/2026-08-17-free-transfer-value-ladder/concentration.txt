@@ -1,0 +1,38 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+
+Concentration screen — is a banked mean a handful of cells?
+POLICY. EVERY pairwise contrast, not only against the baseline. No replay.
+
+sweep         arm                              n  a season   pos/n drop top3   surv  seas  flag
+FREEVALUE#1   free_value=3.0 minus free_val   36     -31.8  24/36      -21.8   0.68     3  
+FREEVALUE#1   free_value=3.0 minus free_val   36     -29.6  23/36      -18.8   0.64     3  
+FREEVALUE#1   free_value=3.0                  36     -23.0  22/36      -13.6   0.59     2  
+FREEVALUE#1   free_value=4.0 minus free_val   36     -19.2  23/36      -16.9   0.88     2  
+FREEVALUE#1   free_value=4.0 minus free_val   36     -17.0  23/36      -14.5   0.85     2  
+FREEVALUE#1   free_value=4.0 minus free_val   36      12.6  23/36       10.1   0.80     2  
+FREEVALUE#1   free_value=4.0                  36     -10.5  19/36      -15.3   1.46     3  MOST CELLS DISAGREE
+FREEVALUE#1   free_value=1.0                  36       8.8  19/36        7.0   0.80     3  MOST CELLS DISAGREE
+FREEVALUE#1   free_value=1.5                  36       6.5  14/36        4.4   0.67     3  
+FREEVALUE#1   free_value=1.5 minus free_val   36      -2.2  10/36       -0.5   0.22     2  
+
+2 of 10 arms flagged.
+CONCENTRATED  = |mean| >= 8 a season and under 35% survives dropping the three largest cells.
+MOST CELLS DISAGREE = |mean| >= 8 a season and under 60% of cells share its sign.
+`seas` = how many DISTINCT seasons the three carrier cells sit in.
+
+(!) Neither flag is a verdict, and a lumpy effect is not a false one -- a
+setting that only acts through a wildcard or a chip week SHOULD be lumpy,
+and averaging it over n cells is the wrong thing to do to it. A flag says
+the mean is a few events, so the follow-up is to find the right
+denominator and name a mechanism that predicts those cells.
+
+(!) Do NOT read seas=3 as evidence of a real mechanism. Three carriers in
+three distinct seasons is the MODAL outcome of pure noise (P = 0.605 on a
+6x6 grid). Only seas=1 is informative (P ~ 0.015). Carrier selection is
+also length-biased toward the short cells at GW21/GW26, whose per-gameweek
+differences carry ~1.7x the sd of a GW1 cell. See this file's header.
+
+(!) Counts above are CONTRASTS, not distinct arms: the BLEND and BLENDLO
+banks share byte-identical arms, so an arm can appear twice.

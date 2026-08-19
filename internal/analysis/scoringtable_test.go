@@ -111,6 +111,14 @@ func TestScoringConstantsMatchFPL(t *testing.T) {
 		{"appearance for any minutes (short_play)", shortPlayPoints, sc.ShortPlay, false},
 		{"yellow card", yellowCardPoints, sc.YellowCards, true},
 		{"red card", redCardPoints, sc.RedCards, true},
+		// The three channels only the realised decomposition prices. The model
+		// predicts none of them — nobody forecasts an own goal — but
+		// DecomposeMatch has to pay them to reconcile against the archive's
+		// total_points, and an unchecked constant there would show up as a
+		// residual blamed on something else.
+		{"own goal", ownGoalPoints, sc.OwnGoals, true},
+		{"penalty saved", penaltySavedPoints, sc.PenaltiesSaved, false},
+		{"penalty missed", penaltyMissedPoints, sc.PenaltiesMissed, true},
 	}
 	for _, c := range flat {
 		want := c.published
@@ -315,6 +323,12 @@ func TestFPLPaysNothingTheModelDoesNotPrice(t *testing.T) {
 	// Deliberately not priced, each with the reason. AGENTS.md records the
 	// measurement behind the first three: 11, 14 and 29 occurrences across a whole
 	// league season, worth a fraction of a point each.
+	//
+	// "Not priced" means the FORECAST does not price them — `baseXP90` has no term
+	// for an own goal and never will. `DecomposeMatch`, which splits a match FPL
+	// has already paid for, does price all three, because a realised decomposition
+	// that omitted them would push them into a residual and blame them on
+	// whichever channel the reader was looking at.
 	ignored := map[string]string{
 		"penalties_saved":    "5 pts but 11 occurrences a season across the league",
 		"penalties_missed":   "−2 pts, 14 occurrences a season",

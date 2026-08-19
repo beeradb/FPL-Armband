@@ -69,6 +69,11 @@ type Config struct {
 	// rules the agent must work within when deciding whether to act.
 	Review ReviewPolicy `json:"review_policy"`
 
+	// OptionValue prices the four things this project holds and can only spend
+	// once: a banked transfer, a wildcard, a bench boost and a free hit. Every
+	// lever in it ships off. See OptionValuePolicy.
+	OptionValue OptionValuePolicy `json:"option_value"`
+
 	// Roster is the standing set of player locks and exclusions the analysis
 	// layer has established — injuries, lost places, players the squad must be
 	// built around. These bind every solver call and survive between runs.
@@ -100,6 +105,7 @@ func Default() Config {
 		Congestion:    analysis.DefaultCongestion(),
 		RoleRisk:      analysis.DefaultRoleRisk(),
 		Review:        DefaultReviewPolicy(),
+		OptionValue:   DefaultOptionValuePolicy(),
 		Criteria: []string{
 			"Expected points only become real points if the player is on the pitch. Treat expected minutes as a first-class filter, not a tiebreaker: check expected_minutes_per_gw and rotation_risk before recommending anyone.",
 			"Never recommend a starting XI player below roughly 60 expected minutes per gameweek unless you say explicitly why the rotation risk is worth it.",
@@ -293,11 +299,77 @@ func Load(path string) (Config, error) {
 	if cfg.Review.FreeTransferValue <= 0 {
 		cfg.Review.FreeTransferValue = d.Review.FreeTransferValue
 	}
+	// The early floor's off state is an explicit zero schedule, so an absent key
+	// cannot be told from a deliberate off by value — probe presence the way
+	// BonusPriorWeight does. An old file without the key gets the shipped
+	// schedule, not the flat floor it never chose.
+	if !hasKey(b, "review_policy", "early_floor") {
+		cfg.Review.EarlyFloor = d.Review.EarlyFloor
+	} else {
+		// A written schedule is a choice, and it is still validated like the
+		// flat constants are: a non-positive charge or gain bar would make the
+		// gate accept anything through the schedule's window — the same failure
+		// the flat value-guards above exist to refuse.
+		if cfg.Review.EarlyFloor.FreeTransferValue <= 0 {
+			cfg.Review.EarlyFloor.FreeTransferValue = d.Review.FreeTransferValue
+		}
+		if cfg.Review.EarlyFloor.MinGainForTransfer <= 0 {
+			cfg.Review.EarlyFloor.MinGainForTransfer = d.Review.MinGainForTransfer
+		}
+		if cfg.Review.EarlyFloor.UntilGameweek < 0 {
+			cfg.Review.EarlyFloor.UntilGameweek = 0
+		}
+	}
 	if cfg.Review.BankUpTo <= 0 {
 		cfg.Review.BankUpTo = d.Review.BankUpTo
 	}
+	// A ceiling of zero is not "no hits" — analysis.MoveLimit reads it as the
+	// shipped default — so backfilling it changes nothing and records what is in
+	// force. See ReviewPolicy.HitCeiling.
+	if cfg.Review.HitCeiling <= 0 {
+		cfg.Review.HitCeiling = d.Review.HitCeiling
+	}
+	// The option-value curve. Every one of these reads its zero as "the package
+	// default", so a value-check backfill is safe and only records what is in
+	// force.
+	if cfg.OptionValue.Pricing.HalfLife <= 0 {
+		cfg.OptionValue.Pricing.HalfLife = d.OptionValue.Pricing.HalfLife
+	}
+	if cfg.OptionValue.Pricing.CongestionSensitivity <= 0 {
+		cfg.OptionValue.Pricing.CongestionSensitivity = d.OptionValue.Pricing.CongestionSensitivity
+	}
+	if cfg.OptionValue.Pricing.CongestionHorizon <= 0 {
+		cfg.OptionValue.Pricing.CongestionHorizon = d.OptionValue.Pricing.CongestionHorizon
+	}
+	// ⚠️ The chip bars probe for KEY PRESENCE, not for the value. A bar of zero is
+	// meaningful — "play it the first week it is worth anything at all" — so a
+	// value-check migration would silently undo a deliberate 0, and it would never
+	// fire anyway, since `cfg` starts from Default() and therefore already carries
+	// the default. Same rule, same reason, as `bonus_prior_weight` above.
+	for _, bar := range []struct {
+		key  string
+		into *float64
+		from float64
+	}{
+		{"wildcard", &cfg.OptionValue.Wildcard.Bar, d.OptionValue.Wildcard.Bar},
+		{"bench_boost", &cfg.OptionValue.BenchBoost.Bar, d.OptionValue.BenchBoost.Bar},
+		{"free_hit", &cfg.OptionValue.FreeHit.Bar, d.OptionValue.FreeHit.Bar},
+	} {
+		if !hasKey(b, "option_value", bar.key, "bar_points") {
+			*bar.into = bar.from
+		}
+	}
 	if cfg.Review.LeadHours <= 0 {
 		cfg.Review.LeadHours = d.Review.LeadHours
+	}
+	// BankTransfersLookahead defaulted ON on 2026-08-18, so the migration this
+	// block's own predecessor comment predicted is now in force: a deliberate
+	// `false` and an absent key are different facts. An old file without the
+	// key keeps the behaviour it had (off); the shipped config.json writes the
+	// key and gets the default. PrepareForChips still defaults off and still
+	// needs nothing.
+	if !hasKey(b, "review_policy", "bank_transfers_lookahead") {
+		cfg.Review.BankTransfersLookahead = false
 	}
 	if len(cfg.Review.Rules) == 0 {
 		cfg.Review.Rules = d.Review.Rules

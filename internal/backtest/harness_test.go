@@ -586,9 +586,16 @@ func sweepConfig(cfg config.Config, start int, weeklyXI bool) SimConfig {
 		MaxHits:    cfg.Review.MaxHitsPerWeek,
 		Budget:     1000,
 		FreeCost:   cfg.Review.FreeTransferValue,
-		StartGW:    start,
-		WeeklyXI:   weeklyXI,
-		Oracles:    OraclesFromEnv(),
+		// ⚠️ The scheduled early floor is deliberately NOT mapped here. The
+		// shipped default lives in config and reaches the LIVE path through
+		// ReviewPolicy.EffectiveFloor; the sweep baseline stays the flat
+		// {2.0, 0.4} machine every banked cell was measured on, and an arm that
+		// wants the schedule sets sc.EarlyFloor itself (the scheduled-floor
+		// diagnostic does). Mapping it would flip the machine of every
+		// diagnostic that registered the flat one.
+		StartGW:  start,
+		WeeklyXI: weeklyXI,
+		Oracles:  OraclesFromEnv(),
 	}
 }
 

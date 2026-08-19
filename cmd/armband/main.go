@@ -1096,6 +1096,16 @@ func dim(s string) string {
 	return "\033[2m" + s + "\033[0m"
 }
 
+// red marks the one cost a manager really pays: the -4 hit. Bold and red, so
+// the moves table's hit rows are visible at a glance rather than discoverable
+// by scanning for a minus sign.
+func red(s string) string {
+	if os.Getenv("NO_COLOR") != "" {
+		return s
+	}
+	return "\033[1;31m" + s + "\033[0m"
+}
+
 func fromGW(next *fpl.Event) int {
 	if next == nil {
 		return 1

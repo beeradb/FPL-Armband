@@ -133,6 +133,121 @@ type cellRow struct {
 	HoldFixedCaptain int
 	HoldNoCaptain    int
 
+	// The transfer-banking mediator, embedded rather than flattened for the same
+	// reason chipReadings is: it is the engine's own struct, so the column block
+	// and the quantity it reports cannot drift into two definitions.
+	//
+	// # What it makes readable
+	//
+	// A banking arm's whole claim is that declining a move this week buys a
+	// bigger package next week. Every reading of that claim so far has been a
+	// points difference, and a points difference of zero has several explanations
+	// that license opposite conclusions. The block is a **funnel**, and each step
+	// removes one of them:
+	//
+	//	decision_weeks    weeks that reached the transfer decision at all
+	//	consulted_weeks   of those, weeks the banking rule was asked in
+	//	weighed_weeks     of those, weeks it had a real choice to weigh
+	//	banked_weeks      of those, weeks it said wait
+	//
+	// Each is a subset of the one above, which is an invariant a reader can check
+	// on any row — TestTheBankingFunnelNests pins it — and it is what makes a
+	// zero attributable rather than ambiguous. `consulted < decision` says a
+	// guard appeared in front of the rule; `weighed < consulted` says the rule
+	// refused without comparing anything, because the allowance was at its
+	// ceiling, the season was ending, or nothing cleared the gain floor in either
+	// week; `banked < weighed` is the rule genuinely preferring to act now.
+	//
+	// **The counts are counts, not rates.** Cells run 38 to 13 gameweeks, so
+	// banked_weeks pooled across entry points weights the earliest regime nearly
+	// three times as heavily. decision_weeks is the denominator, and it is here
+	// precisely because it is NOT recoverable as `weeks - 1` on any arm that
+	// plays a wildcard or a free hit — those weeks make no transfer decision and
+	// the file records no column for them.
+	//
+	// free_at_decision is the fifth column and the only mean: the allowance a
+	// decision week ran with. ⚠️ In an arm that actually banks it is a
+	// **post-treatment** quantity — banking raises the allowance it then
+	// measures — so it is a covariate only where banked_weeks is 0, which is the
+	// case it exists to diagnose. And it bounds the ceiling guard in one
+	// direction only: the accrual guarantees at least 1 every week, so by Markov
+	// on `free - 1` the share of weeks at the ceiling is at most
+	// `(mean - 1)/(BankUpTo - 1)` — a low mean exonerates that guard outright, a
+	// high one convicts nothing.
+	//
+	// # The off / never-consulted distinction, and how it is spelled
+	//
+	// shouldBank is only reachable when SimConfig.BankLookahead is on, so on an
+	// arm that leaves it off the honest reading is "the question was never asked"
+	// rather than "the answer was never yes". The file's standing rule spells
+	// that: **blank is a gap and zero is a measurement**. banked_weeks and
+	// weighed_weeks are blank when the rule was never consulted; consulted_weeks,
+	// decision_weeks and free_at_decision are written on every arm that decided
+	// anything, banking or not. So a reader sees
+	//
+	//	blank banked, blank consulted   the block was not recorded for this row —
+	//	                                an infeasible cell, or a sweep that does
+	//	                                not populate it
+	//	blank banked, consulted 0       the rule was never consulted; today that
+	//	                                means BankLookahead was off
+	//	0 banked, consulted n           the rule ran n times and never fired
+	//	m banked, consulted n           the rule ran n times and fired m
+	//
+	// which is the whole point of the block, and is why the five columns are one
+	// unit and must be read together.
+	HasBanking bool
+	BankingMediator
+
+	// The fixture-run mediator, the second funnel in this region. Named rather
+	// than embedded because FixtureRunMediator.Moves would collide with
+	// cellRow.Moves, which is the season's transfer count — two different
+	// quantities one letter apart, and embedding would have made the shadowing
+	// silent.
+	//
+	// It shares HasBanking as its gate on purpose: both funnels are counted on
+	// weeks that reached `decide`, so they are recorded together or not at all,
+	// and a reader can put band_ready_weeks over decision_weeks without checking
+	// two flags. ⚠️ The nesting is `decision_weeks >= band_ready_weeks` and
+	// `band_moves >= band_run_moves` — NOT one chain of four, because the last
+	// three count moves and the first counts weeks. See fixtureRunCols.
+	FixtureRuns FixtureRunMediator
+
+	// The four option-value levers' funnels, and the chip-preparation credit's.
+	//
+	// They share HasBanking's gate for the reason the fixture-run block does: all
+	// three funnels are counted on weeks that reached `decide`, so they are
+	// recorded together or not at all and a reader can put any of them over
+	// `decision_weeks` without checking a second flag.
+	//
+	// ⚠️ **Each lever's block goes blank on its OWN count, not on a shared one.**
+	// `ftv_priced_weeks` is blank when the taper was never consulted; a chip
+	// trigger's firing columns are blank when it never fired. That is what keeps a
+	// null on one lever readable without reference to the others, which is the
+	// whole reason the four switches are independent.
+	TransferHold   TransferHoldMediator
+	WildcardTrig   ChipTriggerMediator
+	BenchBoostTrig ChipTriggerMediator
+	FreeHitTrig    ChipTriggerMediator
+
+	// The gate-floor counterfactual, recorded on the same gate as the funnels
+	// above and for the same reason: a floor arm whose flips read zero never
+	// changed a gate answer, and its points null is a comparison that never ran.
+	GateFloor GateFloorMediator
+	ChipPrep  ChipPrepMediator
+
+	// The per-cell fixture dose. See doseCols for the two windows, the two traps,
+	// and why nothing regresses on them here.
+	//
+	// Gated separately from HasBanking, because a dose is a property of the
+	// SEASON and the ENTRY GAMEWEEK rather than of anything the decision loop did
+	// — a cell that played no gameweek at all still has one — so it follows the
+	// arm rule rather than the metric rule and survives asInfeasible.
+	HasDose     bool
+	ActDoubles  int
+	ActBlanks   int
+	LateDoubles int
+	LateBlanks  int
+
 	// What each chip actually returned in the week it was played, and which week
 	// that was. Zero week means the arm did not play that chip in this cell.
 	//
@@ -380,6 +495,25 @@ func (r cellRow) asInfeasible() cellRow {
 	r.Weeks, r.PolicyPoints, r.HoldPoints, r.Moves, r.Hits = 0, 0, 0, 0, 0
 	r.HasLayers, r.Frozen, r.FrozenCaptain, r.Weekly = false, 0, 0, 0
 	r.HasCaptainRungs, r.HoldFixedCaptain, r.HoldNoCaptain = false, 0, 0
+	// The banking block follows the metric rule rather than the arm rule: it is
+	// a count of what the decision loop did, and an infeasible cell never ran
+	// one. Leaving it would report decision weeks in a cell that played none.
+	r.HasBanking, r.BankingMediator = false, BankingMediator{}
+	// The fixture-run funnel goes with it, for the identical reason: it counts
+	// what the decision loop did, and an infeasible cell never ran one. So do the
+	// four option-value funnels and the preparation credit's.
+	r.FixtureRuns = FixtureRunMediator{}
+	r.TransferHold = TransferHoldMediator{}
+	r.WildcardTrig, r.BenchBoostTrig, r.FreeHitTrig = ChipTriggerMediator{},
+		ChipTriggerMediator{}, ChipTriggerMediator{}
+	r.ChipPrep = ChipPrepMediator{}
+	// The gate-floor counter goes with them, for the identical reason: it counts
+	// what the accept closure did, and an infeasible cell never ran one.
+	r.GateFloor = GateFloorMediator{}
+	// ⚠️ The DOSE block survives, and that is the arm rule rather than an
+	// oversight: it is a function of the season and the entry gameweek, which an
+	// infeasible cell still has, exactly as it still has `season` and `start_gw`.
+	// Clearing it would report a cell with no doubles in a season that had them.
 	r.HasChipWeeks = false
 	r.BenchBoostGW, r.BenchBoostPts, r.TripleCapGW, r.TripleCapPts = 0, 0, 0, 0
 	r.HasChipOracle, r.chipReadings = false, chipReadings{}
@@ -422,6 +556,22 @@ var cellHeader = []string{
 	"weekly_points", "weekly_per_gw",
 	"hold_fixedcap_points", "hold_fixedcap_per_gw",
 	"hold_nocap_points", "hold_nocap_per_gw",
+	"decision_weeks", "consulted_weeks", "weighed_weeks", "banked_weeks",
+	"free_at_decision",
+	"band_ready_weeks", "band_moves", "band_run_moves", "band_worse_moves",
+	"band_exposure",
+	"ftv_weeks", "ftv_priced_weeks", "ftv_gate_calls", "ftv_flips",
+	"ftv_mean_charge", "ftv_mean_load",
+	"wc_trig_offered", "wc_trig_weeks", "wc_trig_weighed", "wc_trig_gw",
+	"wc_trig_value", "wc_trig_bar",
+	"bb_trig_offered", "bb_trig_weeks", "bb_trig_weighed", "bb_trig_gw",
+	"bb_trig_value", "bb_trig_bar",
+	"fh_trig_offered", "fh_trig_weeks", "fh_trig_weighed", "fh_trig_gw",
+	"fh_trig_value", "fh_trig_bar",
+	"prep_weeks", "prep_credit_weeks", "prep_bench_sum", "prep_captain_sum",
+	"dose_act_doubles", "dose_act_blanks",
+	"dose_late_doubles", "dose_late_blanks",
+	"floor_flips_le28", "floor_flips_gt28",
 	"bench_boost_gw", "bench_boost_pts", "triple_captain_gw", "triple_captain_pts",
 	"bench_boost_oracle_gw", "bench_boost_oracle_pts",
 	"bench_boost_median_pts", "bench_boost_threshold_pts", "bench_boost_bar_pts",
@@ -444,6 +594,161 @@ var cellHeader = []string{
 // stripping both yields the one before that.
 const (
 	captainRungCols = 4
+	// bankingCols is the transfer-banking mediator: the four-step funnel from
+	// decision weeks down to weeks the rule said wait, plus the mean allowance a
+	// decision week ran with. See cellRow.HasBanking for what each step removes.
+	//
+	// Five rather than two. The pair `banked_weeks` and `free_at_decision` is the
+	// readable minimum, and three separate reviews found the same two holes in
+	// it: a count with no denominator cannot be pooled across cells of 38 and 13
+	// gameweeks, and a blank cannot say whether the rule was switched off or
+	// merely never reached. Each missing column costs a **full sweep** to recover
+	// and one integer to record, which is the whole argument.
+	//
+	// ⚠️ **Only the last is a rate.** The four counts must not be divided by
+	// `weeks` — their denominator is `decision_weeks`, which is in the block —
+	// and the mean must not be divided by anything at all.
+	//
+	// It sits between the captaincy rungs and the chip block. That is the only
+	// free slot in the schema: the chip-oracle block must stay immediately after
+	// the chip block, xPoints immediately after that, the arm block after that
+	// and the oracle pair last, and every one of those four contracts has a
+	// position test indexing from the end.
+	bankingCols = 5
+	// fixtureRunCols is the fixture-run mediator, the second funnel in the
+	// decision-mediator region and the counterpart of the banking one beside it:
+	//
+	//	band_ready_weeks  of decision_weeks, weeks the 3/14/3 bands existed
+	//	band_moves        transfers made in those weeks, with both players resolvable
+	//	band_run_moves    of those, moves toward the better run
+	//	band_worse_moves  of those, moves that traded the run away
+	//	band_exposure     the signed size of the whole, in banded fixtures
+	//
+	// ⚠️ **band_run_moves and band_worse_moves do not sum to band_moves**, and
+	// that is the point of carrying both: the remainder is moves the bands had
+	// nothing to say about, which "runs converge" predicts is the modal case. With
+	// only the favourable count, `band_moves - band_run_moves` would pool ties
+	// with reversals and `band_run_moves` would have no null to be read against.
+	//
+	// A separate counted block rather than five more banking columns, because the
+	// two funnels have different denominators — the banking one counts weeks all
+	// the way down, and the last four of these count MOVES. Merging them into one
+	// `bankingCols` would put a moves count under a header block whose own
+	// documentation says every column in it is a week, which is precisely the kind
+	// of mislabelling this file's rules exist to stop.
+	//
+	// It sits immediately after the banking block and before the chip block, so
+	// both of those keep their named neighbours — see
+	// TestTheFixtureRunBlockSitsBetweenBankingAndTheChips.
+	//
+	// ⚠️ **`band_exposure` is the one signed column in the file**, and the only
+	// one where a negative number is a normal reading rather than a fault: across
+	// 63 replayed transfers the incoming player's fixtures got *harder* 63% of the
+	// time, so a negative sum is the recorded prior and not a sign error.
+	fixtureRunCols = 5
+	// optionCols is the four option-value levers' funnels, the third and last
+	// block in the decision-mediator region:
+	//
+	//	ftv_weeks / ftv_priced_weeks   weeks the free-transfer taper ran, and
+	//	                               weeks it actually moved the charge
+	//	ftv_gate_calls / ftv_flips     gate answers in those weeks, and how many
+	//	                               the untapered charge would have reversed
+	//	ftv_mean_charge / ftv_mean_load the applied charge and the squad's forward
+	//	                               fixture density, averaged over ftv_weeks
+	//	<chip>_trig_offered            weeks the chip rule was OFFERED, before its
+	//	                               own eligibility guards
+	//	<chip>_trig_weeks / _weighed   of those, weeks it was consulted and weeks it
+	//	                               had a reading to weigh: wc, bb, fh
+	//	<chip>_trig_gw / _value / _bar the week it fired in, the reading that
+	//	                               cleared, and the bar it cleared
+	//	prep_weeks / prep_credit_weeks the chip-preparation credit's funnel, which
+	//	                               had NO mediator at all before this
+	//	prep_bench_sum / _captain_sum  the credit's level, in the per-gameweek
+	//	                               units the gate consumed
+	//
+	// ⚠️ **Four levers, four independent funnels, and no block-level flag.** Each
+	// lever is switchable on its own — the likely end state is chip placement on
+	// and banking off — so a null on one has to be readable without reference to
+	// the others. A single `option_value_on` column would make that impossible and
+	// is deliberately absent.
+	//
+	// ⚠️ **`ftv_flips` counts GATE ANSWERS, not weeks and not transfers.** A week
+	// offering a funded pair and a solo swap asks the gate three times, so it can
+	// exceed `ftv_weeks`; `ftv_gate_calls` is its denominator and is in the block
+	// for exactly that reason. And a flip is not a changed transfer — `decide`
+	// returns on a refusal, so a flip on a later candidate may change nothing.
+	//
+	// ⚠️ **`_trig_offered` is what tells a lever that was OFF from one that ran and
+	// was blocked all season.** `eligible` refuses the whole season when a plan
+	// already places that chip, so a 2x2 crossing calendar placement with a trigger
+	// reads an all-zero funnel in the planned corner — a lever that ran and
+	// correctly declined, wearing the clothes of one that was never wired. Read
+	// `offered = 0` as off, `offered > 0` with `weeks = 0` as blocked.
+	//
+	// ⚠️ **`wc_trig_gw` is the wildcard lever's whole deliverable.** The replay
+	// cannot value a wildcard — it replaces all fifteen and the within-season
+	// spread swamps it — so the question is a decision count, and the recorded
+	// closure of the wildcard-trigger line rests on the tested trigger firing at
+	// GW2. Reading this column tells you whether a repair-cost trigger does the
+	// same. Do not quote a points figure from that arm.
+	optionCols = 28
+	// doseCols is the per-cell fixture dose, and it is NOT a mediator: it is a
+	// function of the season and the entry gameweek alone, identical on every arm
+	// of a cell, and it exists so a doubles or blanks arm can be read as a
+	// dose-response rather than as a pooled mean over 36 differences.
+	//
+	//	dose_act_doubles / dose_act_blanks   club-gameweeks in the ACTIONABLE
+	//	                                     window [start+1, 38]
+	//	dose_late_doubles / dose_late_blanks club-gameweeks beyond the opening
+	//	                                     squad's own horizon, [start+H, 38]
+	//
+	// # Why the actionable window and not the played one
+	//
+	// A cell entering at GW n plays [n, 38] but can ACT only on [n+1, 38]: the
+	// opening fifteen is chosen at the entry deadline, so a double in the entry
+	// week is football the cell scores and no transfer can be banked into.
+	// Counting it as dose credits the mechanism with a week it could not act on.
+	//
+	// # And why a second, sharper pair
+	//
+	// The opening squad is built on a horizon of H gameweeks, so every double
+	// inside [start+1, start+H-1] was already visible to and priced by the squad
+	// build. What is left for the TRANSFER POLICY to add is what falls beyond it,
+	// which is the `dose_late_*` pair. That is the quantity nobody had defined.
+	//
+	// ⚠️ **Two traps, and either one manufactures a slope.**
+	//
+	//   - **92% of doubles fall after GW19**, so a late-entry cell has more dose
+	//     per gameweek AND fewer gameweeks. Dose and denominator move together, so
+	//     a per-gameweek outcome regressed on dose picks up the entry point rather
+	//     than the doubles. Put entry gameweek in the model or stratify on it.
+	//   - **The 36 cells collapse to about 14 distinct doses**, with effective
+	//     seasons around 4.4, because cells within a season are nested and share
+	//     nearly all their doubles. The dose axis is far thinner than 36 rows look,
+	//     and a standard error computed as though the rows were independent is
+	//     wrong by roughly the ratio.
+	//
+	// ⚠️ **These columns are emitted and NOTHING here regresses on them.** No
+	// slope has been fitted, none is quoted, and a dose-response is a separate act
+	// requiring its own pre-registration against both traps above.
+	//
+	// ⚠️ The alternative reading of "captured by the opening squad" — clubs the
+	// opening fifteen actually owns — is deliberately not the one taken. It varies
+	// by arm, which would make this a mediator rather than a dose, and a covariate
+	// that moves with the treatment is not a covariate.
+	//
+	// ⚠️ **A THIRD trap: the dose is hindsight.** It reads the whole fixture list,
+	// so it knows every double from GW1 where a real manager learns of one as cup
+	// rounds resolve. As a covariate that is fine — identical across a cell's arms,
+	// so it cannot flatter one — and it is fatal to reading a fitted slope as "what
+	// targeting doubles is worth". See dose.go.
+	doseCols = 4
+	// floorCols is the gate-floor counterfactual: the proposals the shipped gate
+	// would have answered differently, split at the quiet boundary. Two, and a
+	// block of its own rather than a dose pair, because it is a mediator — it
+	// counts the arm's own decisions — where the dose is a property of the
+	// calendar alone.
+	floorCols = 2
 	// chipWeekCols is the chip block: two gameweeks and two one-off point
 	// totals. Four rather than eight because there are no per-gw columns here —
 	// see cellRow.HasChipWeeks for why a chip must not be normalised by weeks.
@@ -742,6 +1047,143 @@ func (s *cellSink) cell(r cellRow) {
 	} else {
 		rec = append(rec, "", "", "", "")
 	}
+	// The transfer-banking mediator.
+	//
+	// # Pre-registered liveness rule
+	//
+	// **Any banking arm whose banked_weeks is 0 everywhere is a comparison that
+	// never ran, and its deliverable is the mediator count, not a null.**
+	//
+	// ⚠️ That sentence is the pre-registration as handed over, and one word of it
+	// is looser than this file's own vocabulary. "A comparison that never ran" is
+	// the term of art for a setting that never reached its consumer — the
+	// BandStrength case — and a non-blank 0 here **refutes** exactly that. The
+	// precise claim is stronger and is a code fact: the banked branch of `decide`
+	// is a pure early return, so an arm that never banks takes every decision the
+	// greedy arm takes, and its points columns are byte-identical **by
+	// construction**. That is a confinement rather than a null, and the count is
+	// what carries information.
+	//
+	// ⚠️ **A dose is not an effect.** An arm firing in fewer than four of the six
+	// seasons is *unmeasurable* rather than null — the season-clustered t is
+	// capped by construction, as this record already records for the minutes
+	// floor — so it gets no p, no interval and no threshold, and the per-season
+	// fire counts are the report. Read banked_weeks as a rate over
+	// decision_weeks, never as a pooled count.
+	//
+	// The four counts are blank or written under two different gates, because
+	// they answer different questions: the two the rule owns go blank when it was
+	// never consulted, and the two the decision loop owns are written whenever it
+	// ran. See cellRow.HasBanking for the readings that produces.
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec,
+			strconv.Itoa(r.DecisionWeeks), strconv.Itoa(r.ConsultedWeeks))
+	} else {
+		rec = append(rec, "", "")
+	}
+	if r.HasBanking && r.ConsultedWeeks > 0 {
+		rec = append(rec,
+			strconv.Itoa(r.WeighedWeeks), strconv.Itoa(r.BankedWeeks))
+	} else {
+		rec = append(rec, "", "")
+	}
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec, floatOrBlank(r.MeanFreeAtDecision()))
+	} else {
+		rec = append(rec, "")
+	}
+	// The fixture-run funnel, under the same blank-is-a-gap rule and with its own
+	// second step. band_ready_weeks is written whenever the decision loop ran, so
+	// a zero there is a measurement: it says the bands never existed in this cell,
+	// which is the true reading of an early-entry cell and was invisible before.
+	//
+	// The three move columns go blank when band_ready_weeks is 0, because with no
+	// bands there is no exposure to have moved and a 0 would assert that transfers
+	// were measured against a rating that did not exist. That is the same
+	// distinction weighed_weeks and banked_weeks draw against consulted_weeks.
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec, strconv.Itoa(r.FixtureRuns.ReadyWeeks))
+	} else {
+		rec = append(rec, "")
+	}
+	if r.HasBanking && r.FixtureRuns.ReadyWeeks > 0 {
+		rec = append(rec,
+			strconv.Itoa(r.FixtureRuns.Moves),
+			strconv.Itoa(r.FixtureRuns.RunMoves),
+			strconv.Itoa(r.FixtureRuns.WorseMoves),
+			strconv.Itoa(r.FixtureRuns.Exposure))
+	} else {
+		rec = append(rec, "", "", "", "")
+	}
+	// The free-transfer taper's funnel. `ftv_weeks` is written whenever the
+	// decision loop ran, so a zero there is a measurement — it says the taper was
+	// switched off — and the other five go blank behind it, because with no
+	// consulted week there is no charge to have moved and a 0 would assert that
+	// one was measured.
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec, strconv.Itoa(r.TransferHold.ConsultedWeeks))
+	} else {
+		rec = append(rec, "")
+	}
+	if r.HasBanking && r.TransferHold.ConsultedWeeks > 0 {
+		rec = append(rec,
+			strconv.Itoa(r.TransferHold.PricedWeeks),
+			strconv.Itoa(r.TransferHold.GateCalls),
+			strconv.Itoa(r.TransferHold.Flips),
+			floatOrBlank(r.TransferHold.MeanCharge()),
+			floatOrBlank(r.TransferHold.MeanLoad()))
+	} else {
+		rec = append(rec, "", "", "", "", "")
+	}
+	// The three chip state rules, each on its own counts. `_trig_weeks` is written
+	// whenever the decision loop ran — a zero says the rule was off or never
+	// eligible — and the firing triple goes blank until it fires, because a
+	// gameweek of 0 is already "did not fire" and a bar of 0.0 alongside it would
+	// read as a bar that was measured.
+	for _, m := range []ChipTriggerMediator{r.WildcardTrig, r.BenchBoostTrig, r.FreeHitTrig} {
+		if r.HasBanking && r.DecisionWeeks > 0 {
+			rec = append(rec, strconv.Itoa(m.OfferedWeeks),
+				strconv.Itoa(m.ConsultedWeeks), strconv.Itoa(m.WeighedWeeks))
+		} else {
+			rec = append(rec, "", "", "")
+		}
+		if r.HasBanking && m.FiredGW > 0 {
+			rec = append(rec, strconv.Itoa(m.FiredGW),
+				floatOrBlank(m.FiredValue), floatOrBlank(m.FiredBar))
+		} else {
+			rec = append(rec, "", "", "")
+		}
+	}
+	// The chip-preparation credit, which had no mediator at all until now — so
+	// every recorded preparation figure is a points column with no funnel behind
+	// it, and "the credit never fired" and "it fired and bought nothing" were one
+	// number.
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec, strconv.Itoa(r.ChipPrep.ConsultedWeeks))
+	} else {
+		rec = append(rec, "")
+	}
+	if r.HasBanking && r.ChipPrep.ConsultedWeeks > 0 {
+		rec = append(rec, strconv.Itoa(r.ChipPrep.CreditWeeks),
+			floatOrBlank(r.ChipPrep.BenchSum), floatOrBlank(r.ChipPrep.CaptainSum))
+	} else {
+		rec = append(rec, "", "", "")
+	}
+	// The dose block. Blank when the sweep did not compute it; a zero is a real
+	// reading — a cell whose actionable window carries no double is exactly the
+	// cell a doubles arm cannot run in, which is what this column exists to say.
+	if r.HasDose {
+		rec = append(rec,
+			strconv.Itoa(r.ActDoubles), strconv.Itoa(r.ActBlanks),
+			strconv.Itoa(r.LateDoubles), strconv.Itoa(r.LateBlanks))
+	} else {
+		rec = append(rec, "", "", "", "")
+	}
+	// The gate-floor counterfactual, on the same gate as the funnels: a floor
+	// arm's flips are where the floor changed an answer, split at the quiet
+	// boundary.
+	rec = append(rec,
+		strconv.Itoa(r.GateFloor.Le28), strconv.Itoa(r.GateFloor.Gt28))
 	// Same rule again for the chips, and for the same reason: a blank says the
 	// sweep did not record them, where a zero would say the chip returned
 	// nothing in a week it was never played.

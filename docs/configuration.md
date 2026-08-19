@@ -158,7 +158,7 @@ ship at zero because the honest measurement said "off" — the table notes each 
 | `tournament_absences` | AFCON 2025 | Mid-season tournaments that overlapped the season the aggregates came from, so those matches leave the *denominator* rather than counting as rotation risk. **Pre-season only** — it switches itself off once GW1 completes. Re-derive every summer. |
 | `rate_half_life` | `0` | Off. Recency weighting on per-90 *rates* rather than minutes. Measured as a better predictor and a worse policy, so it ships disabled. |
 | `prior_half_life` | `0` | Off. Blends seasons *before* last one into it, for players whose last season was an injury artefact. The mechanism is unit-tested; the benefit is not measurable on the replay archive, so it is off by default. |
-| `band_strength` | `0` | Off. An experimental re-rating of the three best and three worst attacks and defences. Measured as no better than FPL's own difficulty ratings. |
+| `band_strength` | `0` | Off. Re-rates the three best and three worst attacks and defences separately, on top of FPL's blended difficulty, and scales how hard the model leans on that. It reaches the weekly transfer decision as well as the scoring, so it is the setting to change to make the squad chase fixture runs. Nothing has separated it from `0` on points; turn it on to experiment, not on a measured case. See [model.md](model.md). |
 
 **`set_piece_weight` ships at 0, and putting it back to 1.0 re-introduces a measured bug.**
 FPL's expected-goals figure already contains penalties, and its expected-assists figure already
@@ -401,16 +401,116 @@ them.
 |---|---|---|
 | `min_gain_for_free_transfer` | `0.4` | Modelled pts/gameweek a swap must gain to be worth a transfer. |
 | `min_net_gain_for_minus_4` | `3.0` | Net gain across the horizon to justify a hit. |
-| `free_transfer_value` | `2.0` | Points a free transfer is charged before it will be made, per move. Not an opportunity cost — a confidence threshold. Deliberately below a hit's 4, which measured *worse than charging nothing* because it starts refusing real improvements. |
+| `free_transfer_value` | `2.0` | Points a free transfer is charged before it will be made, per move. Deliberately below a hit's 4, which measured *worse than charging nothing* because it starts refusing real improvements. ⚠️ This table read "not an opportunity cost — a confidence threshold" as settled. It is **not**: the two readings are what `option_value.taper_free_transfer_value` exists to separate. The flat level has since been swept — 1.0/1.5/3.0/4.0 against 2.0, 36 cells, `POLICY` — and **nothing resolved and the ladder has no shape**, so 2.0 ships as measured-and-unresolved rather than as a settled value. See the option-value block below. |
 | `bank_transfers_up_to` | `5` | Accumulate this many before spending without a specific reason. FPL banks five, not two — the rule changed for 2024-25. |
-| `max_hits_per_week` | `1` | Zero means never take a hit. |
+| `max_hits_per_week` | `1` | Zero means never take a hit. Capped by `max_hits_ceiling`, which wins if it is lower. |
+| `max_hits_ceiling` | `1` | The largest value `max_hits_per_week` can *mean*. It used to be a hard-coded clamp, so setting `max_hits_per_week: 2` changed nothing and said nothing about it; raise this to make the two-hit week reachable. The shipped 1 is measured, on three replayed seasons and absolute totals — read it as why the default is 1 rather than as a resolved constant. |
+| `bank_transfers_lookahead` | `false` | Decline this week's move when one more free transfer next week buys a better package, valued over a horizon one gameweek shorter. See below. |
+| `prepare_squad_for_chips` | `false` | Let the transfer search value a bench boost or triple captain planned inside its horizon, so the squad can be assembled for it. Does nothing unless a chip is set in `chip_plan`. |
 | `scheduled_run_lead_hours` | `6` | How long before a deadline a scheduled run fires. The point of running late is team news: press conferences land one to two days out, confirmed line-ups only at the deadline. |
 | `always_act_on_ruled_out_starter` | `true` | Forces a move regardless of thresholds — an unavailable player scores zero. |
 | `rules` | five shipped | Free-text policy, passed to the agent verbatim exactly like `criteria`. The defaults cover churn, hits, chip-adjacent transfers and fixture-chasing. |
 
+### `option_value` — pricing what you hold and can only spend once
+
+A banked transfer, a wildcard, a bench boost and a free hit are the same thing under four names:
+an **option whose value decays as the window it can be exercised over shrinks**. Every one of them
+is priced by a constant elsewhere in this file. This block prices them on one curve instead.
+
+**Everything here ships off, and every default reproduces the shipped behaviour.** That is not
+caution about the mechanism — the replay compares arms, so off-by-default costs nothing, while
+defaulting one on would make every previously banked figure non-comparable with every later one.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `pricing.half_life_gameweeks` | `8` | Gameweeks of remaining window at which holding is worth half of what a very long window is worth. **Asserted**: the shipped decision horizon is 5, so 8 puts the half-way point just past the shortest window in which the search can still see a whole alternative plan. |
+| `pricing.congestion_sensitivity` | `1.0` | How hard the forced-demand channel leans on fixture density. At 1.0 a club playing twice in a gameweek doubles the value of holding a transfer. **Asserted**, deliberately at the strong end so an arm run on it is not too small to see. |
+| `pricing.congestion_horizon` | `5` | Gameweeks the forward fixture density is read over, starting **next** week. **Asserted**, matching the decision horizon. |
+| `taper_free_transfer_value` | `false` | Make `free_transfer_value` a function of the season's remaining life and the squad's forward congestion rather than a flat 2.0. Zero at GW38, because a transfer held at the last deadline can never be spent. |
+| `wildcard.enabled` / `wildcard.bar_points` | `false` / `12` | Play the wildcard when the points cost of repairing the squad beats a reservation price that decays toward the chip's expiry. ⚠️ **Measured and refused**: it fires in the cell's second week in 8 of 8 cells. Kept so the argument is not rebuilt; leave it off. |
+| `bench_boost.enabled` / `bench_boost.bar_points` | `false` / `16` | Play the boost when the benched four are worth more than a bar that falls as the chip's life runs out. |
+| `free_hit.enabled` / `free_hit.bar_points` | `false` / `16` | Play the free hit when a temporary fifteen beats the held one by more than the decaying bar. ⚠️ The bar of 16 is **inherited from the bench boost across a different quantity** and whether it is in a live region is unknown. |
+
+⚠️ **The three chip triggers reach `armband backtest` and the replay only.** There is no live
+"should I play a chip this week" decision — `transfers` recommends moves and the chip plan is a
+calendar you write — so a live command that sees one enabled says so in its notes rather than
+running the shipped behaviour in silence. The taper reaches every live consumer.
+
+⚠️ **A bar of `0` is meaningful** — it means "play it the first week it is worth anything at all" —
+so the loader probes for the key rather than the value when filling in a default. Deleting the key
+gets you the default; writing `0` gets you zero.
+
 Writing these down matters because they bind the agent in the weeks when a move feels
 tempting. "Only transfer for a real gain" is easy to agree with in the abstract and easy to
 abandon after a bad gameweek.
+
+### Banking a transfer, and preparing for a chip
+
+The weekly decision is otherwise **greedy**: it spends a free transfer the moment any move
+clears the gate. That is usually right and is wrong in one specific shape — a premium upgrade
+needs the money freed as well as the slot, so buying him means selling a forward *and* funding
+the gap, and a policy that spends every week never has two transfers in hand to do it with.
+
+`bank_transfers_lookahead` adds the missing comparison. It asks only what today's board can
+answer: **what is the best package I could afford with one more transfer, and is it worth more
+than the best I can afford now, even after losing a gameweek of it?** Waiting is charged
+honestly — next week's package earns over a horizon one shorter — so banking has to win on the
+size of what it unlocks rather than on optimism about timing. When it fires, `armband transfers`
+says so and prints both numbers, because a policy that declines a move silently is
+indistinguishable from one that found nothing worth doing, and those are opposite
+recommendations.
+
+`prepare_squad_for_chips` is what makes the two work together. With a bench boost or triple
+captain planned inside the horizon, the chip's value is credited to a transfer made now — so the
+bench a boost will pay for is worth something *before* the chip week. The credit is amortised
+over the same horizon the gate multiplies it back by, so it prices what the chip pays once
+rather than once per gameweek, and a wildcard between now and the chip closes the window because
+that squad will not survive to play it. A free hit does not close it: the permanent squad comes
+straight back.
+
+Both ship **off**, and that is a statement about evidence rather than about the mechanism. The
+recorded verdict is that the policy never banks a transfer and that banking is not the fix — and
+it turns out nothing was counting whether the rule ever fired, so the replay now records that
+and no sweep has yet run under it. Turning either on is supported and explained in the output;
+no points claim is made for it.
+
+### The third lever: leaning into fixture runs
+
+`weights.band_strength` is the same kind of switch one layer down, and it completes the set.
+It rates opponents' attack and defence separately, bands them 3/14/3 — worst three, an
+undifferentiated middle, best three — and scales how far the model leans on that on top of
+FPL's blended difficulty. It reaches the **weekly transfer decision**, not only the scoring of
+a player in isolation, because the transfer search scores its candidates through the same
+engine. So it is the setting that makes the squad move toward a club whose run is starting.
+
+The three levers are meant to be usable **together**, and that is the case nothing has tested.
+Every recorded fixture arm ran with banking off, no chip credit, and no coordination between
+them — and this project's own rule is that a one-at-a-time result is silent about any other
+configuration. Set all three and the replay runs the tandem:
+
+```json
+"weights": { "band_strength": 0.25 },
+"review": {
+  "bank_transfers_lookahead": true,
+  "prepare_squad_for_chips": true
+}
+```
+
+`0.25` there is **an example and not a recommendation.** It is the one setting the record calls
+the deciding arm and has never actually run, which is why it is the interesting number to try;
+it is not a value anything measured as good. `1.0` leans the full measured band effect, `0` is off.
+
+The replay records what the lever had to work with, so a flat result is readable rather than
+ambiguous: how many decision weeks the bands existed in at all (they need five matches played,
+so the opening weeks of every season have no rating), how many transfers were made in those
+weeks, how many moved the squad toward the better run, how many traded it away, and by how many
+banded fixtures on net.
+
+**Ships at `0`, and every caution above applies harder here.** Acting on fixture difficulty has
+been tried repeatedly and has never separated from leaving FPL's own ratings alone — the
+per-match effect is large and real, but you never buy a fixture, you buy a run of them, and runs
+converge. Anything from two to eight gameweeks of lookahead performs the same. Treat a non-zero
+setting as an experiment you are running, not as a recommendation.
 
 ---
 

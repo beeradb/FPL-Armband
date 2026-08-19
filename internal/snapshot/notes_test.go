@@ -642,6 +642,243 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	//
 	// The `teamBands` correction in the same commit is net-neutral and did not need room.
 	//
+	// # 110 KB from 2026-08-17 — the banking null became a checked zero
+	//
+	// The claim that needed the room: **the recorded "the policy never banks a transfer"
+	// was an UNCHECKED zero, and is now a checked one that is not degenerate.** The one
+	// banked `BankLookahead` arm in the corpus — `stats/snapshots/2026-08-13-reach/`, 4
+	// seasons × 2 entry points — replays byte-exactly on all eight `policy_points` and
+	// reads 236 consulted weeks, **169 weighed**, 0 banked. The 169 is the whole entry: it
+	// separates "the rule weighed a real choice and preferred to act" from "nothing ever
+	// cleared the gain floor", which license opposite conclusions and were previously one
+	// number.
+	//
+	// The qualifiers are again most of the cost, and again they are the point. It is a
+	// **confinement rather than a null** — the branch never ran, so byte-identical points
+	// are a construction and a threshold would be a category error. `WeeklyXI = true` is
+	// not shipped config. `bank_up_to` is pinned at 5 rather than the rule each season
+	// played under, which runs *in favour* of banking and makes the zero conservative. And
+	// the original `BANK` sweep's cells were never banked, so that arm stays unverifiable:
+	// this is circumstantial evidence from a different sweep, not the same one.
+	//
+	// A prior draft of the same bullet asserted that the arm the null was measured on "no
+	// longer exists", because a double free-transfer grant made it climb to the ceiling at
+	// double speed. That was a **hypothesis contradicted by the only measurement of it** —
+	// the arm banks 0 times, so the buggy branch never executed and nothing climbed. The
+	// accrual fix ships on correctness alone. Recording the replacement cost bytes; the
+	// erroneous version would have cost a retraction.
+	//
+	// **Raised to 116 KB on 2026-08-17 for the fixture-load anchor fix, which is a
+	// contamination event and therefore the class this section exists to carry.**
+	// `fixtureLoadFor` anchored on a club's next FIXTURE rather than the next
+	// GAMEWEEK, so at horizon 1 the load was >= 1 by construction and a blank could
+	// not be expressed at all. It went in at 112 KB and a findings audit sent it
+	// back for four things, each of which is a paid-for qualifier rather than
+	// narration, so none was compressed to fit:
+	//
+	//   - the contamination itself — every banked `POLICY` total straddling the fix
+	//     moves, UNEVENLY and in both directions, which is the "invents shapes"
+	//     pattern rather than added noise;
+	//   - the qualifier on the other half. `HOLD` is byte-identical by CONFINEMENT,
+	//     a code fact, not an empirical null — and CONDITIONALLY, since the
+	//     `SetFixtureLoadWeeklyOnly(false)` arms are the exception. Without the
+	//     first clause the sentence reads as "the fix does nothing to scoring" and
+	//     retires every banked `HOLD` cell; without the second it is false;
+	//   - a stated NON-RESULT. The points arm does not resolve on the estimator its
+	//     own variance components call for, and the file's own rule is that absence
+	//     is weak evidence — omitting it entirely means the next session spends the
+	//     same twelve cells to learn the same thing;
+	//   - three shipped bugs the fix exposed, in *Things that have already bitten*,
+	//     which is that section's stated membership: a free hit that would have
+	//     fielded two footballers, `WeekViews` pricing every projected week on the
+	//     imminent one, and a `> 0` guard that stopped meaning "was this computed".
+	//
+	// Three collisions with existing bullets were marked in place rather than added
+	// to, and cost almost nothing.
+	// # 120 KB from 2026-08-17 — two mediators became readable instruments
+	//
+	// Two claims needed the room, and they are the same shape: an instrument that a
+	// tandem sweep was about to be read through cannot be trusted until someone has
+	// shown it can respond.
+	//
+	// The first: **the banking rule's waiting arm cannot fire at shipped config, and
+	// the responsible channel is the MOVE LIMIT rather than the horizon haircut.**
+	// The entry above turned an unchecked zero into a checked one; this one says why
+	// the zero is there. Over 226 unguarded weeks of the same 8 cells, the extra free
+	// transfer buys exactly zero extra package value — 0.0000 at the median, the p90
+	// *and the maximum* — so removing the horizon cost entirely still banks nothing.
+	// The natural reading, that a 20% haircut at horizon 5 is what refuses, is
+	// **wrong**, and saying so plainly is most of the entry's cost. `MoveLimit` is
+	// `free + hits`, so the shipped single hit already grants the pair search the
+	// move waiting would have bought; at `MaxHits: 0` the same 226 weeks bank 30.
+	// The consequence a sweep designer needs is one sentence and could not be
+	// inferred from the previous entry: a tandem arm crossing banking at shipped
+	// `MaxHits` is a confinement, not a null.
+	//
+	// The second: **`band_ready_weeks` is not a canary, and the fixture mediator's
+	// canary is `band_strength` 2.** The first half is the load-bearing half and is a
+	// code fact: `BandChannelLive` reads no dose, so the funnel's first column is
+	// identical at every setting (220 of 220 here) and a sweep checking only it would
+	// learn nothing about whether the lever could act. The dose that does move the
+	// mediator in every cell had to be measured, and the qualifiers are again the
+	// entry — it is a readability threshold and not a recommended setting, its
+	// exposure ladder's direction is forced by construction while the ladder itself
+	// is not even monotone, `band_run_moves` is "the move changed exposure" and
+	// never "the bands caused the move", and it is a simple-effect canary
+	// established with the other two levers off and on four seasons rather than six.
+	//
+	// Both bullets grew again under review, and both times the addition was a
+	// qualifier rather than a figure. The banking bullet gained the sentence that
+	// makes it attributable at all — the two arms enumerated the **identical
+	// candidate list** in 224 of 226 weeks, which separates "the wider limit found
+	// nothing" from "it found something that lost on value", two causes of one zero
+	// that generalise differently — plus the restriction of its own positive control
+	// to the boundary shipped config actually lives on, since the control's 132
+	// flips all sit at a boundary `MaxHits: 1` can never reach. The band bullet
+	// gained the admission that dose 1 also moves the mediator in 8 of 8 and that
+	// the two criteria selecting 2 over it are post-hoc. Both corrections make the
+	// claims weaker and the record truer, which is exactly the trade this budget is
+	// not allowed to refuse.
+	// # 124 KB from 2026-08-17 — three closures earned by arithmetic, not by cells
+	//
+	// The room went to claims that CLOSE questions rather than open them, which is
+	// the cheapest kind of entry this file can carry: each one stops a sweep.
+	//
+	// The first is a **withdrawal, and it retracts advice this file gave one entry
+	// earlier.** The banking bullet twice said "so vary `MaxHits` with it". There is
+	// nowhere to vary it to: `MoveLimit` clamps `maxHits` to 1 unconditionally and
+	// the funded-pair branch hard-codes `hitsNeeded <= 1`, so `MaxHits: 2` is
+	// byte-identical to shipped, and `MaxHits: 0` fails the `limit >= 2` guard in 132
+	// of 226 weeks and skips `bestPair` outright — so banking "working" there is the
+	// control being re-enabled, not banking. The conclusion is worth its bytes
+	// because it is absolute: there is **no** configuration on this code in which
+	// banking acts for a reason attributable to banking, except a preparation credit.
+	// Deleting the withdrawn sentence and leaving the rest would have been the
+	// cheaper edit and the wrong one — a reader who had already acted on it needs to
+	// find the retraction where the claim was.
+	//
+	// The second closes the fixture line on **throughput**, and it matters because
+	// the user's objection to the recorded closure was correct. Convergence really is
+	// capacity-conditional: a manager who can transfer experiences a selected
+	// subsequence, so the governing spread is the one-gameweek 35% and not the
+	// five-gameweek 13%. Replacing a wrong reason with a right one is not a
+	// reopening, and the right one binds harder — 37 free transfers plus a free hit's
+	// eleven plus a wildcard's rebuild is ~58 targeted matches against 418 fielded
+	// player-matches, so at most 14% are re-pointable and chips redistribute
+	// transfers in time without creating any. The ceiling straddles the threshold and
+	// the deployable figure does not reach it. No cells were spent to learn this,
+	// which is the point: the entry exists so nobody spends them later.
+	//
+	// The third records that `runPolicySweep` runs at `WeeklyXI: false` while the
+	// diagnostics that justified these designs ran at true, and that fixture load
+	// reaches `Score` only through the engine `WeeklyXI` builds. That is a
+	// comparison-never-ran trap arriving through a DEFAULT rather than through an
+	// unwired knob, which is why it needs saying out loud.
+	// # 128 KB from 2026-08-17 — one classification dispute, and the four entries it unifies
+	//
+	// The room went to a single ⚠️ under `free_transfer_value`, and it is the cheapest
+	// kind of entry this budget exists to protect: it does not add a claim, it removes
+	// the standing of one. This file says the constant "must not taper as the season
+	// ends". That sentence has never been measured. It is a CONSEQUENCE of calling the
+	// constant a confidence threshold — noise does not shrink in May, so a threshold
+	// against noise should not either. Call the same constant an opportunity cost and
+	// tapering becomes mandatory, because the future the transfer is saved for does
+	// shrink and is empty at GW38. So the prohibition rests on a label, and the label
+	// is exactly what is in dispute. Writing that down costs bytes; leaving it costs a
+	// reader who declines a functional-form change believing it was refused on
+	// evidence.
+	//
+	// The rest of the entry is the reason it is worth the space rather than a queue
+	// note: the same shape is already sitting in four places in this file, all
+	// modelled as constants. A wildcard's reservation price against its expiry; a
+	// banked transfer whose worth is a reserved exit rather than enumeration capacity;
+	// the season's end as a free exit; and two chip bars that are fixed numbers on
+	// expiring chips. An option decaying as its exercise window shrinks accounts for
+	// all four. ⚠️ The entry says in its own text that the coherence is NOT evidence,
+	// and that qualifier is load-bearing — a story that explains four unrelated nulls
+	// at once is exactly the shape this record has been wrong about before, and the
+	// budget must not buy a narrative the way it buys a rule.
+	// # 136 KB from 2026-08-17 — the merge of two independently-grown records
+	//
+	// No claim was added here. Two branches raised this budget from 112 KB at the same
+	// time and for different entries — the fixture-load anchor fix on one side, the two
+	// mediators, the three arithmetic closures and the option-value classification
+	// dispute on the other — so the merged file carries both sets and neither branch's
+	// ceiling covers it. Raising to 136 is the arithmetic of that merge, not a licence
+	// for more prose: the next entry pays the usual price.
+	//
+	// # 140 KB from 2026-08-17 — the free_transfer_value ladder verdict
+	//
+	// The first banked variation of the constant. Its entry replaces the withdrawn
+	// "never been varied" claim with the sweep's figures, thresholds and null verdict,
+	// and the kink identity it surfaced (the shipped charge IS min_gain times the
+	// horizon) joins the min_gain bullet as a clause rather than a second entry. The
+	// competing option-value model rides along as a labelled hypothesis, and the
+	// transfer-gate closure's support count moves to accommodate four new ties.
+	//
+	// # 144 KB from 2026-08-17, and the room went to one measured result
+	//
+	// The bench-boost placement arm: a resolved contrast (+5.778 a season-path, CR2
+	// t 5.60 against its own threshold of 2.65), the canary that gated it (+16.139,
+	// non-negative by construction so its t is mechanical), the path-invariance that
+	// makes both readable at all, and — the bulk of it — the five caveats a review
+	// established that the entry is unreadable without: the timing confound, the
+	// control being an average week rather than a bad one, the ceiling being a
+	// mixture of six argmax problems, the levels being mechanical, and the two
+	// distinct bar-16 rules. Plus a standing rule about what a canary is judged
+	// against, and the `CongestionSensitivity = 0` trap.
+	//
+	// ⚠️ **The first version of this paragraph reasoned from a difference and got it
+	// backwards, which is exactly what the ⚠️ above forbids.** It said "the previous
+	// raise left 197 bytes free". It did not: `AGENTS.md` is **136,244 bytes at
+	// `origin/development`**, so the 136 KB ceiling left **3,020** free. The 197 was
+	// *this entry's own* margin under that ceiling before the review, i.e. the entry
+	// fitted and the first raise was not needed. **Quote a size and the commit it was
+	// measured at, never a difference.**
+	//
+	// The raise is still deliberate rather than forced: the reviewed entry does not
+	// fit under 140 KB, and headroom past it is granted knowingly, overriding the
+	// previous entry's "the next entry pays the usual price". At a margin of a few
+	// hundred bytes the cheapest way to fit any later edit is to drop a qualifier,
+	// and that is the failure this whole comment exists to record.
+	//
+	// # 150 KB from 2026-08-17 — the merge of the two raises above
+	//
+	// No new claim. The bench-boost placement entry and the free_transfer_value
+	// ladder entry grew on two branches from the same 136 KB base, so the merged
+	// file — 149,561 bytes — fits under neither branch's ceiling alone. Raising to
+	// 150 is the arithmetic of that merge, same shape as the 136 raise: the next
+	// entry pays the usual price.
+	//
+	// # 80 KB from 2026-08-17 — the compaction, and the budget goes DOWN
+	//
+	// On the user's instruction ("trim and compact as much as possible; we can rely
+	// on the research store for project knowledge"), the derivation narratives moved
+	// out of AGENTS.md and into the vault notes the entries already pointed at —
+	// which is why the one-way-arrow rule was lifted the same day: agent-facing
+	// surfaces may now name the store, so the pointer can be explicit. The file fell
+	// from 149,561 to 76,670 bytes. What stayed: every verdict with the numbers that
+	// keep its line from being rebuilt, every standing rule, every regression-bug
+	// lesson with its pinning test, and the operational sections. What moved: the
+	// worked derivations, the caveats that exist to stop a misreading of a figure
+	// the reader has not seen, and the longer narratives — all now in the vault note
+	// each entry names.
+	//
+	// ⚠️ The standing remedy for a genuinely needed entry is unchanged — RAISE THE
+	// BUDGET and name the claim; never drop a qualifier to fit. What changed is the
+	// first question: does the derivation belong in the vault, with only the verdict
+	// here? The failure this constant exists to prevent — silently dropping the
+	// qualifier that carried the uncertainty — now has a second form: moving the
+	// qualifier somewhere the reader will not follow. A compacted entry whose vault
+	// note does not carry its caveats is that failure; check the note before
+	// trimming an entry further.
+	//
+	// # 110 KB again from 2026-08-18 — merging main's stratum retraction
+	//
+	// The retraction's full text (5 KB of hedges) does not fit the compacted 80 KB
+	// budget, and cutting its qualifiers would repeat the exact failure the block
+	// above describes. The budget returns to 110 KB for it.
+	//
 	// # 110 KB from 2026-08-17 — the record was quoting a stratum its own run disowns
 	//
 	// The claim that needed the room: AGENTS.md carried `t 3.30 pooled` and "above 1 in

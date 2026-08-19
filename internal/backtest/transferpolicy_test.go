@@ -59,6 +59,13 @@ const sweepBankLimit = 5
 type policyVariant struct {
 	label string
 	apply func(*SimConfig)
+	// plan installs a full two-set chip schedule from the cell's season and
+	// entry point — the shipped user-facing planner, for arms that measure the
+	// machine a user actually watches rather than the no-chip sweep machine.
+	// Nil for every arm that does not; where set, the schedule overrides
+	// whatever apply installed (the planner path is skipped, so a plan and an
+	// apply-installed ChipPlanner cannot fight over one quantity).
+	plan func(*Season, int) analysis.ChipSchedule
 	// oracles is the hindsight this arm runs under, and it is **not** read from
 	// here: runPolicySweep overwrites it with what apply actually installs, then
 	// checks the label against it. So a hand-written arm cannot claim an oracle it
@@ -217,6 +224,11 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 				// default here would silently move every block that does not.
 				sc := sweepConfig(cfg, start, false)
 				v.apply(&sc)
+				if v.plan != nil {
+					sc.ChipPlanner = nil
+					sch := v.plan(pair.Cur, start)
+					sc.Chips, sc.Chips2 = sch.First, sch.Second
+				}
 				// The stamp is read back out of the config the cell will run
 				// under, so it cannot describe an oracle the simulation did not
 				// get. An arm whose hindsight varies by cell would make the
@@ -311,6 +323,40 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 				// question it answers can only be asked of a sweep whose effect
 				// is already known, so recording it always costs nothing and
 				// recording it on demand means it is missing when wanted.
+				// The transfer-banking mediator, on every arm rather than the
+				// banking ones. It is what makes a banking arm's null readable
+				// at all — see bankingOf — and it is free, since Simulate has
+				// already counted it.
+				row.BankingMediator, row.HasBanking = bankingOf(res)
+				// And the fixture-run funnel beside it, on every arm and for the
+				// same reason: it is what makes a fixture-run arm's null readable,
+				// and Simulate has already counted it.
+				row.FixtureRuns = fixtureRunsOf(res)
+				// And the four option-value funnels beside them, on every arm and
+				// for the identical reason: a lever that is wired and inert
+				// reports a clean null, and each of these is what tells that apart
+				// from a lever that ran and never fired. Free — Simulate has
+				// already counted them — and per lever rather than pooled, because
+				// the four switches are independent and a null on one has to be
+				// readable without reference to the others.
+				row.TransferHold = res.TransferHold
+				row.WildcardTrig = res.Wildcard
+				row.BenchBoostTrig = res.BenchBoost
+				row.FreeHitTrig = res.FreeHit
+				row.ChipPrep = res.ChipPrep
+				row.GateFloor = res.GateFloor
+				// The per-cell fixture dose. It is NOT a mediator — it is a
+				// function of the season and the entry gameweek alone, identical
+				// on every arm of a cell — and it is read at the horizon this arm
+				// actually built its opening squad on, because an arm that varies
+				// the horizon varies its own dose. See DoseFor.
+				//
+				// ⚠️ Emitted only. Nothing here fits a slope, and a dose-response
+				// needs its own pre-registration against the two traps in doseCols.
+				row.HasDose = true
+				d := DoseFor(pair.Cur, start, sc.Weights.Horizon)
+				row.ActDoubles, row.ActBlanks = d.ActDoubles, d.ActBlanks
+				row.LateDoubles, row.LateBlanks = d.LateDoubles, d.LateBlanks
 				row.HasChipWeeks = true
 				for _, w := range res.Weeks {
 					if w.BenchBoost {

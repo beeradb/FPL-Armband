@@ -1,0 +1,31 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+FLOORX#1,1787071062-2771642,policy,"{1.0,0.4} levers on",1,"{2.0,0.4} levers on (baseline)",0.05824278731410596,36,-
+FLOORX#1,1787071062-2771642,policy,"{2.0,0.2} levers on",2,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,policy,"{1.0,0.2} levers on",3,"{2.0,0.4} levers on (baseline)",-0.06666247770366872,36,-
+FLOORX#1,1787071062-2771642,policy,"{2.0,0.4} levers off (shipped)",4,"{2.0,0.4} levers on (baseline)",-2.562788702948888,36,-
+FLOORX#1,1787071062-2771642,policy,"{1.0,0.2} levers off",5,"{2.0,0.4} levers on (baseline)",-2.643557965115937,36,-
+FLOORX#1,1787071062-2771642,policy_xpoints,"{1.0,0.4} levers on",1,"{2.0,0.4} levers on (baseline)",-0.1234937832007829,36,-
+FLOORX#1,1787071062-2771642,policy_xpoints,"{2.0,0.2} levers on",2,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,policy_xpoints,"{1.0,0.2} levers on",3,"{2.0,0.4} levers on (baseline)",-0.1839352492777952,36,-
+FLOORX#1,1787071062-2771642,policy_xpoints,"{2.0,0.4} levers off (shipped)",4,"{2.0,0.4} levers on (baseline)",-2.7457598694458287,36,-
+FLOORX#1,1787071062-2771642,policy_xpoints,"{1.0,0.2} levers off",5,"{2.0,0.4} levers on (baseline)",-2.942630473499924,36,-
+FLOORX#1,1787071062-2771642,hold,"{1.0,0.4} levers on",1,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold,"{2.0,0.2} levers on",2,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold,"{1.0,0.2} levers on",3,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold,"{2.0,0.4} levers off (shipped)",4,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold,"{1.0,0.2} levers off",5,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_xpoints,"{1.0,0.4} levers on",1,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_xpoints,"{2.0,0.2} levers on",2,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_xpoints,"{1.0,0.2} levers on",3,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_xpoints,"{2.0,0.4} levers off (shipped)",4,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_xpoints,"{1.0,0.2} levers off",5,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_fixedcap,"{1.0,0.4} levers on",1,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_fixedcap,"{2.0,0.2} levers on",2,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_fixedcap,"{1.0,0.2} levers on",3,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_fixedcap,"{2.0,0.4} levers off (shipped)",4,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_fixedcap,"{1.0,0.2} levers off",5,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_nocap,"{1.0,0.4} levers on",1,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_nocap,"{2.0,0.2} levers on",2,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_nocap,"{1.0,0.2} levers on",3,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_nocap,"{2.0,0.4} levers off (shipped)",4,"{2.0,0.4} levers on (baseline)",0,36,-
+FLOORX#1,1787071062-2771642,hold_nocap,"{1.0,0.2} levers off",5,"{2.0,0.4} levers on (baseline)",0,36,-

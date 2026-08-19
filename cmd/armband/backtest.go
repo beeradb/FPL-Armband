@@ -127,8 +127,33 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		// fixture-load term reachable: a club playing twice this week is worth
 		// roughly twice as much, and a horizon average dilutes that to nothing.
 		// Worth +33 points a season at t = +5.74 with squad selection
-		// unchanged — see analysis.fixturesPerGameweek.
+		// unchanged — see analysis.fixtureLoadFor.
 		WeeklyXI: true,
+		// The two transfer-policy switches a user can actually set, carried onto
+		// the replay so `armband backtest` scores the policy the config describes.
+		//
+		// ⚠️ Without these the command replays the SHIPPED policy under the user's
+		// other settings: a manager turns banking on, runs a backtest, and gets a
+		// byte-identical null from a setting that never arrived — which is exactly
+		// the reading the standing rule says to check the mediator for, produced by
+		// the very feature that added the mediator. One config field, one
+		// consumer, named here so the link is greppable in both directions.
+		BankLookahead:        cfg.Review.BankTransfersLookahead,
+		PrepareBenchBoost:    cfg.Review.PrepareForChips,
+		PrepareTripleCaptain: cfg.Review.PrepareForChips,
+		// The scheduled early floor, carried onto the replay for the same
+		// reason as the banking switch above: `armband backtest` scores the
+		// policy the config describes, and a user who edits `early_floor` must
+		// not get a byte-identical null. (The measurement sweepConfig
+		// deliberately does NOT map it — the sweep baseline stays the flat
+		// machine every banked cell was measured on.)
+		EarlyFloor: cfg.Review.EarlyFloor,
+		// The hit ceiling, for the identical reason. `max_hits_per_week` is
+		// carried onto the replay below via `pol.maxHits`, and without this the
+		// ceiling that decides what that number can MEAN would stay at the
+		// shipped 1 — so a user raising both would get the same silent null the
+		// comment above is about, from the knob added to abolish it.
+		HitCeiling: cfg.Review.HitCeiling,
 		// Diagnostic override for sweeping what the opening fifteen credits a
 		// bench player at. See SimConfig.openingBenchWeight — the shipped 0.02
 		// is what broke when the optimiser was fixed.
@@ -145,6 +170,10 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		// inert on this path while still appearing in docs/replay.md.
 		Oracles: backtest.OraclesFromEnv(),
 	}
+	// And the four option-value levers, on the same rule and for the same reason
+	// as the two switches above: a config field with no consumer returns the
+	// shipped behaviour under a setting the user believes arrived.
+	applyOptionValue(&base, cfg.OptionValue)
 	// Diagnostic override for the 3/14/3 attack/defence bands. Zero is off.
 	if bs := envFloat("FPL_BAND_STRENGTH"); bs > 0 {
 		base.Weights.BandStrength = bs
@@ -152,7 +181,31 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 	// Chips, off unless asked for. Reported when set: a season played with a
 	// wildcard is not comparable with one played without, and nothing else in
 	// this command's output would say which you are looking at.
-	chips, chips2, err := chipPlanFromEnv(cfg, season)
+	// `anchored` derives the plan from the season's own calendar: BOTH sets,
+	// all four chips, fallbacks where a set's window has no qualifying week.
+	// That is the plan a real manager plays — every chip the season grants is
+	// used, in the set that grants it. See backtest.FullAnchoredPlan. Checked
+	// BEFORE the spec parser, which would refuse the word as a plan.
+	var chips, chips2 analysis.ChipPlan
+	if strings.TrimSpace(os.Getenv("FPL_CHIP_PLAN")) == "anchored" {
+		sch := backtest.FullAnchoredPlan(cur, base.StartGW)
+		chips, chips2 = sch.First, sch.Second
+		// A late entry's window may be too small for every chip the season
+		// grants. Refuse rather than print a plan the replay can never play —
+		// the silent loss is the shape this whole family of guards exists for.
+		if backtest.PlacedChips(chips) < 4 {
+			return fmt.Errorf("anchored plan: entry GW%d leaves too few playable "+
+				"weeks to place every first-set chip; pass an explicit plan "+
+				"(FPL_CHIP_PLAN=<spec>) instead", base.StartGW)
+		}
+		if backtest.ChipSetsFor(season) >= 2 && backtest.PlacedChips(chips2) < 4 {
+			return fmt.Errorf("anchored plan: entry GW%d leaves too few playable "+
+				"weeks to place every second-set chip; pass an explicit plan "+
+				"(FPL_CHIP_PLAN=<spec>) instead", base.StartGW)
+		}
+	} else {
+		chips, chips2, err = chipPlanFromEnv(cfg, season)
+	}
 	if err != nil {
 		return err
 	}
@@ -310,7 +363,14 @@ func reportWeeks(sim *backtest.SimResult, hold []int) {
 			hits = fmt.Sprintf("-%d", w.HitCost)
 		}
 		if w.Transfers > 0 {
-			tr = fmt.Sprintf("%d", w.Transfers)
+			// The count alone cannot tell a two-transfer week that paid a hit
+			// from one that spent two banked frees, and the difference is the
+			// whole cost of the week. "1+1h" names it.
+			if w.HitCost > 0 {
+				tr = fmt.Sprintf("%d+%dh", w.Transfers-(w.HitCost/4), w.HitCost/4)
+			} else {
+				tr = fmt.Sprintf("%d", w.Transfers)
+			}
 		}
 		line := fmt.Sprintf("  GW%-3d %6d %5s %5s %-16s %6d %5d %+7d %7.1fm",
 			w.GW, w.Net, hits, tr, w.Captain, w.CaptainPts, h, total-holdTotal,
@@ -357,15 +417,17 @@ func reportMoves(cur *backtest.Season, sim *backtest.SimResult, payoff, decided 
 			dim(fmt.Sprintf("(the policy decided on %d — a longer window asks whether the "+
 				"move held up, not whether it started well)", decided)))
 	}
-	fmt.Printf("  %-5s %-17s %-17s %9s %8s %8s %8s\n",
-		"gw", "out", "in", "modelled", "in pts", "out pts", "net")
+	fmt.Printf("  %-5s %-17s %-17s %9s %8s %8s %8s  %s\n",
+		"gw", "out", "in", "modelled", "in pts", "out pts", "net", "cost")
 
 	var net, good, hits, ghosts, ghostNet int
 	var modelled float64
 	for _, v := range verdicts {
 		tag := ""
+		cost := dim("free")
 		if v.Hit {
 			tag = " -4"
+			cost = red("HIT -4")
 			hits++
 		}
 		if !v.OutPlayed {
@@ -373,8 +435,8 @@ func reportMoves(cur *backtest.Season, sim *backtest.SimResult, payoff, decided 
 			ghostNet += v.Net()
 			tag += " *"
 		}
-		line := fmt.Sprintf("  GW%-3d %-17s %-17s %+8.2f%-3s %8d %8d %+8d",
-			v.GW, v.Out, v.In, v.Gain, tag, v.InPoints, v.OutPoints, v.Net())
+		line := fmt.Sprintf("  GW%-3d %-17s %-17s %+8.2f%-3s %8d %8d %+8d  %s",
+			v.GW, v.Out, v.In, v.Gain, tag, v.InPoints, v.OutPoints, v.Net(), cost)
 		if v.Net() < 0 {
 			fmt.Printf("%s\n", dim(line))
 		} else {
@@ -505,13 +567,18 @@ func describeChipPlan(p analysis.ChipPlan) string {
 // page is not the team that scored the header's points, and almost none of the
 // borrowed eleven appears in it, so nearly every row files as a substitute. Saying
 // so is the only honest option available without carrying a second fifteen.
-func freeHitCaveat(freeHit bool) string {
+func freeHitCaveat(freeHit, hasSquad bool) string {
 	if !freeHit {
 		return ""
 	}
-	return "Free hit — the eleven that scored these points was a temporary fifteen, " +
-		"handed back afterwards. The squad below is the PERMANENT one, which sat out: " +
-		"its points did not count this week, and it is what the following gameweek resumes from."
+	if hasSquad {
+		return "Free hit — the table is the BORROWED fifteen that scored these points, " +
+			"handed back after this gameweek. The permanent squad sat out and its " +
+			"points did not count this week."
+	}
+	return "Free hit — the borrowed fifteen that scored these points was not " +
+		"recorded. The squad below is the PERMANENT one, which sat out: its points " +
+		"did not count this week."
 }
 
 // splitOnChipReset sorts one flat plan into the two sets a reset season grants.
@@ -635,15 +702,27 @@ func writeReplayHTML(path, season string, cur *backtest.Season, sim *backtest.Si
 			// season total from the rendered rows reported 30 for a season this
 			// command called 37.
 			Transfers: w.Transfers,
-			// Wildcard only. A free hit does rebuild, but only for one week, and
-			// the squad this page can show for that week is the PERMANENT
-			// fifteen: Week.Squad records what was held while Week.XI holds the
-			// borrowed eleven, and almost none of the borrowed players are in the
-			// former. So a free-hit week renders the squad that sat out, with the
-			// points it did not score, under a banner announcing a rebuild —
-			// three wrong claims at once. Caveat says what the table actually is.
+			// Wildcard only. A free hit does rebuild, but only for one week; the
+			// borrowed fifteen is Week.FreeHitSquad and the page renders IT —
+			// the permanent squad sat out and its points did not count.
 			Rebuilt: w.Wildcard,
-			Caveat:  freeHitCaveat(w.FreeHit),
+			Caveat:  freeHitCaveat(w.FreeHit, len(w.FreeHitSquad) > 0),
+		}
+		if len(w.FreeHitSquad) > 0 {
+			for _, id := range w.FreeHitSquad {
+				p := cur.Players[id]
+				if p == nil {
+					continue
+				}
+				rw.FreeHitSquad = append(rw.FreeHitSquad, present.ReplayPlayer{
+					Name: p.WebName, Team: short[p.Team], Position: pos[p.Type],
+					Points: got(id, w.GW), Started: xi[id],
+					Captain: p.WebName == w.Captain,
+					// Not New: the borrowed fifteen was never bought — it is
+					// handed back next gameweek.
+					Opponent: opp[w.GW][p.Team],
+				})
+			}
 		}
 		switch {
 		case w.Wildcard:

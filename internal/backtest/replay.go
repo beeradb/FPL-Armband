@@ -233,6 +233,12 @@ func weekPoints(xi, bench []*Player, gw, captain, vice int) int {
 type weekTotals struct {
 	Points  int
 	XPoints float64
+	// Contrib attributes Points per player — the armband copies to the captain,
+	// autosubs to the bench player who came on, bench-boost weeks to all fifteen.
+	// Absent id means no contribution, so a nil map and a zero-entry player read
+	// the same. Built only by weekScoreWithChip; a caller that wants no
+	// attribution (weekPoints and friends) simply discards it.
+	Contrib map[int]int
 }
 
 func (t *weekTotals) add(s weekTotals) {
@@ -240,11 +246,33 @@ func (t *weekTotals) add(s weekTotals) {
 	t.XPoints += s.XPoints
 }
 
+// addPlayer adds one player's return, attributed, for the weeks that ask for a
+// per-player breakdown. The attribution is what lets a transfer verdict read
+// exactly what its incoming player contributed to the squad — autosubs, armband
+// and chips included — without a second copy of the scoring loop.
+func (t *weekTotals) addPlayer(id int, s weekTotals) {
+	t.add(s)
+	if t.Contrib == nil {
+		t.Contrib = map[int]int{}
+	}
+	t.Contrib[id] += s.Points
+}
+
 // addMult adds n further copies of one player's return — the armband, where n is
 // 1 for an ordinary captain and 2 for a triple captain.
 func (t *weekTotals) addMult(n int, s weekTotals) {
 	t.Points += n * s.Points
 	t.XPoints += float64(n) * s.XPoints
+}
+
+// addMultPlayer is addMult attributed to one player: the armband's extra copies
+// belong to the player who wore it.
+func (t *weekTotals) addMultPlayer(id, n int, s weekTotals) {
+	t.addMult(n, s)
+	if t.Contrib == nil {
+		t.Contrib = map[int]int{}
+	}
+	t.Contrib[id] += n * s.Points
 }
 
 // playerWeek is one player-gameweek on both metrics.
@@ -311,7 +339,7 @@ func weekScoreWithChip(xi, bench []*Player, gw, captain, vice int, c chipKind) w
 			continue
 		}
 		s := playerWeek(p, g)
-		total.add(s)
+		total.addPlayer(p.ID, s)
 		switch p.ID {
 		case captain:
 			captainScore, captainPlayed = s, true
@@ -321,16 +349,16 @@ func weekScoreWithChip(xi, bench []*Player, gw, captain, vice int, c chipKind) w
 	}
 	switch {
 	case captainPlayed:
-		total.addMult(capMult, captainScore)
+		total.addMultPlayer(captain, capMult, captainScore)
 	case vicePlayed && viceCaptainFallback:
-		total.addMult(capMult, viceScore)
+		total.addMultPlayer(vice, capMult, viceScore)
 	}
 
 	if c == chipBenchBoost {
 		// Every bench player scores, and nobody is substituted in.
 		for _, p := range bench {
 			if g := p.GWs[gw]; g.Minutes > 0 {
-				total.add(playerWeek(p, g))
+				total.addPlayer(p.ID, playerWeek(p, g))
 			}
 		}
 		return total
@@ -365,7 +393,7 @@ func weekScoreWithChip(xi, bench []*Player, gw, captain, vice int, c chipKind) w
 					counts[in]--
 					continue
 				}
-				total.add(playerWeek(p, g))
+				total.addPlayer(p.ID, playerWeek(p, g))
 				blanked = append(blanked[:i], blanked[i+1:]...)
 				break
 			}
@@ -378,7 +406,7 @@ func weekScoreWithChip(xi, bench []*Player, gw, captain, vice int, c chipKind) w
 			break
 		}
 		if g := p.GWs[gw]; g.Minutes > 0 {
-			total.add(playerWeek(p, g))
+			total.addPlayer(p.ID, playerWeek(p, g))
 			blanks--
 		}
 	}

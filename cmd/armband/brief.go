@@ -266,12 +266,30 @@ func briefTask(b *strings.Builder, cfg config.Config, gwName string) {
 
 	p := cfg.Review
 	b.WriteString("### Review policy\n\n")
+	// The flat pair with the schedule stated beside it — the brief must not
+	// tell a manager the settled bar while the tools apply the early floor
+	// through GW8.
 	fmt.Fprintf(b, "| Threshold | Value |\n|---|---|\n")
 	fmt.Fprintf(b, "| Min modelled gain to spend a free transfer | %.2f pts/GW |\n", p.MinGainForTransfer)
+	if p.EarlyFloor.UntilGameweek > 0 {
+		fmt.Fprintf(b, "| Early floor (through GW%d) | %.1f pts charge / %.2f gain |\n",
+			p.EarlyFloor.UntilGameweek, p.EarlyFloor.FreeTransferValue, p.EarlyFloor.MinGainForTransfer)
+	}
 	fmt.Fprintf(b, "| Min net gain across the horizon to justify a -4 | %.2f pts |\n", p.MinGainForHit)
 	fmt.Fprintf(b, "| Bank transfers up to | %d |\n", p.BankUpTo)
-	fmt.Fprintf(b, "| Max hits per week | %d |\n", p.MaxHitsPerWeek)
-	fmt.Fprintf(b, "| Always act on a ruled-out starter | %v |\n\n", p.AlwaysActOnInjury)
+	// The EFFECTIVE cap: MoveLimit clamps the allowance to the ceiling, so a
+	// configured 2 under the shipped ceiling of 1 is 1 everywhere a solver runs.
+	// Printing the raw setting told the reader a policy no code implements.
+	fmt.Fprintf(b, "| Max hits per week | %d |\n",
+		analysis.MoveLimit(0, p.MaxHitsPerWeek, 0, p.HitCeiling))
+	fmt.Fprintf(b, "| Always act on a ruled-out starter | %v |\n", p.AlwaysActOnInjury)
+	// Both settings are stated whether on or off, because the agent's job here is
+	// to reason inside the standing policy and "the policy does not do this" is as
+	// binding as "the policy does this". A row that appeared only when enabled
+	// would leave the off state unwritten, and an unwritten constraint is one the
+	// agent will talk past.
+	fmt.Fprintf(b, "| Bank a transfer when next week buys more | %v |\n", p.BankTransfersLookahead)
+	fmt.Fprintf(b, "| Prepare the squad for a planned chip | %v |\n\n", p.PrepareForChips)
 	for _, r := range p.Rules {
 		fmt.Fprintf(b, "- %s\n", r)
 	}
