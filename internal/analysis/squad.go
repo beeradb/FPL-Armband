@@ -1086,6 +1086,10 @@ type xiScratch struct {
 	benchScore []float64
 	plainPerm  []int
 	plainScore []float64
+	// pickIDs holds the eleven's ids in pick order, so the bench's membership
+	// test scans eight-byte ints rather than striding a 592-byte struct per
+	// comparison. It is the same test on the same ids in the same order.
+	pickIDs []int
 	// prefSum, prefCap and prefVice are bestFormation's per-position prefix
 	// records: entry k holds the sum, captain and vice of the first k players
 	// of that position, so each formation's total is a constant-time fold
@@ -1158,10 +1162,13 @@ func (sc *xiScratch) split(squad []PlayerMetrics, mustStart map[int]bool) (force
 		if i < 0 {
 			continue
 		}
+		// One lookup, read twice. The key and the map are the same on both
+		// reads, so this is the same value the second lookup returned.
+		must := mustStart[p.ID]
 		sc.byPos[i] = append(sc.byPos[i], p)
-		sc.sortMust[i] = append(sc.sortMust[i], mustStart[p.ID])
+		sc.sortMust[i] = append(sc.sortMust[i], must)
 		sc.sortScore[i] = append(sc.sortScore[i], p.Score)
-		if mustStart[p.ID] {
+		if must {
 			forced[i]++
 		}
 	}
@@ -1253,43 +1260,55 @@ func (sc *xiScratch) bestFormation(forced [4]int) (bd, bm, bf int, best float64,
 // materialise writes the chosen eleven and the bench into the scratch, in the
 // same orders the map-keyed version produced.
 func (sc *xiScratch) materialise(squad []PlayerMetrics, d, m, f int, ok bool) {
+	// The eleven, its ids and its sort keys are built in one pass. The keys used
+	// to be gathered in a second walk of sc.pick, which re-read eleven
+	// 592-byte structs to take one float out of each; taking Score and ID as
+	// each player is appended reads the same values in the same order.
 	sc.pick = sc.pick[:0]
+	sc.pickIDs = sc.pickIDs[:0]
+	sc.plainScore = sc.plainScore[:0]
 	if ok {
-		sc.pick = append(sc.pick, sc.byPos[0][:1]...)
-		sc.pick = append(sc.pick, sc.byPos[1][:d]...)
-		sc.pick = append(sc.pick, sc.byPos[2][:m]...)
-		sc.pick = append(sc.pick, sc.byPos[3][:f]...)
+		// GKP, DEF, MID, FWD — the append order is load-bearing, as in
+		// xiValueOfParts: it fixes the summation order of the eleven scores.
+		for i, n := range [4]int{1, d, m, f} {
+			src := sc.byPos[i][:n]
+			for j := range src {
+				sc.pick = append(sc.pick, src[j])
+				sc.pickIDs = append(sc.pickIDs, src[j].ID)
+				sc.plainScore = append(sc.plainScore, src[j].Score)
+			}
+		}
 	}
 
 	// Bench is everyone not in the eleven, in squad order. Membership is by ID
 	// over eleven entries rather than through a map: a fifteen-by-eleven scan is
 	// cheaper than hashing, and it reproduces the old behaviour exactly even in
 	// the degenerate case of a duplicated id, where both copies were excluded.
+	// The scan reads sc.pickIDs rather than sc.pick, which is the same ids in
+	// the same order over eight-byte elements instead of 592-byte ones.
+	//
+	// Bench order: reserve keeper last, outfield by descending score. Those keys
+	// are gathered here rather than in a second walk of sc.bench, for the same
+	// reason as the eleven's above.
 	sc.bench = sc.bench[:0]
-	for _, p := range squad {
+	sc.benchMust = sc.benchMust[:0]
+	sc.benchScore = sc.benchScore[:0]
+	for i := range squad {
+		p := &squad[i]
 		inXI := false
-		for _, q := range sc.pick {
-			if q.ID == p.ID {
+		for _, id := range sc.pickIDs {
+			if id == p.ID {
 				inXI = true
 				break
 			}
 		}
 		if !inXI {
-			sc.bench = append(sc.bench, p)
+			sc.bench = append(sc.bench, *p)
+			sc.benchMust = append(sc.benchMust, p.Position != "GKP")
+			sc.benchScore = append(sc.benchScore, p.Score)
 		}
 	}
-	// Bench order: reserve keeper last, outfield by descending score.
-	sc.benchMust = sc.benchMust[:0]
-	sc.benchScore = sc.benchScore[:0]
-	for _, p := range sc.bench {
-		sc.benchMust = append(sc.benchMust, p.Position != "GKP")
-		sc.benchScore = append(sc.benchScore, p.Score)
-	}
 	sc.benchPerm = permuteByKeys(sc.bench, sc.benchMust, sc.benchScore, sc.benchPerm)
-	sc.plainScore = sc.plainScore[:0]
-	for _, p := range sc.pick {
-		sc.plainScore = append(sc.plainScore, p.Score)
-	}
 	sc.plainPerm = permuteByKeys(sc.pick, nil, sc.plainScore, sc.plainPerm)
 }
 
@@ -1527,15 +1546,24 @@ func replace(squad []PlayerMetrics, outID int, in PlayerMetrics) []PlayerMetrics
 // an implementation detail. See TestReplaceKeepsIncomingAtOutgoingIndex.
 //
 // And dst must not alias squad. Every caller passes a scratch buffer distinct
-// from the squad it is reading, which is why the pairs loop needs two.
+// from the squad it is reading, which is why the pairs loop needs two — and it
+// is what lets the copy below be one bulk move rather than fifteen appends.
+//
+// The fifteen are copied in one memmove and the outgoing slot is then overwritten
+// in place, which is the same fifteen in the same order: every index takes the
+// value it took before, and any index whose id matched takes `in`, exactly as the
+// element-wise loop did. The scan afterwards reads ids only, so the 8.9KB of
+// struct copying happens once through memmove instead of through fifteen
+// bounds-checked appends.
 func replaceInto(dst, squad []PlayerMetrics, outID int, in PlayerMetrics) []PlayerMetrics {
-	out := dst[:0]
-	for _, p := range squad {
-		if p.ID == outID {
-			out = append(out, in)
-			continue
+	out := append(dst[:0], squad...)
+	// Every match is replaced, not merely the first — the loop this replaces had
+	// no break either, and a squad holding a duplicated id must not come back
+	// with one copy swapped and one kept.
+	for i := range out {
+		if out[i].ID == outID {
+			out[i] = in
 		}
-		out = append(out, p)
 	}
 	return out
 }
