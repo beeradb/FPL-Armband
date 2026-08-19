@@ -74,19 +74,12 @@ func TestServeTokenIsPerStartupAndCheckedExactly(t *testing.T) {
 	}
 }
 
-// TestServeAnswers404OffTheTwoRoutes. Every other path must 404 rather than
-// fall through to the page — a served page at every URL would be a second,
-// undiscovered surface for whatever the page later learns to do.
-func TestServeAnswers404OffTheTwoRoutes(t *testing.T) {
-	s := &squadServer{}
-	req := httptest.NewRequest("GET", "/other", nil)
-	req.Host = "127.0.0.1:8080"
-	w := httptest.NewRecorder()
-	s.ServeHTTP(w, req)
-	if w.Code != 404 {
-		t.Fatalf("GET /other answered %d, want 404", w.Code)
-	}
-}
+// The 404 assertion this file used to carry is now TestUnknownRoutesStill404 in
+// webroutes_test.go. The reason it exists is unchanged — every unknown path must
+// 404 rather than fall through to a handler, because a document served at every
+// URL is a second, undiscovered surface for whatever the application later
+// learns to do — but it now covers the whole route table rather than the two
+// routes that existed when it was written.
 
 // newActionServer builds a squadServer for the action tests: a real config in
 // a temp file, a token, and a two-element bootstrap so the codes the tests

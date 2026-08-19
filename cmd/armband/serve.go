@@ -23,6 +23,7 @@ import (
 	"armband/internal/config"
 	"armband/internal/fpl"
 	"armband/internal/present"
+	"armband/internal/webui"
 )
 
 // cmdServe hosts the squad page over HTTP.
@@ -143,9 +144,21 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unrecognised host", http.StatusForbidden)
 		return
 	}
+	// The asset tree is the one prefix route; everything else is an exact path, so a
+	// typo answers 404 rather than falling into a handler that half-matches.
+	if strings.HasPrefix(r.URL.Path, prefixAssets) {
+		webui.StaticHandler(prefixAssets).ServeHTTP(w, r)
+		return
+	}
 	switch r.URL.Path {
-	case "/":
-		s.page(w, r)
+	case routeLanding:
+		s.servePage(w, "landing")
+	case routeApp:
+		s.servePage(w, "app")
+	case routeGate:
+		s.gate(w, r)
+	case routeState:
+		s.state(w, r)
 	case "/action":
 		s.action(w, r)
 	default:
