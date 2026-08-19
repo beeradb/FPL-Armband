@@ -32,3 +32,6 @@ cmd/armband/.visualwork-*
 # Failure artefacts from the visual regression. The goldens are committed; these are
 # what the run produced and how it differed, and they are regenerated on every failure.
 cmd/armband/testdata/golden/diff-*.png
+
+# Scratch commit messages written by tooling; never part of the tree.
+.commitmsg
