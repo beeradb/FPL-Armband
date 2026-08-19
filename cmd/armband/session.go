@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"sort"
 	"strconv"
 
 	"armband/internal/analysis"
 	"armband/internal/config"
+	"armband/internal/fpl"
 	"armband/internal/viewmodel"
 )
 
@@ -113,6 +116,30 @@ func readSession(r *http.Request) session {
 	return s.settled()
 }
 
+// readValidSession is readSession plus the rule the write path enforces.
+//
+// The two used to differ, and the gap was reachable: cookies are not scoped by port, so
+// anything the browser loads from another service on 127.0.0.1 can set fpl_session for this
+// one. A fifteen the write path refuses -- the same player fifteen times, say -- would then
+// be rebuilt on every read, producing an empty eleven and a zero captain that the client
+// throws on, in an HttpOnly cookie the page cannot clear. The reader's only escape was
+// devtools.
+//
+// Discarding beats repairing. A session that fails the rule is not a session with one bad
+// field; it is one this server did not write, and guessing at what it meant is how a store
+// acquires a second set of semantics.
+func (s *squadServer) readValidSession(r *http.Request) session {
+	sess := readSession(r)
+	if sess.empty() {
+		return sess
+	}
+	if err := s.validateSession(sess); err != nil {
+		fmt.Fprintf(os.Stderr, "serve: discarding a stored session that is not legal: %v\n", err)
+		return session{}
+	}
+	return sess
+}
+
 // settled resolves the reader's dismissals against their own lists.
 //
 // A dismissal has two jobs, and only one of them survives being applied late. It suppresses
@@ -201,33 +228,42 @@ func forPlanner(cfg config.Config) config.Config {
 
 // chipsInto folds the reader's chip placements into a plan the engine will act on.
 //
-// The session stores gameweek → chip key; the engine reads analysis.ChipPlan, four named
-// gameweek fields. Translating here rather than storing a ChipPlan keeps the session's shape
-// the one the page thinks in — a chip belongs to a week — and keeps the engine's the one it
-// thinks in.
+// The session stores gameweek → chip key, which is how the page thinks about a chip: it
+// belongs to a week. Which of FPL's two chip SETS that week falls in is a fact about the
+// competition rather than about the reader, so ChipSchedule.Place answers it from the feed's
+// own windows. Deciding it here would put a second statement of the season's shape in the
+// session store, and it would be the wrong one — the obvious guess, "everything is a
+// first-set chip", is wrong for eighteen gameweeks of every season.
 //
-// The reader's placement REPLACES the configured one for that chip, rather than merging: two
-// answers to "when is the wildcard" is the thing this codebase pays for most often, and the
-// person looking at the page is the one who should win on their own page.
+// The reader's placement REPLACES the configured one for that chip rather than merging with
+// it. Two answers to "when is the wildcard" is the thing this codebase pays for most often,
+// and the person looking at the page should win on their own page.
 //
-// Only the first set is filled. The second set exists from GW20 and the planner has no
-// control for it yet; a chip placed in a second-set week would need the schedule's own
-// splitting, which belongs with the schedule rather than here.
-func (s session) chipsInto(plan analysis.ChipSchedule) analysis.ChipSchedule {
+// A placement in no window is dropped. validateSession refuses those, so reaching this is a
+// stored session written before a rule changed rather than anything a caller sent today.
+func (s session) chipsInto(plan analysis.ChipSchedule, boot *fpl.Bootstrap) analysis.ChipSchedule {
+	// Ranged in gameweek order, not map order.
+	//
+	// Two placements of the same chip resolve by whichever is applied last, and ranging a Go
+	// map makes that unspecified per call — so the plan flipped between them on every
+	// request, EffectiveHorizon truncated the engine or did not, and the reader was served a
+	// different fifteen on each reload with nothing having changed. Sorting makes the answer
+	// a function of the session alone. The earlier week wins, which is the one the reader
+	// reaches first.
+	weeks := make([]int, 0, len(s.Chips))
+	byWeek := make(map[int]string, len(s.Chips))
 	for week, key := range s.Chips {
 		gw, err := strconv.Atoi(week)
 		if err != nil || gw <= 0 {
 			continue
 		}
-		switch key {
-		case "wildcard":
-			plan.First.Wildcard = gw
-		case "freehit":
-			plan.First.FreeHit = gw
-		case "bboost":
-			plan.First.BenchBoost = gw
-		case "3xc":
-			plan.First.TripleCaptain = gw
+		weeks = append(weeks, gw)
+		byWeek[gw] = key
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(weeks)))
+	for _, gw := range weeks {
+		if placed, ok := plan.Place(boot, byWeek[gw], gw); ok {
+			plan = placed
 		}
 	}
 	return plan
@@ -279,7 +315,7 @@ func (s session) applyTo(cfg config.Config, e *analysis.Engine, today string) co
 	// the cross, and nothing happened. Worse, a blocked market player is dropped from the
 	// market list, so there was no row left anywhere to open his sheet from and toggle him
 	// back — the only recovery was deleting the cookie.
-	cfg.Chips = s.chipsInto(cfg.Chips)
+	cfg.Chips = s.chipsInto(cfg.Chips, e.Boot)
 	set("lock", s.Lock, "locked from the planner — browser session")
 	set("exclude", s.Exclude, "blocked from the planner — browser session")
 	return cfg
@@ -339,6 +375,12 @@ func (s session) applyAction(action string, code int) session {
 		}
 		return append(codes, code)
 	}
+	// Making a correction on a player un-dismisses him. Without this the lock is stored and
+	// then deleted by settled() on the very next read — forever, with nothing reporting it —
+	// because Dismissed is a standing veto and nothing else prunes it. The client's
+	// toggleCorrection does the same thing for the same reason.
+	s.Dismissed = drop(s.Dismissed, code)
+
 	switch action {
 	case "lock":
 		s.Exclude = drop(s.Exclude, code)

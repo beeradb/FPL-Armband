@@ -318,7 +318,7 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 		// config file stays a default. Session overrides ride on top of the
 		// config for every build of this page, and they die with the browser
 		// session.
-		sess := readSession(r).applyAction(act, code)
+		sess := s.readValidSession(r).applyAction(act, code)
 		if err := sess.write(w); err != nil {
 			http.Error(w, fmt.Sprintf("storing the session: %v", err),
 				http.StatusInternalServerError)
@@ -346,20 +346,33 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 // without touching config.json. In persist mode the session is ignored and
 // the config is the one store.
 func (s *squadServer) effectiveCfg(r *http.Request) config.Config {
-	return s.effectiveCfgFrom(readSession(r))
+	return s.effectiveCfgFrom(s.readValidSession(r))
 }
 
 func (s *squadServer) effectiveCfgFrom(sess session) config.Config {
+	// The session is applied in BOTH modes.
+	//
+	// It used to be discarded under -persist, on the reasoning that config was then the one
+	// store. It is not, yet: saveSession writes the file, and the reader's chip placements,
+	// their fifteen and any correction not yet flushed live only in the session. Discarding
+	// it meant a block under -persist lit its badge, reported `store: "config"`, left the
+	// player in the squad and touched no file — the branch's own defect in the mode with the
+	// strongest claim to be durable.
+	//
+	// There is no double-application: under -persist saveSession clears lock and exclude
+	// from the session as it writes them to the file, so exactly one store holds each.
+	//
 	// ⚠️ forPlanner is NOT applied under -persist.
 	//
 	// It strips the analysis layer's locks so they do not bind the reader's planner. Under
 	// -persist the page writes locks into config.json itself, on the reader's instruction —
 	// stripping those would mean the lock button saved a lock to the file and the very next
 	// build removed it, which is the button lying twice over.
+	base := forPlanner(*s.cfg)
 	if s.persist {
-		return *s.cfg
+		base = *s.cfg
 	}
-	return sess.applyTo(forPlanner(*s.cfg), s.engine, s.now().Format("2006-01-02"))
+	return sess.applyTo(base, s.engine, s.now().Format("2006-01-02"))
 }
 
 // markSessionOverrides flags every override this browser's session owns, so
@@ -541,6 +554,14 @@ func loopbackHost(host string) bool {
 // and length leaks nothing worth having here, so the early return keeps the
 // comparison on equal-length inputs where its timing says nothing.
 func (s *squadServer) tokenOK(got string) bool {
+	// A server with no token grants nothing. Without this, ConstantTimeCompare on two
+	// zero-length slices returns 1 and an empty token opens every write route -- and
+	// `authed` already guards the same case, so the two would disagree about what an
+	// unconfigured server means. cmdServe cannot build one today; the next constructor
+	// will not know that.
+	if s.token == "" {
+		return false
+	}
 	if len(got) != len(s.token) {
 		return false
 	}

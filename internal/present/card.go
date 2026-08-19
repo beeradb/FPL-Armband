@@ -373,6 +373,21 @@ const gateDecimals = 2
 // A gate of zero clears nothing. That is not a rounding decision — an unset gate means the
 // threshold was never configured, and answering "everything qualifies" to a question nobody
 // asked is how a page ends up recommending every move in the market.
+//
+// ⚠️ The rounding is `math.Round(v*100)/100`, and the client mirrors it with
+// `Math.round(v*100)/100` rather than with `toFixed(2)`, which is NOT the same function.
+// `toFixed` is specified on the exact value of the double; this rounds the float product,
+// which can land on a .5 boundary the value is below. The two disagree on 0.015, 0.295,
+// 0.495 and about 219,000 other tie-adjacent doubles — and agree at the shipped gate of
+// 0.40, so an equivalence test can pass while pinning the constant rather than the rule.
+// `TestTheGateIsDecidedTheSameWayInBothLanguages` now carries the separating cases.
+//
+// ⚠️ This is a DISPLAY rule. The live transfer search compares raw, through
+// `analysis.BestPackageValue`, so a delta of 0.3999 takes a clears-the-gate badge from a
+// page whose own transfer plan will refuse it. That is deliberate — a row printing "+0.40"
+// beside a "+0.40 gate" and carrying a below-the-gate badge contradicts itself where the
+// reader can see it — but it means this must not be reached for by anything that decides a
+// transfer.
 func ClearsGate(delta, gate float64) bool {
 	if gate <= 0 {
 		return false

@@ -76,12 +76,22 @@ func squadFromCodes(e *analysis.Engine, pool []analysis.PlayerMetrics, codes []i
 	// This one built the squad by hand and left it at zero, so every reload reported an
 	// empty bank -- and the replacement picker spends exactly this figure, so it refused
 	// funded transfers with the arithmetic shown on screen.
-	if budget, _, err := e.AssemblyBudget(); err == nil {
-		sq.Remaining = float64(budget)/10 - totalCost(fifteen)
-	}
+	// The money is counted in integer TENTHS, as Optimize counts it.
+	//
+	// Summing fifteen float prices and subtracting leaves about 1e-14 of dust, and the
+	// client compares affordability raw: `bank + sold - price >= 0`. With a £0.5m bank, a
+	// £4.5m player out and a £5.0m player in, the integer path gives exactly 0 and the float
+	// path gives −8.9e-16, so the same target is reachable from a fresh build and silently
+	// missing after a reload. The reload is the common path, because a saved fifteen skips
+	// the optimiser.
+	spent := 0
 	for _, m := range fifteen {
-		sq.TotalCost += m.Price
+		spent += int(m.Price*10 + 0.5)
 		sq.ClubCounts[m.Team]++
+	}
+	sq.TotalCost = float64(spent) / 10
+	if budget, _, err := e.AssemblyBudget(); err == nil {
+		sq.Remaining = float64(budget-spent) / 10
 	}
 	for _, m := range xi {
 		sq.XIScore += m.Score
@@ -123,8 +133,16 @@ func violatesRoster(sq *analysis.Squad, req analysis.OptimizeRequest) bool {
 			return true
 		}
 	}
+	// StartIDs is checked against the ELEVEN, not the fifteen. A must-start lock says the
+	// player is picked, not merely owned — which is why Optimize threads mustStart all the
+	// way into bestXIWith. Checking membership of the fifteen let a must-start player sit on
+	// the reader's bench with the override silently not applied.
+	starting := map[int]bool{}
+	for _, p := range sq.StartingXI {
+		starting[p.ID] = true
+	}
 	for _, id := range req.StartIDs {
-		if !in[id] {
+		if !starting[id] {
 			return true
 		}
 	}

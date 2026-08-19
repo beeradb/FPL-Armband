@@ -297,7 +297,15 @@ let saving=false;
  * mutation too: change the captain during a bench drag and nothing happened, silently. */
 let CHAIN=Promise.resolve();
 function save(mutate){
-  CHAIN=CHAIN.then(()=>sendSave(mutate));
+  /* The .catch is what keeps the chain alive. A synchronous throw inside a mutate -- and
+     saveArrangement calls syncArrangement() in there -- rejects CHAIN, and every later
+     save on the page is then skipped for the lifetime of the document: silently, with
+     nothing but an unhandled rejection in a console nobody has open. Catching here makes
+     that structurally impossible rather than merely unlikely. */
+  CHAIN=CHAIN.then(()=>sendSave(mutate)).catch(err=>{
+    notify('That did not save: '+(err&&err.message?err.message:err));
+    console.error(err);
+  });
   return CHAIN;
 }
 
@@ -1366,7 +1374,12 @@ function overClub(c){
  * as below a +0.40 gate is the page contradicting itself on one line. A gate of zero clears
  * nothing, because an unset threshold is a question nobody asked. */
 function clearsGate(d){ const g=gateOf(); if(g<=0) return false;
-  return +d.toFixed(2) >= +g.toFixed(2); }
+  /* Math.round(x*100)/100, NOT toFixed(2). They are different functions: toFixed is
+     specified on the exact value of the double, while Go's math.Round rounds the float
+     product, which can sit on a .5 boundary the value itself is below. They disagree on
+     ordinary numbers -- 0.015, 0.295, 0.495 -- and agreed at the shipped 0.40 gate, which
+     is how a passing equivalence test came to pin the constant instead of the rule. */
+  return Math.round(d*100)/100 >= Math.round(g*100)/100; }
 
 function pickerCandidates(){
   const o=byId(R.out);

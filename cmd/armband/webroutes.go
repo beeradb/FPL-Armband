@@ -8,8 +8,11 @@ import (
 	"net/http"
 	"net/mail"
 	"os"
+	"strconv"
 	"strings"
 
+	"armband/internal/analysis"
+	"armband/internal/config"
 	"armband/internal/viewmodel"
 	"armband/internal/webui"
 )
@@ -221,13 +224,26 @@ const gateCookieName = "fpl_gate"
 // A GET may WRITE the cookie, which is worth naming because it looks wrong. A new session
 // has no seed, and a seed drawn per request would hand the reader a different squad on
 // every reload -- the exact staleness complaint this is meant to fix, inverted. So the
-// first GET mints one and stores it, and every later GET is a pure read.
+// first authed GET mints one and stores it, and every later GET is a pure read.
+//
+// ⚠️ Only an AUTHED request may mint, and that is a security property rather than a tidiness
+// one. The route is otherwise open, which is defensible for a read of a squad the page
+// already shows. Writing made it something else: any page in the reader's browser could
+// fetch this, and because SameSite=Strict withholds their real cookie the server would see
+// an empty session, mint a seed and answer Set-Cookie -- silently replacing the reader's
+// team, arrangement, armband, corrections and chip placements with an empty session, in an
+// HttpOnly cookie the page cannot read back to warn them. The attacker learns nothing and
+// destroys everything, which is the worst trade available.
+//
+// A caller without the token still gets a document. It is built on a zero seed, so it is the
+// straight optimum rather than a varied squad -- a fine answer to "what does the model
+// think", and not a store.
 func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sess := readSession(r)
-	if sess.Seed == 0 && !sess.Optimised {
+	sess := s.readValidSession(r)
+	if sess.Seed == 0 && !sess.Optimised && s.authed(r) {
 		sess.Seed = s.nextSeed()
 		if err := sess.write(w); err != nil {
 			fmt.Fprintf(os.Stderr, "serve: storing the session seed: %v\n", err)
@@ -351,6 +367,19 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Under -persist the corrections leave the session and enter the file.
+	//
+	// Done BEFORE the state is built, so the document this request answers with is rendered
+	// from the config the reader will actually get back on their next load, rather than
+	// from a session that is about to be emptied.
+	if s.persist {
+		var err error
+		if in, err = s.persistCorrections(in); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	// The state is built BEFORE the cookie is written.
 	//
 	// The other order stages a Set-Cookie and can then fail rendering, which stores a
@@ -371,6 +400,76 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeState(w, body)
+}
+
+// persistCorrections moves the reader's locks and blocks out of the session and into
+// config.json, and hands back the session with them removed.
+//
+// It exists so that -persist means what it says. Without it the flag changed only which
+// store the document CLAIMED to be using: the corrections stayed in the cookie, the file was
+// never opened, and `store: "config"` was a label rather than a fact.
+//
+// Removing them from the session as they are written is the part that matters. Two stores
+// holding the same correction is how a dismissal comes back: the reader clears it from the
+// file, the session still carries it, and the next build applies it again from the copy
+// nobody was looking at.
+//
+// The file is written before the session is adopted, so a failed save leaves both stores
+// exactly as they were — the same order /action uses, and for the same reason.
+func (s *squadServer) persistCorrections(in session) (session, error) {
+	if len(in.Lock) == 0 && len(in.Exclude) == 0 && len(in.Dismissed) == 0 {
+		return in, nil
+	}
+	if s.cfgPath == "" {
+		return in, fmt.Errorf("there is no config path, so -persist has nowhere to write " +
+			"— your corrections were not saved")
+	}
+
+	today := s.now().Format("2006-01-02")
+	next := *s.cfg
+	// The bootstrap, not AllMetrics: an override names a footballer, and a code the pool
+	// has filtered out still has one. A nameless override is one the reader cannot identify
+	// in the file afterwards.
+	name := func(code int) string {
+		for i := range s.engine.Boot.Elements {
+			if el := &s.engine.Boot.Elements[i]; el.Code == code {
+				return el.WebName
+			}
+		}
+		return ""
+	}
+	set := func(kind string, codes []int, why string) error {
+		for _, code := range codes {
+			if err := next.Roster.Set(kind, config.RosterOverride{
+				Code: code, Name: name(code), Reason: why,
+				SetOn: today, LastChecked: today,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := set("lock", in.Lock, "locked from the planner"); err != nil {
+		return in, err
+	}
+	if err := set("exclude", in.Exclude, "blocked from the planner"); err != nil {
+		return in, err
+	}
+	// A dismissal under -persist is a deletion from the file, not a suppression of it.
+	// Anything else would leave the reader unable to remove an override from the one store
+	// the flag exists to edit.
+	for _, code := range in.Dismissed {
+		_ = next.Roster.Remove("lock", code)
+		_ = next.Roster.Remove("exclude", code)
+		_ = next.Roster.Remove("minutes", code)
+	}
+
+	if err := config.Save(s.cfgPath, next); err != nil {
+		return in, fmt.Errorf("saving config: %w", err)
+	}
+	s.cfg = &next
+	in.Lock, in.Exclude, in.Dismissed = nil, nil, nil
+	return in, nil
 }
 
 // validateSession refuses anything that is not a legal FPL squad.
@@ -430,6 +529,36 @@ func (s *squadServer) validateSession(in session) error {
 	}
 	if len(in.Chips) > 64 {
 		return fmt.Errorf("%d chip placements, which is more than a season has gameweeks", len(in.Chips))
+	}
+	// A placement the competition would refuse is refused here.
+	//
+	// The rail only draws the chips analysis.PlayableChips returns, so the page cannot
+	// produce one of these. The endpoint could, and the result would be silent rather than
+	// visible: the placement stores in a cookie the page cannot clear, and ApplyChipPlan
+	// bends the whole squad build around a chip that can never be played.
+	//
+	// Checked against the same function the rail is drawn from, so there is one statement
+	// of when a chip may be played rather than a validator and a renderer that drift.
+	usedGW := map[int]bool{}
+	for week, key := range in.Chips {
+		gw, err := strconv.Atoi(week)
+		if err != nil {
+			return fmt.Errorf("%q is not a gameweek", week)
+		}
+		if usedGW[gw] {
+			return fmt.Errorf("two chips placed in gameweek %d, and the game allows one", gw)
+		}
+		usedGW[gw] = true
+		legal := false
+		for _, k := range analysis.PlayableChips(s.engine.Boot, gw) {
+			if k == key {
+				legal = true
+				break
+			}
+		}
+		if !legal {
+			return fmt.Errorf("%s cannot be played in gameweek %d", analysis.ChipLabel(key), gw)
+		}
 	}
 
 	if len(in.Squad) == 0 {

@@ -215,3 +215,49 @@ func TestPlacingAChipChangesTheProjection(t *testing.T) {
 		t.Errorf("gameweek %d reports the chip as %q, want Bench Boost", week, placed)
 	}
 }
+
+// TestAChipCannotBePlacedWhereTheGameRefusesIt.
+//
+// The rail only draws what analysis.PlayableChips returns, so the page cannot offer a
+// wildcard in gameweek 1 or any chip outside its window. The endpoint could, and the result
+// would be silent rather than visible: the placement stores in an HttpOnly cookie the page
+// cannot clear, and ApplyChipPlan then bends the whole squad build around a chip that can
+// never be played. Every later request rebuilds from it.
+//
+// "The client would never send that" is the assumption this branch has spent its life
+// unpicking.
+func TestAChipCannotBePlacedWhereTheGameRefusesIt(t *testing.T) {
+	s := fixtureServer(t)
+
+	for _, tc := range []struct {
+		name string
+		gw   string
+		chip string
+	}{
+		{"a wildcard in gameweek 1", "1", "wildcard"},
+		{"a free hit in gameweek 1", "1", "freehit"},
+		{"a bench boost past the end of the season", "99", "bboost"},
+		{"a chip in a gameweek that is not a number", "later", "bboost"},
+		{"a chip nobody has heard of", "2", "tripleeverything"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, _ := put(t, s, session{
+				Version: sessionVersion,
+				Chips:   map[string]string{tc.gw: tc.chip},
+			}, nil)
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("answered %d, want 400. It would be stored in a cookie the page "+
+					"cannot clear, and every later build would run under it.", w.Code)
+			}
+		})
+	}
+
+	// And a legal one still passes, or the guard above proves nothing.
+	w, _ := put(t, s, session{
+		Version: sessionVersion,
+		Chips:   map[string]string{"1": "bboost"},
+	}, nil)
+	if w.Code != http.StatusOK {
+		t.Errorf("a bench boost in gameweek 1 was refused with %d: %s", w.Code, w.Body.String())
+	}
+}

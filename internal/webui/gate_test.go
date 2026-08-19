@@ -56,6 +56,26 @@ func TestTheGateIsDecidedTheSameWayInBothLanguages(t *testing.T) {
 		{0.5, -1.0}, // a negative gate is not a gate
 		{0.004, 0.0049},
 		{0.0051, 0.0049},
+
+		// The cases that separate math.Round(v*100)/100 from toFixed(2). Every one of
+		// these is a delta sitting one tie below a plausible gate, and the table above
+		// contains none of them — which is why this test passed while the two rules
+		// disagreed. The shipped gate is 0.40, where they happen to agree; these are the
+		// gates a sweep might move it to.
+		{0.295, 0.30},
+		{0.495, 0.50},
+		{0.245, 0.25},
+		{0.345, 0.35},
+		{0.595, 0.60},
+		{0.695, 0.70},
+		{0.745, 0.75},
+		{0.995, 1.00},
+		{1.495, 1.50},
+		{1.995, 2.00},
+		{0.015, 0.02},
+		{0.045, 0.05},
+		{0.105, 0.11},
+		{0.155, 0.16},
 	}
 
 	// The harness: the real app.js, a STATE carrying the gate, and one call per probe. The
