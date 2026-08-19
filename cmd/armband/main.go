@@ -30,6 +30,15 @@ Usage:
   armband advise            Full pre-deadline analysis, written to a Markdown report
   armband brief             Full deterministic briefing as Markdown (no AI, no API cost)
   armband squad             Run the optimiser only (no AI, no API cost)
+  armband serve             Serve the squad page over HTTP (no AI, no API cost).
+                            Loopback only: open the printed URL, which carries
+                            a per-startup token that gates the page's write
+                            actions. Lock and boot update the page in place;
+                            rows slide in and out. Flags go AFTER the command:
+                            -addr 127.0.0.1:9999, -persist (write overrides to
+                            config.json — the default keeps them in a
+                            browser-session cookie, so config.json stays a
+                            default)
   armband transfers         Best transfers for the squad you own, as a team sheet
                             (no AI, no API cost)
   armband fixtures          Fixture difficulty table (no AI, no API cost)
@@ -100,14 +109,16 @@ Examples:
   armband squad -html squad.html    WRONG, and an error rather than a squad
                                      printed with the file never written
 
-  Four commands parse their own flags, which therefore go AFTER the command:
-  capture, backfill, snapshot and reviewkey. Their flags still come before their
-  own positional arguments, for the same reason — a FlagSet stops at the first
-  non-flag argument too, so "backfill 2023-24 -coverage" reads -coverage as a
-  second season name and crawls the archive it was meant to avoid.
+  Five commands parse their own flags, which therefore go AFTER the command:
+  capture, backfill, snapshot, reviewkey and serve. Their flags still come
+  before their own positional arguments, for the same reason — a FlagSet stops
+  at the first non-flag argument too, so "backfill 2023-24 -coverage" reads
+  -coverage as a second season name and crawls the archive it was meant to
+  avoid. Serve has no positional arguments; it only takes -addr and -persist.
 
   armband capture -list             audit the capture series for gaps
   armband backfill -coverage all    report what is on disk without fetching
+  armband serve -addr 127.0.0.1:9999
 
 The agent reads Anthropic credentials from the environment: ANTHROPIC_API_KEY,
 ANTHROPIC_AUTH_TOKEN, or a profile created with ` + "`ant auth login`" + `.
@@ -390,6 +401,8 @@ func run() error {
 		return cmdBrief(ctx, cfg, client, engine, !*noReport, *htmlOut)
 	case "squad":
 		return cmdSquad(ctx, cfg, client, engine, *plain, *htmlOut, *weeks)
+	case "serve":
+		return cmdServe(ctx, cfg, *cfgPath, client, engine, *weeks)
 	case "transfers":
 		return cmdTransfers(ctx, cfg, client, engine, *plain, *htmlOut)
 	case "fixtures":
@@ -743,81 +756,18 @@ func cmdAgent(ctx context.Context, cfg config.Config, configPath string, client 
 // cmdSquad runs the optimiser with no LLM involvement.
 func cmdSquad(ctx context.Context, cfg config.Config, client *fpl.Client,
 	e *analysis.Engine, plain bool, htmlPath string, weeks int) error {
-	budget, source, err := e.AssemblyBudget()
-	if err != nil {
-		return err
-	}
-	// BenchWeight is deliberately left at zero, which Optimize reads as "use the
-	// configured weight" — config.json's bench_weight, backfilled to
-	// analysis.DefaultBenchWeight. This used to name 0.02 while `brief`'s
-	// model-optimal squad named 0.10, so two commands each claiming to print the
-	// best fifteen from the same money printed different fifteens. See
-	// TestSquadBuildersDoNotNameABenchWeight.
-	req := analysis.OptimizeRequest{
-		Budget:             budget,
-		MinMinutes:         600,
-		MinExpectedMinutes: 55,
-	}
-	for _, note := range applyRoster(cfg, e, &req) {
-		fmt.Printf("\n%s\n", dim(note))
-	}
-	for _, note := range e.ApplyChipPlan(&req) {
-		fmt.Printf("\n%s\n", dim("chip plan: "+note))
-	}
-	sq, err := e.Optimize(req)
-	if err != nil {
-		return err
-	}
 
-	// Say what it was allowed to spend, not merely what it spent. A £102.0m
-	// squad is a bug at the opening allowance and correct on a wildcard budget,
-	// and the reader cannot tell which without the source.
-	budgetLine := fmt.Sprintf("Budget £%.1fm: %s", float64(budget)/10, source)
+	// The page half is built only when a page is wanted: the transfer plan,
+	// watchlist and week views cost network calls and pool-wide passes that
+	// the terminal pitch would throw away.
+	b, err := buildSquadPage(ctx, cfg, client, e, weeks, htmlPath != "")
+	if err != nil {
+		return err
+	}
+	sq := b.Squad
 
 	if htmlPath != "" {
-		// One eleven under a five-gameweek heading is a mis-statement, so the
-		// page carries a tab per gameweek with that week's eleven, each
-		// player's opponent, and any chip the plan puts there.
-		// Deliberately allowed to exceed the scoring horizon. The squad is
-		// OPTIMISED over the horizon, but a chip is usually planned outside it —
-		// a wildcard at GW6 is invisible on a five-week view — and seeing which
-		// week a chip lands in is most of why anyone opens this page.
-		span := weeks
-		if span <= 0 {
-			span = e.Weights.Horizon
-		}
-		views := e.WeekViews(sq.Players, span)
-		// Projected transfers for the squad you actually own, when there is one.
-		// The reason there is not is carried through and printed, because an
-		// absent section cannot distinguish "no squad yet" from "no move is
-		// worth making", and the second is a recommendation.
-		plan, why := bestPlanForOwnedSquad(ctx, cfg, client, e)
-
-		// The two views behind the eleven. Built here because every value in them
-		// comes from config or the engine, and the renderer may reach for neither.
-		bound, live, lapsed := pageOverrides(cfg, e, sq.Players, time.Now())
-		var excluded []present.Override
-		for _, o := range live {
-			if o.Kind == "exclude" {
-				excluded = append(excluded, o)
-			}
-		}
-		page := present.Page{
-			Title:              fmt.Sprintf("Optimal squad — next %d gameweeks", e.Weights.Horizon),
-			Subtitle:           budgetLine,
-			Squad:              *sq,
-			Plan:               plan,
-			NoPlan:             why,
-			Weeks:              views,
-			Brief:              squadBrief(cfg, e),
-			Analysis:           readAnalysis(),
-			Horizon:            e.Weights.Horizon,
-			Overrides:          bound,
-			FixtureLoadInScore: e.FixtureLoadInScore(),
-			Reasoning:          reasoningFor(cfg, e, sq.Players, live, lapsed),
-			Watch:              watchlistFor(e, *sq, excluded, bound, cfg.Review.MinGainForTransfer),
-		}
-		if err := writeSquadHTML(htmlPath, page); err != nil {
+		if err := writeSquadHTML(htmlPath, b.Page); err != nil {
 			return err
 		}
 		fmt.Printf("\n%s\n", dim("wrote "+htmlPath))
@@ -830,13 +780,13 @@ func cmdSquad(ctx context.Context, cfg config.Config, client *fpl.Client,
 	if !plain {
 		present.Squad(os.Stdout, *sq, present.TerminalTheme(),
 			fmt.Sprintf("Optimal squad over the next %d gameweeks", e.Weights.Horizon))
-		fmt.Printf("  %s  %s\n\n", dim("budget "), dim(source))
+		fmt.Printf("  %s  %s\n\n", dim("budget "), dim(b.Source))
 		return nil
 	}
 
 	fmt.Printf("\nOptimal squad — formation %s, £%.1fm spent, £%.1fm left\n",
 		sq.Formation, sq.TotalCost, sq.Remaining)
-	fmt.Printf("%s\n", budgetLine)
+	fmt.Printf("%s\n", b.BudgetLine)
 	fmt.Printf("Projected starting XI: %.1f pts/gameweek over the next %d gameweeks\n",
 		sq.XIScore, e.Weights.Horizon)
 	fmt.Printf("With the captain doubled: %.1f pts/gameweek\n\n", sq.ExpectedPoints)
@@ -1409,6 +1359,7 @@ var commandsThatParseTheirOwnFlags = map[string]bool{
 	"reviewkey": true, // runReviewKey takes -out and -rev
 	"capture":   true, // cmdCapture takes -list and friends
 	"backfill":  true, // cmdBackfill takes -coverage, -per-gameweek and friends
+	"serve":     true, // cmdServe takes -addr
 }
 
 // rejectFlagsAfterCommand turns a silent no-op into an error.

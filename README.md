@@ -17,9 +17,12 @@ effect in this project's record that stands clear of the noise.*
 This is the page `armband -html squad.html squad` writes — real output from a live run, not a
 mockup. The whole fifteen under the real rules: the eleven and the bench in substitution order,
 the captain, what was spent and what is left, and against every player the next five fixtures,
-expected minutes, the model's score and the price.
+expected minutes, the model's score and the price. The same page serves live over HTTP —
+`armband serve` hosts it on 127.0.0.1, where every player in the fifteen carries a lock and a
+boot button that write standing overrides — into the browser session by default, back to
+config.json only with `-persist` — and the watchlist gains filters, sorting and paging.
 
-![The squad page for gameweek 1, four days before the deadline. A header shows the gameweek, the deadline and free transfers, above three tabs: The eleven, Why this eleven, and Watchlist. Below, the starting eleven in a 3-5-2 — 46.2 XI points per gameweek, Bruno Fernandes as captain, £99.5m spent, £0.5m left — with each row carrying five colour-coded fixture-difficulty pills, expected minutes, the model's score and the price. The four-man bench follows in substitution order.](docs/images/squad-eleven.png)
+![The squad page for gameweek 1, two days before the deadline, from the 2026-08-19 run. A header shows the gameweek, the deadline and free transfers, above three tabs: The eleven, Why this eleven, and Watchlist. Below, the starting eleven in a 3-5-2 — 46.5 XI points per gameweek, Bruno Fernandes as captain, £100.0m spent, £0.0m left — with each row carrying five colour-coded fixture-difficulty pills, expected minutes, the model's score and the price. The four-man bench follows in substitution order.](docs/images/squad-eleven.png)
 
 The shape of the system, and where the split falls: everything up to the agent is deterministic
 and free, and the language model is judgement layered on top of numbers it never computes
@@ -29,7 +32,7 @@ itself.
 flowchart LR
     api["public FPL API<br/>read-only, unauthenticated"]
     engine["quantitative scoring model<br/>deterministic, never calls the LLM"]
-    freecmds["free commands<br/>squad · transfers · fixtures · chips · brief"]
+    freecmds["free commands<br/>squad · serve · transfers · fixtures · chips · brief"]
     agentloop["LLM agent<br/>review · advise · due"]
     search["web search<br/>team news, press conferences"]
     you["you make the transfers<br/>no authenticated write path back to FPL"]
@@ -82,7 +85,7 @@ should change without reading what it does first.
 
 ## Two things to know before your first paid run
 
-**It writes to your config, never to FPL.** There is no authenticated write path at all — the
+**It writes to your config, never to FPL.** There is no authenticated write path at all — FPL's
 session cookie, the my-team endpoint and the `auth` command were removed outright, and
 `TestTheClientHasNoAuthenticatedSurface` fails the build if one comes back. You make the
 transfers.
@@ -139,12 +142,15 @@ A transfer is a question about **order** — will this player out-score that one
 hitting a points total. So the number to judge a predictor by is how well it ranks players
 within a gameweek.
 
-The squad page's watchlist tab asks that question thirty-two times over, and it is worth seeing
-how: each candidate is ranked not against the league but against the weakest starter you already
-own in that position, named in every group's header, with the Δ column giving the gap and green
-marking what clears the free-transfer gate. One of thirty-two does.
+The squad page's watchlist tab asks that question a hundred times over, and it is worth seeing
+how: the best hundred players outside the fifteen form one list by default, filterable by name,
+position and club — a filter searches the whole pool, not just the hundred — and sortable on
+every column but the fixture strip (price first), with each candidate measured not against the
+league but against the weakest starter you already own in that position — named in the legend
+above the list — and the Δ column giving the gap, green marking what clears the free-transfer
+gate. On this run's data, two of the whole pool do.
 
-![The watchlist tab: the 32 best available players not in the fifteen, grouped by position. Each group is headed by the weakest starter already owned in that position — Raya for goalkeepers, Tarkowski for defenders, Rice for midfielders, Calvert-Lewin for forwards — and each row shows the next five fixtures, expected minutes, ownership, the model's score, the gap to that starter, and price. Haaland's +1.70 is the only gap shown in green; the note above the table says one of 32 clears the free-transfer gate of 0.40 points per gameweek.](docs/images/watchlist.png)
+![The watchlist tab, from the same 2026-08-19 run: the best hundred players not in the fifteen by default, as one list. The legend above it names the weakest starter already owned in each position — Kinsky for goalkeepers, Thiaw for defenders, E.Le Fée for midfielders, Thiago for forwards — and every row shows the position, the club, the next five fixtures, expected minutes, ownership, the model's score, the gap to that starter, and the price. Two gaps are shown in green; the note above the table says two of the 575 players outside the fifteen clear the free-transfer gate of 0.40 points per gameweek.](docs/images/watchlist.png)
 
 The baselines are not straw men; they are what an FPL manager actually reasons from today.
 **Recent form** here is a player's mean score over his last five gameweeks — the same idea as
@@ -196,6 +202,7 @@ optimiser, the fixture model, the chip validator and the replay are all free.
 |---|---|---|
 | `brief` | The whole deterministic picture as one Markdown document, for pasting into a chat (`-html` for a page) | — |
 | `squad` | Best 15 it can find under the real constraints: £100m, positional quotas, three per club (`-plain`, `-html`) | — |
+| `serve` | The squad page over HTTP, loopback only — lock/boot buttons update the page in place (rows slide in and out), the watchlist filters, sorts and pages. Open the printed URL: its token gates the write actions. Overrides live in a browser-session cookie by default; `-persist` writes them to config.json (`-addr`, `-persist` after the command) | — |
 | `transfers` | Best transfers for the squad you own, as a team sheet (`-plain`, `-html`) | — |
 | `fixtures` | Fixture difficulty per club, easiest run first | — |
 | `chips` | Chip windows, plan validation, blanks and doubles | — |

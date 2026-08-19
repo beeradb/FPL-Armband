@@ -39,6 +39,17 @@ type Override struct {
 	// Kind is one of lock, lockXI, exclude, minutes, club. It drives nothing but
 	// the sort order; the badge reads Label.
 	Kind string
+	// Code is the player's PERMANENT FPL code, carried so the interactive page
+	// can act on the override (un-lock, un-boot) without reaching for the
+	// season-scoped element id. Element ids are reassigned every summer; a write
+	// action keyed on one would come back next August attached to a different
+	// footballer. Empty for club overrides, which have no player to write.
+	Code int
+	// Session marks an override set by this browser session rather than read
+	// from config.json. On the session-mode page it is the difference between
+	// "you can clear this" and "this is a standing override — change it in
+	// config, or run serve -persist".
+	Session bool
 	// Label is the badge text and it always carries the VALUE, never just the kind.
 	// "MIN 88" and "MIN 15" are opposite interventions — one is holding a backup
 	// keeper in the eleven, the other is writing an injured defender down — and a
@@ -355,7 +366,9 @@ func bandClass(band string) (string, bool) {
 // Delta is against the WEAKEST STARTER IN HIS POSITION, not against a rank. "The
 // eighth best midfielder" answers nothing; "+0.46 pts/gw on the midfielder you are
 // currently starting, and £2.0m dearer" is the whole decision. The caller computes it
-// because the caller is the only thing that knows both squads.
+// because the caller is the only thing that knows both squads. Who the benchmark IS
+// lives in Watchlist.Benchmarks, one name per position — repeating it on every row of
+// a hundred-row list is noise.
 type WatchRow struct {
 	Player analysis.PlayerMetrics
 	Delta  float64
@@ -391,38 +404,31 @@ func (r WatchRow) DeltaClass() string {
 	return ""
 }
 
-// WatchGroup is one position's candidates, with the starter they are measured against
-// named so the delta column has a referent.
-// The benchmark's PRICE is carried as well as his score, because the delta column
-// answers half the question and the reader was left doing the other half by hand: a
-// candidate at £6.0m against a starter whose price is three rows up in a different
-// table is a subtraction this column exists to spare him.
-type WatchGroup struct {
-	Position       string
-	BenchmarkName  string
-	BenchmarkScore float64
-	BenchmarkPrice float64
-	Rows           []WatchRow
+// WatchBenchmark is the weakest starter in one position — the player a transfer
+// in that position actually has to displace. The watchlist is one list across all
+// four positions, so the four benchmark names ride in a legend beside the delta
+// column's explanation rather than in per-position group headers that no longer
+// exist. The PRICE is carried as well as the score, because the delta column
+// answers half the question and the reader was left doing the other half by hand:
+// a candidate at £6.0m against a starter whose price is three rows up in a
+// different table is a subtraction this legend exists to spare him.
+type WatchBenchmark struct {
+	Position string
+	Name     string
+	Score    float64
+	Price    float64
 }
 
-// watchRowView and watchGroupView are the same thing after the players have been
-// turned into cards. Two shapes rather than one because the exported half is what a
-// caller can build — it has no business knowing about htmlCard — and the unexported
-// half is what the template reads.
+// watchRowView is a WatchRow after its player has been turned into a card. Two
+// shapes rather than one because the exported half is what a caller can build —
+// it has no business knowing about htmlCard — and the unexported half is what
+// the template reads.
 type watchRowView struct {
 	Card  htmlCard
 	Delta float64
 	// DeltaClass is decided by WatchRow, not recomputed here — the "does this clear
 	// the gate" question has one answer and one implementation.
 	DeltaClass string
-}
-
-type watchGroupView struct {
-	Position       string
-	BenchmarkName  string
-	BenchmarkScore float64
-	BenchmarkPrice float64
-	Rows           []watchRowView
 }
 
 // ResearchGroup is one category of "where the model says it is blind", carried
@@ -521,11 +527,15 @@ func (r *Reasoning) Any() bool {
 		len(r.Blind) > 0 || len(r.Policy.Rules) > 0 || r.Policy.MinGainTransfer > 0
 }
 
-// Watchlist is view 3.
+// Watchlist is view 3: one list of the best available players, across all four
+// positions, each measured against the weakest starter in his own position.
 type Watchlist struct {
-	Groups []WatchGroup
+	Rows []WatchRow
+	// Benchmarks names the weakest starter per position, for the delta column's
+	// legend. See WatchBenchmark.
+	Benchmarks []WatchBenchmark
 	// Excluded are the players a standing override keeps out of every squad. They are
-	// NOT in the ranked groups: they are not candidates, they are decisions, and the
+	// NOT in the ranked rows: they are not candidates, they are decisions, and the
 	// reason is printed in full rather than hidden behind a hover — "why is this
 	// obviously good player not here" is the most important thing on this view.
 	Excluded []Override
@@ -543,5 +553,5 @@ func (w *Watchlist) Any() bool {
 	if w == nil {
 		return false
 	}
-	return len(w.Groups) > 0 || len(w.Excluded) > 0
+	return len(w.Rows) > 0 || len(w.Excluded) > 0
 }

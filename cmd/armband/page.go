@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"runtime/pprof"
 	"sort"
 	"time"
 
@@ -10,6 +13,192 @@ import (
 	"armband/internal/fpl"
 	"armband/internal/present"
 )
+
+// squadPageBuild is one run of the shared squad pipeline: the optimal fifteen,
+// the page built around it, and the budget facts the terminal view also prints.
+//
+// A struct rather than five positional returns because the two callers want
+// different halves — `squad` reads the squad and the budget lines, `serve` reads
+// the page — and a ladder of named-but-untyped returns is how the old present.HTML
+// family ended up with a subtitle in its title.
+type squadPageBuild struct {
+	Page present.Page
+	// Squad is the fifteen the page is built around. The terminal pitch prints
+	// it; the page carries its own copy, which the renderer owns.
+	Squad *analysis.Squad
+	// BudgetLine is "Budget £Xm: <source>" — what the build was allowed to
+	// spend and whose money it was. Source answers the same question on its own
+	// for the pitch, which prints the figure separately.
+	BudgetLine, Source string
+}
+
+// buildSquadPage runs the optimiser and, when a page is wanted, assembles
+// the squad page around it.
+//
+// This is the one pipeline behind `armband squad -html` and `armband serve`,
+// so a page written to disk and a page served over HTTP cannot drift into two
+// pages. Everything in it reads config or the engine and hands
+// internal/present flat structs it can only draw — the boundary this file
+// exists to keep.
+//
+// wantPage gates the page half. The terminal `armband squad` wants the
+// fifteen only, and the page half is not free: the transfer plan fetches the
+// owned squad from FPL, the watchlist and the research targets each pass the
+// whole pool, and WeekViews re-optimises chip weeks. Computing all of it to
+// throw it away would give the plain command network fetches and a transfer
+// search it never had.
+func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
+	e *analysis.Engine, weeks int, wantPage bool) (squadPageBuild, error) {
+
+	// Stage timings for the page build (FPL_SERVE_TIMINGS=1), printed to stderr.
+	//
+	// Kept rather than removed once the snappy-page work had used it. The
+	// optimiser is the binding constraint on what this project can afford to
+	// run, so it gets optimised repeatedly, and every one of those sittings
+	// starts by asking which stage the time is in. Rebuilding this each time
+	// invites a subtly different instrument each time — and one that is absent
+	// while the question is being asked is an instrument nobody reaches for.
+	//
+	// It is additive printing and reaches nothing the build computes, which is
+	// why the fingerprint guard skips it rather than recording it: a run with it
+	// set is the same run. Pair it with FPL_CPU_PROFILE below, which names where
+	// to write a pprof profile of the same pipeline.
+	last := time.Now()
+	mark := func(s string) {
+		if os.Getenv("FPL_SERVE_TIMINGS") == "" {
+			return
+		}
+		now := time.Now()
+		fmt.Fprintf(os.Stderr, "TIMING %-14s %6.0fms\n", s, float64(now.Sub(last).Milliseconds()))
+		last = now
+	}
+
+	if pf := os.Getenv("FPL_CPU_PROFILE"); pf != "" {
+		f, err := os.Create(pf)
+		if err != nil {
+			return squadPageBuild{}, err
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return squadPageBuild{}, err
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			_ = f.Close()
+		}()
+	}
+
+	budget, source, err := e.AssemblyBudget()
+	if err != nil {
+		return squadPageBuild{}, err
+	}
+	// BenchWeight is deliberately left at zero, which Optimize reads as "use the
+	// configured weight" — config.json's bench_weight, backfilled to
+	// analysis.DefaultBenchWeight. This used to name 0.02 while `brief`'s
+	// model-optimal squad named 0.10, so two commands each claiming to print the
+	// best fifteen from the same money printed different fifteens. See
+	// TestSquadBuildersDoNotNameABenchWeight.
+	req := analysis.OptimizeRequest{
+		Budget:             budget,
+		MinMinutes:         600,
+		MinExpectedMinutes: 55,
+	}
+	for _, note := range applyRoster(cfg, e, &req) {
+		fmt.Printf("\n%s\n", dim(note))
+	}
+	for _, note := range e.ApplyChipPlan(&req) {
+		fmt.Printf("\n%s\n", dim("chip plan: "+note))
+	}
+	sq, err := e.Optimize(req)
+	if err != nil {
+		return squadPageBuild{}, err
+	}
+	mark("optimize")
+
+	// Say what it was allowed to spend, not merely what it spent. A £102.0m
+	// squad is a bug at the opening allowance and correct on a wildcard budget,
+	// and the reader cannot tell which without the source.
+	budgetLine := fmt.Sprintf("Budget £%.1fm: %s", float64(budget)/10, source)
+
+	if !wantPage {
+		return squadPageBuild{Squad: sq, BudgetLine: budgetLine, Source: source}, nil
+	}
+
+	// One eleven under a five-gameweek heading is a mis-statement, so the
+	// page carries a tab per gameweek with that week's eleven, each
+	// player's opponent, and any chip the plan puts there.
+	// Deliberately allowed to exceed the scoring horizon. The squad is
+	// OPTIMISED over the horizon, but a chip is usually planned outside it —
+	// a wildcard at GW6 is invisible on a five-week view — and seeing which
+	// week a chip lands in is most of why anyone opens this page.
+	span := weeks
+	if span <= 0 {
+		span = e.Weights.Horizon
+	}
+	views := e.WeekViews(sq.Players, span)
+	mark("weekviews")
+	// Projected transfers for the squad you actually own, when there is one.
+	// The reason there is not is carried through and printed, because an
+	// absent section cannot distinguish "no squad yet" from "no move is
+	// worth making", and the second is a recommendation.
+	plan, why := bestPlanForOwnedSquad(ctx, cfg, client, e)
+	mark("transfer plan")
+
+	// The two views behind the eleven. Built here because every value in them
+	// comes from config or the engine, and the renderer may reach for neither.
+	bound, live, lapsed := pageOverrides(cfg, e, sq.Players, time.Now())
+	mark("overrides")
+	var excluded []present.Override
+	for _, o := range live {
+		if o.Kind == "exclude" {
+			excluded = append(excluded, o)
+		}
+	}
+	page := present.Page{
+		Title:              fmt.Sprintf("Optimal squad — next %d gameweeks", e.Weights.Horizon),
+		Subtitle:           budgetLine,
+		Squad:              *sq,
+		Plan:               plan,
+		NoPlan:             why,
+		Weeks:              views,
+		Brief:              squadBrief(cfg, e),
+		Analysis:           readAnalysis(),
+		Horizon:            e.Weights.Horizon,
+		Overrides:          bound,
+		FixtureLoadInScore: e.FixtureLoadInScore(),
+		Reasoning:          reasoningFor(cfg, e, sq.Players, live, lapsed),
+		Watch:              watchlistFor(e, *sq, excluded, bound, cfg.Review.MinGainForTransfer),
+		Codes:              elementCodes(e),
+		Teams:              clubShortNames(e),
+	}
+	mark("page assemble")
+	return squadPageBuild{Page: page, Squad: sq, BudgetLine: budgetLine, Source: source}, nil
+}
+
+// clubShortNames lists the clubs in the bootstrap, for the watchlist's team
+// filter. Sorted so the select reads like a table rather than an API dump.
+func clubShortNames(e *analysis.Engine) []string {
+	var names []string
+	for i := range e.Boot.Teams {
+		names = append(names, e.Boot.Teams[i].ShortName)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// elementCodes maps element id to permanent player code.
+//
+// The page's write actions post the CODE, never the element id: ids are
+// reassigned every summer, and an override keyed on one comes back next August
+// attached to a different footballer. The bootstrap is the one place both ids
+// meet, so this is where the map is built — the renderer receives it and
+// never asks.
+func elementCodes(e *analysis.Engine) map[int]int {
+	m := make(map[int]int, len(e.Boot.Elements))
+	for i := range e.Boot.Elements {
+		m[e.Boot.Elements[i].ID] = e.Boot.Elements[i].Code
+	}
+	return m
+}
 
 // Assembling the squad page's three views.
 //
@@ -67,10 +256,12 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 
 	// player builds one card from a player-scoped override. `lapsedNow` is passed in
 	// rather than re-derived: config.Roster already decided which list this came from,
-	// and re-deciding it here would be a second implementation of Expired.
-	player := func(kind, label string, o config.RosterOverride, lapsedNow bool) present.Override {
+	// and re-deciding it here would be a second implementation of Expired. `bind`
+	// decides whether the card takes the per-element badge slot: one slot exists, so
+	// the first list in precedence order that speaks for a player keeps it.
+	player := func(kind, label string, o config.RosterOverride, lapsedNow, bind bool) present.Override {
 		ov := present.Override{
-			Kind: kind, Label: label, Reason: o.Reason, Player: o.Name,
+			Kind: kind, Label: label, Reason: o.Reason, Player: o.Name, Code: o.Code,
 			SetOn: o.SetOn, Until: lapses(o.UntilGameweek),
 			Checked:      checkedAge(o, now),
 			CheckAge:     o.CheckAge(now),
@@ -86,7 +277,7 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 				m := e.Metrics(el)
 				ov.Team, ov.Pos, ov.Price, ov.Score = m.Team, m.Position, m.Price, m.Score
 			}
-			if !lapsedNow {
+			if !lapsedNow && bind {
 				bound[id] = ov
 			}
 		}
@@ -99,10 +290,10 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 		if o.MustStart {
 			label = "LOCK XI"
 		}
-		live = append(live, player("lock", label, o, false))
+		live = append(live, player("lock", label, o, false, true))
 	}
 	for _, o := range exclude {
-		live = append(live, player("exclude", "EXCL", o, false))
+		live = append(live, player("exclude", "EXCL", o, false, true))
 	}
 	// The value is part of the badge and is never dropped. "MIN 88" holds a backup
 	// keeper in the eleven and "MIN 15" writes an injured defender down: opposite
@@ -113,13 +304,22 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 		if o.ExpectedMinutes != nil {
 			label = fmt.Sprintf("MIN %.0f", *o.ExpectedMinutes)
 		}
-		live = append(live, player("minutes", label, o, false))
+		// A minutes correction takes the badge slot only when no lock or
+		// exclusion already owns it. First writer wins, and lock and exclude
+		// ran first: the page's lock button reads this slot to decide whether
+		// a player is locked, so a MIN badge over a lock would render an OFF
+		// button on a player the optimiser is forced to keep — and clicking it
+		// would re-write the lock, replacing the reason the agent set with the
+		// page's canned one and clearing MustStart. The same guard keeps an
+		// excluded player's EXCL badge, which the watchlist's skip set reads.
+		_, taken := bound[byCode[o.Code]]
+		live = append(live, player("minutes", label, o, false, !taken))
 	}
 	for _, o := range expired {
-		lapsed = append(lapsed, player("lapsed", "LAPSED", o, true))
+		lapsed = append(lapsed, player("lapsed", "LAPSED", o, true, true))
 	}
 	for _, o := range minsExpired {
-		lapsed = append(lapsed, player("lapsed", "LAPSED MIN", o, true))
+		lapsed = append(lapsed, player("lapsed", "LAPSED MIN", o, true, true))
 	}
 
 	teams, teamsExpired := cfg.Roster.ActiveTeams(gw)
@@ -265,8 +465,22 @@ func withAge(lastChecked string, age int) string {
 // putting Saliba at the top of the defender list every week — where he would sit, since
 // the exclusion does not lower his score — would be an invitation to a transfer the
 // page itself forbids. They get their own block, with the reason in full.
-const watchPerPosition = 8
-
+//
+// # Why one list, not one per position
+//
+// The watchlist is a single list of the players outside the fifteen, with the
+// position as a column the reader can filter and sort on. Per-position groups
+// hid how positions trade against each other — the eighth-best keeper is not a
+// stronger candidate than the thirtieth-best midfielder just because both were
+// eighth on their own list.
+//
+// # Why the whole pool, not a pre-cut hundred
+//
+// This builds rows for EVERY player outside the fifteen. The cut to the best
+// hundred is a display cap the renderer applies to the unfiltered view, not a
+// selection made here: cut here and a filtered query could only ever find
+// players who made the hundred — a £4.0m promoted defender scores low and
+// would be unfilterable, which is exactly the player a reader filters for.
 func watchlistFor(e *analysis.Engine, sq analysis.Squad, excluded []present.Override,
 	bound map[int]present.Override, gate float64) *present.Watchlist {
 
@@ -282,44 +496,45 @@ func watchlistFor(e *analysis.Engine, sq analysis.Squad, excluded []present.Over
 		}
 	}
 
+	// The benchmark comes from the starting eleven only. A bench keeper is not
+	// the keeper a new keeper displaces.
+	bench := map[string]present.WatchBenchmark{}
+	for _, p := range sq.StartingXI {
+		if b, ok := bench[p.Position]; !ok || p.Score < b.Score {
+			bench[p.Position] = present.WatchBenchmark{
+				Position: p.Position, Name: p.Name, Score: p.Score, Price: p.Price,
+			}
+		}
+	}
+
 	all := e.AllMetrics()
 	sort.SliceStable(all, func(i, j int) bool { return all[i].Score > all[j].Score })
 
 	w := &present.Watchlist{Excluded: excluded, Gate: gate}
+	for _, m := range all {
+		if owned[m.ID] || skip[m.ID] {
+			continue
+		}
+		b := bench[m.Position]
+		d := m.Score - b.Score
+		// Against the gate, not against zero. A positive gap says "better than
+		// what you have"; only the gate says "worth a transfer", and the page
+		// prints that threshold two tabs away.
+		w.Rows = append(w.Rows, present.WatchRow{
+			Player: m, Delta: d, ClearsGate: gate > 0 && d >= gate,
+		})
+	}
+	for _, r := range w.Rows {
+		if r.ClearsGate {
+			w.Clearing++
+		}
+	}
+	w.Count = len(w.Rows)
+	// The legend names the benchmark per position, in canonical order.
 	for _, pos := range []string{"GKP", "DEF", "MID", "FWD"} {
-		g := present.WatchGroup{Position: pos}
-		// The benchmark comes from the starting eleven only. A bench keeper is not
-		// the keeper a new keeper displaces.
-		for _, p := range sq.StartingXI {
-			if p.Position != pos {
-				continue
-			}
-			if g.BenchmarkName == "" || p.Score < g.BenchmarkScore {
-				g.BenchmarkName, g.BenchmarkScore, g.BenchmarkPrice = p.Name, p.Score, p.Price
-			}
+		if b, ok := bench[pos]; ok {
+			w.Benchmarks = append(w.Benchmarks, b)
 		}
-		for _, m := range all {
-			if len(g.Rows) >= watchPerPosition {
-				break
-			}
-			if m.Position != pos || owned[m.ID] || skip[m.ID] {
-				continue
-			}
-			d := m.Score - g.BenchmarkScore
-			// Against the gate, not against zero. A positive gap says "better than
-			// what you have"; only the gate says "worth a transfer", and the page
-			// prints that threshold two tabs away.
-			g.Rows = append(g.Rows, present.WatchRow{
-				Player: m, Delta: d, ClearsGate: gate > 0 && d >= gate,
-			})
-		}
-		w.Count += len(g.Rows)
-		for _, r := range g.Rows {
-			if r.ClearsGate {
-				w.Clearing++
-			}
-		}
-		w.Groups = append(w.Groups, g)
 	}
 	return w
 }

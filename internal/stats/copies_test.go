@@ -294,20 +294,25 @@ func TestTheCopiedExpressionsHaveOneImplementation(t *testing.T) {
 			"add it to `sanctioned` with that argument.",
 		match: isRunningTopTwo,
 		sanctioned: map[string]sanction{
-			"internal/analysis/squad.go": {2, "" +
-				"xiValueShrunk, the one implementation, and xiValueOfParts. The " +
-				"second is a deliberate copy with a live reason: bestFormation " +
-				"evaluates eight candidate formations per XI, and materialising an " +
-				"eleven-player slice for each purely to hand it to xiValue was one " +
-				"of the allocations behind the objective's recorded 176 KB and 61 " +
-				"blocks per evaluation — the profile that made the optimiser " +
-				"GC-bound rather than compute-bound. Folding it in is not " +
-				"free either — it walks four sorted position slices in GKP, DEF, " +
-				"MID, FWD order, and floating-point addition is not associative, so " +
-				"summing the same scores in a different order lands a ULP away and " +
-				"the argmax above it turns that into a different footballer. " +
-				"Re-checked when this guard was written: bestFormation still calls " +
-				"it inside the formation loop, so the reason still holds."},
+			// internal/analysis/squad.go is deliberately ABSENT. It carried four
+			// copies of this update — foldPair twice, xiValueShrunk, xiValueOfParts
+			// and bestFormation's prefix builder — and was sanctioned at 2, then
+			// briefly at 5. Both were wrong. The update is pure comparison and
+			// assignment with no arithmetic in it, so it extracts without moving a
+			// bit, and it now has one implementation, analysis.promote — bit-exact
+			// against the differential oracle, fully inlined, and free on the
+			// benchmarks. ⚠️ The argument that justified the copies was about the
+			// SUM — addition order, and not materialising an eleven — which answers
+			// a question this guard does not ask. If this entry comes back, check
+			// first whether the copy FOLDS; all four here did.
+			"internal/analysis/pairfold_check_test.go": {2, "" +
+				"seqFold, the sequential reference foldPair is checked against, and " +
+				"a two-line swap normalising the random prior state it is checked " +
+				"from. The swap is a regex false positive rather than a top-two at " +
+				"all. seqFold is the same argument as refXIValue below — a reference " +
+				"implementation that called the thing it checks would check nothing — " +
+				"so it must NOT be folded into analysis.promote even though every " +
+				"non-test copy now has been."},
 			"internal/analysis/optimizerdiff_test.go": {1, "" +
 				"refXIValue, the frozen differential oracle. It is copied verbatim " +
 				"on purpose and its own comment forbids sharing code with the " +

@@ -192,8 +192,17 @@ func TestEnvSwitchListIsComplete(t *testing.T) {
 		"FPL_XGC_TERCILE_CSV": true,
 		"FPL_SWEEP":           true, // output formatting only
 		"FPL_TRACE":           true, // output formatting only
-		"FPL_SEASON":          true, // which season a CLI backtest replays
-		"FPL_START_GW":        true, // which gameweek a CLI backtest enters at
+		// The squad pipeline's stage timings, printed to stderr. Output only, on
+		// the same grounds as the two above: it prints how long a stage took and
+		// changes nothing a stage does, so a run with it set is the same run.
+		// It is the instrument the optimiser's speedups were measured on and is
+		// kept for the next one — see buildSquadPage.
+		"FPL_SERVE_TIMINGS": true,
+		// Where the same pipeline writes a pprof CPU profile. An output path, on
+		// the same grounds as the CSV dumps above.
+		"FPL_CPU_PROFILE": true,
+		"FPL_SEASON":      true, // which season a CLI backtest replays
+		"FPL_START_GW":    true, // which gameweek a CLI backtest enters at
 		// Declares that the snapshot series is published by CI rather than
 		// committed, so its absence is expected. It gates a TEST precondition and
 		// cannot reach the model, which is why it is skipped rather than

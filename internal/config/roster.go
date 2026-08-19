@@ -299,6 +299,28 @@ func (r *Roster) Set(mode string, o RosterOverride) error {
 	return nil
 }
 
+// Remove drops a player's override from ONE list only.
+//
+// Set already removes from the opposite list when adding, and its clear mode
+// removes from all three — which makes it the wrong tool for lifting a single
+// override. A player the agent has given a minutes correction and the squad
+// page has locked must be able to shed the lock alone; clear would wipe both,
+// silently discarding a fact the agent established. The squad page's un-lock
+// and un-boot actions come through here.
+func (r *Roster) Remove(mode string, code int) error {
+	switch mode {
+	case "lock":
+		r.Lock = removeCode(r.Lock, code)
+	case "exclude":
+		r.Exclude = removeCode(r.Exclude, code)
+	case "minutes":
+		r.Minutes = removeCode(r.Minutes, code)
+	default:
+		return fmt.Errorf("remove mode must be lock, exclude or minutes, got %q", mode)
+	}
+	return nil
+}
+
 // confirm refreshes an existing override in place, returning whether one was
 // found.
 func (r *Roster) confirm(o RosterOverride) bool {

@@ -316,10 +316,22 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
 - **The hit ceiling is a knob, not a clamp, and both expressions of it must move together.** →
   **transfer-policy**. Pinned by `TestTheHitCeilingIsReadByTheFundedPairBranch` (source scan)
   and `TestTheHitCeilingIsReachableAndDefaultsToOne`.
+- **A differential corpus on a dyadic score grid cannot see a re-associated sum, and the
+  optimiser's was entirely dyadic.** Sums of eleven exact multiples of 0.25 are exactly
+  representable, so any regrouping of one is bit-identical *by construction* — a comparison green
+  because it never ran. It shipped a "bit-identical" claim for `bestFormation`'s prefix fold that
+  was false. `optimizerdiff_test.go` now carries a continuous arm, and records why a DECIMAL grid
+  must not be added: tenths are both non-dyadic and coarse enough for two formations to tie
+  exactly, which is the one region where the fold really does pick differently. →
+  **optimiser-and-squad**
 - **`runPolicySweep` builds cells at `WeeklyXI: false`, and several diagnostics run at `true`.**
   Pin the setting in `apply` and stamp it.
-- **Never compare a replayed float for exact equality: a banked total is reproducible from a
-  commit AND a machine, and only the commit is recorded.** → **harness-and-inference**
+- **Never compare a replayed float for exact equality against a BANKED total: a banked total is
+  reproducible from a commit AND a machine, and only the commit is recorded.** Two fresh arms run
+  back to back on one machine hold the machine fixed, and there exact equality is the correct and
+  **sharpest** test of a rewrite claiming to preserve answers — it has no detection threshold,
+  because the prediction is exactness, so one differing cell refutes it at power 1. Do not quote
+  the first clause to block the second. → **harness-and-inference**
 - **The doubles guard must key on `(element, fixture)`, never `(element, gameweek)`.**
   `season.go` accumulates, never assigns; the phantom/duplicate counts are pinned at load.
 - **Anything reading fixture results must be gated by gameweek.** →
@@ -407,6 +419,9 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **Do not build a state trigger for the wildcard, and do not read a wildcard replay as a
   valuation.** → **chips**
 - **Do not add a lock.** → **optimiser-and-squad**
+- **Do not memoise `blankRate`.** Answer-exact and measured no faster —
+  `playsAtAll` is cheaper than the cache lookup that would replace it. →
+  **optimiser-and-squad**
 - **Do not use the olbauday CSV mirror** for a live weekly signal or for priors. →
   **recency-and-priors**
 - **Do not build a squad for rotation.** → **optimiser-and-squad**

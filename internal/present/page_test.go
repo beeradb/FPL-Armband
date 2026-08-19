@@ -1,6 +1,7 @@
 package present
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -77,6 +78,54 @@ func TestTheRosterNeverLabelsANailedStarter(t *testing.T) {
 	if strings.Contains(out, `class="risk"`) {
 		t.Error("the .risk span is back — it printed the rotation band unconditionally " +
 			"in the bad colour, which is what made every nailed starter look flagged")
+	}
+}
+
+// TestTheLockAndBootFormsRenderOnlyWhenServed pins the boundary between the two
+// forms of the page. The static export and the replay must carry no write
+// forms at all — a lock button on a file:// page posts to nothing — and the
+// served page's forms must carry the PERMANENT player code, never the
+// season-scoped element id, which an override keyed on would come back next
+// August attached to a different footballer.
+func TestTheLockAndBootFormsRenderOnlyWhenServed(t *testing.T) {
+	// The static page: no forms anywhere. The CSS class is shared by every
+	// page, so the assertion is on the rendered elements, not the stylesheet.
+	out := briefedPage(t, nil)
+	if strings.Contains(out, "action=\"/action\"") {
+		t.Error("the static page renders write forms; its buttons would post to nothing")
+	}
+	if strings.Contains(out, `td class="c-act"`) {
+		t.Error("the static page renders the action column; it is served-page furniture")
+	}
+
+	// The served page: an action column, one boot form per row, the lock form
+	// flipped to unlock where a lock override binds the player.
+	sq := sampleSquad()
+	locked := sq.StartingXI[0]
+	out = briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.Codes = map[int]int{sq.StartingXI[0].ID: 987654, sq.Bench[0].ID: 111}
+		p.Overrides = map[int]Override{locked.ID: {Kind: "lock", Label: "LOCK"}}
+	})
+	if n := strings.Count(out, `name="a" value="boot"`); n != 15 {
+		t.Errorf("the served page renders %d boot forms for a fifteen-man squad, want 15", n)
+	}
+	if n := strings.Count(out, `name="a" value="lock"`); n != 14 {
+		t.Errorf("the served page renders %d lock forms beside one locked player, want 14", n)
+	}
+	if !strings.Contains(out, `name="a" value="unlock"`) {
+		t.Error("the locked player's form still offers lock; his lock icon must flip to unlock")
+	}
+	// The form posts the permanent code, not the element id.
+	if !strings.Contains(out, `name="c" value="987654"`) {
+		t.Error("the lock form does not carry the permanent player code")
+	}
+	if strings.Contains(out, fmt.Sprintf(`name="c" value="%d"`, locked.ID)) {
+		t.Error("the lock form carries the element id, which FPL reassigns every summer")
+	}
+	// The CSRF token rides in every form.
+	if n := strings.Count(out, `name="t" value="tok"`); n != 30 {
+		t.Errorf("the token appears in %d forms, want one per form (30)", n)
 	}
 }
 
@@ -239,8 +288,10 @@ func TestTheThreeViewPageIsStillSelfContained(t *testing.T) {
 			Blind:     []string{"press conferences — see https://example.com/news"},
 			Overrides: []Override{{Label: "EXCL", Player: "X", Reason: "per https://example.com/x"}},
 		}
-		p.Watch = &Watchlist{Groups: []WatchGroup{{Position: "MID", BenchmarkName: "Saka",
-			BenchmarkScore: 6.9, Rows: []WatchRow{{Player: sampleSquad().StartingXI[0], Delta: -2.8}}}}}
+		p.Watch = &Watchlist{
+			Benchmarks: []WatchBenchmark{{Position: "MID", Name: "Saka", Score: 6.9}},
+			Rows:       []WatchRow{{Player: sampleSquad().StartingXI[0], Delta: -2.8}},
+		}
 	})
 	// Asserted on emitted MARKUP, not on the presence of a URL anywhere in the byte
 	// stream.
@@ -298,6 +349,151 @@ func TestTheWatchlistColoursAgainstTheGateAndNotAgainstZero(t *testing.T) {
 	}
 }
 
+// TestTheEnhancementScriptRendersOnlyWhenServed. The progressive-enhancement
+// script rides on the served page alone: the static export must stay
+// script-free — TestTheThreeViewPageIsStillSelfContained guards the offline
+// promise — and the served page's rows must carry the permanent-code keys the
+// script reconciles on.
+func TestTheEnhancementScriptRendersOnlyWhenServed(t *testing.T) {
+	static := briefedPage(t, func(p *Page) {
+		p.Watch = &Watchlist{Rows: []WatchRow{{Player: analysis.PlayerMetrics{
+			ID: 7, Name: "X", Team: "AAA", Position: "MID", Score: 5, Price: 6}}}}
+	})
+	if strings.Contains(static, "<script") {
+		t.Error("the static export carries the enhancement script; it must stay script-free")
+	}
+	if strings.Contains(static, "data-pid") {
+		t.Error("the static export carries row keys it has no script to use")
+	}
+
+	served := briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.Codes = map[int]int{p.Squad.StartingXI[0].ID: 987654, p.Squad.Bench[0].ID: 111}
+	})
+	for _, want := range []string{"fetch(\"/action\"", "data-pid=\"987654\"",
+		`"slide-in"`, `"slide-out"`} {
+		if !strings.Contains(served, want) {
+			t.Errorf("the served page lacks %q", want)
+		}
+	}
+}
+
+// TestTheSessionModePageDisablesConfigSourcedControls. On the session-mode
+// page, an override that lives in config.json renders its control disabled —
+// the page cannot clear what it does not own — while a session-sourced one
+// stays live.
+func TestTheSessionModePageDisablesConfigSourcedControls(t *testing.T) {
+	sq := sampleSquad()
+	out := briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.SessionMode = true
+		p.Codes = map[int]int{sq.StartingXI[0].ID: 987654}
+		p.Overrides = map[int]Override{
+			sq.StartingXI[0].ID: {Kind: "lock", Label: "LOCK", Code: 987654},
+		}
+	})
+	if !strings.Contains(out, `class="actbtn on" type="button" disabled`) {
+		t.Error("a config-sourced lock renders a live unlock button on the " +
+			"session-mode page; it cannot clear what it does not own")
+	}
+	if !strings.Contains(out, "Restart serve with -persist") {
+		t.Error("the disabled lock does not explain why")
+	}
+
+	out = briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.SessionMode = true
+		p.Codes = map[int]int{sq.StartingXI[0].ID: 987654}
+		p.Overrides = map[int]Override{
+			sq.StartingXI[0].ID: {Kind: "lock", Label: "LOCK", Code: 987654, Session: true},
+		}
+	})
+	if strings.Contains(out, `type="button" disabled`) {
+		t.Error("a session-sourced lock renders disabled; the page owns it and " +
+			"must be able to clear it")
+	}
+	if !strings.Contains(out, `name="a" value="unlock"`) {
+		t.Error("a session-sourced lock does not offer unlock")
+	}
+
+	// The excluded card: config-sourced exclusions carry a note, session ones
+	// the bring-back button.
+	out = briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.SessionMode = true
+		p.Watch = &Watchlist{
+			Excluded: []Override{{Kind: "exclude", Label: "EXCL", Player: "X",
+				Code: 987654, Reason: "r"}},
+			Rows: []WatchRow{{Player: analysis.PlayerMetrics{
+				ID: 7, Name: "Y", Team: "AAA", Position: "MID", Score: 5, Price: 6}}},
+		}
+	})
+	if !strings.Contains(out, "restart serve with -persist") {
+		t.Error("a config-sourced exclusion carries no explanation on the " +
+			"session-mode page")
+	}
+	out = briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.SessionMode = true
+		p.Watch = &Watchlist{
+			Excluded: []Override{{Kind: "exclude", Label: "EXCL", Player: "X",
+				Code: 987654, Reason: "r", Session: true}},
+			Rows: []WatchRow{{Player: analysis.PlayerMetrics{
+				ID: 7, Name: "Y", Team: "AAA", Position: "MID", Score: 5, Price: 6}}},
+		}
+	})
+	if !strings.Contains(out, `name="a" value="unboot"`) {
+		t.Error("a session-sourced exclusion does not offer the bring-back button")
+	}
+}
+
+// TestTheWatchlistControlsRenderOnlyWhenServed. The served watchlist carries a
+// filter form, sort links and a pager over 50-row pages; the static export
+// shows the same rows sorted the same default way, with no controls — a sort
+// link on a file:// page points at a state that page cannot render.
+func TestTheWatchlistControlsRenderOnlyWhenServed(t *testing.T) {
+	static := briefedPage(t, func(p *Page) {
+		p.Watch = &Watchlist{Rows: []WatchRow{{Player: analysis.PlayerMetrics{
+			ID: 7, Name: "X", Team: "AAA", Position: "MID", Score: 5, Price: 6}}}}
+	})
+	// The CSS classes ship with every page; the assertion is on the rendered
+	// elements, not the stylesheet.
+	if strings.Contains(static, `<form class="wfilter"`) ||
+		strings.Contains(static, `<a class="sort`) ||
+		strings.Contains(static, `<nav class="pager"`) {
+		t.Error("the static export renders watchlist controls that cannot work offline")
+	}
+
+	rows := make([]WatchRow, 60)
+	for i := range rows {
+		rows[i] = WatchRow{Player: analysis.PlayerMetrics{
+			ID: i + 1, Name: fmt.Sprintf("P%02d", i), Team: "AAA", Position: "MID",
+			Score: 5, Price: float64(60 - i)}, Delta: 1}
+	}
+	served := briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.Watch = &Watchlist{Rows: rows}
+		p.WatchQuery = DefaultWatchQuery()
+		p.Teams = []string{"AAA", "BBB"}
+	})
+	for _, want := range []string{
+		`<form class="wfilter" method="get" action="/">`,
+		`name="pos"`, `name="team"`, `name="q"`,
+		// The active column's link flips the direction.
+		`href="?dir=asc&sort=price&v=watch"`,
+		`<a class="sort on" href="?dir=asc&sort=price&v=watch">&pound; ↓</a>`,
+		"1–50 of 60", "page 1 of 2", "next ›",
+	} {
+		if !strings.Contains(served, want) {
+			t.Errorf("the served watchlist lacks %q", want)
+		}
+	}
+	// The position column: one row per candidate, position visible.
+	if !strings.Contains(served, `<td class="pos">MID</td>`) {
+		t.Error("the watchlist has no position column")
+	}
+}
+
 // TestTheWatchlistSaysWhenNothingClearsTheGate. The count is the most useful sentence
 // the view can carry, and it is the one a reader would otherwise have to derive by
 // comparing a column against a number on another tab.
@@ -305,14 +501,17 @@ func TestTheWatchlistSaysWhenNothingClearsTheGate(t *testing.T) {
 	out := briefedPage(t, func(p *Page) {
 		p.Watch = &Watchlist{
 			Gate: 2.0, Count: 2, Clearing: 0,
-			Groups: []WatchGroup{{Position: "MID", BenchmarkName: "Saka",
-				BenchmarkScore: 6.9, BenchmarkPrice: 10.1,
-				Rows: []WatchRow{{Player: analysis.PlayerMetrics{Name: "X"}, Delta: 0.81}}}},
+			Benchmarks: []WatchBenchmark{{Position: "MID", Name: "Saka",
+				Score: 6.9, Price: 10.1}},
+			Rows: []WatchRow{{Player: analysis.PlayerMetrics{Name: "X"}, Delta: 0.81}},
 		}
 	})
-	if !strings.Contains(out, "Nothing on this list does") {
-		t.Error("the watchlist does not say that no candidate clears the gate; " +
-			"without it a column of positive deltas reads as a list of upgrades")
+	// The sentence names the scale it counts over — the whole candidate pool,
+	// not the capped hundred — so "none of 2" is stated against 2.
+	if !strings.Contains(out, "None of the 2 players outside your fifteen does") {
+		t.Error("the watchlist does not say that no candidate clears the gate, " +
+			"against the pool it counted; without it a column of positive deltas " +
+			"reads as a list of upgrades")
 	}
 	if !strings.Contains(out, "£10.1m") {
 		t.Error("the benchmark's price is missing from the group header, so the " +
@@ -497,8 +696,7 @@ func TestEveryNameIsEscapedInEveryView(t *testing.T) {
 		}
 		p.Watch = &Watchlist{
 			Excluded: []Override{{Label: "EXCL", Player: evil, Reason: evil}},
-			Groups: []WatchGroup{{Position: "MID",
-				Rows: []WatchRow{{Player: analysis.PlayerMetrics{Name: evil, Team: evil}}}}},
+			Rows:     []WatchRow{{Player: analysis.PlayerMetrics{Name: evil, Team: evil}}},
 		}
 	})
 	if strings.Contains(out, evil) {

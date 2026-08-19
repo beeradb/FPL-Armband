@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net/url"
 	"strings"
 
 	"armband/internal/analysis"
@@ -52,6 +53,41 @@ type Page struct {
 	FixtureLoadInScore bool
 	Reasoning          *Reasoning
 	Watch              *Watchlist
+	// Token switches the page into its interactive form: with it, roster rows
+	// carry lock and boot forms posting to /action, and the excluded cards an
+	// un-boot. Empty renders the static page exactly as before — the file
+	// export and the replay set nothing, and a served page cannot forget to set
+	// it without also losing every write action.
+	Token string
+	// Codes maps an element id to its permanent player code, so the write
+	// actions post the code and never the season-scoped id. Element ids are
+	// reassigned every summer; an override keyed on one comes back next August
+	// attached to a different footballer. The caller builds it from the
+	// bootstrap, the one place both ids meet.
+	Codes map[int]int
+	// Ret is the current request's raw query, echoed into every form so a POST
+	// returns the reader to the view, sort and page they were on. Empty on the
+	// static page.
+	Ret string
+	// WatchQuery is the reader's filter, sort and page over the watchlist,
+	// parsed by the served page's handler. The zero value renders the static
+	// export's watchlist: every row, sorted by the default — price,
+	// descending.
+	WatchQuery WatchQuery
+	// Teams is the club short-name list for the watchlist's team filter,
+	// built by the caller from the bootstrap. Empty on the static page, where
+	// the filter never renders.
+	Teams []string
+	// View is which tab the page opens on: team, why or watch. The served
+	// page carries it as the v query parameter, so filters, sorts and pages
+	// land the reader back on the watchlist rather than on the eleven. Empty
+	// means team, the default.
+	View string
+	// SessionMode marks the served page whose write actions go to a
+	// browser-session cookie rather than back to config.json — the default.
+	// With it, overrides that came from config render their controls disabled,
+	// because the page cannot clear what it does not own.
+	SessionMode bool
 }
 
 // HTML writes a squad and its transfers as a self-contained page: no external CSS, no
@@ -75,17 +111,22 @@ func Render(w io.Writer, p Page) error {
 		renderMarkdown(&an, p.Analysis)
 	}
 	data := pageData{
-		Title:     p.Title,
-		Subtitle:  p.Subtitle,
-		Squad:     p.Squad,
-		NoPlan:    p.NoPlan,
-		Brief:     p.Brief,
-		Analysis:  template.HTML(an.String()),
-		Horizon:   p.Horizon,
-		Reasoning: p.Reasoning,
-		Watch:     p.Watch,
-		HasWhy:    p.Reasoning.Any(),
-		HasWatch:  p.Watch.Any(),
+		Title:       p.Title,
+		Subtitle:    p.Subtitle,
+		Squad:       p.Squad,
+		NoPlan:      p.NoPlan,
+		Brief:       p.Brief,
+		Analysis:    template.HTML(an.String()),
+		Horizon:     p.Horizon,
+		Reasoning:   p.Reasoning,
+		Watch:       p.Watch,
+		HasWhy:      p.Reasoning.Any(),
+		HasWatch:    p.Watch.Any(),
+		Token:       p.Token,
+		Codes:       p.Codes,
+		Ret:         p.Ret,
+		SessionMode: p.SessionMode,
+		View:        p.View,
 	}
 	data.Tabs = data.HasWhy || data.HasWatch
 
@@ -104,6 +145,15 @@ func Render(w io.Writer, p Page) error {
 		c := newCard(m, p.Squad.Captain.ID, p.Squad.ViceCaptain.ID, p.Overrides,
 			p.FixtureLoadInScore)
 		c.ScorePct = pct(m.Score, best)
+		// The permanent code rides on the card rather than the metrics: it is a
+		// fact about the FOOTBALLER for the write actions, and PlayerMetrics is
+		// the scoring struct the agent reasons over. The caller's map is the one
+		// place element id and code meet. The token, the return path and the
+		// session-mode flag ride along for the same reason the code does: the
+		// acts template only sees the card.
+		c.Code = p.Codes[m.ID]
+		c.Token, c.Ret = p.Token, p.Ret
+		c.SessionMode = p.SessionMode
 		return c
 	}
 
@@ -178,22 +228,55 @@ func Render(w io.Writer, p Page) error {
 	// carry this eleven", which is a question about the fifteen and not about the
 	// pool — so ScorePct is left at zero here rather than computed and unused.
 	if p.Watch != nil {
-		for _, g := range p.Watch.Groups {
-			gv := watchGroupView{
-				Position:       g.Position,
-				BenchmarkName:  g.BenchmarkName,
-				BenchmarkScore: g.BenchmarkScore,
-				BenchmarkPrice: g.BenchmarkPrice,
-			}
-			for _, r := range g.Rows {
-				gv.Rows = append(gv.Rows, watchRowView{
-					Card: card(r.Player), Delta: r.Delta, DeltaClass: r.DeltaClass(),
-				})
-			}
-			data.WatchGroups = append(data.WatchGroups, gv)
+		q := p.WatchQuery
+		if q.Sort == "" {
+			// The static export still opens on the default ordering.
+			q = DefaultWatchQuery()
 		}
+		// Only the served page pages: its handler sets WatchQuery and Token
+		// together, so Token is the same fact as "this came from a request".
+		q.Pageable = p.Token != ""
+		rows, page, pages, total := p.Watch.Apply(q)
+		for _, r := range rows {
+			data.WatchRows = append(data.WatchRows, watchRowView{
+				Card: card(r.Player), Delta: r.Delta, DeltaClass: r.DeltaClass(),
+			})
+		}
+		data.WatchQ = watchQueryView{
+			Interactive: p.Token != "",
+			Sort:        q.Sort,
+			Dir:         "desc",
+			Q:           q.Q,
+			Pos:         q.Pos,
+			Team:        q.Team,
+			Page:        page,
+			Pages:       pages,
+			From:        pageFirst(page, len(rows)),
+			To:          pageLast(page, len(rows)),
+			Total:       total,
+		}
+		if !q.Desc {
+			data.WatchQ.Dir = "asc"
+		}
+		data.Teams = p.Teams
 	}
 	return pageTmpl.Execute(w, withPalette(data))
+}
+
+// pageFirst and pageLast are the 1-based row positions the pager reports:
+// "51–100 of 101" rather than page arithmetic the reader can do without.
+func pageFirst(page, onPage int) int {
+	if onPage == 0 {
+		return 0
+	}
+	return (page-1)*WatchPageSize + 1
+}
+
+func pageLast(page, onPage int) int {
+	if onPage == 0 {
+		return 0
+	}
+	return (page-1)*WatchPageSize + onPage
 }
 
 // pct is the bar width, in whole percent, clamped. Presentation arithmetic — the same
@@ -297,15 +380,157 @@ type pageData struct {
 	Summary   *replaySummary
 	Reasoning *Reasoning
 	Watch     *Watchlist
-	// WatchGroups is Watch.Groups with every player turned into a card, so the
+	// WatchRows is the watchlist for this render: Watch.Rows filtered, sorted
+	// and sliced for the query, with every player turned into a card so the
 	// watchlist and the roster render a name the same way.
-	WatchGroups []watchGroupView
-	Research    []researchGroupView
+	WatchRows []watchRowView
+	// WatchQ is the resolved query state, for the filter form, the sort links
+	// and the pager.
+	WatchQ watchQueryView
+	// Teams is the club list for the team filter, from Page.
+	Teams    []string
+	Research []researchGroupView
 	// Tabs is false when there is only one view — the replay, and any squad page
 	// built without the reasoning and watchlist data. A tab bar with one tab is
 	// furniture pretending to be a control.
 	Tabs, HasWhy, HasWatch bool
+	// Token, Codes and Ret mirror Page: the write-action gate, the id→code map,
+	// and the current query for the redirect. Token non-empty is the page's
+	// whole "is this interactive" condition.
+	Token string
+	Codes map[int]int
+	Ret   string
+	// SessionMode mirrors Page: the served page whose write actions go to a
+	// browser-session cookie. Renders config-sourced override controls
+	// disabled.
+	SessionMode bool
+	// View is the tab the page opens on: team, why or watch. Empty is team.
+	View string
 }
+
+// watchQueryView is WatchQuery after Apply has resolved the page: the state
+// the template renders the filter form, the sort links and the pager from.
+//
+// Interactive reports whether the served page should show those controls at
+// all. The static export shows the same rows — sorted the same default way —
+// with bare headings and no pager, because a sort link on a file:// page is a
+// link to a state that page cannot render.
+type watchQueryView struct {
+	Interactive     bool
+	Sort, Dir       string
+	Q, Pos, Team    string
+	Page, Pages     int
+	From, To, Total int
+}
+
+// SortHead renders one sortable column heading: a link on the served page,
+// the bare label on the static export.
+//
+// The link keeps the filters, drops the page (a new sort starts at page 1),
+// and either flips the direction — clicking the active column — or opens the
+// column on its natural direction. The label is NOT escaped: every label is a
+// compile-time literal written into the template, so escaping would turn
+// "&Delta;" into the text "&amp;Delta;". The href is percent-encoded by
+// url.Values, which is the escaping that attribute actually needs.
+func (v watchQueryView) SortHead(col, label string) template.HTML {
+	if !v.Interactive {
+		return template.HTML(label)
+	}
+	desc := WatchNaturalDir(col) == "desc"
+	if v.Sort == col {
+		desc = v.Dir != "desc" // the active column flips
+	}
+	vals := url.Values{}
+	vals.Set("sort", col)
+	if desc {
+		vals.Set("dir", "desc")
+	} else {
+		vals.Set("dir", "asc")
+	}
+	// These links live on the watchlist view; carrying the view means a sort
+	// lands the reader back where they clicked, not on the eleven.
+	vals.Set("v", "watch")
+	if v.Q != "" {
+		vals.Set("q", v.Q)
+	}
+	if v.Pos != "" {
+		vals.Set("pos", v.Pos)
+	}
+	if v.Team != "" {
+		vals.Set("team", v.Team)
+	}
+	arrow := ""
+	if v.Sort == col {
+		if v.Dir == "desc" {
+			arrow = " ↓"
+		} else {
+			arrow = " ↑"
+		}
+	}
+	class := "sort"
+	if v.Sort == col {
+		class += " on"
+	}
+	return template.HTML(fmt.Sprintf(`<a class="%s" href="?%s">%s%s</a>`,
+		class, vals.Encode(), label, arrow))
+}
+
+// Pager renders the previous/next controls and the row span, when the served
+// page has more than one page of rows. Empty otherwise.
+func (v watchQueryView) Pager() template.HTML {
+	if !v.Interactive || v.Pages <= 1 {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, `<nav class="pager" aria-label="Watchlist pages">`)
+	pg := func(n int, text string) {
+		if n < 1 || n > v.Pages {
+			fmt.Fprintf(&b, `<span class="pg off">%s</span>`, template.HTMLEscapeString(text))
+			return
+		}
+		fmt.Fprintf(&b, `<a class="pg" href="%s">%s</a>`, v.pageHref(n), template.HTMLEscapeString(text))
+	}
+	pg(v.Page-1, "‹ previous")
+	fmt.Fprintf(&b, `<span class="pgmeta">%d–%d of %d &middot; page %d of %d</span>`,
+		v.From, v.To, v.Total, v.Page, v.Pages)
+	pg(v.Page+1, "next ›")
+	b.WriteString(`</nav>`)
+	return template.HTML(b.String())
+}
+
+// pageHref is a link to one page of the current query: the sort, direction
+// and filters preserved, the page replaced (1 omitted).
+func (v watchQueryView) pageHref(n int) string {
+	vals := url.Values{}
+	vals.Set("sort", v.Sort)
+	vals.Set("dir", v.Dir)
+	vals.Set("v", "watch")
+	if v.Q != "" {
+		vals.Set("q", v.Q)
+	}
+	if v.Pos != "" {
+		vals.Set("pos", v.Pos)
+	}
+	if v.Team != "" {
+		vals.Set("team", v.Team)
+	}
+	if n > 1 {
+		vals.Set("p", fmt.Sprintf("%d", n))
+	}
+	return "?" + vals.Encode()
+}
+
+// AnyFilter reports whether the reader is looking at anything other than the
+// page's opening state, which is when the "clear" link earns its place.
+func (v watchQueryView) AnyFilter() bool {
+	return v.Q != "" || v.Pos != "" || v.Team != "" ||
+		v.Sort != "price" || v.Dir != "desc"
+}
+
+// ResetHref is the opening state of the watchlist. The token is not needed:
+// the page's forms embed it server-side, and GET is read-only. The view rides
+// along so "clear" keeps the reader on the watchlist.
+func (v watchQueryView) ResetHref() string { return "/?v=watch" }
 
 // replaySummary is the shape of the season, read before any single week.
 //
@@ -440,7 +665,16 @@ type htmlMove struct {
 }
 
 type htmlCard struct {
-	ID                         int
+	ID int
+	// Code is the player's permanent FPL code, for the interactive page's
+	// write actions. Zero on the static page, where no form is rendered anyway.
+	Code int
+	// Token and Ret are the served page's write-action credentials, filled on
+	// every card when the page is interactive. A card carries them because the
+	// acts template is invoked with the card as its data, and $ inside an
+	// invoked template is that data — not the page root.
+	Token, Ret                 string
+	SessionMode                bool
 	Name, Team, Position, Slot string
 	// Risk is free-text carried by the replay only, where it marks a player who has
 	// just arrived. It is NOT the rotation band — see Band.
@@ -714,6 +948,37 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
   .ovr p { margin:0; max-width:70ch; font-size:.88rem; color:var(--ink2); }
   .ovr .touches { margin:.45rem 0 0; font-size:.82rem; color:var(--ink3); }
 
+  /* ---- lock and boot: the served page's write actions ---- */
+  /* Quiet until needed: the icons sit in ink3 like any other annotation, and
+     only the hover and the active lock state speak. A page-created lock IS a
+     hand-set override, so its active state takes the override violet — the
+     page's own hue for authorship — not green or red, which would read as a
+     verdict on the player. */
+  td.c-act { white-space:nowrap; text-align:right; padding-left:.2rem; }
+  .act { display:inline-block; margin-left:.18rem; }
+  .actbtn { background:none; border:1px solid transparent; border-radius:3px;
+            color:var(--ink3); cursor:pointer; padding:.2rem .28rem; line-height:0;
+            vertical-align:middle; }
+  .actbtn svg { display:block; }
+  .actbtn:hover { color:var(--ink); border-color:var(--line); background:var(--panel2); }
+  .actbtn.on { color:var(--ovink); border-color:var(--ovline); background:var(--ovbg); }
+  .actbtn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .xbtn { background:none; border:1px solid var(--line); border-radius:3px; color:var(--ink2);
+          cursor:pointer; font-family:var(--mono); font-size:.66rem; padding:.18rem .5rem;
+          margin-top:.55rem; }
+  .xbtn:hover { border-color:var(--line2); color:var(--ink); background:var(--panel2); }
+  .xbtn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .actbtn:disabled { cursor:not-allowed; opacity:.55; }
+  .actsess { font-family:var(--mono); font-size:.66rem; color:var(--ink3); margin-top:.55rem; }
+
+  /* ---- progressive enhancement: rows slide in and out ---- */
+  /* The transitions decorate a state change the server already made — they
+     carry no information, so reduced motion drops them outright. */
+  tr.slide-in { animation:rowin .28s ease; }
+  @keyframes rowin { from { opacity:0; transform:translateY(-8px); } }
+  tr.slide-out { opacity:0; transform:translateY(6px);
+                 transition:opacity .22s ease, transform .22s ease; }
+
   /* ---- the why-card ---- */
   /* A div rather than a span: the card contains block content (rows, rules,
      paragraphs), and flow content inside a span is invalid HTML. It parses correctly
@@ -775,10 +1040,6 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
   .rules > div .v { font-size:1.05rem; font-weight:800; font-variant-numeric:tabular-nums; }
 
   /* ---- watchlist ---- */
-  tr.grp td { background:var(--panel2); border-bottom:1px solid var(--line2);
-              padding:.45rem .85rem; }
-  tr.grp .k { margin-right:.9rem; }
-  tr.grp .bench { font-size:.78rem; color:var(--ink3); font-variant-numeric:tabular-nums; }
   td.c-delta { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right;
                white-space:nowrap; }
   td.c-delta.up { color:var(--good); font-weight:700; }
@@ -787,6 +1048,34 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
              font-variant-numeric:tabular-nums; color:var(--ink3); }
   th.c-delta, th.c-own { text-align:right; }
   .empty { color:var(--ink3); font-style:italic; }
+
+  /* The watchlist's filter bar, sort links and pager. The page stays
+     script-free: sorting is a link, filtering is a GET form, and both are
+     server-rendered. */
+  .wfilter { display:flex; flex-wrap:wrap; gap:.45rem; align-items:center; margin:0 0 .9rem; }
+  .wfilter input[type="search"], .wfilter select {
+    font-family:var(--mono); font-size:.74rem; color:var(--ink);
+    background:var(--panel); border:1px solid var(--line); border-radius:3px;
+    padding:.3rem .5rem; }
+  .wfilter input[type="search"] { min-width:11rem; }
+  .wfilter input:focus-visible, .wfilter select:focus-visible {
+    outline:2px solid var(--accent); outline-offset:1px; }
+  .wfsend { background:var(--panel); border:1px solid var(--line); border-radius:3px;
+            font-family:var(--mono); font-size:.72rem; color:var(--ink2);
+            cursor:pointer; padding:.32rem .6rem; }
+  .wfsend:hover { color:var(--ink); border-color:var(--line2); }
+  .wfclear { margin-left:.35rem; font-size:.8rem; }
+  th a.sort { color:inherit; text-decoration:none; }
+  th a.sort:hover { color:var(--accent); }
+  /* The active column keeps the ink but carries the arrow, so "sorted how"
+     never depends on hover. */
+  th a.sort.on { color:var(--ink); }
+  .pager { display:flex; align-items:center; gap:.9rem; margin-top:.8rem; font-size:.82rem; }
+  .pager .pgmeta { font-family:var(--mono); font-size:.7rem; color:var(--ink3);
+                   font-variant-numeric:tabular-nums; }
+  .pager .pg { color:var(--accent); text-decoration:none; font-weight:600; }
+  .pager .pg:hover { text-decoration:underline; }
+  .pager .pg.off { color:var(--ink3); }
 
   .tabs { display:flex; gap:.35rem; flex-wrap:wrap; margin-bottom:.9rem; }
   .tabs label { font-family:var(--mono); font-size:.72rem; padding:.32rem .7rem;
@@ -868,12 +1157,14 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
     .roster td.c-score, .roster th.c-score { width:3.9rem; }
     .roster td.c-score .bar { right:.5rem; max-width:calc(100% - 1rem); }
   }
-  @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+  @media (prefers-reduced-motion:reduce) {
+    * { transition:none !important; animation:none !important; }
+  }
   /* Print flattens the view tabs — all three views, but not 38 week panels, which
      would be forty pages. Why-cards are hover objects and their content is
      duplicated unhidden in the other views. */
   @media print {
-    .viewtabs, .tabs { display:none; }
+    .viewtabs, .tabs, .c-act { display:none; }
     .view { display:block !important; }
     .view + .view { border-top:2px solid var(--ink); margin-top:2rem; padding-top:1rem; }
     .pop { display:none; }
@@ -925,9 +1216,9 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
 </section>{{end}}
 
 <div class="views">
-<input type="radio" name="view" id="v-team" checked>
-{{if .HasWhy}}<input type="radio" name="view" id="v-why">{{end}}
-{{if .HasWatch}}<input type="radio" name="view" id="v-watch">{{end}}
+<input type="radio" name="view" id="v-team"{{if or (eq .View "") (eq .View "team")}} checked{{end}}>
+{{if .HasWhy}}<input type="radio" name="view" id="v-why"{{if eq .View "why"}} checked{{end}}>{{end}}
+{{if .HasWatch}}<input type="radio" name="view" id="v-watch"{{if eq .View "watch"}} checked{{end}}>{{end}}
 <style>
   #v-team:checked ~ #view-team { display:block; }
   #v-team:checked ~ .viewtabs label[for="v-team"] { color:var(--ink); font-weight:700;
@@ -974,24 +1265,27 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
       {{if .Replay}}<th>Opponent</th>{{else}}<th class="c-fix">Next {{.Horizon}}</th><th class="c-min">Mins</th>{{end}}
       <th class="c-score">{{if .Replay}}Pts{{else}}Score{{end}}</th>
       {{if not .Replay}}<th class="c-price">&pound;</th>{{end}}
+      {{if .Token}}<th class="c-act" aria-label="Lock and boot"></th>{{end}}
     </tr></thead>
     <tbody>
-    {{range .Rows}}{{range .Players}}<tr{{if .IsCaptain}} class="iscap"{{end}}>
+    {{range .Rows}}{{range .Players}}<tr{{if $.Token}} data-pid="{{.Code}}"{{end}}{{if .IsCaptain}} class="iscap"{{end}}>
       <td class="pos">{{.Position}}</td>
       <td>{{template "rostername" .}}</td>
       {{if $.Replay}}<td>{{if .Opponent}}<span class="opp">{{.Opponent}}</span>{{else}}<span class="opp blank">blank</span>{{end}}</td>
       {{else}}<td class="c-fix">{{template "fdr" .}}</td><td class="c-min">{{mins .ExpMins}}</td>{{end}}
       <td class="c-score"><span class="bar" style="width:{{.ScorePct}}%"></span><span class="fig">{{pts .Score}}</span></td>
       {{if not $.Replay}}<td class="c-price">{{money .Price}}</td>{{end}}
+      {{if $.Token}}<td class="c-act">{{template "acts" .}}</td>{{end}}
     </tr>{{end}}{{end}}
-    {{if .Bench}}<tr class="sub"><td colspan="6"><span class="k">Bench &mdash; substitution order</span></td></tr>
-    {{range .Bench}}<tr class="benchrow">
+    {{if .Bench}}<tr class="sub"{{if .Token}} data-sub="1"{{end}}><td colspan="{{if .Token}}7{{else}}6{{end}}"><span class="k">Bench &mdash; substitution order</span></td></tr>
+    {{range .Bench}}<tr class="benchrow"{{if $.Token}} data-pid="{{.Code}}"{{end}}>
       <td class="pos">{{.Position}}</td>
       <td>{{template "rostername" .}}{{if .Slot}}<span class="tag v">{{.Slot}}</span>{{end}}</td>
       {{if $.Replay}}<td>{{if .Opponent}}<span class="opp">{{.Opponent}}</span>{{else}}<span class="opp blank">blank</span>{{end}}</td>
       {{else}}<td class="c-fix">{{template "fdr" .}}</td><td class="c-min">{{mins .ExpMins}}</td>{{end}}
       <td class="c-score"><span class="bar" style="width:{{.ScorePct}}%"></span><span class="fig">{{pts .Score}}</span></td>
       {{if not $.Replay}}<td class="c-price">{{money .Price}}</td>{{end}}
+      {{if $.Token}}<td class="c-act">{{template "acts" .}}</td>{{end}}
     </tr>{{end}}{{end}}
     </tbody>
   </table></div>
@@ -1188,37 +1482,70 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
 </div>{{end}}{{end}}{{/* end view-why */}}
 
 {{if .HasWatch}}<div class="view" id="view-watch">
-{{if .WatchGroups}}<section>
+<section>
   <h2>Best available, not in the fifteen</h2>
-  <p class="foot" style="margin:0 0 .9rem">Ranked by the model's score. &Delta; is the gap to the
-    weakest starter you already own in that position, named in each group header &mdash; which is
-    the comparison a transfer actually has to win, where a league rank is not.
+  <p class="foot" style="margin:0 0 .9rem">{{if .WatchQ.Interactive}}The best hundred outside the
+    fifteen by default &mdash; filter, and the list searches the whole pool. Ordered by the column
+    you sort on, price first.{{else}}The best hundred players outside the fifteen, ordered by
+    price.{{end}} &Delta; is the gap to the weakest starter you already own in that position &mdash;
+    the comparison a transfer actually has to win, where a league rank is not:
+    {{range $i, $bm := .Watch.Benchmarks}}{{if $i}} &middot; {{end}}<b>{{$bm.Position}}</b> vs {{$bm.Name}} {{pts $bm.Score}}, {{money $bm.Price}}{{end}}.
     {{with .Watch}}{{if .Gate}}<br><b>Green clears the free-transfer gate of {{pts .Gate}} pts/gw.</b>
-    {{if .Clearing}}{{.Clearing}} of {{.Count}} do.{{else}}<b>Nothing on this list does</b> &mdash;
+    {{if .Clearing}}<b>{{.Clearing}} of the {{.Count}} players outside your fifteen do.</b>
+    {{else}}<b>None of the {{.Count}} players outside your fifteen does</b> &mdash;
     these are ordered, not recommended.{{end}}{{end}}{{end}}</p>
-  <div class="panel tscroll"><table class="wtable">
-    <thead><tr><th>Player</th><th class="c-fix">Next</th><th class="c-min">Mins</th>
-      <th class="c-own">Own</th><th class="c-score">Score</th><th class="c-delta">&Delta;</th>
-      <th class="c-price">&pound;</th></tr></thead>
+
+  {{if .WatchQ.Interactive}}<form class="wfilter" method="get" action="/">
+    <input type="hidden" name="t" value="{{.Token}}">
+    <input type="hidden" name="v" value="watch">
+    <input type="hidden" name="sort" value="{{.WatchQ.Sort}}">
+    <input type="hidden" name="dir" value="{{.WatchQ.Dir}}">
+    <input class="wfq" type="search" name="q" value="{{.WatchQ.Q}}" placeholder="name" aria-label="Filter by name">
+    <select name="pos" aria-label="Filter by position">
+      <option value="">any position</option>
+      <option value="GKP"{{if eq .WatchQ.Pos "GKP"}} selected{{end}}>GKP</option>
+      <option value="DEF"{{if eq .WatchQ.Pos "DEF"}} selected{{end}}>DEF</option>
+      <option value="MID"{{if eq .WatchQ.Pos "MID"}} selected{{end}}>MID</option>
+      <option value="FWD"{{if eq .WatchQ.Pos "FWD"}} selected{{end}}>FWD</option>
+    </select>
+    <select name="team" aria-label="Filter by team">
+      <option value="">any team</option>
+      {{range .Teams}}<option value="{{.}}"{{if eq . $.WatchQ.Team}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
+    <button class="wfsend" type="submit">Filter</button>
+    {{if .WatchQ.AnyFilter}}<a class="xlink wfclear" href="{{.WatchQ.ResetHref}}">clear</a>{{end}}
+  </form>{{end}}
+
+  {{if .WatchRows}}<div class="panel tscroll"><table class="wtable">
+    <thead><tr>
+      <th>{{.WatchQ.SortHead "name" "Player"}}</th>
+      <th>{{.WatchQ.SortHead "pos" "Pos"}}</th>
+      <th>{{.WatchQ.SortHead "team" "Team"}}</th>
+      <th class="c-fix">Next</th>
+      <th class="c-min">{{.WatchQ.SortHead "mins" "Mins"}}</th>
+      <th class="c-own">{{.WatchQ.SortHead "own" "Own"}}</th>
+      <th class="c-score">{{.WatchQ.SortHead "score" "Score"}}</th>
+      <th class="c-delta">{{.WatchQ.SortHead "delta" "&Delta;"}}</th>
+      <th class="c-price">{{.WatchQ.SortHead "price" "&pound;"}}</th>
+    </tr></thead>
     <tbody>
-    {{range .WatchGroups}}<tr class="grp"><td colspan="7">
-      <span class="k">{{.Position}}</span>
-      {{if .BenchmarkName}}<span class="bench">vs your weakest starter &mdash; {{.BenchmarkName}} {{pts .BenchmarkScore}}, {{money .BenchmarkPrice}}</span>
-      {{else}}<span class="bench">no starter in this position to compare against</span>{{end}}
-    </td></tr>
-    {{if .Rows}}{{range .Rows}}<tr>
-      <td>{{template "flatname" .Card}}</td>
+    {{range .WatchRows}}<tr>
+      <td>{{template "rawname" .Card}}</td>
+      <td class="pos">{{.Card.Position}}</td>
+      <td>{{.Card.Team}}</td>
       <td class="c-fix">{{template "fdr" .Card}}</td>
       <td class="c-min">{{mins .Card.ExpMins}}</td>
       <td class="c-own">{{pc .Card.Own}}</td>
       <td class="c-score">{{pts .Card.Score}}</td>
       <td class="c-delta {{.DeltaClass}}">{{delta .Delta}}</td>
       <td class="c-price">{{money .Card.Price}}</td>
-    </tr>{{end}}{{else}}<tr><td colspan="7" class="empty">&mdash; no candidate outside the fifteen</td></tr>{{end}}
-    {{end}}
+    </tr>{{end}}
     </tbody>
   </table></div>
-</section>{{end}}
+  {{else}}<p class="empty">{{if .WatchQ.Interactive}}No candidate matches this filter &mdash; clear it to see the list.{{else}}No candidate outside the fifteen.{{end}}</p>{{end}}
+
+  {{.WatchQ.Pager}}
+</section>
 
 {{with .Watch}}{{if .Excluded}}<section>
   <h2>Excluded by a standing override ({{len .Excluded}})</h2>
@@ -1244,12 +1571,124 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
       {{if .NeedsCheck}}<span class="flag">{{.Flag}}</span>{{end}}
     </div>
     <p>{{.Reason}}</p>
+    {{if and $.Token .Code}}
+    {{if and $.SessionMode (not .Session)}}
+    <p class="actsess">Set in config.json &mdash; restart serve with -persist to clear it here.</p>
+    {{else}}
+    <form class="act" method="post" action="/action">
+      <input type="hidden" name="t" value="{{$.Token}}">
+      <input type="hidden" name="c" value="{{.Code}}">
+      <input type="hidden" name="ret" value="{{$.Ret}}">
+      <input type="hidden" name="a" value="unboot">
+      <button class="xbtn" type="submit">bring back into contention</button>
+    </form>{{end}}{{end}}
   </article>{{end}}
 </section>{{end}}{{end}}
 </div>{{end}}{{/* end view-watch */}}
 
 </div>{{/* end views */}}
-</div></body></html>
+</div>{{if .Token}}<script>
+/* Progressive enhancement, and nothing but: the forms above work without this
+   script — a lock or boot posts to /action and the server redirects to a
+   freshly rendered page. This intercepts those posts so the page updates in
+   place instead: the enhanced field makes the server answer with the page the
+   action produced, and the browser rearranges what the server already
+   decided. Roster rows that leave slide out, rows that join slide in,
+   everything else swaps silently. It computes no squad state client-side. */
+(function () {
+  "use strict";
+  if (!window.fetch || !window.DOMParser || !document.querySelector) return;
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var busy = false;
+
+  function q(sel, root) { return (root || document).querySelector(sel); }
+
+  /* Replace each view's content with the fresh render, restore the week tab
+     the reader had open, and slide the arrivals in. Runs after the departures
+     have animated, so a boot reads as: row out, then the new fifteen. */
+  function swap(doc) {
+    var week = q(".weeks input:checked");
+    var weekId = week ? week.id : "";
+    var kept = {};
+    var live = q(".roster tbody");
+    if (live) {
+      live.querySelectorAll("tr[data-pid]").forEach(function (tr) {
+        kept[tr.getAttribute("data-pid")] = true;
+      });
+    }
+    var names = ["team", "why", "watch"];
+    for (var i = 0; i < names.length; i++) {
+      var oldView = q("#view-" + names[i]);
+      var newView = q("#view-" + names[i], doc);
+      if (oldView && newView) oldView.innerHTML = newView.innerHTML;
+    }
+    if (weekId) {
+      var wk = document.getElementById(weekId);
+      if (wk) wk.checked = true;
+    }
+    var tbody = q(".roster tbody");
+    if (tbody && !reduce) {
+      tbody.querySelectorAll("tr[data-pid]").forEach(function (tr) {
+        if (!kept[tr.getAttribute("data-pid")]) tr.classList.add("slide-in");
+      });
+    }
+  }
+
+  function morph(html) {
+    var doc = new DOMParser().parseFromString(html, "text/html");
+    var fresh = q(".roster tbody", doc);
+    var live = q(".roster tbody");
+    var delay = 0;
+    if (fresh && live) {
+      var keep = {};
+      fresh.querySelectorAll("tr[data-pid], tr[data-sub]").forEach(function (tr) {
+        keep[tr.getAttribute("data-pid") || "sub"] = true;
+      });
+      live.querySelectorAll("tr[data-pid], tr[data-sub]").forEach(function (tr) {
+        var key = tr.getAttribute("data-pid") || "sub";
+        if (keep[key]) return;
+        delay = 240;
+        if (reduce) {
+          tr.parentNode.removeChild(tr);
+          return;
+        }
+        tr.classList.add("slide-out");
+        setTimeout(function () {
+          if (tr.parentNode) tr.parentNode.removeChild(tr);
+        }, 280);
+      });
+    }
+    setTimeout(function () { swap(doc); }, reduce ? 0 : delay);
+  }
+
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (!form || form.tagName !== "FORM" || form.getAttribute("action") !== "/action") return;
+    if (busy) { e.preventDefault(); return; }
+    e.preventDefault();
+    busy = true;
+    // The enhanced field makes the server answer with the page the action
+    // produced — one request, and the morph never depends on a just-set
+    // cookie surviving a redirect. A plain form submission sends no such
+    // field and still gets the 303, where browsers apply the cookie before
+    // following.
+    var data = new FormData(form);
+    data.append("enhanced", "1");
+    var btn = form.querySelector("button[type=submit]");
+    if (btn) btn.disabled = true;
+    // An action renders the whole page server-side, which takes seconds; a
+    // stalled request must not leave the page deaf forever. The abort
+    // rejects the fetch, the catch reloads, and the reload shows the truth.
+    var ctl = new AbortController();
+    setTimeout(function () { ctl.abort(); }, 20000);
+    fetch("/action", { method: "POST", body: data, credentials: "same-origin",
+      signal: ctl.signal })
+      .then(function (r) { if (!r.ok) throw new Error("status " + r.status); return r.text(); })
+      .then(function (html) { morph(html); busy = false; })
+      .catch(function () { window.location.reload(); });
+  });
+})();
+</script>{{end}}</body></html>
 
 {{define "gate"}}{{if .Reasoning}}{{if .Reasoning.Policy.MinGainTransfer}}<p class="foot">The gate:
   a free transfer needs {{pts .Reasoning.Policy.MinGainTransfer}} pts/gw, a &minus;4 needs
@@ -1262,6 +1701,55 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
      encoding and is never the sole carrier of the rating. */}}
 {{define "fdr"}}{{if .Fixtures}}<span class="fdr">{{range .Fixtures}}<i class="d{{.Diff}}" title="GW{{.Event}} {{.Opponent}} ({{.Where}}) difficulty {{.Diff}}">{{.Diff}}</i>{{end}}{{if .MoreFix}}<i class="more">+{{.MoreFix}}</i>{{end}}</span>{{else}}<span class="fdr"><span class="none">no fixture</span></span>{{end}}{{end}}
 
+{{/* The lock and boot write actions, rendered only on the served page (Token
+     non-empty — the static file and the replay set none, so they render no
+     forms). Each form POSTs /action with the CSRF token, the PERMANENT player
+     code (never the season-scoped element id), and the current query, so the
+     redirect lands the reader back on the view they acted from. The lock
+     button flips with the player's state; boot is always offered, because a
+     booted player cannot appear in this table — the un-boot lives on the
+     excluded card in the watchlist view. */}}
+{{define "acts"}}
+<form class="act" method="post" action="/action">
+  <input type="hidden" name="t" value="{{.Token}}">
+  <input type="hidden" name="c" value="{{.Code}}">
+  <input type="hidden" name="ret" value="{{.Ret}}">
+  {{if and .Override (eq .Override.Kind "lock")}}
+  {{if and .SessionMode (not .Override.Session)}}
+  <button class="actbtn on" type="button" disabled aria-disabled="true"
+          title="Locked in config.json &mdash; this page writes only to the browser session. Restart serve with -persist to change it here."
+          aria-label="Lock {{.Name}} (set in config.json)">
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2.5" y="6" width="11" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 6V4.5a3.5 3.5 0 1 1 7 0V6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="9.5" r="1" fill="currentColor"/><path d="M8 10.5v1.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+  </button>
+  {{else}}
+  <input type="hidden" name="a" value="unlock">
+  <button class="actbtn on" type="submit" aria-pressed="true"
+          title="Locked &mdash; the optimiser keeps this player in every squad. Click to unlock."
+          aria-label="Unlock {{.Name}}">
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2.5" y="6" width="11" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 6V4.5a3.5 3.5 0 1 1 7 0V6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="9.5" r="1" fill="currentColor"/><path d="M8 10.5v1.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+  </button>
+  {{end}}
+  {{else}}
+  <input type="hidden" name="a" value="lock">
+  <button class="actbtn" type="submit" aria-pressed="false"
+          title="Lock &mdash; keep this player in the squad; the optimiser builds around them."
+          aria-label="Lock {{.Name}}">
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 7V5a3.5 3.5 0 1 1 7 0v1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+  </button>
+  {{end}}
+</form>
+<form class="act" method="post" action="/action">
+  <input type="hidden" name="t" value="{{.Token}}">
+  <input type="hidden" name="c" value="{{.Code}}">
+  <input type="hidden" name="ret" value="{{.Ret}}">
+  <input type="hidden" name="a" value="boot">
+  <button class="actbtn" type="submit" aria-label="Boot {{.Name}}"
+          title="Boot &mdash; exclude this player from every squad. The page re-picks without them.">
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6.5 13.5H3.2a1.2 1.2 0 0 1-1.2-1.2V3.7a1.2 1.2 0 0 1 1.2-1.2h3.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6.2 8h7.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="m11 5.5 2.3 2.5-2.3 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</form>
+{{end}}
+
 {{/* The badges, in one fixed order so a scanning eye learns one position per
      meaning: armband, then who overrode this, then how nailed he is, then set
      pieces, then availability. */}}
@@ -1273,6 +1761,10 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
 {{define "rostername"}}<div class="pop-wrap"><span class="who whytrig" tabindex="0" aria-describedby="why-{{.ID}}">{{.Name}}</span><div class="pop" id="why-{{.ID}}" role="note">{{template "why" .Why}}</div></div><span class="club">{{.Team}}</span>{{template "badges" .}}{{end}}
 
 {{define "flatname"}}<span class="who">{{.Name}}</span><span class="club">{{.Team}}</span>{{template "badges" .}}{{end}}
+
+{{/* The watchlist name cell: the club moves to its own sortable column, so
+     this is name and badges without the .club span. */}}
+{{define "rawname"}}<span class="who">{{.Name}}</span>{{template "badges" .}}{{end}}
 
 {{/* The card. Note there is no total and no equals sign anywhere in it: Score is not
      the product of the multipliers below — the engine splits rate from threshold
