@@ -317,7 +317,7 @@ func TestTheSessionStoreWritesACookieNotTheConfig(t *testing.T) {
 		t.Fatalf("boot answered %d, want 303", w.Code)
 	}
 	cookies := w.Result().Cookies()
-	if len(cookies) != 1 || cookies[0].Name != "fpl_overrides" {
+	if len(cookies) != 1 || cookies[0].Name != sessionCookieName {
 		t.Fatalf("the session store is not in the response cookies: %+v", cookies)
 	}
 	if cookies[0].HttpOnly != true || cookies[0].SameSite != http.SameSiteStrictMode {
@@ -335,12 +335,12 @@ func TestTheSessionStoreWritesACookieNotTheConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the cookie value is not base64: %v", err)
 	}
-	var so sessionOverrides
-	if err := json.Unmarshal(raw, &so); err != nil {
+	var sess session
+	if err := json.Unmarshal(raw, &sess); err != nil {
 		t.Fatalf("the cookie value is not session JSON: %v", err)
 	}
-	if len(so.Exclude) != 1 || so.Exclude[0] != 456 {
-		t.Errorf("the cookie holds %+v, want the booted code 456", so)
+	if len(sess.Exclude) != 1 || sess.Exclude[0] != 456 {
+		t.Errorf("the cookie holds %+v, want the booted code 456", sess)
 	}
 
 	// Lock the same player: he moves from exclude to lock in the cookie, and
@@ -354,9 +354,15 @@ func TestTheSessionStoreWritesACookieNotTheConfig(t *testing.T) {
 	s.ServeHTTP(w, req)
 	cookies = w.Result().Cookies()
 	raw, _ = base64.StdEncoding.DecodeString(cookies[0].Value)
-	_ = json.Unmarshal(raw, &so)
-	if len(so.Lock) != 1 || len(so.Exclude) != 0 {
-		t.Errorf("the cookie after lock holds %+v, want the code locked only", so)
+	// A FRESH struct. json.Unmarshal leaves fields absent from the JSON untouched, so
+	// decoding into the previous value would keep the old Exclude list -- omitempty drops
+	// the now-empty one from the wire, and the stale value survives to be asserted on.
+	var afterLock session
+	if err := json.Unmarshal(raw, &afterLock); err != nil {
+		t.Fatalf("the cookie value is not session JSON: %v", err)
+	}
+	if len(afterLock.Lock) != 1 || len(afterLock.Exclude) != 0 {
+		t.Errorf("the cookie after lock holds %+v, want the code locked only", afterLock)
 	}
 
 	// Unlock empties the store, and the response clears the cookie rather
@@ -385,8 +391,8 @@ func TestTheSessionOverridesRideOnTopOfTheConfig(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Host = "127.0.0.1:8080"
-	raw, _ := json.Marshal(sessionOverrides{Exclude: []int{999}, Lock: []int{456}})
-	req.AddCookie(&http.Cookie{Name: overrideCookieName,
+	raw, _ := json.Marshal(session{Version: sessionVersion, Exclude: []int{999}, Lock: []int{456}})
+	req.AddCookie(&http.Cookie{Name: sessionCookieName,
 		Value: base64.StdEncoding.EncodeToString(raw)})
 
 	cfg := s.effectiveCfg(req)

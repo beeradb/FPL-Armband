@@ -151,6 +151,13 @@ footer .spacer{flex:1;}
   .hero .lede{font-size:15.5px;}
   .gateform{flex-direction:column;}
   .gateform .btn{width:100%;}
+  /* The input keeps flex:1 from the row layout, and in a COLUMN container that grows it
+     on the vertical axis -- so it stretched against its own height and rendered as an
+     odd tall box. On one axis it is a filler; on the other it is a field. */
+  .gateform input{flex:0 0 auto;width:100%;
+    /* 16px, not 15. Mobile browsers zoom the whole page when a focused input is under
+       16px, which yanks the layout sideways the moment someone taps the field. */
+    font-size:16px;}
   .lnav .hideSm{display:none;}
   .lockup .tagline{font-size:14px;}
   .lnav .btn{padding:0 12px;}

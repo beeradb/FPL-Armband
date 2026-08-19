@@ -4,9 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
@@ -48,6 +46,30 @@ const signupDSNEnv = "ARMBAND_SIGNUPS_DSN"
 //
 // A single mutex serialises requests. This is a one-user tool and the engine
 // was not written for concurrent access; the mutex is cheaper than auditing it.
+// applyPreviewHorizon narrows the engine to the preview's window and says so.
+//
+// Separate from cmdServe because that function binds a socket, and the thing worth testing
+// here is the decision rather than the server: which window the preview scores over, and
+// whether the reader is told. A test that set Weights.Horizon itself and then checked the
+// document reported it would pass unchanged if the flag stopped being read at all.
+//
+// Zero means "use whatever the config says", which is how a reader turns the preview's
+// shortening off. A negative value means the same rather than an error: the flag's contract
+// is a gameweek count, and there is no sensible engine state for minus two.
+//
+// It returns the sentence to print, or "" when nothing changed. The narrowing is not
+// cosmetic — every projection on the page is over this window — so a silent change of it
+// would leave the page quoting numbers whose meaning the reader cannot see.
+func applyPreviewHorizon(e *analysis.Engine, horizon int) string {
+	if horizon <= 0 || horizon == e.Weights.Horizon {
+		return ""
+	}
+	was := e.Weights.Horizon
+	e.Weights.Horizon = horizon
+	return fmt.Sprintf("Scoring the preview over %d gameweeks rather than the configured %d "+
+		"(-horizon). Every projection on the page is over that window.", horizon, was)
+}
+
 func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 	client *fpl.Client, e *analysis.Engine, weeks int) error {
 
@@ -55,6 +77,18 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 	addr := fs.String("addr", "127.0.0.1:8080", "address to serve on (loopback only)")
 	persist := fs.Bool("persist", false, "write lock/boot overrides back to config.json; "+
 		"without it they live in a browser-session cookie")
+	// A shorter horizon than the terminal commands use.
+	//
+	// The scoring horizon is how many gameweeks a player's Score is averaged over, and it
+	// is the dominant cost in the build: the optimiser prices every candidate over every
+	// week in it. Four rather than the configured five is a deliberate trade of a little
+	// lookahead for a page that answers quickly, and it is a PREVIEW-only choice —
+	// `squad`, `transfers` and the replay are untouched.
+	//
+	// ⚠️ It changes the numbers, not just the speed. Every projection on the page is over
+	// four gameweeks rather than five, which is why State carries the horizon and the page
+	// is told rather than left to imply one.
+	horizon := fs.Int("horizon", 4, "gameweeks the preview scores over (0 uses the config's)")
 	if err := fs.Parse(flag.Args()[1:]); err != nil {
 		return err
 	}
@@ -64,6 +98,13 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 	token, err := newServeToken()
 	if err != nil {
 		return err
+	}
+
+	if note := applyPreviewHorizon(e, *horizon); note != "" {
+		fmt.Fprintf(os.Stderr, "%s\n", dim(note))
+	}
+	if weeks <= 0 {
+		weeks = e.Weights.Horizon
 	}
 
 	// The signup store comes from the ENVIRONMENT, not from a flag.
@@ -169,6 +210,20 @@ type squadServer struct {
 	// today and the same page built tomorrow differ. Nil means time.Now — see
 	// now().
 	clock func() time.Time
+	// seed draws the variety seed for a session that has none. Injectable for the same
+	// reason the clock is, and for a sharper one: two requests without a cookie each mint
+	// their own, so a test that reads the state through Go and then again through a
+	// browser was comparing two DIFFERENT squads and failing on the difference. Nil means
+	// a real random seed.
+	seed func() int64
+}
+
+// nextSeed is the variety seed for a session that has none.
+func (s *squadServer) nextSeed() int64 {
+	if s.seed == nil {
+		return newSeed()
+	}
+	return s.seed()
 }
 
 // now is the clock the page build reads. A nil clock means the real one, so
@@ -200,13 +255,15 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.URL.Path {
 	case routeLanding:
-		s.servePage(w, "landing")
+		s.servePage(w, r, "landing")
 	case routeApp:
-		s.servePage(w, "app")
+		s.servePage(w, r, "app")
 	case routeGate:
 		s.gate(w, r)
 	case routeState:
 		s.state(w, r)
+	case routeSession:
+		s.saveSession(w, r)
 	case "/action":
 		s.action(w, r)
 	default:
@@ -310,9 +367,9 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 		// config file stays a default. Session overrides ride on top of the
 		// config for every build of this page, and they die with the browser
 		// session.
-		so := readSessionOverrides(r).apply(act, code)
-		if err := so.setCookie(w); err != nil {
-			http.Error(w, fmt.Sprintf("encoding the session overrides: %v", err),
+		sess := s.readValidSession(r).applyAction(act, code)
+		if err := sess.write(w); err != nil {
+			http.Error(w, fmt.Sprintf("storing the session: %v", err),
 				http.StatusInternalServerError)
 			return
 		}
@@ -328,96 +385,8 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, ret, http.StatusSeeOther)
 }
 
-// sessionOverrides is the lock/boot state of ONE browser session — the
-// page's default store. Codes only: the bootstrap is authoritative for
-// names, and a code that stops resolving is dropped at build time rather
-// than carried. It is deliberately not the config.RosterOverride struct —
-// this store has no reasons and no dates, it is a scratch surface for one
-// reader's session, not the standing record.
-type sessionOverrides struct {
-	Lock    []int `json:"lock"`
-	Exclude []int `json:"exclude"`
-}
-
-// overrideCookieName is the session cookie carrying the overrides. The value
-// is base64 JSON because a bare JSON array contains commas, which the cookie
-// grammar forbids; base64's alphabet is entirely cookie-safe.
-const overrideCookieName = "fpl_overrides"
-
-func readSessionOverrides(r *http.Request) sessionOverrides {
-	c, err := r.Cookie(overrideCookieName)
-	if err != nil {
-		return sessionOverrides{}
-	}
-	raw, err := base64.StdEncoding.DecodeString(c.Value)
-	if err != nil {
-		return sessionOverrides{}
-	}
-	var so sessionOverrides
-	if err := json.Unmarshal(raw, &so); err != nil {
-		return sessionOverrides{}
-	}
-	return so
-}
-
-// setCookie writes the session store, or clears the cookie when the session
-// holds nothing — an empty override set and a dead cookie must not read
-// differently on the next request.
-func (so sessionOverrides) setCookie(w http.ResponseWriter) error {
-	if len(so.Lock) == 0 && len(so.Exclude) == 0 {
-		http.SetCookie(w, &http.Cookie{Name: overrideCookieName, Path: "/", MaxAge: -1})
-		return nil
-	}
-	raw, err := json.Marshal(so)
-	if err != nil {
-		return err
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     overrideCookieName,
-		Value:    base64.StdEncoding.EncodeToString(raw),
-		Path:     "/",
-		SameSite: http.SameSiteStrictMode,
-		// HttpOnly: the page's script never reads the store — it posts
-		// actions and the server answers with the next render.
-		HttpOnly: true,
-	})
-	return nil
-}
-
-// apply mirrors config.Roster.Set/Remove semantics on the session store:
-// lock and boot are mutually exclusive, unlock and unboot lift one list.
-func (so sessionOverrides) apply(action string, code int) sessionOverrides {
-	drop := func(codes []int, code int) []int {
-		out := codes[:0:0]
-		for _, c := range codes {
-			if c != code {
-				out = append(out, c)
-			}
-		}
-		return out
-	}
-	add := func(codes []int, code int) []int {
-		for _, c := range codes {
-			if c == code {
-				return codes
-			}
-		}
-		return append(codes, code)
-	}
-	switch action {
-	case "lock":
-		so.Exclude = drop(so.Exclude, code)
-		so.Lock = add(so.Lock, code)
-	case "boot":
-		so.Lock = drop(so.Lock, code)
-		so.Exclude = add(so.Exclude, code)
-	case "unlock":
-		so.Lock = drop(so.Lock, code)
-	case "unboot":
-		so.Exclude = drop(so.Exclude, code)
-	}
-	return so
-}
+// The session store lives in session.go. It used to be a pair of code lists declared here
+// and it now carries the reader's whole team, so it has a file of its own.
 
 // effectiveCfg is the config this request builds the page from: the real
 // config with the session's overrides applied on top. Session wins on
@@ -426,57 +395,49 @@ func (so sessionOverrides) apply(action string, code int) sessionOverrides {
 // without touching config.json. In persist mode the session is ignored and
 // the config is the one store.
 func (s *squadServer) effectiveCfg(r *http.Request) config.Config {
-	return s.effectiveCfgFrom(readSessionOverrides(r))
+	return s.effectiveCfgFrom(s.readValidSession(r))
 }
 
-func (s *squadServer) effectiveCfgFrom(so sessionOverrides) config.Config {
-	cfg := *s.cfg
+func (s *squadServer) effectiveCfgFrom(sess session) config.Config {
+	// The session is applied in BOTH modes.
+	//
+	// It used to be discarded under -persist, on the reasoning that config was then the one
+	// store. It is not, yet: saveSession writes the file, and the reader's chip placements,
+	// their fifteen and any correction not yet flushed live only in the session. Discarding
+	// it meant a block under -persist lit its badge, reported `store: "config"`, left the
+	// player in the squad and touched no file — the branch's own defect in the mode with the
+	// strongest claim to be durable.
+	//
+	// There is no double-application: under -persist saveSession clears lock and exclude
+	// from the session as it writes them to the file, so exactly one store holds each.
+	//
+	// ⚠️ forPlanner is NOT applied under -persist.
+	//
+	// It strips the analysis layer's locks so they do not bind the reader's planner. Under
+	// -persist the page writes locks into config.json itself, on the reader's instruction —
+	// stripping those would mean the lock button saved a lock to the file and the very next
+	// build removed it, which is the button lying twice over.
+	base := forPlanner(*s.cfg)
 	if s.persist {
-		return cfg
+		base = *s.cfg
 	}
-	if len(so.Lock) == 0 && len(so.Exclude) == 0 {
-		return cfg
-	}
-	today := s.now().Format("2006-01-02")
-	entry := func(code int, mode, name string) config.RosterOverride {
-		reason := "locked from the squad page — browser session"
-		if mode == "exclude" {
-			reason = "booted from the squad page — browser session"
-		}
-		return config.RosterOverride{
-			Code: code, Name: name, Reason: reason, SetOn: today, LastChecked: today,
-		}
-	}
-	// A code the bootstrap no longer contains is dropped: the session is a
-	// scratch surface, and a nameless override would litter the page exactly
-	// as it would litter config.
-	for _, code := range so.Exclude {
-		if name := s.playerName(code); name != "" {
-			_ = cfg.Roster.Set("exclude", entry(code, "exclude", name))
-		}
-	}
-	for _, code := range so.Lock {
-		if name := s.playerName(code); name != "" {
-			_ = cfg.Roster.Set("lock", entry(code, "lock", name))
-		}
-	}
-	return cfg
+	return sess.applyTo(base, s.engine, s.now().Format("2006-01-02"))
 }
 
 // markSessionOverrides flags every override this browser's session owns, so
 // the page renders their controls as live — and config-sourced ones as
 // disabled, because the session-mode page cannot clear what it does not own.
-func markSessionOverrides(p *present.Page, so sessionOverrides) {
-	if len(so.Lock) == 0 && len(so.Exclude) == 0 {
+func markSessionOverrides(p *present.Page, sess session) {
+	if len(sess.Lock) == 0 && len(sess.Exclude) == 0 {
 		return
 	}
 	isSession := func(code int) bool {
-		for _, c := range so.Lock {
+		for _, c := range sess.Lock {
 			if c == code {
 				return true
 			}
 		}
-		for _, c := range so.Exclude {
+		for _, c := range sess.Exclude {
 			if c == code {
 				return true
 			}
@@ -642,6 +603,14 @@ func loopbackHost(host string) bool {
 // and length leaks nothing worth having here, so the early return keeps the
 // comparison on equal-length inputs where its timing says nothing.
 func (s *squadServer) tokenOK(got string) bool {
+	// A server with no token grants nothing. Without this, ConstantTimeCompare on two
+	// zero-length slices returns 1 and an empty token opens every write route -- and
+	// `authed` already guards the same case, so the two would disagree about what an
+	// unconfigured server means. cmdServe cannot build one today; the next constructor
+	// will not know that.
+	if s.token == "" {
+		return false
+	}
 	if len(got) != len(s.token) {
 		return false
 	}

@@ -94,6 +94,9 @@ func fixtureServerNamed(t *testing.T, rename func(name string) string) *squadSer
 		engine: e,
 		weeks:  cfg.Weights.Horizon,
 		clock:  func() time.Time { return fixtureNow },
+		// Pinned, so two requests in one test see the same fifteen. Without a cookie
+		// between them each would mint its own seed and get a different varied squad.
+		seed: func() int64 { return 20260819 },
 	}
 }
 

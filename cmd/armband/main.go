@@ -502,14 +502,46 @@ func applyRoster(cfg config.Config, e *analysis.Engine, req *analysis.OptimizeRe
 // engine.
 func applyMinutesOverrides(cfg config.Config, e *analysis.Engine, gw int) []string {
 	active, _ := cfg.Roster.ActiveMinutes(gw)
-	if len(active) == 0 {
-		return nil
-	}
 	if e.MinutesOverride == nil {
 		e.MinutesOverride = map[int]float64{}
 	}
 	if e.MinutesOverrideUntil == nil {
 		e.MinutesOverrideUntil = map[int]int{}
+	}
+
+	// ⚠️ The engine's overrides are REPLACED, not added to.
+	//
+	// This only ever wrote, which is correct for a command that builds one engine and
+	// exits and wrong for a server that keeps one for its lifetime: the first request
+	// installed a correction and no later request could remove it. So a reader who cleared
+	// a minutes override saw the row go, watched the config copy lose it, and every score
+	// on the page went on using it — the engine still held the entry from the first build.
+	//
+	// Replacing rather than deleting the difference is deliberate: the set of active
+	// overrides is small, it is recomputed per request anyway, and "what is in force is
+	// exactly what the config says" is a property worth being able to state without
+	// reasoning about what was there before.
+	wanted := map[int]bool{}
+	for _, o := range active {
+		if o.ExpectedMinutes != nil {
+			wanted[o.Code] = true
+		}
+	}
+	// Keys snapshotted first: ClearMinutesOverride replaces the map copy-on-write, and
+	// ranging over a map while the thing being ranged is swapped underneath is a habit
+	// that works until it does not.
+	var stale []int
+	for code := range e.MinutesOverride {
+		if !wanted[code] {
+			stale = append(stale, code)
+		}
+	}
+	for _, code := range stale {
+		e.ClearMinutesOverride(code)
+	}
+
+	if len(active) == 0 {
+		return nil
 	}
 	var notes []string
 	for _, o := range active {
@@ -766,7 +798,7 @@ func cmdSquad(ctx context.Context, cfg config.Config, client *fpl.Client,
 	if htmlPath != "" {
 		return errPageRetired
 	}
-	b, err := buildSquadPage(ctx, cfg, client, e, weeks, false, time.Now())
+	b, err := buildSquadPage(ctx, cfg, client, e, pageOpts{Weeks: weeks, Now: time.Now()})
 	if err != nil {
 		return err
 	}

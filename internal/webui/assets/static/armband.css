@@ -944,3 +944,162 @@ button{font-family:inherit;color:inherit;}
 .swapbar .x{margin-left:auto;}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+
+
+/* ============================================================
+   SAVING, AND SAYING SO
+   ============================================================ */
+
+/* The page stays readable while a save is in flight. Freezing it would hide the squad the
+   reader is deciding about; dimming the controls says "not yet" without taking the page
+   away. Pointer events go, so a second click cannot apply a change twice. */
+body.saving .card,body.saving .btn,body.saving .iconbtn,body.saving .chipbtn,
+body.saving .shape-row,body.saving .ovcard .rm{opacity:.55;pointer-events:none;}
+body.saving{cursor:progress;}
+
+/* The toast. Bottom centre on desktop, above the tab bar on mobile, and never over the
+   thing it is talking about. */
+.toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;
+  max-width:min(560px,calc(100vw - 32px));
+  padding:11px 15px;border-radius:var(--r-sm);
+  background:var(--panel3);border:1px solid var(--warn);color:var(--ink);
+  font-size:13px;line-height:1.45;box-shadow:var(--shadow);
+}
+
+/* ============================================================
+   THE CHIP FOLD
+   ============================================================
+
+   The chip row used to sit between the score bug and the pitch, which gave the best space
+   on the screen to a decision taken four times a season. It is below the team now and
+   closed by default. The summary still states what is planned, so nothing is hidden --
+   only the room to change it, which is one click away. */
+.chipfold{
+  margin-top:14px;border:1px solid var(--line);border-radius:var(--r-md);
+  background:var(--panel);overflow:hidden;
+}
+.chipfold>summary{
+  display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;
+  list-style:none;font-size:13px;
+}
+.chipfold>summary::-webkit-details-marker{display:none;}
+.chipfold>summary::after{
+  content:'';margin-left:auto;width:7px;height:7px;flex:0 0 auto;
+  border-right:2px solid var(--ink3);border-bottom:2px solid var(--ink3);
+  transform:rotate(45deg);transition:transform .15s ease;
+}
+.chipfold[open]>summary::after{transform:rotate(-135deg);}
+.chipfold>summary .dim{margin-left:0;}
+.chipfold .chipnow{color:var(--ink);font-weight:600;}
+.chipfold .chiprow{border-top:1px solid var(--line);border-radius:0;margin:0;}
+
+/* Where the fifteen came from: the model's best, a varied opening, or the reader's own
+   saved team. Quiet, because it is context rather than a number. */
+.squadsource{font-size:11.5px;padding:0 2px 8px;font-family:var(--mono);}
+
+@media (max-width:720px){
+  .toast{bottom:calc(64px + env(safe-area-inset-bottom,0px));}
+}
+
+
+/* ============================================================
+   THE REPLACEMENT PICKER
+   ============================================================
+
+   The panel that opens from the player sheet's "Replace him…": the eligible
+   replacements for one man you are selling.
+
+   Designed against this stylesheet's own tokens — nothing below mints a new
+   colour, family or size, and nothing renders below 9px.
+   ============================================================ */
+
+
+/* one small utility armband.css doesn't have: override-violet ink,
+   for the "hidden by your exclusion" count in the market note */
+.ovc{color:var(--ov);}
+
+/* the money, stated once at the top of the sheet ---------------
+   sale + bank = budget. Arithmetic fact, so it is ink, not green:
+   green is reserved for numbers the model produced. */
+.repmath{
+  display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:11px;color:var(--ink2);
+  padding:9px 12px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:var(--r-sm);
+}
+.repmath b{color:var(--ink);font-weight:700;}
+.repmath .op{color:var(--ink3);}
+.repmath .sep{color:var(--line2);}
+
+/* candidate row ------------------------------------------------
+   Same skeleton as .caprow: gate dot column, the man, the number.
+   The news line, when a player has one, takes a full-width third
+   row rather than crushing the meta line. */
+.reprow{
+  display:grid;grid-template-columns:14px 1fr auto;
+  grid-template-areas:"g n x" "g m x" "nw nw nw";
+  gap:3px 9px;width:100%;text-align:left;align-items:center;
+  padding:9px 11px;margin-bottom:6px;border-radius:var(--r);
+  background:var(--panel2);border:1px solid var(--line);cursor:pointer;
+  transition:border-color .12s,background .12s;
+}
+.reprow:hover{border-color:var(--line2);background:var(--panel3);}
+.reprow.on{border-color:var(--band);background:var(--band-lo);}   /* selected = the reader's blue */
+.reprow .g{grid-area:g;display:grid;place-items:center;}
+.reprow .g .gate{margin:0;}
+.reprow .n{grid-area:n;font-size:13.5px;min-width:0;}
+.reprow .n b{font-weight:700;}
+.reprow .n .club{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:5px;}
+.reprow .n .pill{margin-left:6px;}
+.reprow .m{
+  grid-area:m;display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:3px;
+  font-family:var(--mono);font-size:10px;color:var(--ink3);
+}
+.reprow .x{grid-area:x;text-align:right;white-space:nowrap;}
+.reprow .x .xp{
+  display:block;font-family:var(--display);font-weight:800;font-size:16px;
+  letter-spacing:-.03em;color:var(--acc);line-height:1.15;
+}
+.reprow .x .dd{font-family:var(--mono);font-size:11px;font-weight:700;}
+/* injury / suspension text: real information, so --ink2 not --ink3 */
+.reprow .news{grid-area:nw;font-size:11.5px;line-height:1.45;color:var(--ink2);margin-top:1px;}
+
+/* browsing another position: the rows are information, not offers.
+   A transfer is like-for-like, so the delta and the gate dot are
+   suppressed — they would price a move that cannot be made. */
+.reprow.browse{cursor:not-allowed;}
+.reprow.browse:hover{border-color:var(--line);background:var(--panel2);}
+
+/* the amber left rule the overrides screen uses for "look at this
+   before acting" — here it carries the like-for-like rule */
+.marketnote.rule{border-left:3px solid var(--warn);}
+
+/* staged move --------------------------------------------------
+   Pinned to the sheet's bottom edge at every width, the same way
+   .sheetacts pins on a phone: the confirm must never scroll away. */
+.stagebar{
+  position:sticky;bottom:0;z-index:3;margin:12px -16px -18px;
+  padding:11px 16px 12px;background:var(--panel);border-top:1px solid var(--line);
+}
+.stagebar .move{
+  font-family:var(--mono);font-size:11px;color:var(--ink2);
+  display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;
+}
+.stagebar .move b{color:var(--ink);font-weight:700;}
+.stagebar .move .out{color:var(--ink3);text-decoration:line-through;}  /* .whyrow's out-man idiom */
+.stagebar .move .in{color:var(--ink);}
+.stagebar .verdict{font-family:var(--mono);font-size:11px;margin-top:4px;}
+.stagebar .verdict.pass{color:var(--acc);}      /* the model's number clears the model's bar */
+.stagebar .verdict.miss{color:var(--ink3);}     /* below the gate is a fact, not an error */
+.stagebar .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;}
+
+/* ============================================================
+   RESPONSIVE — the sheet itself already becomes a bottom sheet
+   under 720px (armband.css); these are the picker's own tweaks.
+   ============================================================ */
+@media (max-width:720px){
+  .stagebar{padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));}
+  .reprow .n{font-size:13px;}
+  .reprow .x .xp{font-size:15px;}
+}

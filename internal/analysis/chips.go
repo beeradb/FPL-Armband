@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"armband/internal/fpl"
 )
 
 // ChipPlan records when you intend to play each chip. Zero means unplanned.
@@ -38,6 +40,80 @@ var chipLabels = map[string]string{
 	"freehit":  "Free Hit",
 	"bboost":   "Bench Boost",
 	"3xc":      "Triple Captain",
+}
+
+// PlayableChips lists the chips the competition allows in gw, by key, in the order the
+// bootstrap lists them.
+//
+// It reads the windows the FEED publishes rather than restating the rules. FPL gives every
+// chip a start and a stop gameweek — on the 2026/27 payload the wildcard and the free hit
+// open at gameweek 2 while the bench boost and the triple captain open at 1 — so "you cannot
+// wildcard in gameweek 1" is already a fact in the data, and writing it out again here would
+// be one rule with two statements that disagree the first time FPL moves a boundary.
+//
+// It answers only "does the competition allow it here", not "is it wise" and not "have you
+// used it": a plan that has already spent a chip is the schedule's business, and whether a
+// week is a good one for it is the model's.
+//
+// A gameweek in no window returns nothing, which is the honest answer — an empty rail beats
+// offering a chip that would be refused.
+func PlayableChips(boot *fpl.Bootstrap, gw int) []string {
+	if boot == nil {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, c := range boot.Chips {
+		if c.StartEvent == 0 && c.StopEvent == 0 {
+			continue
+		}
+		// A stop of zero is an OPEN window, not a window that closed before the season
+		// began. Reading it as a closed one drops the chip from every gameweek, and the
+		// symptom is a chip row that is simply not there.
+		stop := c.StopEvent
+		if stop == 0 {
+			stop = lastGameweek
+		}
+		if gw < c.StartEvent || gw > stop || seen[c.Name] {
+			continue
+		}
+		// A chip this code cannot PLAY is not offered. Offering it would put a button on
+		// the page that reaches chipsInto, matches no case, and does nothing — which is the
+		// defect this whole surface was rewritten to remove. When FPL adds a chip, it
+		// appears here by adding it to the schedule, not by leaking through.
+		if chipOrder(c.Name) == unknownChip {
+			continue
+		}
+		seen[c.Name] = true
+		out = append(out, c.Name)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return chipOrder(out[i]) < chipOrder(out[j]) })
+	return out
+}
+
+// lastGameweek is the season's length, used to close an open-ended chip window.
+const lastGameweek = 38
+
+// unknownChip is what chipOrder returns for a key this code has no plan field for.
+const unknownChip = 99
+
+// chipOrder fixes the display order, which the bootstrap does not guarantee.
+func chipOrder(key string) int {
+	for i, k := range []string{"wildcard", "freehit", "bboost", "3xc"} {
+		if k == key {
+			return i
+		}
+	}
+	return unknownChip
+}
+
+// ChipLabel is the human name for a chip key, or the key itself if it is unknown — an
+// unrecognised chip should be visible rather than silently dropped.
+func ChipLabel(key string) string {
+	if l, ok := chipLabels[key]; ok {
+		return l
+	}
+	return key
 }
 
 // ChipWindows returns each chip's legal range. FPL splits chips into two sets;
@@ -92,8 +168,15 @@ func (e *Engine) ChipWindows() []ChipWindow {
 // plan that was perfectly legal, which is worse than no check: it trains the
 // reader to ignore the output.
 func (e *Engine) chipWindowsByKind() map[string][]ChipWindow {
+	return chipWindowsByKind(e.Boot)
+}
+
+func chipWindowsByKind(boot *fpl.Bootstrap) map[string][]ChipWindow {
 	out := map[string][]ChipWindow{}
-	for _, c := range e.Boot.Chips {
+	if boot == nil {
+		return out
+	}
+	for _, c := range boot.Chips {
 		if c.StartEvent == 0 && c.StopEvent == 0 {
 			continue
 		}
@@ -110,6 +193,42 @@ func (e *Engine) chipWindowsByKind() map[string][]ChipWindow {
 		sort.SliceStable(w, func(i, j int) bool { return w[i].Start < w[j].Start })
 	}
 	return out
+}
+
+// Place files a chip placement in the set whose window holds it, and reports whether it
+// could be placed at all.
+//
+// FPL grants two sets of chips, the second from gameweek 20, and this schedule models both.
+// A caller that knows only "the reader chose gameweek 25" cannot know which set that is
+// without the feed's windows, and filing it in the wrong one is not a visible error: the
+// plan is legal, the engine acts on it, and the squad is built around a chip the reader
+// will not have. `containingSet` names that failure as distinct from an impossible week for
+// exactly this reason.
+//
+// A gameweek in no window returns false and changes nothing, so a caller that has not
+// validated its input cannot silently store a chip that can never be played.
+func (s ChipSchedule) Place(boot *fpl.Bootstrap, key string, gw int) (ChipSchedule, bool) {
+	set := containingSet(chipWindowsByKind(boot)[key], gw)
+	if set == 0 {
+		return s, false
+	}
+	plan := &s.First
+	if set == 2 {
+		plan = &s.Second
+	}
+	switch key {
+	case "wildcard":
+		plan.Wildcard = gw
+	case "freehit":
+		plan.FreeHit = gw
+	case "bboost":
+		plan.BenchBoost = gw
+	case "3xc":
+		plan.TripleCaptain = gw
+	default:
+		return s, false
+	}
+	return s, true
 }
 
 // containingSet is the 1-based set whose window holds this gameweek, or 0.

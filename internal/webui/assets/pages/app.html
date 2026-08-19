@@ -4,10 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>FPL Armband — your man on the pitch</title>
+<!-- The write token, filled in by the server per request. Empty in the embedded file,
+     so a copy of this document taken off disk carries no capability. -->
+<meta name="armband-token" content="">
 <link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/assets/armband.css">
 </head>
 <body>
+
+<!-- Where a failed save says so. A save that fails silently is the reader's work vanishing
+     while the page still claims it is there. -->
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
 
 <!-- ===================== TOP BAR ===================== -->
 <div class="topbar">
@@ -66,9 +74,6 @@
   <!-- the score bug: one number is the product -->
   <div class="scorebug" id="scorebug"></div>
 
-  <!-- chip planner for this gameweek -->
-  <div class="chiprow" id="chiprow"></div>
-
   <div class="pitchgrid">
   <div class="pitchwrap">
     <div class="pitchhud">
@@ -81,7 +86,11 @@
       <button class="pill armpill" id="capPick"><b>C</b> <span id="capName">—</span></button>
       <button class="pill armpill v" id="vcPick"><b>V</b> <span id="vcName">—</span></button>
       <span class="delta" id="vsmodel"></span>
+      <!-- Puts the model's best fifteen back. The opening squad is deliberately varied,
+           so this is how a reader asks for the unvaried answer. -->
+      <button class="btn sm" id="optimise" style="margin-left:auto">Optimize</button>
     </div>
+    <div class="squadsource dim" id="squadsource"></div>
 
     <div class="pitch" id="pitch">
       <div class="sixyard"></div><div class="spot"></div>
@@ -132,6 +141,20 @@
   </div>
   </div><!-- /pitchside -->
   </div><!-- /pitchgrid -->
+
+  <!-- The chip planner, below the team and closed by default.
+       It used to sit above the pitch, which gave the best space on the screen to a
+       decision taken four times a season. The summary line still says what is planned for
+       this week, so demoting it costs no information -- only the room to change it, which
+       is a click away. -->
+  <details class="chipfold" id="chipfold">
+    <summary>
+      <span class="k">Chips</span>
+      <span class="chipnow" id="chipnow">none this gameweek</span>
+      <span class="dim">change</span>
+    </summary>
+    <div class="chiprow" id="chiprow"></div>
+  </details>
 </section>
 
 <!-- ============================================================
@@ -235,7 +258,7 @@
 
   <div class="storenote">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/></svg>
-    These are the standing overrides the model is running under, read from the configuration this server was started with. Editing them from here is not wired up yet.
+    These are the standing overrides the model is running under, read from the configuration this server was started with. Clearing one here suppresses it for your session and the squad is rebuilt without it; the configuration file is not touched.
   </div>
 </section>
 
