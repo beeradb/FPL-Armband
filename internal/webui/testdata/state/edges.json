@@ -1,0 +1,912 @@
+{
+  "now": "2026-08-19T13:48:00Z",
+  "horizon": 5,
+  "gameweeks": [
+    {
+      "gw": 1,
+      "deadline": "2026-08-21T17:30:00Z",
+      "current": true,
+      "projected": 51.77363217694647,
+      "formation": "3-5-2"
+    },
+    {
+      "gw": 2,
+      "deadline": "2026-08-28T17:30:00Z",
+      "current": false,
+      "projected": 51.09749224531045,
+      "formation": "4-4-2"
+    },
+    {
+      "gw": 3,
+      "deadline": "2026-09-04T17:30:00Z",
+      "current": false,
+      "projected": 49.9199458499405,
+      "formation": "4-4-2"
+    },
+    {
+      "gw": 4,
+      "deadline": "2026-09-12T12:30:00Z",
+      "current": false,
+      "projected": 50.4239653529724,
+      "formation": "4-4-2"
+    },
+    {
+      "gw": 5,
+      "deadline": "2026-09-18T17:30:00Z",
+      "current": false,
+      "projected": 50.901596887585384,
+      "formation": "4-5-1"
+    }
+  ],
+  "squad": {
+    "players": [
+      {
+        "id": 1,
+        "code": 154561,
+        "name": "Raya",
+        "club": "ARS",
+        "pos": "GKP",
+        "price": 6,
+        "xp": 3.835894107479098,
+        "per90": 4.054534805319148,
+        "minutes": 88,
+        "role": "nailed",
+        "reliability": 0.9722998156047347,
+        "start_share": 0.9777777777777777,
+        "ownership": 35,
+        "status": "available",
+        "availability": 1,
+        "fixtures": null,
+        "avg_fdr": 0,
+        "override": {
+          "kind": "minutes",
+          "code": 154561,
+          "session": false,
+          "label": "MIN 88",
+          "reason": "Named first choice for the season. His record is backup minutes; the role is not.",
+          "player": "Raya",
+          "club": "ARS",
+          "pos": "GKP",
+          "set_on": "2026-07-10",
+          "until": "indefinite — review",
+          "checked": "2026-07-10 (40d)",
+          "needs_check": true,
+          "check_age": 40,
+          "in_squad": true,
+          "flag": "CHECK 40d"
+        }
+      },
+      {
+        "id": 497,
+        "code": 67089,
+        "name": "Dubravka",
+        "club": "TOT",
+        "pos": "GKP",
+        "price": 4,
+        "xp": 0,
+        "per90": 2.715525299388817,
+        "minutes": 82.89473684210526,
+        "role": "fringe",
+        "reliability": 0.9023095618911112,
+        "start_share": 0.9210526315789473,
+        "ownership": 21.5,
+        "status": "i",
+        "news": "Knee injury — expected back mid-October. Assessed at 25% for this round.",
+        "availability": 0,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "BRE",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 2,
+            "opp": "NEW",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 3,
+            "opp": "NFO",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 4,
+            "opp": "EVE",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 5,
+            "opp": "AVL",
+            "home": true,
+            "fdr": 3
+          }
+        ],
+        "avg_fdr": 2.8
+      },
+      {
+        "id": 4,
+        "code": 226597,
+        "name": "Højbjerg-Şahin",
+        "club": "ARS",
+        "pos": "DEF",
+        "price": 8,
+        "xp": 4.472212928097297,
+        "per90": 5.552647483923593,
+        "minutes": 72.36842105263158,
+        "role": "likely starter",
+        "reliability": 0.7614356996764117,
+        "start_share": 0.7894736842105263,
+        "ownership": 29,
+        "status": "available",
+        "availability": 1,
+        "fixtures": null,
+        "avg_fdr": 0
+      },
+      {
+        "id": 356,
+        "code": 97032,
+        "name": "Alexander-Arnold Fernández",
+        "club": "LIV",
+        "pos": "DEF",
+        "price": 6.5,
+        "xp": 4.3221356580369195,
+        "per90": 4.3221356580369195,
+        "minutes": 90,
+        "role": "nailed",
+        "reliability": 1,
+        "start_share": 1,
+        "ownership": 18.2,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "NEW",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 2,
+            "opp": "NFO",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 3,
+            "opp": "IPS",
+            "home": false,
+            "fdr": 2
+          },
+          {
+            "gw": 4,
+            "opp": "FUL",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 5,
+            "opp": "BOU",
+            "home": false,
+            "fdr": 3
+          }
+        ],
+        "avg_fdr": 2.6
+      },
+      {
+        "id": 229,
+        "code": 17761,
+        "name": "Tarkowski",
+        "club": "EVE",
+        "pos": "DEF",
+        "price": 6,
+        "xp": 3.7810795641708834,
+        "per90": 3.9664506903656975,
+        "minutes": 87.63157894736842,
+        "role": "nailed",
+        "reliability": 0.9672141897297535,
+        "start_share": 0.9736842105263158,
+        "ownership": 9.4,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "CRY",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 2,
+            "opp": "BOU",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 3,
+            "opp": "MUN",
+            "home": true,
+            "fdr": 4
+          },
+          {
+            "gw": 4,
+            "opp": "TOT",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 5,
+            "opp": "IPS",
+            "home": true,
+            "fdr": 2
+          }
+        ],
+        "avg_fdr": 3
+      },
+      {
+        "id": 445,
+        "code": 465642,
+        "name": "Thiaw",
+        "club": "NEW",
+        "pos": "DEF",
+        "price": 5,
+        "xp": 3.465702341490148,
+        "per90": 4.001187005324437,
+        "minutes": 77.97368421052632,
+        "role": "nailed",
+        "reliability": 0.8358568997442475,
+        "start_share": 0.868421052631579,
+        "ownership": 1.9,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "LIV",
+            "home": true,
+            "fdr": 4
+          },
+          {
+            "gw": 2,
+            "opp": "TOT",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 3,
+            "opp": "BOU",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 4,
+            "opp": "LEE",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 5,
+            "opp": "HUL",
+            "home": true,
+            "fdr": 2
+          }
+        ],
+        "avg_fdr": 3
+      },
+      {
+        "id": 202,
+        "code": 427623,
+        "name": "Richards",
+        "club": "CRY",
+        "pos": "DEF",
+        "price": 5,
+        "xp": 3.4294370842516986,
+        "per90": 4.128221917934532,
+        "minutes": 74.34210526315789,
+        "role": "likely starter",
+        "reliability": 0.7874816319241461,
+        "start_share": 0.8157894736842105,
+        "ownership": 0.8,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "EVE",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 2,
+            "opp": "MCI",
+            "home": true,
+            "fdr": 4
+          },
+          {
+            "gw": 3,
+            "opp": "FUL",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 4,
+            "opp": "IPS",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 5,
+            "opp": "LEE",
+            "home": false,
+            "fdr": 3
+          }
+        ],
+        "avg_fdr": 3
+      },
+      {
+        "id": 426,
+        "code": 141746,
+        "name": "B.Fernandes",
+        "club": "MUN",
+        "pos": "MID",
+        "price": 12,
+        "xp": 5.366802168504183,
+        "per90": 6.063887455490137,
+        "minutes": 80.65789473684211,
+        "role": "nailed",
+        "reliability": 0.877971043681463,
+        "start_share": 0.9210526315789473,
+        "ownership": 49.4,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "HUL",
+            "home": false,
+            "fdr": 2
+          },
+          {
+            "gw": 2,
+            "opp": "IPS",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 3,
+            "opp": "EVE",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 4,
+            "opp": "MCI",
+            "home": true,
+            "fdr": 4
+          },
+          {
+            "gw": 5,
+            "opp": "FUL",
+            "home": false,
+            "fdr": 3
+          }
+        ],
+        "avg_fdr": 2.8
+      },
+      {
+        "id": 427,
+        "code": 446008,
+        "name": "Mbeumo",
+        "club": "MUN",
+        "pos": "MID",
+        "price": 8,
+        "xp": 4.270572547179689,
+        "per90": 5.178289517058873,
+        "minutes": 74.6,
+        "role": "likely starter",
+        "reliability": 0.8002291689045699,
+        "start_share": 0.8857142857142857,
+        "ownership": 32.2,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "HUL",
+            "home": false,
+            "fdr": 2
+          },
+          {
+            "gw": 2,
+            "opp": "IPS",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 3,
+            "opp": "EVE",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 4,
+            "opp": "MCI",
+            "home": true,
+            "fdr": 4
+          },
+          {
+            "gw": 5,
+            "opp": "FUL",
+            "home": false,
+            "fdr": 3
+          }
+        ],
+        "avg_fdr": 2.8
+      },
+      {
+        "id": 237,
+        "code": 440993,
+        "name": "Ndiaye",
+        "club": "EVE",
+        "pos": "MID",
+        "price": 6,
+        "xp": 4.1456781760722965,
+        "per90": 4.355390614708832,
+        "minutes": 86.90625,
+        "role": "nailed",
+        "reliability": 0.9593124815039548,
+        "start_share": 1,
+        "ownership": 15.8,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "CRY",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 2,
+            "opp": "BOU",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 3,
+            "opp": "MUN",
+            "home": true,
+            "fdr": 4
+          },
+          {
+            "gw": 4,
+            "opp": "TOT",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 5,
+            "opp": "IPS",
+            "home": true,
+            "fdr": 2
+          }
+        ],
+        "avg_fdr": 3
+      },
+      {
+        "id": 155,
+        "code": 448047,
+        "name": "Enzo",
+        "club": "CHE",
+        "pos": "MID",
+        "price": 7,
+        "xp": 4.059141906236749,
+        "per90": 4.821707434378557,
+        "minutes": 76.37494736842106,
+        "role": "nailed",
+        "reliability": 0.8228889722213579,
+        "start_share": 0.858421052631579,
+        "ownership": 5.2,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "FUL",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 2,
+            "opp": "BHA",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 3,
+            "opp": "ARS",
+            "home": false,
+            "fdr": 5
+          },
+          {
+            "gw": 4,
+            "opp": "HUL",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 5,
+            "opp": "BRE",
+            "home": false,
+            "fdr": 3
+          }
+        ],
+        "avg_fdr": 3
+      },
+      {
+        "id": 13,
+        "code": 204480,
+        "name": "Rice",
+        "club": "ARS",
+        "pos": "MID",
+        "price": 7.5,
+        "xp": 4.013410825638066,
+        "per90": 4.803524834238139,
+        "minutes": 75.85989473684211,
+        "role": "nailed",
+        "reliability": 0.8163032958537604,
+        "start_share": 0.858421052631579,
+        "ownership": 19.5,
+        "status": "available",
+        "availability": 1,
+        "fixtures": null,
+        "avg_fdr": 0
+      },
+      {
+        "id": 106,
+        "code": 502500,
+        "name": "Thiago",
+        "club": "BRE",
+        "pos": "FWD",
+        "price": 8,
+        "xp": 4.41304248457195,
+        "per90": 4.662968394082318,
+        "minutes": 86.36842105263158,
+        "role": "nailed",
+        "reliability": 0.9498184214155729,
+        "start_share": 0.9736842105263158,
+        "ownership": 17.8,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "TOT",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 2,
+            "opp": "LEE",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 3,
+            "opp": "SUN",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 4,
+            "opp": "BOU",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 5,
+            "opp": "CHE",
+            "home": true,
+            "fdr": 4
+          }
+        ],
+        "avg_fdr": 3
+      },
+      {
+        "id": 346,
+        "code": 177815,
+        "name": "Calvert-Lewin",
+        "club": "LEE",
+        "pos": "FWD",
+        "price": 6,
+        "xp": 3.5780677079656504,
+        "per90": 4.531814929276636,
+        "minutes": 71.60526315789474,
+        "role": "likely starter",
+        "reliability": 0.7514118585009091,
+        "start_share": 0.7894736842105263,
+        "ownership": 28.1,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "NFO",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 2,
+            "opp": "BRE",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 3,
+            "opp": "BHA",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 4,
+            "opp": "NEW",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 5,
+            "opp": "CRY",
+            "home": true,
+            "fdr": 3
+          }
+        ],
+        "avg_fdr": 2.8
+      },
+      {
+        "id": 272,
+        "code": 631786,
+        "name": "Kusi-Asare",
+        "club": "FUL",
+        "pos": "FWD",
+        "price": 4.5,
+        "xp": 0.02902405133857784,
+        "per90": 1.4331210408664858,
+        "minutes": 1.2894736842105263,
+        "role": "fringe",
+        "reliability": 0.0049569263643673,
+        "start_share": 0,
+        "ownership": 7.3,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "CHE",
+            "home": true,
+            "fdr": 4
+          },
+          {
+            "gw": 2,
+            "opp": "SUN",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 3,
+            "opp": "CRY",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 4,
+            "opp": "LIV",
+            "home": false,
+            "fdr": 4
+          },
+          {
+            "gw": 5,
+            "opp": "MUN",
+            "home": true,
+            "fdr": 4
+          }
+        ],
+        "avg_fdr": 3.6
+      }
+    ],
+    "xi": [
+      426,
+      4,
+      106,
+      356,
+      427,
+      237,
+      155,
+      13,
+      1,
+      229,
+      346
+    ],
+    "bench": [
+      445,
+      202,
+      272,
+      497
+    ],
+    "captain": 426,
+    "vice": 0,
+    "formation": "3-5-2",
+    "xi_score": 46.25803807395278,
+    "expected": 51.62484024245697,
+    "bench_score": 9.10216684420584,
+    "cost": 99.5,
+    "bank": 0.5,
+    "club_counts": {
+      "BHA": 2,
+      "BOU": 1,
+      "BRE": 2,
+      "CHE": 1,
+      "CRY": 2,
+      "EVE": 1,
+      "FUL": 1,
+      "LEE": 2,
+      "LIV": 1,
+      "NEW": 1,
+      "SUN": 1
+    }
+  },
+  "market": {
+    "rows": null,
+    "benchmarks": [
+      {
+        "pos": "GKP",
+        "name": "Raya",
+        "score": 3.835894107479098,
+        "price": 6
+      },
+      {
+        "pos": "DEF",
+        "name": "Tarkowski",
+        "score": 3.7810795641708834,
+        "price": 6
+      },
+      {
+        "pos": "MID",
+        "name": "Rice",
+        "score": 4.013410825638066,
+        "price": 7.5
+      },
+      {
+        "pos": "FWD",
+        "name": "Calvert-Lewin",
+        "score": 3.5780677079656504,
+        "price": 6
+      }
+    ],
+    "excluded": [
+      {
+        "kind": "exclude",
+        "code": 109745,
+        "session": false,
+        "label": "EXCL",
+        "reason": "Long-term injury with no named return date.",
+        "player": "Arrizabalaga",
+        "club": "ARS",
+        "pos": "GKP",
+        "set_on": "2026-08-18",
+        "until": "indefinite — review",
+        "checked": "2026-08-18 (1d)",
+        "needs_check": false,
+        "check_age": 1,
+        "flag": "CHECK 1d"
+      }
+    ],
+    "count": 0,
+    "clearing": 0,
+    "gate": 0.4
+  },
+  "overrides": {
+    "live": [
+      {
+        "kind": "minutes",
+        "code": 154561,
+        "session": false,
+        "label": "MIN 88",
+        "reason": "Named first choice for the season. His record is backup minutes; the role is not.",
+        "player": "Raya",
+        "club": "ARS",
+        "pos": "GKP",
+        "set_on": "2026-07-10",
+        "until": "indefinite — review",
+        "needs_check": true,
+        "check_age": 61,
+        "never_checked": true,
+        "in_squad": true,
+        "flag": "CHECK — never verified, set 61d ago"
+      },
+      {
+        "kind": "exclude",
+        "code": 109745,
+        "session": false,
+        "label": "EXCL",
+        "reason": "Long-term injury with no named return date.",
+        "player": "Arrizabalaga",
+        "club": "ARS",
+        "pos": "GKP",
+        "set_on": "2026-08-18",
+        "until": "indefinite — review",
+        "checked": "2026-08-18 (1d)",
+        "needs_check": false,
+        "check_age": 1,
+        "flag": "CHECK 1d"
+      }
+    ],
+    "lapsed": [
+      {
+        "kind": "minutes",
+        "code": 999999,
+        "session": false,
+        "label": "MIN 20",
+        "reason": "Set for pre-season only, and past its gameweek — kept rather than dropped, because deleting it would hide that a player's treatment changed.",
+        "player": "A Lapsed Correction",
+        "club": "TOT",
+        "pos": "MID",
+        "set_on": "2026-06-01",
+        "until": "lapses after GW1",
+        "checked": "2026-06-01 (79d)",
+        "needs_check": false,
+        "check_age": 79,
+        "lapsed": true
+      }
+    ],
+    "due": 1,
+    "oldest": "Raya, 61 days"
+  },
+  "blind": [
+    "Transfer news, press conferences, tactical changes, a player who has just lost his place.",
+    "New signings from abroad, who carry no Premier League data at all.",
+    "The difference between \"injured for three months\" and \"not picked\" — both show as low expected minutes, so check minutes-per-start to tell them apart.",
+    "Whether a club is still in a competition. That list is hand-maintained and goes stale the moment a club is knocked out."
+  ],
+  "policy": {
+    "min_gain_transfer": 0.4,
+    "min_gain_hit": 3,
+    "bank_up_to": 5,
+    "max_hits_per_week": 1,
+    "rules": [
+      "Do nothing is a valid and usually underrated answer. Only recommend a move when the case is affirmative.",
+      "Never take a hit to chase last week's points. A player who blanked is not thereby a sell.",
+      "Prefer fixing a problem (injury, lost starting place, terrible run) over chasing an upgrade.",
+      "If a wildcard is planned within two gameweeks, do not spend transfers on problems the wildcard will fix anyway.",
+      "Check team news before finalising: the model cannot see press conferences, and FPL's own news field lags them."
+    ]
+  },
+  "clubs": [
+    "ARS",
+    "AVL",
+    "BHA",
+    "BOU",
+    "BRE",
+    "CHE",
+    "COV",
+    "CRY",
+    "EVE",
+    "FUL",
+    "HUL",
+    "IPS",
+    "LEE",
+    "LIV",
+    "MCI",
+    "MUN",
+    "NEW",
+    "NFO",
+    "SUN",
+    "TOT"
+  ],
+  "session": {
+    "store": "session",
+    "writable": true
+  }
+}

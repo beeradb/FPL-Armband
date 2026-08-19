@@ -1,17 +1,13 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"net/http/httptest"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
+	"armband/internal/browsertest"
 	"armband/internal/viewmodel"
 )
 
@@ -108,7 +104,7 @@ func assertInert(t *testing.T, where, dom string) {
 // TestEveryPanelRendersAHostileNameAsText renames every player in the capture and walks
 // all four panels in a real browser.
 func TestEveryPanelRendersAHostileNameAsText(t *testing.T) {
-	browser := chromium(t)
+	browser := browsertest.Find(t)
 
 	s := fixtureServerNamed(t, func(string) string { return nastyName })
 	srv := httptest.NewServer(s)
@@ -141,7 +137,7 @@ func TestEveryPanelRendersAHostileNameAsText(t *testing.T) {
 	// toggles `hidden` -- renderAll draws all of them on every load. Dumping once per
 	// panel launched four browsers to read the same bytes, which is three browsers of
 	// nothing on a machine already running the rest of the suite in parallel.
-	dom := dumpDOM(t, browser, srv.URL+"/app#pitch")
+	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app#pitch")
 
 	// The panels' own markers, so a document that somehow rendered only one of them
 	// fails here rather than passing on a partial page. The formations rail in
@@ -170,7 +166,7 @@ func TestEveryPanelRendersAHostileNameAsText(t *testing.T) {
 // control characters and caps the length, and does nothing whatever about markup.
 // Rendering is the only thing between a typed reason and the DOM.
 func TestOverrideProseRendersAsText(t *testing.T) {
-	browser := chromium(t)
+	browser := browsertest.Find(t)
 
 	s := fixtureServer(t)
 	cfg := *s.cfg
@@ -180,62 +176,9 @@ func TestOverrideProseRendersAsText(t *testing.T) {
 	srv := httptest.NewServer(s)
 	defer srv.Close()
 
-	dom := dumpDOM(t, browser, srv.URL+"/app#overrides")
+	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app#overrides")
 	if !strings.Contains(dom, "He is nailed") {
 		t.Fatal("the override's reasoning is not on the page, so this proves nothing")
 	}
 	assertInert(t, "override reasoning", dom)
-}
-
-// dumpDOM renders a URL and returns the DOM the browser ended up with.
-//
-// --dump-dom rather than a screenshot, because the question is what the parser built, not
-// what it looked like. An injected <script> is invisible in a picture.
-func dumpDOM(t *testing.T, browser, url string) string {
-	t.Helper()
-	work := scratch(t)
-	out := filepath.Join(work, "dom.html")
-
-	// A deadline of its own. Without one a wedged browser hangs until the test binary's
-	// ten-minute limit and takes the whole package's output with it.
-	//
-	// Five minutes, and deliberately loose. A render takes about two seconds alone, but
-	// `go test ./...` runs packages in parallel, so a browser here competes with the
-	// replay suite and the analysis suite for the same cores. Both 60s and 180s fired on
-	// a full-suite run and passed on their own a moment later -- a flake introduced by
-	// the guard against flakes.
-	//
-	// The deadline's job is to turn a WEDGED browser into a fast failure instead of a
-	// ten-minute one, and it does that at any value far below ten minutes. Tightening it
-	// to catch a slow render buys nothing and costs a false failure on a busy machine.
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, browser,
-		"--headless",
-		"--no-sandbox",
-		"--disable-gpu",
-		"--disable-dev-shm-usage",
-		// The same fast-forward the screenshots use, so neither depends on how loaded
-		// the machine is.
-		"--virtual-time-budget=8000",
-		"--dump-dom",
-		url,
-	)
-	cmd.Env = append(os.Environ(), "HOME="+work)
-	body, err := cmd.Output()
-	if ctx.Err() != nil {
-		t.Fatalf("chromium did not finish rendering %s within the deadline", url)
-	}
-	if err != nil {
-		t.Fatalf("chromium could not render %s: %v", url, err)
-	}
-	if len(body) < 500 {
-		t.Fatalf("chromium returned %d bytes of DOM for %s; the page did not render",
-			len(body), url)
-	}
-	if err := os.WriteFile(out, body, 0o644); err != nil {
-		t.Logf("could not keep the DOM for inspection: %v", err)
-	}
-	return string(body)
 }
