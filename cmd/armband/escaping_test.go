@@ -135,13 +135,32 @@ func TestEveryPanelRendersAHostileNameAsText(t *testing.T) {
 			"tested. Escaping belongs at the render, not in the data.")
 	}
 
-	// Every panel. The formation rail lives on the pitch and lists the players a shape
-	// would bring IN, which is the sink that survived the first version of this test.
-	for _, panel := range []string{"pitch", "players", "overrides", "brief"} {
-		t.Run(panel, func(t *testing.T) {
-			assertInert(t, panel, dumpDOM(t, browser, srv.URL+"/app#"+panel))
-		})
+	// One dump covers every panel.
+	//
+	// The four panels are four <section>s in a single document and the tab switch only
+	// toggles `hidden` -- renderAll draws all of them on every load. Dumping once per
+	// panel launched four browsers to read the same bytes, which is three browsers of
+	// nothing on a machine already running the rest of the suite in parallel.
+	dom := dumpDOM(t, browser, srv.URL+"/app#pitch")
+
+	// The panels' own markers, so a document that somehow rendered only one of them
+	// fails here rather than passing on a partial page. The formations rail in
+	// particular is the sink that survived the first version of this test.
+	for _, marker := range []string{
+		// The formations rail. Matched as it appears in the DOM, not as it appears on
+		// screen -- the stylesheet uppercases this heading, and the first version of
+		// this list asserted the screenshot's text against the document's.
+		"Every shape this fifteen can make",
+		"view-players",
+		"view-overrides",
+		"view-brief",
+	} {
+		if !strings.Contains(dom, marker) {
+			t.Errorf("the rendered document does not contain %q, so this test is not "+
+				"covering every panel", marker)
+		}
 	}
+	assertInert(t, "the application", dom)
 }
 
 // TestOverrideProseRendersAsText covers the other free-text channel.
@@ -180,12 +199,16 @@ func dumpDOM(t *testing.T, browser, url string) string {
 	// A deadline of its own. Without one a wedged browser hangs until the test binary's
 	// ten-minute limit and takes the whole package's output with it.
 	//
-	// Three minutes rather than one. A render takes about two seconds alone, but `go test
-	// ./...` runs packages in parallel and several browsers then compete for the same
-	// cores -- a 60s deadline duly fired on a full-suite run and passed on its own a
-	// moment later, which is a flake introduced by the guard against flakes. The number
-	// only has to be far below the ten minutes it replaces.
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	// Five minutes, and deliberately loose. A render takes about two seconds alone, but
+	// `go test ./...` runs packages in parallel, so a browser here competes with the
+	// replay suite and the analysis suite for the same cores. Both 60s and 180s fired on
+	// a full-suite run and passed on their own a moment later -- a flake introduced by
+	// the guard against flakes.
+	//
+	// The deadline's job is to turn a WEDGED browser into a fast failure instead of a
+	// ten-minute one, and it does that at any value far below ten minutes. Tightening it
+	// to catch a slow render buys nothing and costs a false failure on a busy machine.
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, browser,
