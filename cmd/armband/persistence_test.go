@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -263,16 +264,66 @@ func TestOptimizeReturnsTheModelsBest(t *testing.T) {
 	}
 }
 
-// TestTheSessionRouteRefusesWithoutTheToken pins that a write is a write.
-func TestTheSessionRouteRefusesWithoutTheToken(t *testing.T) {
+// TestTheSessionRouteGatesWritesByWhatTheyCanReach.
+//
+// The token used to be required unconditionally. It is now required where a save can reach
+// config.json — under `-persist` — and a same-origin check stands in for it where a save can
+// only reach the caller's own cookie. The public deployment has no way to hand a token to a
+// reader, so an unconditional token meant the planner drew every control and refused every
+// one of them.
+//
+// ⚠️ The token was doing a SECOND job, and this test exists mostly to pin the replacement.
+// A cross-origin page cannot be allowed to write, `SameSite=Strict` notwithstanding: the
+// reader's cookie is withheld, the server sees an empty session, and the answer's Set-Cookie
+// replaces the real one. Destruction, not disclosure, and unrecoverable from the page.
+func TestTheSessionRouteGatesWritesByWhatTheyCanReach(t *testing.T) {
+	send := func(s *squadServer, method string, hdr map[string]string) int {
+		req := httptest.NewRequest(method, routeSession, strings.NewReader(`{"v":1}`))
+		req.Host = "127.0.0.1:8080"
+		for k, v := range hdr {
+			req.Header.Set(k, v)
+		}
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	// A save that cannot reach the file needs no token — that is the whole point.
 	s := fixtureServer(t)
-	req := httptest.NewRequest("PUT", routeSession, strings.NewReader(`{"v":1}`))
-	req.Host = "127.0.0.1:8080"
-	w := httptest.NewRecorder()
-	s.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("an untokened PUT answered %d, want 403 — any page in the reader's "+
-			"browser could otherwise rearrange his team", w.Code)
+	if got := send(s, "PUT", map[string]string{"Sec-Fetch-Site": "same-origin"}); got != http.StatusOK {
+		t.Errorf("a same-origin PUT with no token answered %d, want 200. Without this the "+
+			"public planner draws every control and refuses every one.", got)
+	}
+
+	// But a cross-origin one is refused, with or without a session of its own.
+	for _, site := range []string{"cross-site", "same-site"} {
+		if got := send(s, "PUT", map[string]string{"Sec-Fetch-Site": site}); got != http.StatusForbidden {
+			t.Errorf("a %s PUT answered %d, want 403 — a page in the reader's browser "+
+				"could otherwise replace their stored team", site, got)
+		}
+	}
+
+	// POST is gone. A cross-origin POST with a simple content type is sent with NO
+	// preflight, so accepting POST here would hand that page the write path whatever the
+	// origin check said about requests it can see.
+	if got := send(s, "POST", map[string]string{"Sec-Fetch-Site": "same-origin"}); got != http.StatusMethodNotAllowed {
+		t.Errorf("POST answered %d, want 405. A cross-origin POST needs no preflight, so "+
+			"it is the one method that must not be accepted here.", got)
+	}
+
+	// Under -persist a save reaches config.json, and there the token is the boundary —
+	// same-origin is not enough, because the attacker that matters is a local process.
+	p := fixtureServer(t)
+	p.persist = true
+	p.cfgPath = filepath.Join(t.TempDir(), "config.json")
+	if got := send(p, "PUT", map[string]string{"Sec-Fetch-Site": "same-origin"}); got != http.StatusForbidden {
+		t.Errorf("under -persist a tokenless PUT answered %d, want 403 — it would write a "+
+			"standing override that binds every future agent run", got)
+	}
+	if got := send(p, "PUT", map[string]string{
+		"Sec-Fetch-Site": "same-origin", "X-Armband-Token": p.token,
+	}); got != http.StatusOK {
+		t.Errorf("under -persist a tokened PUT answered %d, want 200", got)
 	}
 }
 

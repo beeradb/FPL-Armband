@@ -40,6 +40,13 @@ type Input struct {
 	// the page says something different about each.
 	Saved     bool
 	Optimised bool
+
+	// Writable is whether the write route will accept THIS caller — which is not the same
+	// question as whether this request carried a token, because the token is required only
+	// where a save can reach config.json. The client draws its controls from this, so
+	// getting it wrong either hides a control that works or offers one that will be
+	// refused, and the second is the failure this surface exists to avoid.
+	Writable bool
 }
 
 // Build translates an assembled page into the client contract.
@@ -59,7 +66,7 @@ func Build(in Input) (*State, error) {
 		Clubs:   p.Teams,
 		Session: Session{
 			Store:     "session",
-			Writable:  p.Token != "",
+			Writable:  in.Writable,
 			Locked:    in.Session.Locked,
 			Blocked:   in.Session.Blocked,
 			Chips:     in.Session.Chips,

@@ -306,6 +306,11 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 		Session:   sess.arrangement(),
 		Optimised: sess.Optimised,
 		Saved:     len(sess.Squad) == 15,
+		// The same condition saveSession applies, so the page offers exactly the controls
+		// the write route will accept. Deriving it here from the request rather than
+		// re-deciding it in the client is what keeps the two from disagreeing.
+		Writable: !s.sessionWriteNeedsToken() || s.tokenOK(r.Header.Get("X-Armband-Token")) ||
+			s.authed(r),
 	})
 	if err != nil {
 		// Build's only failure is a number encoding/json would refuse. Naming the field
@@ -327,27 +332,99 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 // how a client ends up recomputing model quantities. Answering with the document means the
 // page never holds an opinion the server has not seen.
 //
-// # Why this is a write route with a token and /api/state is not
+// # Why the token is required only under -persist
 //
-// It changes stored state. The token has always gated writes here, and this is one.
+// The token exists for one reason, recorded on `authed`: a page is served to anything that
+// can make a request, so a token embedded in it is no boundary against a local process — and
+// under `-persist` that process could drive a standing override into config.json, which then
+// binds every future agent run.
+//
+// That reasoning is entirely about `-persist`. With it off, a save reaches exactly one thing:
+// the caller's own HttpOnly cookie. It cannot touch the file, no other reader can read it,
+// and it dies with the browser session. Requiring a token there protects nothing and costs
+// the whole feature — a public deployment has no way to hand a token to a reader, so the
+// planner would draw every control and refuse every one of them, which is precisely the
+// defect this surface was rewritten to remove.
+//
+// So the gate follows the thing it guards. What stays open is CPU, not data: every save
+// rebuilds the page, and Optimize runs the optimiser under the global mutex. That is a
+// rate-limiting problem, filed as one, and not an argument for a token nobody can deliver.
+//
+// ⚠️ The token was ALSO doing a second job, and dropping it without replacing that job is a
+// CSRF hole. This route used to accept POST as well as PUT, and a cross-origin page can make
+// a POST with a text/plain body and no preflight — a "simple request" — so any page open in
+// the reader's browser could have overwritten their stored team the moment the token stopped
+// being required. `SameSite=Strict` does not save it: the reader's cookie is withheld, the
+// server sees an empty session, and the ANSWER's Set-Cookie replaces the real one.
+//
+// Two things close it, and both are needed:
+//
+//   - **PUT only.** PUT is not a simple method, so a cross-origin PUT forces a preflight,
+//     and no route here answers OPTIONS. That alone ends the browser attack.
+//   - **A same-origin check** where there is no token, as defence in depth for anything that
+//     reaches the handler another way.
+//
+// What is deliberately NOT defended against is a local process with no browser: curl can
+// PUT here all day. That is the token's job, and with `-persist` off all it can write is its
+// own cookie — which is nobody's session but its own.
+func (s *squadServer) sessionWriteNeedsToken() bool { return s.persist }
+
+// sameOrigin reports whether a browser says this request came from this site.
+//
+// `Sec-Fetch-Site` is set by the browser and cannot be forged by page script, so it is the
+// load-bearing half. A request without it is not a browser request — curl, a test, the Wails
+// binding — and those are the token's problem rather than CSRF's, so their absence is not
+// treated as a failure here.
+func sameOrigin(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "same-origin", "none":
+		return true
+	case "":
+		// No browser said anything. Fall through to Origin, which most clients omit too.
+	default:
+		return false // cross-site or same-site, both of which mean "another origin asked"
+	}
+	if o := r.Header.Get("Origin"); o != "" {
+		return strings.TrimPrefix(strings.TrimPrefix(o, "https://"), "http://") == r.Host
+	}
+	return true
+}
+
 func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 	// Clamped before the mutex and before the token check, for the same reason /action
 	// clamps: the body is the one thing a caller can make arbitrarily expensive.
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
 
-	if r.Method != http.MethodPut && r.Method != http.MethodPost {
-		w.Header().Set("Allow", "PUT, POST")
+	// PUT only. POST was accepted here and it was a hole: a cross-origin POST with a
+	// text/plain body is a "simple request", so it is sent with no preflight and any page in
+	// the reader's browser could have replaced their stored team. PUT forces a preflight
+	// that nothing here answers.
+	if r.Method != http.MethodPut {
+		w.Header().Set("Allow", "PUT")
 		http.Error(w, "the session takes a PUT", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Refused BEFORE the mutex, and that ordering is the point.
+	//
+	// The lock serialises every render on this server, and a render is seconds. Checking
+	// admission after taking it means a request that is going to be refused still queues
+	// behind one — so the cheapest request an attacker can send costs a mutex acquisition,
+	// and a flood of them is a denial of service made entirely of 403s. Neither check reads
+	// server state that the lock protects: one is a constant-time compare against a token
+	// fixed at startup, the other reads request headers.
+	if s.tokenOK(r.Header.Get("X-Armband-Token")) {
+		// The token is the strongest claim available and settles it.
+	} else if s.sessionWriteNeedsToken() {
+		http.Error(w, "missing or wrong token", http.StatusForbidden)
+		return
+	} else if !sameOrigin(r) {
+		http.Error(w, "cross-origin writes are refused", http.StatusForbidden)
 		return
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if !s.tokenOK(r.Header.Get("X-Armband-Token")) {
-		http.Error(w, "missing or wrong token", http.StatusForbidden)
-		return
-	}
 
 	var in session
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
