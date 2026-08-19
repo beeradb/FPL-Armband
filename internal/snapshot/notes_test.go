@@ -909,7 +909,24 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// docs/replay.md. The named lists are deliberate — see the file's own statement — and
 	// a future edit must not "finish the job" by deleting them, nor re-inflate the
 	// resident file with a second copy of a verdict.
-	const budget = 44 * 1024
+	// # 45 KB from 2026-08-19 — the security bullet now covers a store of personal data
+	//
+	// The claim that needed the room: `armband serve`'s inbound listener "accepts a gate
+	// POST that records an email address to Postgres — the only personal data this project
+	// COLLECTS, as against the published FPL payloads it archives."
+	//
+	// The qualifier is the part that cost the bytes and the part worth having. A first pass
+	// said "the one personal data this project holds", which review falsified from the tree
+	// in three ways: `data/captures/` holds bootstrap payloads carrying players' full
+	// names, `config.json`'s `rest_players` names real footballers, and `internal/fpl`
+	// deserialises the FPL account holder's own name. Dropping "collects, as against …" to
+	// fit would have restored exactly the overstatement review caught, in the file's
+	// SECURITY bullet, where a reader scoping a data-handling change reads it and misses
+	// the capture store — the flattering direction, for the fifth time by this constant's
+	// own count.
+	//
+	// ⚠️ Raised rather than compressed, per this comment's own rule.
+	const budget = 45 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.
