@@ -19,8 +19,8 @@ mockup. The whole fifteen under the real rules: the eleven and the bench in subs
 the captain, what was spent and what is left, and against every player the next five fixtures,
 expected minutes, the model's score and the price. The same page serves live over HTTP —
 `armband serve` hosts it on 127.0.0.1, where every player in the fifteen carries a lock and a
-boot button that write standing overrides back to config, and the watchlist gains filters,
-sorting and paging.
+boot button that write standing overrides — into the browser session by default, back to
+config.json only with `-persist` — and the watchlist gains filters, sorting and paging.
 
 ![The squad page for gameweek 1, two days before the deadline, from the 2026-08-19 run. A header shows the gameweek, the deadline and free transfers, above three tabs: The eleven, Why this eleven, and Watchlist. Below, the starting eleven in a 3-5-2 — 46.5 XI points per gameweek, Bruno Fernandes as captain, £100.0m spent, £0.0m left — with each row carrying five colour-coded fixture-difficulty pills, expected minutes, the model's score and the price. The four-man bench follows in substitution order.](docs/images/squad-eleven.png)
 
@@ -85,7 +85,7 @@ should change without reading what it does first.
 
 ## Two things to know before your first paid run
 
-**It writes to your config, never to FPL.** There is no authenticated write path at all — the
+**It writes to your config, never to FPL.** There is no authenticated write path at all — FPL's
 session cookie, the my-team endpoint and the `auth` command were removed outright, and
 `TestTheClientHasNoAuthenticatedSurface` fails the build if one comes back. You make the
 transfers.

@@ -114,7 +114,7 @@ Examples:
   before their own positional arguments, for the same reason — a FlagSet stops
   at the first non-flag argument too, so "backfill 2023-24 -coverage" reads
   -coverage as a second season name and crawls the archive it was meant to
-  avoid. Serve has no positional arguments; it only takes -addr.
+  avoid. Serve has no positional arguments; it only takes -addr and -persist.
 
   armband capture -list             audit the capture series for gaps
   armband backfill -coverage all    report what is on disk without fetching
