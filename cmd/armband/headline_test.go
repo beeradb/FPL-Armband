@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"armband/internal/browsertest"
 	"armband/internal/viewmodel"
 )
 
@@ -34,7 +35,7 @@ import (
 // ⚠️ It covers the totals and the cards. The formations rail and the armband picker still
 // compute client-side and nothing checks either against the model.
 func TestThePageHeadlineIsTheModelsNumber(t *testing.T) {
-	browser := chromium(t)
+	browser := browsertest.Find(t)
 
 	s := fixtureServer(t)
 	srv := httptest.NewServer(s)
@@ -49,7 +50,7 @@ func TestThePageHeadlineIsTheModelsNumber(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dom := dumpDOM(t, browser, srv.URL+"/app#pitch")
+	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app#pitch")
 
 	// The score bug prints the projection at the top of the pitch, and the supporting
 	// cell spells out the arithmetic as "XI <n> + armband".
@@ -89,7 +90,7 @@ func TestThePageHeadlineIsTheModelsNumber(t *testing.T) {
 // hypothetical here, since the client's arithmetic was a rescaling of the same inputs. So
 // every projection printed on a card is matched against that player's own figure.
 func TestEveryCardShowsTheModelsProjection(t *testing.T) {
-	browser := chromium(t)
+	browser := browsertest.Find(t)
 
 	s := fixtureServer(t)
 	srv := httptest.NewServer(s)
@@ -108,7 +109,7 @@ func TestEveryCardShowsTheModelsProjection(t *testing.T) {
 		want[p.ID] = p.XP
 	}
 
-	dom := dumpDOM(t, browser, srv.URL+"/app#pitch")
+	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app#pitch")
 
 	// Split first, then match inside each card.
 	//

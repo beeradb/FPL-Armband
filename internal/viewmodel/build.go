@@ -29,6 +29,17 @@ type Input struct {
 	Now time.Time
 	// Persist reports whether writes go to config.json rather than the browser session.
 	Persist bool
+
+	// Session is what the reader has arranged and corrected, carried through so the page
+	// can draw its own controls from it rather than keeping a second idea of them. Zero
+	// for a caller with no session, which is every caller but the HTTP one.
+	Session Session
+	// Saved reports that the fifteen came from a stored team rather than being chosen
+	// now, and Optimised that it is the model's best rather than a varied opening. They
+	// are separate because a saved team may or may not have started as the optimum, and
+	// the page says something different about each.
+	Saved     bool
+	Optimised bool
 }
 
 // Build translates an assembled page into the client contract.
@@ -47,8 +58,14 @@ func Build(in Input) (*State, error) {
 		Horizon: p.Horizon,
 		Clubs:   p.Teams,
 		Session: Session{
-			Store:    "session",
-			Writable: p.Token != "",
+			Store:     "session",
+			Writable:  p.Token != "",
+			Locked:    in.Session.Locked,
+			Blocked:   in.Session.Blocked,
+			Chips:     in.Session.Chips,
+			Dismissed: in.Session.Dismissed,
+			Saved:     in.Saved,
+			Optimised: in.Optimised,
 		},
 	}
 	if in.Persist {
@@ -167,6 +184,10 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap) []Gameweek {
 	}
 	out := make([]Gameweek, 0, len(p.Weeks))
 	for _, w := range p.Weeks {
+		var playable []ChipOption
+		for _, key := range analysis.PlayableChips(boot, w.Event) {
+			playable = append(playable, ChipOption{Key: key, Label: analysis.ChipLabel(key)})
+		}
 		out = append(out, Gameweek{
 			Number:    w.Event,
 			Deadline:  deadline[w.Event],
@@ -175,6 +196,7 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap) []Gameweek {
 			Projected: w.Expected,
 			Formation: w.Formation,
 			Rebuilt:   w.Rebuilt,
+			Playable:  playable,
 		})
 	}
 	return out

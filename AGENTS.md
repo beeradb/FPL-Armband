@@ -263,7 +263,11 @@ it is replay documentation, needed when running a sweep, not every run. → **ar
   `TestTheCopiedExpressionsHaveOneImplementation` scan for it. Extend an existing scan rather
   than adding a runtime equivalence test per copy: the second stops one divergence, the first
   stops the next copy. **A scan passing is not "there are no copies"** — the scans match an
-  *idiom*, so they are tripwires rather than proofs.
+  *idiom*, so they are tripwires rather than proofs. ⚠️ **Both scans are Go-only, so a copy in
+  the served client is invisible to them**, which is how the transfer gate came to be decided
+  twice with two different roundings. Where deleting the second copy is not available, pin the
+  two languages against one table — `TestTheGateIsDecidedTheSameWayInBothLanguages` — and put
+  the SEPARATING cases in it, or the pin fixes the shipped constant rather than the rule.
 - **A nonlinear transform of an archive-row field is not a statement about the model.** Take the
   regressor off `Metrics`, as `TestDiagCleanSheetRegressor` does;
   `TestNonlinearTransformsScoreTheModelsOwnRegressor` scans for it. ⚠️ It catches a mismatched
@@ -327,6 +331,11 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   must not be added: tenths are both non-dyadic and coarse enough for two formations to tie
   exactly, which is the one region where the fold really does pick differently. →
   **optimiser-and-squad**
+- **A per-request mutation of a shared engine outlives the request.** `serve` holds one engine
+  for every reader, and `ApplyChipPlan` shortens `Weights.Horizon` for a planned wildcard —
+  correct for that build, permanent unless it is put back. Save and restore whatever a request
+  mutates. **A CLI that exits cannot find this class, and most of this code was written as
+  one.** Pinned by `TestAPlannedWildcardDoesNotShortenTheNextReadersHorizon`.
 - **`runPolicySweep` builds cells at `WeeklyXI: false`, and several diagnostics run at `true`.**
   Pin the setting in `apply` and stamp it.
 - **Never compare a replayed float for exact equality against a BANKED total: a banked total is

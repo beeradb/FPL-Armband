@@ -35,3 +35,15 @@ cmd/armband/testdata/golden/diff-*.png
 
 # Scratch commit messages written by tooling; never part of the tree.
 .commitmsg
+
+# Scratch the browser tests write into. Not t.TempDir(): chromium is a snap and gets a
+# private /tmp, so anything it writes has to land somewhere the host shares.
+**/.browserwork-*
+
+# Failure artefacts from the layout suite. The goldens are committed; these are what the
+# run produced and how it differed.
+internal/webui/testdata/golden/diff-*.png
+
+# One-shot edit scripts. They are written, run once and deleted; two were committed by
+# accident and carried verbatim copies of intermediate source with them.
+.*.py
