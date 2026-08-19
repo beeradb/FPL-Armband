@@ -856,9 +856,26 @@ the conventions in this package are aimed squarely at that class:
   `stop()`. A duplicate that is *checked* is a pipeline test; one that is merely watched is the
   bug.
 
+## What each season can and cannot run
+
+**A byte-identical season under an intervention is not a tie — it is a season where the
+intervention could not run.**
+
+| season | cannot run | note |
+|---|---|---|
+| 2018-19 and earlier | xG, xA, xGC natively | `tackled` and the full bonus-points component set are present 2016-19, which is what let the pre-2024-25 bonus schedule be decoded |
+| 2019-20 | **`POLICY`** — FPL granted unlimited free transfers before the GW30+ deadline and froze prices for three months. Also xG and `starts`, both backfilled | scoring is fine, so it stays valid for `HOLD`. Rounds are numbered 1-29 then 39-47 |
+| 2020-21, 2021-22 | xG natively; `starts` is recorded, from the Understat harvest | nothing on the **replay's** scoring path reads `Starts` (byte-identical at shipped config — a **simple-effect null**, untested under `FPL_NO_UNIFIED_APPEARANCE` or `FPL_RELIABILITY_SPLIT`). It *is* live on the agent path (`tournamentAbsence`) and in `OracleLineups` |
+| 2022-23 | xG and `starts` for GW1-15 — FPL added fields mid-season | GW7 has no rows and GW8 is partial. Real football, not a hole |
+| every season but 2025-26 | defensive contribution ("defcon") | 6 live cells in 36, so widening the grid makes defcon *harder* to measure |
+| all archived seasons | the full five-change 2026/27 bonus figure — no season carries both the modern saves baseline and a `tackled` column | the individual channels **are** measurable; the joint CBI-plus-tackled arm is measurable on 2016-19 and unrun. The four shipped seasons span three bonus regimes, so `Bonus90`'s (the blended per-90 bonus rate a player is scored on) *level* is not comparable across them, though paired comparisons are |
+
+The earliest season that is recognisably the same game is **2013-14** — the introduction of the
+Bonus Points System. → **archive-and-data**
+
 ## Where to go next
 
 [`stats/README.md`](../stats/README.md) holds the inference side: the CSV schema, the R
 scripts that read it, and the snapshot recipe. The evidence behind the findings this page
-alludes to is not held in this repository; the verdict of each is resident in
-[AGENTS.md](../AGENTS.md), under "What has been measured".
+alludes to is not held in this repository; the verdict of each is named — title and pointer —
+in [AGENTS.md](../AGENTS.md), under "What has been measured".
