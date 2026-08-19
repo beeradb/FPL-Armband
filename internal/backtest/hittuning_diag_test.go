@@ -108,18 +108,30 @@ package backtest
 //     counterfactual eleven being unknowable — skipped on a free-hit week,
 //     and a week whose sold player was the previous week's captain is
 //     flagged, because raw points then understate what the squad gave up.
-//   - The bar: a hit worked iff the package's holding net is ≥ +4; a free
-//     transfer's bar is 0 (descriptive).
+//   - The bar: a hit worked iff the package's holding net is non-negative
+//     after the 4-point charge is subtracted from the sum — equivalently the
+//     gross holding net is ≥ +4, the form in which the criterion was first
+//     registered (2026-08-18). The two classify identically; the sum form is
+//     the one committed (stats/hittune_verdicts.R), because the bar form made
+//     the reported means read 4 points high and mirrored the wrong bar onto
+//     the horizon figure below. A free transfer's bar is 0 (descriptive).
 //   - The split: a hit whose sold player stops appearing over the window
 //     (forced — without the move the squad was fielding a blank) is reported
 //     apart from one whose sold player kept playing (preference — the real
 //     bet). The tuned-bets population is the preference one.
 //
-// Registered: (H) the holding-clearance share — % of hit packages clearing +4
-// in the hold — per arm, split forced vs preference; (H') the rung pattern —
-// on the SAME preference-hit population, the GAP between the holding and the
-// horizon clearance share (a hit clears the horizon criterion iff its
-// horizon net is ≥ 4) by MinGainHit rung 3/4/5/6. The horizon net covers the
+// Registered: (H) the holding-clearance share — % of hit packages whose
+// holding net clears their charge (net after the −4 ≥ 0) — per arm, split
+// forced vs preference; (H') the rung pattern — on the SAME preference-hit
+// population, the GAP between the holding and the horizon clearance share (a
+// hit clears the horizon criterion iff its horizon net — already net of the
+// −4, per the sidecar definition above — is ≥ 0, the same net ≥ 0 bar the
+// holding criterion applies) by MinGainHit rung 3/4/5/6. ⚠️ The H' bar was
+// first registered as "horizon net ≥ 4", which mirrored the bar form onto an
+// already-net figure and made the horizon test mechanically 4 points stricter
+// than the hold's; the committed R and the finding use the same-test ≥ 0 (the
+// first registration's +5/+2/+8/+7 widening reads −1/−2/0/−7 on it; the
+// verdict — no shape, nothing ships — is unchanged). The horizon net covers the
 // transfer week through gw+4 — the hold's first five weeks when the hold
 // lasts at least that long — so the two shares are mechanically positively
 // correlated and a monotone rise in the holding share alone would be

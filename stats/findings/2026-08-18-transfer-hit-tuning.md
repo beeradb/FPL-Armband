@@ -173,8 +173,8 @@ not a fact about the hit — the verdict tables are.
 ## What this settles, and what it does not
 
 **Settles**: the hit branch is tuned about right — 23.5% (26.9% adjusted) below its own bar
-against a 50% truncation null on the horizon criterion, and **78-79% of hits clear +4 on the
-holding criterion** (mean +31 to +41 net of the −4, holds of ~10 gameweeks) on all three
+against a 50% truncation null on the horizon criterion, and **78-79% of hits clear their
+charge on the holding criterion** (mean +31 to +41 net of the −4, holds of ~10 gameweeks) on all three
 machines, the full user-facing plan included; the forced/preference split does not separate
 (75-88% clear in both); raising MinGainHit has no suggestive case (no shape, no resolution,
 rate deltas within their own noise, no widening hold−horizon gap, season means inconsistent);
