@@ -93,15 +93,36 @@ jobs:
 
       # The one edit made to the copied document. Asserted rather than assumed, so a
       # bad copy shows up here instead of as a mysterious timeout.
+      # ⚠️ Every comparison strips CR. The Windows runner checks out with
+      # core.autocrlf=true, and MSYS grep then hands back LF while diff reads the raw
+      # CRLF file -- so an unnormalised diff reports all 293 lines changed and says
+      # nothing about whether the copy is faithful. Content is the question here; line
+      # endings are the checkout's business.
       - name: Assert the copied document is the shipped one plus the probe
         run: |
-          diff <(grep -v '/assets/spike.js' spike/assets/pages/app.html) \
-               internal/webui/assets/pages/app.html
-          diff spike/assets/static/app.js internal/webui/assets/static/app.js
-          diff spike/assets/static/armband.css internal/webui/assets/static/armband.css
+          same() {
+            if ! diff <(tr -d '\r' < "$1") <(tr -d '\r' < "$2"); then
+              echo "::error::$1 has drifted from $2"
+              exit 1
+            fi
+          }
+          grep -v '/assets/spike.js' spike/assets/pages/app.html > /tmp/app-probeless.html
+          same /tmp/app-probeless.html internal/webui/assets/pages/app.html
+          same spike/assets/static/app.js internal/webui/assets/static/app.js
+          same spike/assets/static/armband.css internal/webui/assets/static/armband.css
 
+      # ⚠️ FINDING, and it will bite the real macOS release leg too. Wails v2.14.0's
+      # WailsContext.m references UTType, but the cgo directive in
+      # internal/frontend/desktop/darwin/frontend.go declares only
+      # `-framework Foundation -framework Cocoa -framework WebKit`. Against the
+      # runner's Xcode 26.6 SDK that no longer resolves transitively and the link
+      # fails with `Undefined symbols: _OBJC_CLASS_$_UTType`. v2.15.0 carries the
+      # identical directive, so a version bump is not the fix -- the framework has to
+      # be supplied here.
       - name: Build
         working-directory: spike
+        env:
+          CGO_LDFLAGS: ${{ runner.os == 'macOS' && '-framework UniformTypeIdentifiers' || '' }}
         run: go build -tags ${{ matrix.tags }} -o spike${{ runner.os == 'Windows' && '.exe' || '' }} .
 
       # A bare Mach-O has no bundle identity, and a process with no bundle cannot
