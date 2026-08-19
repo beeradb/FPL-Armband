@@ -176,7 +176,8 @@ button{font-family:inherit;color:inherit;}
 .role.r1{--rdot:#00E88A;}   /* nailed        */
 .role.r2{--rdot:#7FC7FF;}   /* likely starter*/
 .role.r3{--rdot:#FFB020;}   /* rotation risk */
-.role.r4{--rdot:#6D8090;}   /* fringe player */
+.role.r4{--rdot:#8095A8;}   /* squad player  */
+.role.r5{--rdot:#6D8090;}   /* fringe player */
 .role.sm{font-size:9px;padding:0 4px;letter-spacing:.04em;}
 
 /* micro bar --------------------------------------------------- */

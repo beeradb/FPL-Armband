@@ -24,3 +24,11 @@ tmp-review/
 __pycache__/
 *.pyc
 .claude/hooks/
+
+# Scratch the visual-regression browser writes into. Not t.TempDir(): chromium is a
+# snap and gets a private /tmp, so the screenshot has to land somewhere the host shares.
+cmd/armband/.visualwork-*
+
+# Failure artefacts from the visual regression. The goldens are committed; these are
+# what the run produced and how it differed, and they are regenerated on every failure.
+cmd/armband/testdata/golden/diff-*.png

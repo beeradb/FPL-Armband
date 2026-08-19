@@ -39,6 +39,37 @@ func fixtureServer(t *testing.T) *squadServer {
 	}
 	cfg := config.Default()
 	cfg.EntryID = 0
+
+	/* Two standing overrides, so the fixture exercises the paths an empty config cannot.
+	   A default config has no roster overrides at all, which means the overrides panel
+	   renders its empty state, the "needs a re-check" flag never fires, and the badge on
+	   a player card is never drawn -- three surfaces that would be screenshotted blank
+	   and pass forever.
+
+	   They are keyed on players from the capture itself rather than invented codes,
+	   because the action handler refuses a code the bootstrap does not contain, and a
+	   fixture that quietly failed that check would prove nothing. The capture is fixed,
+	   so the players it picks are fixed too.
+
+	   The dates are relative to the pinned clock: one checked yesterday, one checked
+	   forty days ago. The second is what makes the stale treatment visible. */
+	fresh := fixtureNow.AddDate(0, 0, -1).Format("2006-01-02")
+	stale := fixtureNow.AddDate(0, 0, -40).Format("2006-01-02")
+	mins := 88.0
+	cfg.Roster.Minutes = []config.RosterOverride{{
+		Code: boot.Elements[0].Code, Name: boot.Elements[0].WebName,
+		Reason:          "Named first choice for the season. His record is backup minutes; the role is not.",
+		SetOn:           stale,
+		LastChecked:     stale,
+		ExpectedMinutes: &mins,
+	}}
+	cfg.Roster.Exclude = []config.RosterOverride{{
+		Code: boot.Elements[1].Code, Name: boot.Elements[1].WebName,
+		Reason:      "Long-term injury with no named return date.",
+		SetOn:       fresh,
+		LastChecked: fresh,
+	}}
+
 	e := analysis.NewEngineFull(boot, fixtures, cfg.Weights, cfg.Congestion, cfg.RoleRisk)
 	return &squadServer{
 		token:  "pinnedtoken",
@@ -46,6 +77,32 @@ func fixtureServer(t *testing.T) *squadServer {
 		engine: e,
 		weeks:  cfg.Weights.Horizon,
 		clock:  func() time.Time { return fixtureNow },
+	}
+}
+
+// TestTheFixtureMatchesWhatProductionBuildsAtGW1 asserts the premise behind this
+// fixture's entry in internal/backtest's unwiredBaseline.
+//
+// That guard exists because an engine with no recency index silently falls back to flat
+// season minutes -- the field is populated and the value is wrong, which is the worst
+// shape a bug can take. The fixture is exempt on the grounds that the LIVE binary builds
+// the same unwired engine at GW1, since cmd/armband/main.go gates both the recency fetch
+// and the priors load behind GameweeksPlayed() > 0.
+//
+// A comment saying so would rot the first time the capture was repointed at a mid-season
+// week, and the exemption would then be quietly wrong in the flattering direction. This
+// asserts it instead.
+func TestTheFixtureMatchesWhatProductionBuildsAtGW1(t *testing.T) {
+	s := fixtureServer(t)
+	if played := s.engine.GameweeksPlayed(); played != 0 {
+		t.Fatalf("the fixture capture has %d gameweeks played. The live path wires a "+
+			"recency index and priors above zero, so this engine is no longer what "+
+			"production builds -- either repoint the capture at a pre-season one, or "+
+			"wire both here and remove the entry in internal/backtest's "+
+			"unwiredBaseline.", played)
+	}
+	if s.engine.Recent != nil {
+		t.Error("the fixture engine has a recency index; production has none at GW1")
 	}
 }
 

@@ -903,7 +903,16 @@ var unwiredBaseline = map[string]string{
 	"simulate_test.go": "OK — the engine at DataWindow's test reads only the " +
 		"gameweek count off a synthetic season; no rate or minute enters the verdict. " +
 		"Only visible since the wired count was de-quoted.",
-	"fixtureload_test.go":        "OK — synthetic empty bootstrap, no season at all",
+	"fixtureload_test.go": "OK — synthetic empty bootstrap, no season at all",
+	// The served application's fixture, built from the committed GW1 capture. At GW1
+	// GameweeksPlayed() is 0, and cmd/armband/main.go wires BOTH the recency index and
+	// the priors behind `GameweeksPlayed() > 0` — so the live binary builds an engine
+	// with neither at this point in the season. Attaching one here would make the
+	// fixture LESS faithful to production, not more, and would make every visual
+	// golden a picture of a squad the binary never produces.
+	// TestTheFixtureMatchesWhatProductionBuildsAtGW1 asserts the premise rather than
+	// leaving it as a claim in a comment.
+	"webroutes_test.go":          "OK — GW1 capture, GameweeksPlayed()==0, and the live path wires recency only above 0",
 	"determinism_test.go":        "OK — PointInTime cutoff 0",
 	"determinismfactors_test.go": "OK — PointInTime cutoff 0",
 
