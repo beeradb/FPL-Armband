@@ -32,15 +32,15 @@
       "Rodrigo 'Rodri' Hernandez Cascante",
       "Jordan Pickford",
       "Reece James",
-      "Marc Gu\u00e9hi",
+      "Marc Guéhi",
       "Djed Spence",
       "Declan Rice",
       "Elliot Anderson",
       "Morgan Rogers",
-      "Emiliano Mart\u00ednez Romero",
-      "Lisandro Mart\u00ednez",
+      "Emiliano Martínez Romero",
+      "Lisandro Martínez",
       "Cristian Romero",
-      "Enzo Fern\u00e1ndez",
+      "Enzo Fernández",
       "Alexis Mac Allister"
     ],
     "rest_regions": [],
@@ -51,17 +51,17 @@
     "league_shrink_k": 8,
     "tournament_absences": [
       {
-        "name": "AFCON 2025 \u2014 Senegal (winners)",
+        "name": "AFCON 2025 — Senegal (winners)",
         "matches": 6,
         "players": [
           "Iliman Ndiaye",
-          "Isma\u00efla Sarr",
+          "Ismaïla Sarr",
           "Pape Matar Sarr",
           "Habib Diarra"
         ]
       },
       {
-        "name": "AFCON 2025 \u2014 Nigeria (third place)",
+        "name": "AFCON 2025 — Nigeria (third place)",
         "matches": 6,
         "players": [
           "Alex Iwobi",
@@ -70,7 +70,7 @@
         ]
       },
       {
-        "name": "AFCON 2025 \u2014 Morocco (hosts, semi-finalists)",
+        "name": "AFCON 2025 — Morocco (hosts, semi-finalists)",
         "matches": 6,
         "players": [
           "Chemsdine Talbi",
@@ -80,29 +80,29 @@
         ]
       },
       {
-        "name": "AFCON 2025 \u2014 Egypt (semi-finalists)",
+        "name": "AFCON 2025 — Egypt (semi-finalists)",
         "matches": 6,
         "players": [
           "Omar Marmoush"
         ]
       },
       {
-        "name": "AFCON 2025 \u2014 Ivory Coast (quarter-finalists)",
+        "name": "AFCON 2025 — Ivory Coast (quarter-finalists)",
         "matches": 5,
         "players": [
           "Amad Diallo",
-          "Ibrahim Sangar\u00e9",
+          "Ibrahim Sangaré",
           "Evann Guessand",
           "Simon Adingra"
         ]
       },
       {
-        "name": "AFCON 2025 \u2014 group and last-16 exits",
+        "name": "AFCON 2025 — group and last-16 exits",
         "matches": 3,
         "players": [
           "Bryan Mbeumo",
           "Carlos Baleba",
-          "Rayan A\u00eft-Nouri",
+          "Rayan Aït-Nouri",
           "Dango Ouattara"
         ]
       }
@@ -497,7 +497,7 @@
       "Morgan Rogers",
       "Maxence Lacroix",
       "Elliot Anderson",
-      "Marcos Senesi Bar\u00f3n"
+      "Marcos Senesi Barón"
     ],
     "new_coach_clubs": [
       "BOU",
@@ -533,7 +533,7 @@
       "Prefer fixing a problem (injury, lost starting place, terrible run) over chasing an upgrade.",
       "If a wildcard is planned within two gameweeks, do not spend transfers on problems the wildcard will fix anyway.",
       "Check team news before finalising: the model cannot see press conferences, and FPL's own news field lags them.",
-      "In any gameweek where the squad can be rebuilt for free \u2014 the first deadline, or a wildcard week and the weeks it still covers \u2014 the squad is a variable, not a constraint. Choose the chip gameweek on its fixture profile first, then build the squad to suit it. Never rule a chip out because the current squad does not support it.",
+      "In any gameweek where the squad can be rebuilt for free — the first deadline, or a wildcard week and the weeks it still covers — the squad is a variable, not a constraint. Choose the chip gameweek on its fixture profile first, then build the squad to suit it. Never rule a chip out because the current squad does not support it.",
       "Bench Boost and Triple Captain are squad-dependent and so are wildcard-enabled; Free Hit builds its own squad and never is. Plan the wildcard and the chips that follow it together.",
       "A projected price rise is a reason to act earlier in the week on a move you had already decided, not a reason to make one you would otherwise decline. Waiting for Friday's team news beats saving 0.1m: if the price case and the news case disagree, the news wins."
     ],
@@ -558,7 +558,7 @@
       {
         "player_code": 462424,
         "player": "Saliba",
-        "reason": "Re-checked 2026-08-08 and pushed back. Arsenal's statement gives no return date: rehab \"with continual management\", out for an \"extended period\" (Sky Sports, Al Jazeera, 23 Jul 2026). L'Equipe report the back problem has been there since March and that surgery \u2014 rejected for now \u2014 would have meant four to five months. Arsenal are shopping for a centre-back (Stones, Konsa) which is not what a club does for a short absence. GW8 was optimistic; GW12 is the realistic floor. Clear the moment he is named in a matchday squad.",
+        "reason": "Re-checked 2026-08-08 and pushed back. Arsenal's statement gives no return date: rehab \"with continual management\", out for an \"extended period\" (Sky Sports, Al Jazeera, 23 Jul 2026). L'Equipe report the back problem has been there since March and that surgery — rejected for now — would have meant four to five months. Arsenal are shopping for a centre-back (Stones, Konsa) which is not what a club does for a short absence. GW8 was optimistic; GW12 is the realistic floor. Clear the moment he is named in a matchday squad.",
         "set_on": "2026-08-05",
         "until_gameweek": 12,
         "last_checked": "2026-08-17"
@@ -568,16 +568,16 @@
       {
         "player_code": 500040,
         "player": "Mosquera",
-        "reason": "Steps into Arsenal's centre-back pairing while Saliba is out with a back injury and Timber is still rehabilitating. His 986 minutes over 9 starts are backup minutes and understate the role he is about to hold. Clear when Saliba is back in a matchday squad.",
+        "reason": "Steps into Arsenal's centre-back pairing while Saliba is out with a back injury and Timber is still rehabilitating. His 986 minutes over 9 starts are backup minutes and understate the role he is about to hold. Clear when Saliba is back in a matchday squad. RE-DATED 2026-08-19 from GW8 to GW3, not withdrawn: he is in every predicted XI for Coventry and the reasoning holds for GW1-2. But Arsenal have agreed a 51m deal for Ezri Konsa explicitly to cover the Saliba and Timber absences, and he is expected to be registered in time for 31 Aug. The original GW8 assumed the hole stayed open; it is being filled. Re-derive once Konsa has played.",
         "set_on": "2026-08-05",
-        "until_gameweek": 8,
+        "until_gameweek": 3,
         "expected_minutes": 85,
-        "last_checked": "2026-08-17"
+        "last_checked": "2026-08-19"
       },
       {
         "player_code": 219168,
         "player": "Isak",
-        "reason": "Scores 0.48 at \u00a39.0m because a 2025-26 wrecked by a lack of pre-season held him to 694 minutes. That season is an artefact, not his level: 2758 minutes and 34 starts in 2024-25, 2253 and 27 before that. He is now reported 100% fit, played 45 minutes against Leeds on 2 Aug after returning from the World Cup injury-free, and Iraola has said he 'has come in a good place' (thisisanfield/liverpool.com, Aug 2026). 75 is his 2024-25 rate of 72.6 min/gw rounded up slightly for a settled pre-season, deliberately not a nailed-striker 79 \u2014 this corrects a distortion, it does not assert he is better than his best season. Clear once real 2026-27 minutes exist, or revert if he misses the opening weeks.",
+        "reason": "Scores 0.48 at £9.0m because a 2025-26 wrecked by a lack of pre-season held him to 694 minutes. That season is an artefact, not his level: 2758 minutes and 34 starts in 2024-25, 2253 and 27 before that. He is now reported 100% fit, played 45 minutes against Leeds on 2 Aug after returning from the World Cup injury-free, and Iraola has said he 'has come in a good place' (thisisanfield/liverpool.com, Aug 2026). 75 is his 2024-25 rate of 72.6 min/gw rounded up slightly for a settled pre-season, deliberately not a nailed-striker 79 — this corrects a distortion, it does not assert he is better than his best season. Clear once real 2026-27 minutes exist, or revert if he misses the opening weeks.",
         "set_on": "2026-08-07",
         "until_gameweek": 6,
         "expected_minutes": 75,
@@ -586,7 +586,7 @@
       {
         "player_code": 485055,
         "player": "Kinsky",
-        "reason": "Scores 0.41 at \u00a34.5m off 630 minutes as a backup, and 19% of managers already hold him \u2014 the market is right and the model cannot see why. De Zerbi has named him first choice for 2026-27, he has signed a new contract, Vicario is on the transfer market and expected back in Serie A, and Dubravka joined as the experienced deputy (ESPN/Italpress, Aug 2026). This is the same correction as Mosquera: his record is backup minutes and understates the role he now holds. Note prior_half_life cannot fix this \u2014 both his seasons are thin (540 and 630), so blending makes him worse, not better. 88 is a nailed Premier League keeper. Clear if Vicario stays and wins the shirt back, or on any pre-season reversal.",
+        "reason": "Scores 0.41 at £4.5m off 630 minutes as a backup, and 19% of managers already hold him — the market is right and the model cannot see why. De Zerbi has named him first choice for 2026-27, he has signed a new contract, Vicario is on the transfer market and expected back in Serie A, and Dubravka joined as the experienced deputy (ESPN/Italpress, Aug 2026). This is the same correction as Mosquera: his record is backup minutes and understates the role he now holds. Note prior_half_life cannot fix this — both his seasons are thin (540 and 630), so blending makes him worse, not better. 88 is a nailed Premier League keeper. Clear if Vicario stays and wins the shirt back, or on any pre-season reversal.",
         "set_on": "2026-08-07",
         "until_gameweek": 6,
         "expected_minutes": 88,
@@ -613,35 +613,53 @@
       {
         "player_code": 461102,
         "player": "Thomas",
-        "reason": "Coventry CB, scored 0.00 only for lack of PL minutes. 33 Championship games in the title win, 3 goals + 4 assists and 8.56 defensive contributions per 90 \u2014 genuine DefCon and set-piece threat at 4.0m. Set to 75 not 85 because Coventry have signed CB Aurele Amenda and were linked with more stoppers, so his place is good but not guaranteed. Revisit after the GW1 XI.",
+        "reason": "Coventry CB, scored 0.00 only for lack of PL minutes. 33 Championship games in the title win, 3 goals + 4 assists and 8.56 defensive contributions per 90 — genuine DefCon and set-piece threat at 4.0m. Set to 75 not 85 because Coventry have signed CB Aurele Amenda and were linked with more stoppers, so his place is good but not guaranteed. Revisit after the GW1 XI.",
         "set_on": "2026-08-07",
         "until_gameweek": 6,
         "expected_minutes": 75,
         "last_checked": "2026-08-17"
+      },
+      {
+        "player_code": 439509,
+        "player": "Tzolis",
+        "reason": "Scores ~0 at 6.5m because his only history_past season is 2021/22 at Norwich; the model has no recent minutes for him at all, and 18.0% of managers own him. He is a 34m signing from Club Brugge replacing Trossard, assisted twice on his competitive debut in the Community Shield against Manchester City, and is predicted to START on the left wing against Coventry with Martinelli left out of the squad amid exit speculation (Sky Sports, paininthearsenal, rotowire, Aug 2026). This is the same correction as Kinsky and Mosquera: the record is silent about the role he now holds, and prior_half_life cannot help because the one season available is thin and five years old. Set to 75 rather than 85 deliberately -- he is a starter today, not a nailed one, because Madueke, Eze, Nwaneri and Dowman all compete for the wide slots and Arteta rotates them heavily (Martinelli started only 11 of 38 last season). If Martinelli stays and wins the shirt back, or Tzolis is benched in the opening weeks, clear this.",
+        "set_on": "2026-08-19",
+        "until_gameweek": 5,
+        "expected_minutes": 75,
+        "last_checked": "2026-08-19"
+      },
+      {
+        "player_code": 199798,
+        "player": "Konsa",
+        "reason": "Arsenal have agreed roughly 51m plus add-ons with Aston Villa, personal terms are agreed and he said goodbye to his Villa team-mates on 19 Aug; the medical follows (Sky Sports, GiveMeSport, Yahoo, 19 Aug 2026). He is NOT expected to beat Arsenal's Thursday 20 Aug 12:00 registration deadline, so he cannot face Coventry on Friday, and having said goodbye he will not play for Villa either -- a near-certain zero in GW1 in whichever shirt FPL lists him. This override exists because the model would otherwise RECOMMEND him: 3035 minutes over 34 starts at 4.5m with no FPL flag is exactly its idea of a nailed cheap defender, 15.9% of managers hold him, and nothing in the payload says he is leaving. 20 rather than 0 because the transfer is agreed rather than announced and a collapse would put him straight back in Villa's side. Revisit the moment the move is announced or the window shuts: at Arsenal he is behind nobody, but he shares a back line with Gabriel, Calafiori, Hincapie and Mosquera, and Saliba is due back around GW12.",
+        "set_on": "2026-08-19",
+        "until_gameweek": 3,
+        "expected_minutes": 20,
+        "last_checked": "2026-08-19"
       }
     ],
     "teams": [
       {
         "team": "ARS",
         "xgc_factor": 1.15,
-        "reason": "Arsenal's 0.72 xGC per match was earned with Saliba in the side, and he is out to at least GW12 with Timber also rehabilitating. Every Arsenal defensive asset \u2014 Raya's and Mosquera's clean sheets and goals-conceded blocks \u2014 is priced off a back line that will not take the field. 1.15 is deliberately modest: the archive says Arsenal conceded 0.67 without Saliba against 0.71 with him over nine games in 2025-26, so the direct evidence is that they cope, and this prices the *combination* of Saliba and Timber missing rather than Saliba alone. Revert to 1.0 the moment either is named in a matchday squad; drop the whole entry if the opening weeks show no leak.",
+        "reason": "Arsenal's 0.72 xGC per match was earned with Saliba in the side, and he is out to at least GW12 with Timber also rehabilitating. Every Arsenal defensive asset — Raya's and Mosquera's clean sheets and goals-conceded blocks — is priced off a back line that will not take the field. 1.15 is deliberately modest: the archive says Arsenal conceded 0.67 without Saliba against 0.71 with him over nine games in 2025-26, so the direct evidence is that they cope, and this prices the *combination* of Saliba and Timber missing rather than Saliba alone. Revert to 1.0 the moment either is named in a matchday squad; drop the whole entry if the opening weeks show no leak. RE-DATED 2026-08-19 from GW12 to GW4. This priced the COMBINATION of Saliba and Timber missing. Arsenal have agreed 51m for Ezri Konsa to fill exactly that hole, expected available around 31 Aug, so the premise expires long before GW12.",
         "set_on": "2026-08-07",
-        "until_gameweek": 12,
-        "last_checked": "2026-08-17"
+        "until_gameweek": 4,
+        "last_checked": "2026-08-19"
       }
     ]
   },
   "criteria": [
     "Expected points only become real points if the player is on the pitch. Treat expected minutes as a first-class filter, not a tiebreaker: check expected_minutes_per_gw and rotation_risk before recommending anyone.",
     "Never recommend a starting XI player below roughly 60 expected minutes per gameweek unless you say explicitly why the rotation risk is worth it.",
-    "Weight underlying numbers (xG, xA, xGC) over raw past points \u2014 form follows the underlying data, not the other way round.",
+    "Weight underlying numbers (xG, xA, xGC) over raw past points — form follows the underlying data, not the other way round.",
     "Value fixture runs over the next 4-6 gameweeks, not just the next match.",
     "Set-piece and penalty duty is a major tiebreaker: a penalty taker is worth roughly half a goal per five matches on its own.",
-    "Be sceptical of players heavily overperforming their xG \u2014 say so explicitly when recommending or fading them.",
+    "Be sceptical of players heavily overperforming their xG — say so explicitly when recommending or fading them.",
     "For new signings, last season's stats came from a different club. Say so, and be explicit that their role in the new side is unproven.",
     "Players returning late from a summer international tournament are routinely eased back in. Prefer rested alternatives for the opening weeks.",
     "A model number has a resolution limit. Mean absolute error is about 0.5 points per 90, so treat gaps under roughly 0.5 as a tie and decide on what the model cannot see (fixtures, team news, concentration); respect gaps above 1.0 as real.",
-    "The captain's score is doubled, so captaincy value accrues only to the single highest-scoring player in the XI. A second premium who never outscores your captain adds nothing to that slot \u2014 compare captain candidates on doubled value, not raw points per million."
+    "The captain's score is doubled, so captaincy value accrues only to the single highest-scoring player in the XI. A second premium who never outscores your captain adds nothing to that slot — compare captain candidates on doubled value, not raw points per million."
   ],
   "report_dir": "reports",
   "cache_dir": ".cache/fpl",

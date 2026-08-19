@@ -280,8 +280,27 @@ func TestTheSessionStoreIsStated(t *testing.T) {
 	if s.Session.Store != "session" {
 		t.Errorf("store is %q, want session by default", s.Session.Store)
 	}
-	if !s.Session.Writable {
-		t.Error("a page built with a token reports itself unwritable")
+
+	// Writable is CARRIED, not derived.
+	//
+	// It used to be `p.Token != ""`, which stopped being the right question when the token
+	// became necessary only where a save can reach config.json: the public deployment has no
+	// token and can still write, because a save there reaches nothing but the caller's own
+	// cookie. Only the caller knows whether its write route will accept this request, so it
+	// says, and this asserts the contract carries the answer rather than re-deciding it.
+	if s.Session.Writable {
+		t.Error("Writable defaulted to true. It must be the caller's statement, and a " +
+			"caller that says nothing is not a caller that may write.")
+	}
+	writable, err := Build(Input{
+		Page: samplePage(), Boot: &fpl.Bootstrap{}, Now: pinned, Writable: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !writable.Session.Writable {
+		t.Error("a caller that said it may write is reported unwritable, so the page will " +
+			"hide controls that work")
 	}
 
 	persisted, err := Build(Input{Page: samplePage(), Boot: &fpl.Bootstrap{}, Now: pinned, Persist: true})
