@@ -118,20 +118,25 @@ The criterion as built (pre-registered at `d41b486`, plan-reviewed before the fi
 per leg, from the transfer week until the earlier of the in-player's sale, a wildcard, or
 the season's end, the incoming player's recorded **squad contribution** (`Week.Contrib` —
 autosubs, the armband's copies, bench-boost bench and free-hit weeks all inside the same
-scoring pass) minus the sold player's raw points; a hit worked iff the package's net is
-**≥ +4**; forced (the replaced player stopped appearing after the transfer week) split from
-preference (he kept playing).
+scoring pass) minus the sold player's raw points; a hit worked iff the package's net —
+**after the 4-point charge is subtracted from the sum** — is non-negative; forced (the
+replaced player stopped appearing after the transfer week) split from
+preference (he kept playing). ⚠️ The first version carried the charge in the BAR (gross
+advantage ≥ +4) instead of the sum — the classification is identical either way, but the
+means then read 4 points high, and the H′ horizon bar was mirrored as "net ≥ 4" onto a
+figure that is ALREADY net, a mechanically 4-point-stricter horizon test. The user's
+ruling (2026-08-18) put the charge in the measurement; the table below is net.
 
-| arm | hits | clear +4 in the hold | mean | median | preference clear | forced clear |
+| arm | hits | clear their charge in the hold | mean net | median | preference clear | forced clear |
 |---|---:|---:|---:|---:|---:|---:|
-| mgh3 flat (no chips) | 98 | **79%** | +43.4 | +23.0 | 78% (n 73) | 80% (n 25) |
-| floored machine (BB+FH+TC) | 82 | **78%** | +44.9 | +34.0 | 79% (n 57) | 76% (n 25) |
-| full plan (all four chips) | 73 | **78%** | +35.2 | +17.0 | 75% (n 57) | 88% (n 16) |
+| mgh3 flat (no chips) | 98 | **79%** | +39.4 | +19.0 | 78% (n 73) | 80% (n 25) |
+| floored machine (BB+FH+TC) | 82 | **78%** | +40.9 | +30.0 | 79% (n 57) | 76% (n 25) |
+| full plan (all four chips) | 73 | **78%** | +31.2 | +13.0 | 75% (n 57) | 88% (n 16) |
 
 Holds run mean 8.7-10.2 gameweeks (median 7-8, max ~30) — roughly double the five-week
 horizon the old criterion judged on, which is exactly why it understated the hits. **On the
-user's own criterion, roughly four in five hits pay for themselves, at a mean +35 to +45
-GROSS of the −4 (the +4 bar is the charge; +31 to +41 net after it), on every machine
+user's own criterion, roughly four in five hits pay for themselves, at a mean +31 to +41
+net of the −4, on every machine
 measured — and the forced/preference split does not separate
 them** (75-88% clear in both populations; the sold player who stops appearing is what the
 horizon criterion's availability adjustment already isolates). The `out_was_captain` flag
@@ -139,12 +144,14 @@ fires on 6-14 packages per arm — a sold captain is rare, so the out-side raw c
 understates by little. Free transfers read 64-73% non-negative on the same criterion
 (n 608/598/591; the full plan's 73%, mean +12.2, the best).
 
-**The registered rung pattern (H') — no suggestive shape.** On the preference population,
-the holding-minus-horizon clearance gap by rung reads **+5 / +2 / +8 / +7** percentage
-points (78-73, 73-71, 74-67, 67-60) at n 73 / 45 / 39 / 30 — no monotone widening, so no
+**The registered rung pattern (H') — no suggestive shape.** On the preference population
+with BOTH criteria net-of-charge (bar ≥ 0), the holding-minus-horizon clearance gap by
+rung reads **−1 / −2 / 0 / −7** percentage
+points (78-79, 73-76, 74-74, 67-73) at n 73 / 45 / 39 / 30 — small, non-monotone, and not
+the pre-registered widening, so no
 evidence the bar buys horizon-net quality that does not survive the hold. The clearance
 share declines overall with a blip at rung 5 on the holding criterion (78→73→74→67; the
-horizon series is monotone, 73→71→67→60):
+horizon series 79→76→74→73):
 higher bars take fewer, bigger bets, and no rung clears the pre-registered shipping rule.
 **MinGainHit 3.0 stands; nothing ships.**
 
@@ -167,7 +174,7 @@ not a fact about the hit — the verdict tables are.
 
 **Settles**: the hit branch is tuned about right — 23.5% (26.9% adjusted) below its own bar
 against a 50% truncation null on the horizon criterion, and **78-79% of hits clear +4 on the
-holding criterion** (mean +35 to +45 gross of the −4, holds of ~10 gameweeks) on all three
+holding criterion** (mean +31 to +41 net of the −4, holds of ~10 gameweeks) on all three
 machines, the full user-facing plan included; the forced/preference split does not separate
 (75-88% clear in both); raising MinGainHit has no suggestive case (no shape, no resolution,
 rate deltas within their own noise, no widening hold−horizon gap, season means inconsistent);

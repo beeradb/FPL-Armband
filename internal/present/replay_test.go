@@ -202,6 +202,14 @@ func TestReplayShowsHitsOnTheSeasonTheWeekAndTheMove(t *testing.T) {
 	if !strings.Contains(out, `class="hitmark"`) {
 		t.Error("the week that took a hit is not marked in its header")
 	}
+	// The header shows the arithmetic, not just the net: a week that scored 60
+	// after a −4 must read "64 − 4 hit = 60", or the deduction is invisible.
+	if !strings.Contains(out, "hit</span> = ") {
+		t.Error("the week header does not show gross − hit = net")
+	}
+	if !strings.Contains(out, `class="tc hitcost"`) {
+		t.Error("the gameweek tab does not carry the hit cost")
+	}
 	if !strings.Contains(out, `<span class="tag hit">`) {
 		t.Error("the move that took the hit is not marked")
 	}

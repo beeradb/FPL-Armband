@@ -115,34 +115,42 @@ fp <- hits[hits$arm == "mgh3fullplan", ]
 cat(sprintf("  full plan (own arm): net<3 %.1f%% of %d packages; net<0 %.1f%%\n",
             100*mean(fp$net3), nrow(fp), 100*mean(fp$net0)))
 
-cat("\n=== the holding-window criterion: +4 net before sale, wildcard or season's end ===\n")
+cat("\n=== the holding-window criterion: the charge in the sum, non-negative net before sale, wildcard or season's end ===\n")
 # The user's ruling replaces the workedOut wait-match: a hit worked iff the
-# package accrued +4 net during the span the squad actually held the incoming
-# players — each leg's Week.Contrib (autosubs, armband, bench boost inside it;
-# a free-hit week contributing nothing) minus the sold player's raw points.
+# package's net — each leg's Week.Contrib (autosubs, armband, bench boost
+# inside it; a free-hit week contributing nothing) minus the sold player's raw
+# points, minus the 4-point charge — is non-negative over the span the squad
+# actually held the incoming players. ⚠️ The first version carried the charge
+# in the BAR (gross advantage >= +4) rather than the sum; the two classify
+# identically, but the reported means then read 4 points high, and the H'
+# horizon bar (hit_net is ALREADY net) was mirrored as >= 4 where the same
+# test demanded >= 0 — a mechanically 4-point-stricter horizon bar. The
+# user's ruling (2026-08-18) put the charge in the measurement: the sum now
+# subtracts it, both bars are >= 0, and the means are net.
 # The split: forced (the replaced player stopped appearing AFTER the transfer
 # week — the squad was fielding a blank without the move) vs preference (he
 # kept playing — the real bet). The tuned-bets population is the preference
 # one. The arms run three versions of the criterion: flat ladder = no chips
 # (no cut binds); floored machine = bench boost + free hit + triple captain
 # (wildcard cut absent); full plan = all four (every cut live).
-hits$worked4 <- hits$hold_net >= 4
-hits$workedH <- hits$hit_net >= 4  # the horizon clearance, for the H' gap
+hits$hold_net <- hits$hold_net - 4          # the charge comes out of the sum
+hits$worked <- hits$hold_net >= 0
+hits$workedH <- hits$hit_net >= 0           # hit_net is already net of the -4
 for (arm in c("mgh3", "mgh3floored", "mgh3fullplan")) {
   a <- hits[hits$arm == arm, ]
   pref <- a[a$hold_out_played, ]
   forced <- a[!a$hold_out_played, ]
   cuts <- if (arm == "mgh3") "no chips — no cut binds" else if (arm == "mgh3floored")
     "BB+FH+TC live, wildcard absent" else "all four chips — every cut live"
-  cat(sprintf("%s: %d hits, %d (%.0f%%) clear +4 in the hold; mean %+.1f, median %+.1f, spread [%+d, %+d]\n",
-              arm, nrow(a), sum(a$worked4), 100*mean(a$worked4),
+  cat(sprintf("%s: %d hits, %d (%.0f%%) clear their charge in the hold; mean %+.1f, median %+.1f, spread [%+d, %+d]\n",
+              arm, nrow(a), sum(a$worked), 100*mean(a$worked),
               mean(a$hold_net), median(a$hold_net),
               min(a$hold_net), max(a$hold_net)))
   cat(sprintf("  cuts: %s\n", cuts))
-  cat(sprintf("  preference (sold player kept playing): %d hits, %.0f%% clear +4, mean %+.1f\n",
-              nrow(pref), 100*mean(pref$worked4), mean(pref$hold_net)))
-  cat(sprintf("  forced (replaced player stopped):      %d hits, %.0f%% clear +4, mean %+.1f\n",
-              nrow(forced), 100*mean(forced$worked4), mean(forced$hold_net)))
+  cat(sprintf("  preference (sold player kept playing): %d hits, %.0f%% clear their charge, mean %+.1f\n",
+              nrow(pref), 100*mean(pref$worked), mean(pref$hold_net)))
+  cat(sprintf("  forced (replaced player stopped):      %d hits, %.0f%% clear their charge, mean %+.1f\n",
+              nrow(forced), 100*mean(forced$worked), mean(forced$hold_net)))
   cat(sprintf("  hold length (weeks): mean %.1f, median %.0f, max %.0f\n",
               mean(a$hold_weeks), median(a$hold_weeks), max(a$hold_weeks)))
   cap <- a$out_was_captain
@@ -155,8 +163,8 @@ cat("\n  rung pattern, preference hits only (registered H' — the HOLDING minus
 for (a in c("mgh3", "mgh4", "mgh5", "mgh6")) {
   r <- hits[hits$arm == a & hits$hold_out_played, ]
   cat(sprintf("  %s: hold %.0f%%, horizon %.0f%%, gap %+.0fpp (%d preference hits)\n",
-              a, 100*mean(r$worked4), 100*mean(r$workedH),
-              100*mean(r$worked4) - 100*mean(r$workedH), nrow(r)))
+              a, 100*mean(r$worked), 100*mean(r$workedH),
+              100*mean(r$worked) - 100*mean(r$workedH), nrow(r)))
 }
 
 cat("\n  free packages, holding bar 0 (descriptive):\n")

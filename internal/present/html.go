@@ -488,6 +488,10 @@ type htmlCard struct {
 // three theme states are defined so it holds however the viewer has set theirs.
 var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
 	"money": func(f float64) string { return fmt.Sprintf("£%.1fm", f) },
+	// gross undoes a week's hit so the page can show the arithmetic a hit week
+	// actually scored: "57 − 4 hit = 53". Expected is already net; this exists
+	// because a page that shows only the net lets a −8 week read as a quiet one.
+	"gross": func(net float64, hit int) float64 { return net + float64(hit) },
 	"pts":   func(f float64) string { return fmt.Sprintf("%.2f", f) },
 	"pts1":  func(f float64) string { return fmt.Sprintf("%.1f", f) },
 	"delta": func(f float64) string { return fmt.Sprintf("%+.2f", f) },
@@ -797,6 +801,9 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
   .tabs label .tc { display:inline-block; margin-left:.4rem; padding:.02rem .28rem;
                     border-radius:2px; font-size:.62rem; font-weight:700;
                     background:var(--chipbg); color:var(--chipink); }
+  /* A hit week carries its cost on the tab, so the strip itself marks which
+     gameweeks paid for their transfers. */
+  .tabs label .tc.hitcost { background:var(--badbg); color:var(--bad); }
   .weeks input { position:absolute; opacity:0; pointer-events:none; }
   .weeks input:focus-visible + label, .tabs label:focus-within { outline:2px solid var(--accent); }
   .weekpanel { display:none; }
@@ -1005,15 +1012,16 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
   {{end}}
   </style>
   <div class="tabs">
-    {{range .Weeks}}<label for="wk{{.Event}}"{{if .Chip}} class="haschip" title="{{.Chip}}"{{end}}>GW{{.Event}}{{if .Chip}}<span class="tc">{{chipShort .Chip}}</span>{{end}}</label>{{end}}
+    {{range .Weeks}}<label for="wk{{.Event}}"{{if .Chip}} class="haschip" title="{{.Chip}}"{{end}}>GW{{.Event}}{{if .Chip}}<span class="tc">{{chipShort .Chip}}</span>{{end}}{{if .Hit}}<span class="tc hitcost" title="{{.Hit}}-point hit this week">&minus;{{.Hit}}</span>{{end}}</label>{{end}}
   </div>
   {{range .Weeks}}<div class="weekpanel" id="panel{{.Event}}"><div class="panel">
     <div class="weekhead">
       <span><b>GW{{.Event}}</b></span>
       <span>{{.Formation}}</span>
       <span>captain <b style="font-size:.9rem">{{.Captain}}</b></span>
-      {{if .Actual}}<span><b style="font-size:.9rem">{{printf "%.0f" .Expected}}</b> pts scored</span>
-        {{if .Hit}}<span class="hitmark">&minus;{{.Hit}} hit</span>{{end}}
+      {{if .Actual}}<span>
+        {{if .Hit}}<b style="font-size:.9rem">{{printf "%.0f" (gross .Expected .Hit)}}</b> &minus; <span class="hitmark">{{.Hit}} hit</span> = <b style="font-size:.9rem">{{printf "%.0f" .Expected}}</b> pts
+        {{else}}<b style="font-size:.9rem">{{printf "%.0f" .Expected}}</b> pts scored{{end}}</span>
         <span>{{.Running}} to date</span>{{else}}<span><b style="font-size:.9rem">{{pts1 .Expected}}</b> pts projected</span>{{end}}
       {{if .Chip}}<span class="chip">{{.Chip}}</span>{{end}}
     </div>
