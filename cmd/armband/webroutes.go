@@ -55,6 +55,39 @@ func (s *squadServer) servePage(w http.ResponseWriter, name string) {
 	// it and clickjack the controls, and the token gate cannot see that a click did not
 	// come from the reader.
 	w.Header().Set("X-Frame-Options", "DENY")
+	// The policy the out-of-line scripts were for.
+	//
+	// The client renders by innerHTML and the strings it interpolates -- player names,
+	// FPL's news prose, the reasoning on an override -- are written by nobody here.
+	// Escaping is the guard and it is tested through a real browser, but escaping is one
+	// missed sink away from failing, and three were missed on the first pass. This is what
+	// stands behind it: with no inline script permitted, a name that reaches the DOM as
+	// markup still cannot execute, and connect-src 'self' means it could not send anything
+	// anywhere if it did.
+	//
+	// script-src has no 'unsafe-inline'. That is the whole point, and it is why app.js and
+	// landing.js are separate files rather than inline blocks -- a policy that permits
+	// inline script permits whatever an injection manages to open, which is most of the
+	// value gone.
+	//
+	// style-src does allow it. The landing page carries an inline <style> block, and a
+	// stylesheet is a far weaker instrument than a script: the attack it buys is a
+	// defacement rather than a same-origin read of the squad. Removing it is worth doing
+	// and is not worth blocking this on.
+	//
+	// frame-ancestors 'none' says what X-Frame-Options above says, in the header that
+	// superseded it; both are set because the older one is what some tooling still reads.
+	w.Header().Set("Content-Security-Policy", strings.Join([]string{
+		"default-src 'self'",
+		"script-src 'self'",
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data:",
+		"font-src 'self'",
+		"connect-src 'self'",
+		"frame-ancestors 'none'",
+		"base-uri 'none'",
+		"form-action 'self'",
+	}, "; "))
 	// The pages are HTML and the assets are typed by extension; nothing here should ever
 	// be re-interpreted as another type on a sniffing browser.
 	w.Header().Set("X-Content-Type-Options", "nosniff")

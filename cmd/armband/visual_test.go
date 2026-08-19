@@ -14,8 +14,8 @@ import (
 	"testing"
 )
 
-// Visual regression: the application is screenshotted and compared byte-region by
-// byte-region against committed goldens.
+// Visual regression: the application is screenshotted and compared pixel by pixel, under
+// a stated tolerance, against committed goldens.
 //
 // # Why this exists at all, and why it exists now rather than later
 //

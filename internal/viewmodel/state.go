@@ -209,8 +209,13 @@ type Override struct {
 
 	// Session marks an override this browser session set, rather than one read from
 	// config.json. It is the difference between a control the reader can clear and a
-	// standing decision he must change in config — so it drives whether the delete
-	// button is live, and the page says which store it is looking at.
+	// standing decision he must change in config.
+	//
+	// ⚠️ Nothing reads it yet. The client renders the delete control on every override,
+	// and the deletion removes a row from a JavaScript array — so a reader can delete a
+	// config-sourced correction, watch it vanish, and find the model still applying it.
+	// This field is here so that when the store is connected the control can be gated,
+	// rather than the client re-deriving which store a correction came from.
 	Session bool `json:"session"`
 
 	// Label always carries the VALUE, never just the kind: "MIN 88" and "MIN 15" are
@@ -315,11 +320,13 @@ type Policy struct {
 	Rules           []string `json:"rules,omitempty"`
 }
 
-// Session tells the client where a change it makes will land.
+// Session tells the client where a change it makes will be saved.
 //
-// The design ships copy promising that work is saved, and until this shipped that copy
-// was false — the prototype had no persistence at all. Rather than hard-code a sentence,
-// the client is told which store is live and says so.
+// The design ships copy promising that work is saved, and the prototype had no persistence
+// at all. ⚠️ The client is sent this and does not yet render it, because nothing on the
+// page reaches either store: a change lives in the page's memory and a reload discards it.
+// It is carried so the sentence can be data rather than a literal once the session store is
+// connected.
 type Session struct {
 	// Store is "session" or "config". In session mode a change lives in a browser
 	// cookie and dies with the browser; in config mode it is written to config.json and

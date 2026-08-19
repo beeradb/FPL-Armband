@@ -30,6 +30,9 @@ import (
 //
 // It is the sharpest test in this package, because it has no tolerance to argue about:
 // the two numbers are printed to one decimal place and they must be equal.
+//
+// ⚠️ It covers the totals and the cards. The formations rail and the armband picker still
+// compute client-side and nothing checks either against the model.
 func TestThePageHeadlineIsTheModelsNumber(t *testing.T) {
 	browser := chromium(t)
 

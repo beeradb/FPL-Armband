@@ -24,11 +24,12 @@ import (
 	"armband/internal/webui"
 )
 
-// cmdServe hosts the squad page over HTTP.
+// cmdServe hosts the client application over HTTP: the two embedded documents from
+// internal/webui, and the model behind them at /api/state.
 //
-// It is the same page `armband squad -html` writes to disk, built by the same
-// pipeline (buildSquadPage) — the difference is that it is live, and once the
-// page carries write actions those actions POST back to this listener.
+// It is built by the same pipeline the terminal commands use (buildSquadPage) — the
+// difference is that it is live. `armband squad -html` no longer writes a page at all;
+// it refuses and says where the page went.
 //
 // # Why the page re-renders on every GET
 //
@@ -164,18 +165,13 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// page renders the full squad page, rebuilt from scratch for this request.
-
-// render writes the squad page for one request: the given config (already
-// merged with the session when not persisting) and session state for the
-// ownership marking, stamped with the token, query, view and return path.
+// action applies one lock or boot and answers with a redirect.
 //
-// Both GET / and an enhanced action POST land here — the enhanced response
-// must be the page the action produced, which is how the page updates in
-// place without relying on a just-set cookie surviving the redirect.
-
-// action applies one lock or boot and answers with a redirect, so the browser
-// re-fetches the page and the squad regenerates with the override in force.
+// ⚠️ Nothing in the shipped application posts here. The retired page's forms did; the
+// client does not, so lock and boot change the page in front of the reader and reach
+// neither store. The handler and the session store below are kept because connecting them
+// is the next piece of work and their tests are the only thing protecting the
+// config-default / browser-session split — not because anything calls them today.
 //
 // The whole write path: the CSRF token gates it, the action and the code are
 // validated, the change is SAVED before it is adopted — a failed save leaves

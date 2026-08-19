@@ -19,16 +19,26 @@
 //
 // # What this package does not do
 //
-// It renders nothing and computes nothing. Every number the app displays arrives as JSON
-// from internal/viewmodel; this package is the shell that fetches it. Keeping the two
-// apart is what lets Wails bind to the view model directly, without an HTTP server in
-// between.
+// It renders nothing and computes nothing. The client it carries is meant to compute
+// nothing either — every model figure arrives as JSON from internal/viewmodel — and that is
+// an intention with a guard on part of it, not a property of the whole.
+//
+// TestThePageHeadlineIsTheModelsNumber covers the projection and the cards. Three surfaces
+// are still not covered and still compute: the formations rail picks and totals its own
+// eleven on a plain sum, where analysis.bestFormation maximises sum plus captain plus vice;
+// the two captain fallbacks apply their own rule; and the player sheet's derivation panel
+// spells out an arithmetic the model does not use. Read that as work owed rather than as a
+// claim already kept.
+//
+// Keeping the shell and the contract apart is what lets Wails bind to the view model
+// directly, without an HTTP server in between.
 package webui
 
 import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"strings"
 )
 
 // assets is the whole client application. The //go:embed directive deliberately names the
@@ -67,6 +77,21 @@ func Page(name string) ([]byte, error) {
 func StaticHandler(prefix string) http.Handler {
 	fileServer := http.FileServer(http.FS(Static()))
 	return http.StripPrefix(prefix, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// A directory is not an asset. http.FileServer answers one with an autoindex --
+		// an HTML page listing the tree, served from a route whose every other response
+		// is a stylesheet or a font. Nothing secret is in there, but a surface that
+		// generates HTML nobody wrote is a surface, and the application never links to
+		// one.
+		// The prefix is already stripped here, so the tree's own root arrives as an
+		// empty path rather than one ending in a separator. Both are directories.
+		if r.URL.Path == "" || strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		// The pages set this and so should everything else. A font or a stylesheet
+		// re-interpreted as HTML by a sniffing browser is the whole reason the header
+		// exists, and the asset route was the one place it was missing.
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-cache")
 		fileServer.ServeHTTP(w, r)
 	}))

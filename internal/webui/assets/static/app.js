@@ -87,6 +87,11 @@ function player(p){
     id:p.id, code:p.code, n:p.name, club:p.club, pos:p.pos, pr:p.price,
     xp:p.xp, p90:p.per90, mn:p.minutes, rel:p.reliability, own:p.ownership,
     role:p.role, status:p.status, news:p.news, fixtures:p.fixtures||[],
+    /* The multiplier FPL's availability flag produces, carried rather than inferred from
+       status: re-deriving it would be a second copy of a table that already exists, and
+       its most important value is 0 -- a ruled-out player, whose score is zero for that
+       reason and no other. */
+    availability:p.availability,
     ov:p.override ? {
       t:p.override.label, why:p.override.reason, set:p.override.set_on,
       lapse:p.override.until, chk:p.override.checked,
@@ -696,22 +701,34 @@ function openSheet(id){
    </header>
    <div class="body">
      <div class="statgrid">
-       <div><div class="k">xPts this GW</div><div class="v acc">${xpFor(p).toFixed(2)}</div></div>
+       <div><div class="k">xPts per gameweek</div><div class="v acc">${xpFor(p).toFixed(2)}</div></div>
        <div><div class="k">Per £m</div><div class="v">${(xpFor(p)/p.pr).toFixed(2)}</div></div>
        <div><div class="k">Role</div><div class="v" style="font-size:12px;padding-top:3px">${roleChip(p.role)}</div>
-            <div class="dim" style="font-family:var(--mono);font-size:10px;margin-top:3px">${p.mn} min/gw modelled</div></div>
+            <div class="dim" style="font-family:var(--mono);font-size:10px;margin-top:3px">${p.mn.toFixed(0)} min/gw modelled</div></div>
        <div><div class="k">Reliability</div><div class="v">${p.rel.toFixed(2)}</div>
             <div class="dim" style="font-family:var(--mono);font-size:10px;margin-top:3px">how often that role held up</div></div>
      </div>
 
-     <div class="k" style="margin-bottom:6px">How the number is built</div>
+     <!-- ⚠️ These are the model's INPUTS, not a derivation, and the difference is
+          deliberate. This panel used to print "points per 90" then "x minutes mn/90" and a
+          total -- the exact expression that was removed from xpFor for being wrong. Score
+          is (rate x reliability + appearance + clean sheet + defensive contribution) x
+          congestion x role certainty x availability x fixture load; minutes/90 is not one
+          of its terms, and the figure shown as Reliability above is the one it uses.
+          The steps did not produce the total under them.
+
+          Reproducing the real expression here would be a second implementation of it,
+          which is what this whole change exists to remove. So the inputs are shown as
+          inputs and the answer is the model's. -->
+     <div class="k" style="margin-bottom:6px">What goes into the number</div>
      <div class="deriv panel" style="padding:10px 12px">
-       <div class="step"><span class="muted">points per 90</span><b>${p.p90.toFixed(2)}</b></div>
+       <div class="step"><span class="muted">points per 90, after fixtures</span><b>${p.p90.toFixed(2)}</b></div>
        <div class="step"><span class="muted">${f?`fixture ${esc(f.opp)} (${esc(f.ha)}) FDR ${f.fdr}`:'no fixture this gameweek'}</span><b>${f?'':'blank'}</b></div>
-       <div class="step"><span class="muted">× minutes ${p.mn}/90</span><b>×${(p.mn/90).toFixed(3)}</b></div>
+       <div class="step"><span class="muted">minutes reliability</span><b>${p.rel.toFixed(2)}</b></div>
+       <div class="step"><span class="muted">availability</span><b>${(p.availability===undefined?1:p.availability).toFixed(2)}</b></div>
        ${chip==='tcap'&&S.cap===id?`<div class="step"><span class="muted">× triple captain</span><b>×3</b></div>`:
          S.cap===id?`<div class="step"><span class="muted">× captain</span><b>×2</b></div>`:''}
-       <div class="step total"><span>projected GW${S.gw}</span>
+       <div class="step total"><span>the model's figure, per gameweek</span>
          <b>${(xpFor(p)*(S.cap===id?(chip==='tcap'?3:2):1)).toFixed(2)}</b></div>
      </div>
 
@@ -782,7 +799,7 @@ function openArmbandPicker(which){
          <span class="mb"><span class="mbar"><span style="width:${Math.max(3,Math.round((x-floor)/span*100))}%"></span></span></span>
        </button>`;}).join('')}
      <div class="storenote" style="margin-top:12px">
-       Ranked by projected points for GW${S.gw}, not by name recognition. Bars span your XI only — from ${floor.toFixed(2)} to ${best.toFixed(2)} — so a short bar is a small real gap, not a bad player.
+       Ranked by projected points per gameweek, not by name recognition. Bars span your XI only — from ${floor.toFixed(2)} to ${best.toFixed(2)} — so a short bar is a small real gap, not a bad player.
      </div>
    </div>`;
   document.getElementById('scrim').classList.add('open');

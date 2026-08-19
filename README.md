@@ -14,14 +14,15 @@ optional.
 *Named for the captaincy, which is the biggest single decision you make each week and the one
 effect in this project's record that stands clear of the noise.*
 
-This is the page `armband serve` hosts — real output from a live run, not a
+This is the page `armband serve` used to host — the previous renderer, kept here until
+the shot is retaken from the new one. Real output from a live run, not a
 mockup. The whole fifteen under the real rules: the eleven and the bench in substitution order,
 the captain, what was spent and what is left, and against every player the next five fixtures,
 expected minutes, the model's score and the price. `armband serve` hosts it on 127.0.0.1: a
 landing page, then the planner itself — the pitch, the market of every player worth
-considering, the standing overrides and the briefing. Every figure on it comes from the model
-over a JSON endpoint the desktop build and the website will read too, so there is one set of
-numbers rather than one per surface.
+considering, the standing overrides and the briefing. The squad, the market and the fixtures
+come from the model over a JSON endpoint the desktop build and the website will read too, so
+there is one set of numbers rather than one per surface.
 
 ![The squad page for gameweek 1, two days before the deadline, from the 2026-08-19 run. A header shows the gameweek, the deadline and free transfers, above three tabs: The eleven, Why this eleven, and Watchlist. Below, the starting eleven in a 3-5-2 — 46.5 XI points per gameweek, Bruno Fernandes as captain, £100.0m spent, £0.0m left — with each row carrying five colour-coded fixture-difficulty pills, expected minutes, the model's score and the price. The four-man bench follows in substitution order.](docs/images/squad-eleven.png)
 
@@ -203,7 +204,7 @@ optimiser, the fixture model, the chip validator and the replay are all free.
 |---|---|---|
 | `brief` | The whole deterministic picture as one Markdown document, for pasting into a chat (`-html` for a page) | — |
 | `squad` | Best 15 it can find under the real constraints: £100m, positional quotas, three per club (`-plain`) | — |
-| `serve` | The planner over HTTP, loopback only: the pitch, the market, the overrides and the briefing, drawn from the model over `/api/state`. Open the printed URL — its token gates the write actions. Overrides live in a browser-session cookie by default; `-persist` writes them to config.json (`-addr`, `-persist` after the command) | — |
+| `serve` | The planner over HTTP, loopback only: the pitch, the market, the overrides and the briefing, drawn from the model over `/api/state`. **Reading only for now** — the lock, boot and override controls change the page in front of you and are kept in memory, so a reload discards them. Changes are meant to be saved to your browser session, and `-persist` puts them in config.json instead; both stores are wired server-side and the new application has no control that reaches either yet (`-addr`, `-persist` after the command) | — |
 | `transfers` | Best transfers for the squad you own, as a team sheet (`-plain`) | — |
 | `fixtures` | Fixture difficulty per club, easiest run first | — |
 | `chips` | Chip windows, plan validation, blanks and doubles | — |

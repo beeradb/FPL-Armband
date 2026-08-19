@@ -189,8 +189,11 @@ it is replay documentation, needed when running a sweep, not every run. → **ar
 
 - **Four classes take priority over anything else in the queue: security, performance, velocity,
   and a model or scoring fix** — in that order when they collide. This is **precedence, not
-  worth**. Security is currently empty by construction (no authenticated write path;
-  `TestTheClientHasNoAuthenticatedSurface` guards its absence). Performance changes what is
+  worth**. Security is currently empty by construction against the FPL API (no
+  authenticated surface there; `TestTheClientHasNoAuthenticatedSurface` guards its absence
+  and is scoped to `internal/fpl` — it says nothing about `armband serve`'s own inbound
+  listener, which is token-gated, writes config under `-persist`, and now also accepts a
+  gate POST). Performance changes what is
   affordable to run, the binding constraint on this enterprise; velocity is the same argument one
   layer up; a scoring fix changes `Score`, therefore the ordering, therefore which footballers
   get bought.
