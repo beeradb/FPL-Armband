@@ -93,6 +93,39 @@ var retractedFigures = []retracted{
 		context: []string{"over-rat", "overrat", "buy-side", "buy side"},
 		now:     "it does not reproduce at shipped config: −0.230 median, +0.079 mean",
 	},
+	// ⚠️ This entry is withdrawn for INADMISSIBILITY, not for failing to reproduce,
+	// and it is the first of that kind on this list. 3.30 reproduces exactly — it is
+	// the season×team t on the six-season stratum. What is wrong is quoting it at
+	// all: fit.txt heads that stratum "POOLED STRATUM -- CONTEXT ONLY, NO VERDICT"
+	// and disowns it in either direction, because three of its six seasons carry
+	// reconstructed xGC so w1 is not one construct. So `now` must not say "does not
+	// reproduce" — a reader who tries will succeed and conclude the guard is wrong.
+	//
+	// Added 2026-08-17, when the last in-scope copy was removed from AGENTS.md.
+	//
+	// TWO copies survive and neither is in scope, and only one of them is out by
+	// design. reviews/2026-08-15-the-clean-sheet-regressor-refit is out by design — a
+	// review record is a dated attestation about a named commit and must not be
+	// rewritten. But stats/findings/2026-08-15-clean-sheet-2x2.md is NOT out by
+	// design: the surface below globs stats/*.md NON-RECURSIVELY, so stats/findings/
+	// is scanned by nothing at all — and AGENTS.md points a reader straight at that
+	// file ("Sizes in ..."), two lines above the bullet this figure was cut from. It
+	// carries both withdrawn readings, t 3.30 and "6 of 6 pooled". Marked in place
+	// there instead. ⚠️ Widening the glob is the real fix and is NOT done here.
+	//
+	// Scoping: "3.30" appears nowhere else in scope, so there is no collision
+	// surface. ⚠️ Do NOT add 1.5654 or 0.1712 — they are the pooled control the
+	// hindsight run is required to reproduce, and the surface that would fire is
+	// stats/defensive_fixture_pointintime_PREREGISTRATION.md, which carries both on
+	// one line beside the word "pooled". NOT the .R scripts: stats/*.R is outside
+	// this guard and inside TestNoLivePointerCitesTheRecordByPath, which is the one
+	// difference between their surfaces.
+	{
+		figure:  "3.30",
+		what:    "the defensive fixture ladder's t on the six-season POOLED stratum",
+		context: []string{"pooled"},
+		now:     "it reproduces but is inadmissible: that stratum carries no verdict in either direction. The native stratum reads t 4.14 against a t_crit(G−1 = 2) of 4.303 and does not resolve",
+	},
 	{
 		figure:  "−0.709",
 		what:    "the minutes-convexity exponent's effect against exponent 1.00",

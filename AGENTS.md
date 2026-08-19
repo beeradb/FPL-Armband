@@ -453,16 +453,60 @@ the vault note the evidence sits in.
   established (the moment fit is exactly identified and tests nothing). The near-calibration is
   a cancellation, not a structure; the fragility is in the MEAN, not the dispersion. →
   **scoring-model**
-- **The clean-sheet factor `f` does not separate from 1; the defensive fixture ladder is what
-  runs hot.** Joint fit: `f` = 1.0476 (SE 0.1612), t 0.30 — a failure to separate (MDE 0.424),
-  while the defensive fixture channel reads 1.5688 (SE 0.2253), t 2.53 native / 3.30 pooled,
-  above 1 in 6 of 6 seasons. The excess sits on `FPL_DEF_FIXTURE_SCALE`'s defensive half, which
-  is points-null across a fourfold width change — a calibration fact with no reachable points
-  consequence. ⚠️ `def` is end-stamped (Spearman 0.872 with end-of-season strength against 0.421
-  at the cutoff), so the channel is flattered, and the leak's SIZE is unmeasurable (+0.846, SE
-  0.396, against a threshold of 1.702 where a full artefact needs 1.685) — neither refuted nor
-  cleared. **Do not open a points arm on this, and do not re-run at the refitted constants.** →
-  **scoring-model**
+- **Neither the clean-sheet factor `f` nor the defensive fixture ladder separates from 1 on the
+  stratum that carries the verdict, and the ladder is the higher of the two point estimates rather
+  than the established location of the excess.**
+  `fixtureSensitiveAt` scores `exp(−f·XGC90·def·cf)`, and because `ladder` is `1 + s(base−1)` the
+  exponent is exactly `f·x + f·s·x·(def−1)` — linear in two columns, so the two channels are
+  separately identified (they are orthogonal, r = 0.001). This is a **bound and cannot localise**:
+  `def` is itself modelled — FPL's rank times this project's band adjustment — so the fit
+  calibrates one part of the model against another rather than against truth. Fitted jointly
+  (`stats/cs_calibration.R`): **`f` = 1.0476 (clustered SE 0.1612), t 0.30 — a failure to
+  separate, not a calibration**, since the 80%-power MDE on `|b−1|` is 0.424 against a candidate
+  of 0.173, so this fit could not have seen the candidate either way. Meanwhile the
+  defensive fixture channel reads **1.5688 NATIVE and does not resolve there**: season-clustered SE
+  0.1375, t 4.14 against `t_crit(G−1 = 2)` 4.303, so `|b2−1|` 0.5688 is under both its bar 0.5918 and
+  its 80%-power MDE 0.7377 (season×team SE 0.2253, t 2.53), and above 1 in **3 of 3 native seasons** —
+  agreement, not a magnitude. **Implies `s ≈ 1.50` if real** — a ratio, `b2/b1`, whose SE is neither
+  coefficient's — so the excess **points at** `FPL_DEF_FIXTURE_SCALE`'s defensive half, better
+  supported than the factor but not established over it: the `b2 − b1` contrast reads t **2.11**
+  native against the same 4.303. That half's points arm is *unmeasured on the current grid* rather
+  than null — 3 cells at one entry point, no threshold, no banked cells, pre-dating the
+  defcon-visibility change (see *Neither fixture ladder has a shape*) — so this is **a calibration
+  fact whose points consequence is unmeasured**, and the line stays closed on that ground rather than
+  on a measured zero. This fit is post-hoc. ⚠️ **No pooled figure may be quoted, except
+  in this sentence, which disowns it**: the six-season stratum is where it clears its own bar, which is
+  why the figure is tempting and why no number for it appears here; its own run
+  heads it *"CONTEXT ONLY, NO VERDICT"* either way, three of its seasons carrying reconstructed
+  xGC so `w1` is not one construct. **Unresolved on the admissible stratum, inadmissible on the
+  resolving one** — and *unresolved* is the right word for **this** question, with nothing capped; the
+  `C — UNMEASURABLE` both runs print is the **hindsight** arm's verdict, below, a different question
+  about the same coefficient. ⚠️ **Three clusters is a stratum CHOICE, and a fourth is PARTIAL rather
+  than native**: only 2022-23's GW1-15 are reconstructed, so its GW16-38 is native **in the archive's
+  own `expected_goals_conceded` column** — 333 rows, 20 clubs, banked. **The regressor is not that
+  column**: `w1` is the model's `XGC90`, accumulated from GW1 and blended toward a fully reconstructed
+  2021-22, so **63.6% of the accumulation window feeding those 333 rows is reconstructed**
+  (row-weighted `15/(gw−1)`; 100% at GW16, 40.5% at GW38). At four clusters `t_crit` is 3.182 and the
+  bar 0.4376 against that same 0.5688 — but that assumes the SE unchanged, and it buys a df with a
+  cluster whose `w1` is a different construct for most of its span, which is why `nativeXGCSeasons`
+  excludes the season. It buys a df on the **level** only: `def` moves in **15 of those 333 rows**
+  against 438 of 1566 native, so the revision channel gains a cluster that barely identifies it.
+  **Unrun, and owed a pre-registration that says which question a partial cluster is admissible for**
+  — 2022-23 being the season whose `w1` is least comparable with the other three. `def` comes from the archive's
+  end-of-season fixtures file and is ungated by the cutoff, **and it is end-stamped**: on the 308
+  revised native rows `def` tracks the opponent's **end-of-season** strength at Spearman **0.872**
+  against **0.421** for its value at the cutoff, and `def` is a per-club-venue constant all season
+  in all six seasons. So the fixture channel is flattered.
+  ⚠️ **The SIZE of the leak is unmeasurable, so this does not retract
+  1.5688.** The hindsight gate puts the leak channel at **+0.846 (SE 0.396, t 2.14, df 2)** against
+  a threshold of **1.702** — and a *full* artefact would require **1.685**, itself below that
+  threshold, so the comparison cannot separate "entirely hindsight" from "none". Identified off
+  **221 of 1566 rows**. Read this as *unmeasurable*, not as a refutation and not as a clearance.
+  ⚠️ Whether FPL's **live** difficulty moved in-season remains a mechanism argument: the captures
+  carry team strength but **no fixtures payload**. Adding fixtures to the weekly capture answers it
+  by construction. **Do not open a points arm on this, and do not
+  re-run at the refitted constants** (`f` 0.992, flat 0.939) — the factor arm is a no-op there.
+  → **scoring-model**
 - **Do not remove the bonus term for being circular.** Removing it costs 67 points a season
   (absolute total from a contaminated era; 66% of it the zero-penalty season — evidence the
   ordering signal exists, not a magnitude). `BonusWeight` ships at 1.5 against

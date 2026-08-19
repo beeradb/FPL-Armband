@@ -290,6 +290,21 @@ defensive ladder moves **only `b2`**. That is a nested test, not a tiebreak. It 
 Per season, native: `b1` 0.968 / 0.905 / 1.158 — straddles 1. `b2` 1.481 / 1.439 / 1.887 — above 1
 in 3 of 3, and **6 of 6 pooled**. Implied `s` ≈ **1.50** native, 1.64 pooled.
 
+> ⚠️ **The pooled row above and the "6 of 6 pooled" are WITHDRAWN for INADMISSIBILITY, 2026-08-17 —
+> not for failing to reproduce.** They reproduce exactly.
+> `stats/defensive_fixture_pointintime/fit.txt` heads that stratum *"POOLED STRATUM -- CONTEXT ONLY,
+> NO VERDICT"* and disowns it in either direction, because three of its six seasons carry
+> reconstructed xGC, so `w1` is not one construct there. The correction further down — *"the
+> season×team figures above are the ones quoted"* — means the **native** row only.
+> ⚠️ **Nothing in scope of `TestRetractedFiguresAreNotQuotedAsCurrent` reaches this file**:
+> its surface globs `stats/*.md` non-recursively, so `stats/findings/` is scanned by nothing, which
+> is why this is marked in place rather than guarded. `t 3.30` is on that guard's list so it cannot
+> return to `AGENTS.md`; this copy is held by this marker alone.
+> ⚠️ **The `t(b2−b1)` column is the localisation contrast and does NOT resolve either**: +2.11 native
+> against a `t_crit(2)` of 4.303. So *"relocates the excess onto the defensive fixture ladder"* below
+> overstates — the ladder is the higher point estimate, better supported than the factor, not
+> established over it.
+
 **So the fixture path does not revive `FPL_CS_XGC_FACTOR` — it refutes it a second time, on a second
 path, and relocates the excess onto the defensive fixture ladder.** The near-zero correlation means
 the two channels are separately identified rather than trading off, which is why the product fit's
@@ -300,6 +315,15 @@ span less than the noise across a fourfold change in width, and zeroing the defe
 entirely costs 20 points."* An `s` of 1.5 sits well inside a width range already measured as
 points-null. **So this is a calibration fact with no reachable points consequence** — which is a
 stronger and more useful statement than "neither revived nor dead".
+
+> ⚠️ **Two corrections to the paragraph above, 2026-08-17.** First, **the sign of the quotation is
+> backwards**: `AGENTS.md` says zeroing the defensive response entirely ***gains*** 20, and the
+> recorded column settles it — 0 at **2172** against shipped **2152**. Second,
+> **"measured as points-null" overstates the source**, which calls it *unmeasured on the current
+> grid*: 3 cells at one entry point, absolute totals, no threshold ever computed, no banked cells,
+> and run before the defcon-visibility change worth −95 on one of its three seasons. Under the
+> standing rule *a null is a tie, not the refutation of one*, the closed line rests on an unmeasured
+> points arm rather than a measured zero. The conclusion survives; its ground is weaker than stated.
 
 ⚠️ **POST-HOC.** The decomposition was written after seeing the product fit. It is not an argmax over
 a lattice — it is the unique two-parameter nesting of the engine's own `ladder`, and P2/P3 named the
