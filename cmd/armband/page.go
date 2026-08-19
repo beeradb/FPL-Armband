@@ -50,8 +50,19 @@ type squadPageBuild struct {
 func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	e *analysis.Engine, weeks int, wantPage bool) (squadPageBuild, error) {
 
-	// Temporary stage timing (FPL_SERVE_TIMINGS=1) for the snappy-page work.
-	// Additive printing only; removed once the profile has named the targets.
+	// Stage timings for the page build (FPL_SERVE_TIMINGS=1), printed to stderr.
+	//
+	// Kept rather than removed once the snappy-page work had used it. The
+	// optimiser is the binding constraint on what this project can afford to
+	// run, so it gets optimised repeatedly, and every one of those sittings
+	// starts by asking which stage the time is in. Rebuilding this each time
+	// invites a subtly different instrument each time — and one that is absent
+	// while the question is being asked is an instrument nobody reaches for.
+	//
+	// It is additive printing and reaches nothing the build computes, which is
+	// why the fingerprint guard skips it rather than recording it: a run with it
+	// set is the same run. Pair it with FPL_CPU_PROFILE below, which names where
+	// to write a pprof profile of the same pipeline.
 	last := time.Now()
 	mark := func(s string) {
 		if os.Getenv("FPL_SERVE_TIMINGS") == "" {

@@ -294,9 +294,31 @@ func TestTheCopiedExpressionsHaveOneImplementation(t *testing.T) {
 			"add it to `sanctioned` with that argument.",
 		match: isRunningTopTwo,
 		sanctioned: map[string]sanction{
-			"internal/analysis/squad.go": {2, "" +
-				"xiValueShrunk, the one implementation, and xiValueOfParts. The " +
-				"second is a deliberate copy with a live reason: bestFormation " +
+			"internal/analysis/squad.go": {5, "" +
+				"Five, and the count is positional — this guard excuses the first " +
+				"n matches in FILE order, so the list below is in that order and " +
+				"not in order of importance. foldPair twice (lines ~117 and ~122), " +
+				"then xiValueShrunk, the one implementation, then xiValueOfParts, " +
+				"then bestFormation's prefix-record builder.\n\n" +
+				"foldPair and the prefix builder are one mechanism. The formation " +
+				"loop replayed its eleven players for each of eight formations; " +
+				"the builder now folds each position's players once into a prefix " +
+				"record and foldPair merges two such records, so a formation's " +
+				"total is a constant-time fold of four. Both carry a running " +
+				"top-two because the armband is max and second-max, and a record " +
+				"has to hold both to be foldable at all — neither can call " +
+				"xiValueShrunk for the reason xiValueOfParts exists, that " +
+				"materialising the eleven is the cost being removed. Two things " +
+				"keep them exact: the scores are still summed in GKP, DEF, MID, " +
+				"FWD order, and the fold's equivalence to sequential play is " +
+				"pinned by TestThePairFoldMatchesSequentialPlay over 200k heavily " +
+				"tied sequences. ⚠️ The ties are why that test exists and why " +
+				"this entry is not merely 'it is a top-two': the sequential update " +
+				"does NOT promote on equal scores, so a plain max/second-max " +
+				"diverges on a tie, and the argmax above it turns that into a " +
+				"different footballer.\n\n" +
+				"xiValueOfParts is a deliberate copy with a live reason: " +
+				"bestFormation " +
 				"evaluates eight candidate formations per XI, and materialising an " +
 				"eleven-player slice for each purely to hand it to xiValue was one " +
 				"of the allocations behind the objective's recorded 176 KB and 61 " +
@@ -308,6 +330,15 @@ func TestTheCopiedExpressionsHaveOneImplementation(t *testing.T) {
 				"the argmax above it turns that into a different footballer. " +
 				"Re-checked when this guard was written: bestFormation still calls " +
 				"it inside the formation loop, so the reason still holds."},
+			"internal/analysis/pairfold_check_test.go": {2, "" +
+				"seqFold, the sequential reference the fold above is checked " +
+				"against, and the two-line normalisation that orders the random " +
+				"prior state it is checked from. seqFold is the same argument as " +
+				"refXIValue below — a reference implementation that called the " +
+				"thing it checks would check nothing — and it is what licenses " +
+				"the foldPair and prefix-builder copies in squad.go, so folding " +
+				"it into a call to foldPair would destroy the evidence for the " +
+				"copies it exists to justify."},
 			"internal/analysis/optimizerdiff_test.go": {1, "" +
 				"refXIValue, the frozen differential oracle. It is copied verbatim " +
 				"on purpose and its own comment forbids sharing code with the " +

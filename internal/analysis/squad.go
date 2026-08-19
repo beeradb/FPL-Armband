@@ -631,6 +631,9 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 		}
 	}
 
+	// The inner half of the stage timings buildSquadPage prints: that one says
+	// how much of the page build is Optimize, this one says which of Optimize's
+	// three stages it is. Same switch, same stderr, same reason it is kept.
 	timing := os.Getenv("FPL_SERVE_TIMINGS") != ""
 	lastT := time.Now()
 	markT := func(l string) {
