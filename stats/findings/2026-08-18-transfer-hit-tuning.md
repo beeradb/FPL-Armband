@@ -15,7 +15,7 @@ population.** The sidecar computed the `hit` flag and discarded it, so the first
 packages, 34.3%" folded the free transfers (gated at `min_gain` 0.4) in with the hits (gated at
 `MinGainHit` 3.0). The flag was written at `a0877c2` and the 216-cell sweep re-run at that
 commit (the banked provenance pins it; the paired cells statistics were unchanged — the two
-banks' cells differ only in run_id). All per-hit numbers here are from the corrected sidecar.
+runs' cells differ only in run_id). All per-hit numbers here are from the corrected sidecar.
 
 ## Why the knob is MinGainHit — the kink that killed the first design
 
@@ -70,10 +70,11 @@ season means non-negative). **MinGainHit 3.0 stands; nothing ships.**
 cell on average (max 8; ~11 points a season at 4 points a hit) against this comparison's own
 thresholds of **13.5-18.8** —
 unmeasurable by design, and the grid-wide ~26-39 figure does not apply to a contrast of
-this size. ⚠️ The Holm family in the inference output is **5** (every alternative against
-the baseline, sweep-wide) where the pre-registration registered **3** (the rungs only); no
-p moves under either — the three rungs' Holm p are all 1.0, and the floored-machine arm's
-0.0219 under family 5 is 0.0044 as its own single contrast.
+this size. ⚠️ The Holm family in the inference output is **6** with the full-plan arm
+(every alternative against the baseline, sweep-wide; it was 5 at the first bank) where the
+pre-registration registered **3** (the rungs only); no p moves under either — the three
+rungs' Holm p are all 1.0, and the floored-machine arm's
+0.0263 under family 6 is 0.0044 as its own single contrast.
 
 ## The verdicts — the user's question, answered twice
 
@@ -81,28 +82,30 @@ p moves under either — the three rungs' Holm p are all 1.0, and the floored-ma
 
 | quantity | reading |
 |---|---|
-| net < 0 | **19.4%** |
-| net < 3 (the gate's own bar) | **23.5%** |
+| net < 0 | **19.4%** (n 98) |
+| net < 3 (the gate's own bar) | **23.5%** (n 98) |
 | net < 3, availability-adjusted (sold player appeared) | **26.9%** (n 78) |
 | mean / median hit_net | **+14.1 / +12.5**, spread [−61, +76] |
 
 A calibrated gate gives ~50% by truncation at net < 3, so the measured 23.5% is BELOW the
 null — **the gate is not mistuned in the feared direction. Three-quarters of hit packages
 clear the gate's own bar ex post.** *"There's no way that pays off"* is measured false: the
-mean hit package returns +14.1 after its −4. ⚠️ These numbers supersede the first bank's
-24.5%/29.7%/+15.7: the sidecar's row unit was fixed to one PACKAGE per row (a free single
+mean hit package returns +14.1 after its −4. ⚠️ These numbers supersede the pre-fix bank's
+24.5%/29.7%/+15.7 (the second bank's reading; the first bank read 34.3% on 641 packages):
+the sidecar's row unit was fixed to one PACKAGE per row (a free single
 accepted in the same gameweek as a hit single is now its own row, so a free leg's net no
 longer folds into a hit's), which is what the pre-registration had always claimed the unit
-was. ⚠️ Fidelity note: a few rows are same-week packages with `n_moves > 2` (a funded pair
-plus free singles still share a gameweek); excluding them moves the headline by <1pp.
+was. ⚠️ The package-unit split eliminated the same-week merged rows: exactly one `n_moves > 2`
+row remains in 4,785 sidecar rows (a full-plan free package), and none in the 98 mgh3 hit
+rows, so the first bank's fidelity-note exclusion is now vacuous.
 
 **The wait-counterfactual.** Season level: no-hits reads **−10.0 a season** (CR2 SE 16.0,
 t −0.63, p 0.558) — waiting is not better, at point-estimate size, unresolved. Per hit
 (descriptive, matched to the no-hits arm's later free purchase of the same in-player —
-gw+1..gw+4, the earliest later purchase — 48% matched): **workedOut (≥ +4 vs waiting) in
-51% of matched hits** (24 of 47 — a coin flip at this n, and the pairs are clustered by cell
-so the effective n is smaller); mean hitNet +19.5 vs mean waitedNet +13.8 — hits beat
-waiting by +5.7 on average after paying the −4 (descriptive, no SE quoted). The two
+gw+1..gw+4, the earliest later purchase — 47% matched): **workedOut (≥ +4 vs waiting) in
+54% of matched hits** (25 of 46 — a coin flip at this n, and the pairs are clustered by cell
+so the effective n is smaller); mean hitNet +18.1 vs mean waitedNet +13.8 — hits beat
+waiting by +4.3 on average after paying the −4 (descriptive, no SE quoted). The two
 readings agree through the mean: the user's +4 hurdle is not cleared by a majority of
 hits, but the wins are bigger than the losses and the policy level is better for taking
 them.
@@ -136,22 +139,23 @@ after the −4, on every machine measured — and the forced/preference split do
 them** (75-88% clear in both populations; the sold player who stops appearing is what the
 horizon criterion's availability adjustment already isolates). The `out_was_captain` flag
 fires on 6-14 packages per arm — a sold captain is rare, so the out-side raw convention
-understates by little. Free transfers read 64-73% non-negative on the same criterion (the
-full plan's 73%, mean +12.2, the best).
+understates by little. Free transfers read 64-73% non-negative on the same criterion
+(n 608/598/591; the full plan's 73%, mean +12.2, the best).
 
 **The registered rung pattern (H') — no suggestive shape.** On the preference population,
 the holding-minus-horizon clearance gap by rung reads **+5 / +2 / +8 / +7** percentage
 points (78-73, 73-71, 74-67, 67-60) at n 73 / 45 / 39 / 30 — no monotone widening, so no
 evidence the bar buys horizon-net quality that does not survive the hold. The clearance
-share FALLS with the rung on both criteria (78→73→74→67 holding; 73→71→67→60 horizon):
+share declines overall with a blip at rung 5 on the holding criterion (78→73→74→67; the
+horizon series is monotone, 73→71→67→60):
 higher bars take fewer, bigger bets, and no rung clears the pre-registered shipping rule.
 **MinGainHit 3.0 stands; nothing ships.**
 
 ⚠️ **The wildcard-week-after split is now live and is all free.** In the full-plan arm — the
 only one that plays wildcards — 30 packages land the week after a wildcard, **0 of them
-hits**: the post-wildcard churn the user flagged is free-transfer adjustment, and 77% of it
-is non-negative on the holding criterion (mean +17). The "two transfers the week after every
-wildcard" observation is confirmed as real and mostly pays.
+hits**: the post-wildcard churn the user flagged is free-transfer adjustment, and 73% of it
+(22 of 30) is non-negative on the holding criterion (mean +17). The "two transfers the week
+after every wildcard" observation is confirmed as real and mostly pays.
 
 The full-plan machine resolves at **+97.6 a season** against the flat machine (2.569 pts/gw,
 CR2 SE 0.667, t 3.85, p 0.0120, wild 0.0111, Holm 0.0600 under the sweep's family of 6) —

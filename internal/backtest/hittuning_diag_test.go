@@ -119,8 +119,9 @@ package backtest
 // in the hold — per arm, split forced vs preference; (H') the rung pattern —
 // on the SAME preference-hit population, the GAP between the holding and the
 // horizon clearance share (a hit clears the horizon criterion iff its
-// horizon net is ≥ 4) by MinGainHit rung 3/4/5/6. The horizon net is the
-// first five weeks of the hold, so the two shares are mechanically positively
+// horizon net is ≥ 4) by MinGainHit rung 3/4/5/6. The horizon net covers the
+// transfer week through gw+4 — the hold's first five weeks when the hold
+// lasts at least that long — so the two shares are mechanically positively
 // correlated and a monotone rise in the holding share alone would be
 // near-forced — the GAP is the reading, a widening gap with rung being "the
 // bar buys horizon-net quality that does not survive the hold". Read only at

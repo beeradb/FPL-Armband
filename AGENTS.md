@@ -834,7 +834,7 @@ nothing checks it stays complete.
   a sold player who keeps playing, against −2.223 for the 13% who stop. → **transfer-policy**
 - **The transfer path's noise, measured cleanly, is 303 points of spread** with `HOLD` provably
   byte-identical — the floor for any transfer-policy experiment. → **transfer-policy**
-- **`MinGainHit` 3.0 stands and the hits mostly pay.** On the horizon criterion, 23.5% of hit
+- **`MinGainHit` 3.0 stands, the hits mostly pay, and nothing ships.** On the horizon criterion, 23.5% of hit
   packages come in below the gate's own bar (n 98; 26.9% availability-adjusted, n 78) against a
   ~50% truncation null, mean package +14.1; the MinGainHit ladder 3/4/5/6 resolves nothing
   (thresholds 13.5-18.8, no shape). On the **holding criterion** (the user's ruling: +4 net
