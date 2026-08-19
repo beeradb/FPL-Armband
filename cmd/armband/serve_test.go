@@ -190,6 +190,41 @@ func TestTheActionsWriteAndLiftOverridesByPermanentCode(t *testing.T) {
 	}
 }
 
+// TestWatchQueryParsesAndDefaults. The watchlist parameters are a view, so
+// anything unparseable falls back to the opening state rather than erroring —
+// but a VALID parameter must arrive exactly as sent, or the sort links and
+// the filters the reader set would silently do nothing.
+func TestWatchQueryParsesAndDefaults(t *testing.T) {
+	q := watchQuery(httptest.NewRequest("GET", "/?sort=score&dir=asc&q=sal&pos=MID&team=ars&p=2", nil))
+	if q.Sort != "score" || q.Desc {
+		t.Errorf("sort %q desc %v, want score ascending", q.Sort, q.Desc)
+	}
+	if q.Q != "sal" || q.Pos != "MID" || q.Team != "ARS" {
+		t.Errorf("filters %+v, want sal/MID/ARS", q)
+	}
+	if q.Page != 2 {
+		t.Errorf("page %d, want 2", q.Page)
+	}
+
+	q = watchQuery(httptest.NewRequest("GET", "/?sort=bogus&pos=XX&team=%20liv%20", nil))
+	if q.Sort != "price" || !q.Desc {
+		t.Errorf("an unknown sort fell back to %q desc=%v, want the default price descending",
+			q.Sort, q.Desc)
+	}
+	if q.Pos != "" {
+		t.Errorf("an unknown position survived as %q", q.Pos)
+	}
+	if q.Team != "LIV" {
+		t.Errorf("a padded team name arrived as %q, want LIV", q.Team)
+	}
+
+	q = watchQuery(httptest.NewRequest("GET", "/?sort=name", nil))
+	if q.Sort != "name" || q.Desc {
+		t.Errorf("a directionless name sort is %q desc=%v; names open ascending",
+			q.Sort, q.Desc)
+	}
+}
+
 // TestTheActionSavesBeforeItAdopts. A save failure must leave the running
 // config untouched — adopting first would show an override on the page that
 // every later run silently lacks, which is the page lying about the state of

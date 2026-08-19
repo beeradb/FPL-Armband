@@ -112,9 +112,21 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 		FixtureLoadInScore: e.FixtureLoadInScore(),
 		Reasoning:          reasoningFor(cfg, e, sq.Players, live, lapsed),
 		Watch:              watchlistFor(e, *sq, excluded, bound, cfg.Review.MinGainForTransfer),
-		Codes:             elementCodes(e),
+		Codes:              elementCodes(e),
+		Teams:              clubShortNames(e),
 	}
 	return squadPageBuild{Page: page, Squad: sq, BudgetLine: budgetLine, Source: source}, nil
+}
+
+// clubShortNames lists the clubs in the bootstrap, for the watchlist's team
+// filter. Sorted so the select reads like a table rather than an API dump.
+func clubShortNames(e *analysis.Engine) []string {
+	var names []string
+	for i := range e.Boot.Teams {
+		names = append(names, e.Boot.Teams[i].ShortName)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // elementCodes maps element id to permanent player code.
@@ -386,7 +398,15 @@ func withAge(lastChecked string, age int) string {
 // putting Saliba at the top of the defender list every week — where he would sit, since
 // the exclusion does not lower his score — would be an invitation to a transfer the
 // page itself forbids. They get their own block, with the reason in full.
-const watchPerPosition = 8
+//
+// # Why one list, not one per position
+//
+// The watchlist is a single list of the hundred best-scoring players outside the
+// fifteen, with the position as a column the reader can filter and sort on. Per-
+// position groups hid how positions trade against each other — the eighth-best
+// keeper is not a stronger candidate than the thirtieth-best midfielder just
+// because both were eighth on their own list.
+const watchCount = 100
 
 func watchlistFor(e *analysis.Engine, sq analysis.Squad, excluded []present.Override,
 	bound map[int]present.Override, gate float64) *present.Watchlist {
@@ -403,44 +423,48 @@ func watchlistFor(e *analysis.Engine, sq analysis.Squad, excluded []present.Over
 		}
 	}
 
+	// The benchmark comes from the starting eleven only. A bench keeper is not
+	// the keeper a new keeper displaces.
+	bench := map[string]present.WatchBenchmark{}
+	for _, p := range sq.StartingXI {
+		if b, ok := bench[p.Position]; !ok || p.Score < b.Score {
+			bench[p.Position] = present.WatchBenchmark{
+				Position: p.Position, Name: p.Name, Score: p.Score, Price: p.Price,
+			}
+		}
+	}
+
 	all := e.AllMetrics()
 	sort.SliceStable(all, func(i, j int) bool { return all[i].Score > all[j].Score })
 
 	w := &present.Watchlist{Excluded: excluded, Gate: gate}
+	for _, m := range all {
+		if len(w.Rows) >= watchCount {
+			break
+		}
+		if owned[m.ID] || skip[m.ID] {
+			continue
+		}
+		b := bench[m.Position]
+		d := m.Score - b.Score
+		// Against the gate, not against zero. A positive gap says "better than
+		// what you have"; only the gate says "worth a transfer", and the page
+		// prints that threshold two tabs away.
+		w.Rows = append(w.Rows, present.WatchRow{
+			Player: m, Delta: d, ClearsGate: gate > 0 && d >= gate,
+		})
+	}
+	for _, r := range w.Rows {
+		if r.ClearsGate {
+			w.Clearing++
+		}
+	}
+	w.Count = len(w.Rows)
+	// The legend names the benchmark per position, in canonical order.
 	for _, pos := range []string{"GKP", "DEF", "MID", "FWD"} {
-		g := present.WatchGroup{Position: pos}
-		// The benchmark comes from the starting eleven only. A bench keeper is not
-		// the keeper a new keeper displaces.
-		for _, p := range sq.StartingXI {
-			if p.Position != pos {
-				continue
-			}
-			if g.BenchmarkName == "" || p.Score < g.BenchmarkScore {
-				g.BenchmarkName, g.BenchmarkScore, g.BenchmarkPrice = p.Name, p.Score, p.Price
-			}
+		if b, ok := bench[pos]; ok {
+			w.Benchmarks = append(w.Benchmarks, b)
 		}
-		for _, m := range all {
-			if len(g.Rows) >= watchPerPosition {
-				break
-			}
-			if m.Position != pos || owned[m.ID] || skip[m.ID] {
-				continue
-			}
-			d := m.Score - g.BenchmarkScore
-			// Against the gate, not against zero. A positive gap says "better than
-			// what you have"; only the gate says "worth a transfer", and the page
-			// prints that threshold two tabs away.
-			g.Rows = append(g.Rows, present.WatchRow{
-				Player: m, Delta: d, ClearsGate: gate > 0 && d >= gate,
-			})
-		}
-		w.Count += len(g.Rows)
-		for _, r := range g.Rows {
-			if r.ClearsGate {
-				w.Clearing++
-			}
-		}
-		w.Groups = append(w.Groups, g)
 	}
 	return w
 }

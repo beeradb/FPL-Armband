@@ -288,8 +288,10 @@ func TestTheThreeViewPageIsStillSelfContained(t *testing.T) {
 			Blind:     []string{"press conferences — see https://example.com/news"},
 			Overrides: []Override{{Label: "EXCL", Player: "X", Reason: "per https://example.com/x"}},
 		}
-		p.Watch = &Watchlist{Groups: []WatchGroup{{Position: "MID", BenchmarkName: "Saka",
-			BenchmarkScore: 6.9, Rows: []WatchRow{{Player: sampleSquad().StartingXI[0], Delta: -2.8}}}}}
+		p.Watch = &Watchlist{
+			Benchmarks: []WatchBenchmark{{Position: "MID", Name: "Saka", Score: 6.9}},
+			Rows:       []WatchRow{{Player: sampleSquad().StartingXI[0], Delta: -2.8}},
+		}
 	})
 	// Asserted on emitted MARKUP, not on the presence of a URL anywhere in the byte
 	// stream.
@@ -347,6 +349,53 @@ func TestTheWatchlistColoursAgainstTheGateAndNotAgainstZero(t *testing.T) {
 	}
 }
 
+// TestTheWatchlistControlsRenderOnlyWhenServed. The served watchlist carries a
+// filter form, sort links and a pager over 50-row pages; the static export
+// shows the same rows sorted the same default way, with no controls — a sort
+// link on a file:// page points at a state that page cannot render.
+func TestTheWatchlistControlsRenderOnlyWhenServed(t *testing.T) {
+	static := briefedPage(t, func(p *Page) {
+		p.Watch = &Watchlist{Rows: []WatchRow{{Player: analysis.PlayerMetrics{
+			ID: 7, Name: "X", Team: "AAA", Position: "MID", Score: 5, Price: 6}}}}
+	})
+	// The CSS classes ship with every page; the assertion is on the rendered
+	// elements, not the stylesheet.
+	if strings.Contains(static, `<form class="wfilter"`) ||
+		strings.Contains(static, `<a class="sort`) ||
+		strings.Contains(static, `<nav class="pager"`) {
+		t.Error("the static export renders watchlist controls that cannot work offline")
+	}
+
+	rows := make([]WatchRow, 60)
+	for i := range rows {
+		rows[i] = WatchRow{Player: analysis.PlayerMetrics{
+			ID: i + 1, Name: fmt.Sprintf("P%02d", i), Team: "AAA", Position: "MID",
+			Score: 5, Price: float64(60 - i)}, Delta: 1}
+	}
+	served := briefedPage(t, func(p *Page) {
+		p.Token = "tok"
+		p.Watch = &Watchlist{Rows: rows}
+		p.WatchQuery = DefaultWatchQuery()
+		p.Teams = []string{"AAA", "BBB"}
+	})
+	for _, want := range []string{
+		`<form class="wfilter" method="get" action="/">`,
+		`name="pos"`, `name="team"`, `name="q"`,
+		// The active column's link flips the direction.
+		`href="?dir=asc&sort=price"`,
+		`<a class="sort on" href="?dir=asc&sort=price">&pound; ↓</a>`,
+		"1–50 of 60", "page 1 of 2", "next ›",
+	} {
+		if !strings.Contains(served, want) {
+			t.Errorf("the served watchlist lacks %q", want)
+		}
+	}
+	// The position column: one row per candidate, position visible.
+	if !strings.Contains(served, `<td class="pos">MID</td>`) {
+		t.Error("the watchlist has no position column")
+	}
+}
+
 // TestTheWatchlistSaysWhenNothingClearsTheGate. The count is the most useful sentence
 // the view can carry, and it is the one a reader would otherwise have to derive by
 // comparing a column against a number on another tab.
@@ -354,9 +403,9 @@ func TestTheWatchlistSaysWhenNothingClearsTheGate(t *testing.T) {
 	out := briefedPage(t, func(p *Page) {
 		p.Watch = &Watchlist{
 			Gate: 2.0, Count: 2, Clearing: 0,
-			Groups: []WatchGroup{{Position: "MID", BenchmarkName: "Saka",
-				BenchmarkScore: 6.9, BenchmarkPrice: 10.1,
-				Rows: []WatchRow{{Player: analysis.PlayerMetrics{Name: "X"}, Delta: 0.81}}}},
+			Benchmarks: []WatchBenchmark{{Position: "MID", Name: "Saka",
+				Score: 6.9, Price: 10.1}},
+			Rows: []WatchRow{{Player: analysis.PlayerMetrics{Name: "X"}, Delta: 0.81}},
 		}
 	})
 	if !strings.Contains(out, "Nothing on this list does") {
@@ -546,8 +595,7 @@ func TestEveryNameIsEscapedInEveryView(t *testing.T) {
 		}
 		p.Watch = &Watchlist{
 			Excluded: []Override{{Label: "EXCL", Player: evil, Reason: evil}},
-			Groups: []WatchGroup{{Position: "MID",
-				Rows: []WatchRow{{Player: analysis.PlayerMetrics{Name: evil, Team: evil}}}}},
+			Rows:     []WatchRow{{Player: analysis.PlayerMetrics{Name: evil, Team: evil}}},
 		}
 	})
 	if strings.Contains(out, evil) {

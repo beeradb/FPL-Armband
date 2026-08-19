@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net/url"
 	"strings"
 
 	"armband/internal/analysis"
@@ -68,6 +69,15 @@ type Page struct {
 	// returns the reader to the view, sort and page they were on. Empty on the
 	// static page.
 	Ret string
+	// WatchQuery is the reader's filter, sort and page over the watchlist,
+	// parsed by the served page's handler. The zero value renders the static
+	// export's watchlist: every row, sorted by the default — price,
+	// descending.
+	WatchQuery WatchQuery
+	// Teams is the club short-name list for the watchlist's team filter,
+	// built by the caller from the bootstrap. Empty on the static page, where
+	// the filter never renders.
+	Teams []string
 }
 
 // HTML writes a squad and its transfers as a self-contained page: no external CSS, no
@@ -205,22 +215,55 @@ func Render(w io.Writer, p Page) error {
 	// carry this eleven", which is a question about the fifteen and not about the
 	// pool — so ScorePct is left at zero here rather than computed and unused.
 	if p.Watch != nil {
-		for _, g := range p.Watch.Groups {
-			gv := watchGroupView{
-				Position:       g.Position,
-				BenchmarkName:  g.BenchmarkName,
-				BenchmarkScore: g.BenchmarkScore,
-				BenchmarkPrice: g.BenchmarkPrice,
-			}
-			for _, r := range g.Rows {
-				gv.Rows = append(gv.Rows, watchRowView{
-					Card: card(r.Player), Delta: r.Delta, DeltaClass: r.DeltaClass(),
-				})
-			}
-			data.WatchGroups = append(data.WatchGroups, gv)
+		q := p.WatchQuery
+		if q.Sort == "" {
+			// The static export still opens on the default ordering.
+			q = DefaultWatchQuery()
 		}
+		// Only the served page pages: its handler sets WatchQuery and Token
+		// together, so Token is the same fact as "this came from a request".
+		q.Pageable = p.Token != ""
+		rows, page, pages, total := p.Watch.Apply(q)
+		for _, r := range rows {
+			data.WatchRows = append(data.WatchRows, watchRowView{
+				Card: card(r.Player), Delta: r.Delta, DeltaClass: r.DeltaClass(),
+			})
+		}
+		data.WatchQ = watchQueryView{
+			Interactive: p.Token != "",
+			Sort:        q.Sort,
+			Dir:         "desc",
+			Q:           q.Q,
+			Pos:         q.Pos,
+			Team:        q.Team,
+			Page:        page,
+			Pages:       pages,
+			From:        pageFirst(page, len(rows)),
+			To:          pageLast(page, len(rows)),
+			Total:       total,
+		}
+		if !q.Desc {
+			data.WatchQ.Dir = "asc"
+		}
+		data.Teams = p.Teams
 	}
 	return pageTmpl.Execute(w, withPalette(data))
+}
+
+// pageFirst and pageLast are the 1-based row positions the pager reports:
+// "51–100 of 101" rather than page arithmetic the reader can do without.
+func pageFirst(page, onPage int) int {
+	if onPage == 0 {
+		return 0
+	}
+	return (page-1)*WatchPageSize + 1
+}
+
+func pageLast(page, onPage int) int {
+	if onPage == 0 {
+		return 0
+	}
+	return (page-1)*WatchPageSize + onPage
 }
 
 // pct is the bar width, in whole percent, clamped. Presentation arithmetic — the same
@@ -324,10 +367,16 @@ type pageData struct {
 	Summary   *replaySummary
 	Reasoning *Reasoning
 	Watch     *Watchlist
-	// WatchGroups is Watch.Groups with every player turned into a card, so the
+	// WatchRows is the watchlist for this render: Watch.Rows filtered, sorted
+	// and sliced for the query, with every player turned into a card so the
 	// watchlist and the roster render a name the same way.
-	WatchGroups []watchGroupView
-	Research    []researchGroupView
+	WatchRows []watchRowView
+	// WatchQ is the resolved query state, for the filter form, the sort links
+	// and the pager.
+	WatchQ watchQueryView
+	// Teams is the club list for the team filter, from Page.
+	Teams    []string
+	Research []researchGroupView
 	// Tabs is false when there is only one view — the replay, and any squad page
 	// built without the reasoning and watchlist data. A tab bar with one tab is
 	// furniture pretending to be a control.
@@ -339,6 +388,125 @@ type pageData struct {
 	Codes map[int]int
 	Ret   string
 }
+
+// watchQueryView is WatchQuery after Apply has resolved the page: the state
+// the template renders the filter form, the sort links and the pager from.
+//
+// Interactive reports whether the served page should show those controls at
+// all. The static export shows the same rows — sorted the same default way —
+// with bare headings and no pager, because a sort link on a file:// page is a
+// link to a state that page cannot render.
+type watchQueryView struct {
+	Interactive     bool
+	Sort, Dir       string
+	Q, Pos, Team    string
+	Page, Pages     int
+	From, To, Total int
+}
+
+// SortHead renders one sortable column heading: a link on the served page,
+// the bare label on the static export.
+//
+// The link keeps the filters, drops the page (a new sort starts at page 1),
+// and either flips the direction — clicking the active column — or opens the
+// column on its natural direction. The label is NOT escaped: every label is a
+// compile-time literal written into the template, so escaping would turn
+// "&Delta;" into the text "&amp;Delta;". The href is percent-encoded by
+// url.Values, which is the escaping that attribute actually needs.
+func (v watchQueryView) SortHead(col, label string) template.HTML {
+	if !v.Interactive {
+		return template.HTML(label)
+	}
+	desc := WatchNaturalDir(col) == "desc"
+	if v.Sort == col {
+		desc = v.Dir != "desc" // the active column flips
+	}
+	vals := url.Values{}
+	vals.Set("sort", col)
+	if desc {
+		vals.Set("dir", "desc")
+	} else {
+		vals.Set("dir", "asc")
+	}
+	if v.Q != "" {
+		vals.Set("q", v.Q)
+	}
+	if v.Pos != "" {
+		vals.Set("pos", v.Pos)
+	}
+	if v.Team != "" {
+		vals.Set("team", v.Team)
+	}
+	arrow := ""
+	if v.Sort == col {
+		if v.Dir == "desc" {
+			arrow = " ↓"
+		} else {
+			arrow = " ↑"
+		}
+	}
+	class := "sort"
+	if v.Sort == col {
+		class += " on"
+	}
+	return template.HTML(fmt.Sprintf(`<a class="%s" href="?%s">%s%s</a>`,
+		class, vals.Encode(), label, arrow))
+}
+
+// Pager renders the previous/next controls and the row span, when the served
+// page has more than one page of rows. Empty otherwise.
+func (v watchQueryView) Pager() template.HTML {
+	if !v.Interactive || v.Pages <= 1 {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, `<nav class="pager" aria-label="Watchlist pages">`)
+	pg := func(n int, text string) {
+		if n < 1 || n > v.Pages {
+			fmt.Fprintf(&b, `<span class="pg off">%s</span>`, template.HTMLEscapeString(text))
+			return
+		}
+		fmt.Fprintf(&b, `<a class="pg" href="%s">%s</a>`, v.pageHref(n), template.HTMLEscapeString(text))
+	}
+	pg(v.Page-1, "‹ previous")
+	fmt.Fprintf(&b, `<span class="pgmeta">%d–%d of %d &middot; page %d of %d</span>`,
+		v.From, v.To, v.Total, v.Page, v.Pages)
+	pg(v.Page+1, "next ›")
+	b.WriteString(`</nav>`)
+	return template.HTML(b.String())
+}
+
+// pageHref is a link to one page of the current query: the sort, direction
+// and filters preserved, the page replaced (1 omitted).
+func (v watchQueryView) pageHref(n int) string {
+	vals := url.Values{}
+	vals.Set("sort", v.Sort)
+	vals.Set("dir", v.Dir)
+	if v.Q != "" {
+		vals.Set("q", v.Q)
+	}
+	if v.Pos != "" {
+		vals.Set("pos", v.Pos)
+	}
+	if v.Team != "" {
+		vals.Set("team", v.Team)
+	}
+	if n > 1 {
+		vals.Set("p", fmt.Sprintf("%d", n))
+	}
+	return "?" + vals.Encode()
+}
+
+// AnyFilter reports whether the reader is looking at anything other than the
+// page's opening state, which is when the "clear" link earns its place.
+func (v watchQueryView) AnyFilter() bool {
+	return v.Q != "" || v.Pos != "" || v.Team != "" ||
+		v.Sort != "price" || v.Dir != "desc"
+}
+
+// ResetHref is the opening state of the watchlist. The token is not needed:
+// the page's forms embed it server-side, and GET is read-only.
+func (v watchQueryView) ResetHref() string { return "/" }
 
 // replaySummary is the shape of the season, read before any single week.
 //
@@ -473,7 +641,7 @@ type htmlMove struct {
 }
 
 type htmlCard struct {
-	ID                         int
+	ID int
 	// Code is the player's permanent FPL code, for the interactive page's
 	// write actions. Zero on the static page, where no form is rendered anyway.
 	Code int
@@ -837,10 +1005,6 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
   .rules > div .v { font-size:1.05rem; font-weight:800; font-variant-numeric:tabular-nums; }
 
   /* ---- watchlist ---- */
-  tr.grp td { background:var(--panel2); border-bottom:1px solid var(--line2);
-              padding:.45rem .85rem; }
-  tr.grp .k { margin-right:.9rem; }
-  tr.grp .bench { font-size:.78rem; color:var(--ink3); font-variant-numeric:tabular-nums; }
   td.c-delta { font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right;
                white-space:nowrap; }
   td.c-delta.up { color:var(--good); font-weight:700; }
@@ -849,6 +1013,34 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
              font-variant-numeric:tabular-nums; color:var(--ink3); }
   th.c-delta, th.c-own { text-align:right; }
   .empty { color:var(--ink3); font-style:italic; }
+
+  /* The watchlist's filter bar, sort links and pager. The page stays
+     script-free: sorting is a link, filtering is a GET form, and both are
+     server-rendered. */
+  .wfilter { display:flex; flex-wrap:wrap; gap:.45rem; align-items:center; margin:0 0 .9rem; }
+  .wfilter input[type="search"], .wfilter select {
+    font-family:var(--mono); font-size:.74rem; color:var(--ink);
+    background:var(--panel); border:1px solid var(--line); border-radius:3px;
+    padding:.3rem .5rem; }
+  .wfilter input[type="search"] { min-width:11rem; }
+  .wfilter input:focus-visible, .wfilter select:focus-visible {
+    outline:2px solid var(--accent); outline-offset:1px; }
+  .wfsend { background:var(--panel); border:1px solid var(--line); border-radius:3px;
+            font-family:var(--mono); font-size:.72rem; color:var(--ink2);
+            cursor:pointer; padding:.32rem .6rem; }
+  .wfsend:hover { color:var(--ink); border-color:var(--line2); }
+  .wfclear { margin-left:.35rem; font-size:.8rem; }
+  th a.sort { color:inherit; text-decoration:none; }
+  th a.sort:hover { color:var(--accent); }
+  /* The active column keeps the ink but carries the arrow, so "sorted how"
+     never depends on hover. */
+  th a.sort.on { color:var(--ink); }
+  .pager { display:flex; align-items:center; gap:.9rem; margin-top:.8rem; font-size:.82rem; }
+  .pager .pgmeta { font-family:var(--mono); font-size:.7rem; color:var(--ink3);
+                   font-variant-numeric:tabular-nums; }
+  .pager .pg { color:var(--accent); text-decoration:none; font-weight:600; }
+  .pager .pg:hover { text-decoration:underline; }
+  .pager .pg.off { color:var(--ink3); }
 
   .tabs { display:flex; gap:.35rem; flex-wrap:wrap; margin-bottom:.9rem; }
   .tabs label { font-family:var(--mono); font-size:.72rem; padding:.32rem .7rem;
@@ -1253,37 +1445,66 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
 </div>{{end}}{{end}}{{/* end view-why */}}
 
 {{if .HasWatch}}<div class="view" id="view-watch">
-{{if .WatchGroups}}<section>
+<section>
   <h2>Best available, not in the fifteen</h2>
   <p class="foot" style="margin:0 0 .9rem">Ranked by the model's score. &Delta; is the gap to the
-    weakest starter you already own in that position, named in each group header &mdash; which is
-    the comparison a transfer actually has to win, where a league rank is not.
+    weakest starter you already own in that position &mdash; the comparison a transfer actually
+    has to win, where a league rank is not:
+    {{range $i, $bm := .Watch.Benchmarks}}{{if $i}} &middot; {{end}}<b>{{$bm.Position}}</b> vs {{$bm.Name}} {{pts $bm.Score}}, {{money $bm.Price}}{{end}}.
     {{with .Watch}}{{if .Gate}}<br><b>Green clears the free-transfer gate of {{pts .Gate}} pts/gw.</b>
     {{if .Clearing}}{{.Clearing}} of {{.Count}} do.{{else}}<b>Nothing on this list does</b> &mdash;
     these are ordered, not recommended.{{end}}{{end}}{{end}}</p>
-  <div class="panel tscroll"><table class="wtable">
-    <thead><tr><th>Player</th><th class="c-fix">Next</th><th class="c-min">Mins</th>
-      <th class="c-own">Own</th><th class="c-score">Score</th><th class="c-delta">&Delta;</th>
-      <th class="c-price">&pound;</th></tr></thead>
+
+  {{if .WatchQ.Interactive}}<form class="wfilter" method="get" action="/">
+    <input type="hidden" name="t" value="{{.Token}}">
+    <input type="hidden" name="sort" value="{{.WatchQ.Sort}}">
+    <input type="hidden" name="dir" value="{{.WatchQ.Dir}}">
+    <input class="wfq" type="search" name="q" value="{{.WatchQ.Q}}" placeholder="name" aria-label="Filter by name">
+    <select name="pos" aria-label="Filter by position">
+      <option value="">any position</option>
+      <option value="GKP"{{if eq .WatchQ.Pos "GKP"}} selected{{end}}>GKP</option>
+      <option value="DEF"{{if eq .WatchQ.Pos "DEF"}} selected{{end}}>DEF</option>
+      <option value="MID"{{if eq .WatchQ.Pos "MID"}} selected{{end}}>MID</option>
+      <option value="FWD"{{if eq .WatchQ.Pos "FWD"}} selected{{end}}>FWD</option>
+    </select>
+    <select name="team" aria-label="Filter by team">
+      <option value="">any team</option>
+      {{range .Teams}}<option value="{{.}}"{{if eq . $.WatchQ.Team}} selected{{end}}>{{.}}</option>{{end}}
+    </select>
+    <button class="wfsend" type="submit">Filter</button>
+    {{if .WatchQ.AnyFilter}}<a class="xlink wfclear" href="{{.WatchQ.ResetHref}}">clear</a>{{end}}
+  </form>{{end}}
+
+  {{if .WatchRows}}<div class="panel tscroll"><table class="wtable">
+    <thead><tr>
+      <th>{{.WatchQ.SortHead "name" "Player"}}</th>
+      <th>{{.WatchQ.SortHead "pos" "Pos"}}</th>
+      <th>{{.WatchQ.SortHead "team" "Team"}}</th>
+      <th class="c-fix">Next</th>
+      <th class="c-min">{{.WatchQ.SortHead "mins" "Mins"}}</th>
+      <th class="c-own">{{.WatchQ.SortHead "own" "Own"}}</th>
+      <th class="c-score">{{.WatchQ.SortHead "score" "Score"}}</th>
+      <th class="c-delta">{{.WatchQ.SortHead "delta" "&Delta;"}}</th>
+      <th class="c-price">{{.WatchQ.SortHead "price" "&pound;"}}</th>
+    </tr></thead>
     <tbody>
-    {{range .WatchGroups}}<tr class="grp"><td colspan="7">
-      <span class="k">{{.Position}}</span>
-      {{if .BenchmarkName}}<span class="bench">vs your weakest starter &mdash; {{.BenchmarkName}} {{pts .BenchmarkScore}}, {{money .BenchmarkPrice}}</span>
-      {{else}}<span class="bench">no starter in this position to compare against</span>{{end}}
-    </td></tr>
-    {{if .Rows}}{{range .Rows}}<tr>
-      <td>{{template "flatname" .Card}}</td>
+    {{range .WatchRows}}<tr>
+      <td>{{template "rawname" .Card}}</td>
+      <td class="pos">{{.Card.Position}}</td>
+      <td>{{.Card.Team}}</td>
       <td class="c-fix">{{template "fdr" .Card}}</td>
       <td class="c-min">{{mins .Card.ExpMins}}</td>
       <td class="c-own">{{pc .Card.Own}}</td>
       <td class="c-score">{{pts .Card.Score}}</td>
       <td class="c-delta {{.DeltaClass}}">{{delta .Delta}}</td>
       <td class="c-price">{{money .Card.Price}}</td>
-    </tr>{{end}}{{else}}<tr><td colspan="7" class="empty">&mdash; no candidate outside the fifteen</td></tr>{{end}}
-    {{end}}
+    </tr>{{end}}
     </tbody>
   </table></div>
-</section>{{end}}
+  {{else}}<p class="empty">No candidate matches this filter &mdash; clear it to see the list.</p>{{end}}
+
+  {{.WatchQ.Pager}}
+</section>
 
 {{with .Watch}}{{if .Excluded}}<section>
   <h2>Excluded by a standing override ({{len .Excluded}})</h2>
@@ -1386,6 +1607,10 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
 {{define "rostername"}}<div class="pop-wrap"><span class="who whytrig" tabindex="0" aria-describedby="why-{{.ID}}">{{.Name}}</span><div class="pop" id="why-{{.ID}}" role="note">{{template "why" .Why}}</div></div><span class="club">{{.Team}}</span>{{template "badges" .}}{{end}}
 
 {{define "flatname"}}<span class="who">{{.Name}}</span><span class="club">{{.Team}}</span>{{template "badges" .}}{{end}}
+
+{{/* The watchlist name cell: the club moves to its own sortable column, so
+     this is name and badges without the .club span. */}}
+{{define "rawname"}}<span class="who">{{.Name}}</span>{{template "badges" .}}{{end}}
 
 {{/* The card. Note there is no total and no equals sign anywhere in it: Score is not
      the product of the multipliers below — the engine splits rate from threshold

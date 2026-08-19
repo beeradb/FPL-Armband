@@ -104,6 +104,7 @@ func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b.Page.Token = s.token
+	b.Page.WatchQuery = watchQuery(r)
 	// The whole request URI, not just the query: the redirect after an action
 	// must be path-relative, and a bare query would be rejected by the
 	// path-prefix check in action as an open redirect.
@@ -188,6 +189,36 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 		ret = "/?t=" + s.token
 	}
 	http.Redirect(w, r, ret, http.StatusSeeOther)
+}
+
+// watchQuery parses the watchlist's filter, sort and page parameters.
+//
+// Anything unparseable falls back to the default rather than erroring: the
+// watchlist is a view, and a bad parameter rendering the default view is the
+// right failure — the alternative is a 400 for a hand-edited URL. The sort
+// column is validated against the renderer's own set, the direction resolves
+// to the column's natural one when absent, and the page is clamped downstream
+// in Apply.
+func watchQuery(r *http.Request) present.WatchQuery {
+	q := present.DefaultWatchQuery()
+	vals := r.URL.Query()
+	if s := vals.Get("sort"); present.ValidWatchSort(s) {
+		q.Sort = s
+		q.Desc = present.WatchNaturalDir(s) == "desc"
+	}
+	if d := vals.Get("dir"); d == "asc" || d == "desc" {
+		q.Desc = d == "desc"
+	}
+	q.Q = strings.TrimSpace(vals.Get("q"))
+	switch pos := vals.Get("pos"); pos {
+	case "GKP", "DEF", "MID", "FWD":
+		q.Pos = pos
+	}
+	q.Team = strings.ToUpper(strings.TrimSpace(vals.Get("team")))
+	if p, err := strconv.Atoi(vals.Get("p")); err == nil {
+		q.Page = p
+	}
+	return q
 }
 
 // playerName is the override's display name, from the bootstrap by permanent
