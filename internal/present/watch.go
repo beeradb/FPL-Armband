@@ -10,6 +10,13 @@ import (
 // served page only.
 const WatchPageSize = 50
 
+// WatchCap is how many rows the UNFILTERED watchlist shows at most. It is a
+// display cap, not a selection: it applies in Apply, over the whole pool the
+// caller built, and any filter lifts it — a reader filtering for a name or a
+// position is looking for a specific player, who may score nowhere near the
+// hundred.
+const WatchCap = 100
+
 // WatchQuery is a reader's filter, sort and page over the watchlist.
 //
 // The served page carries these as query parameters — sortable headers are
@@ -100,6 +107,14 @@ func (w *Watchlist) Apply(q WatchQuery) (rows []WatchRow, page, pages, total int
 			continue
 		}
 		rows = append(rows, r)
+	}
+	// The unfiltered view is capped at the best WatchCap rows — the caller's
+	// ranking, which is score — so the opening list stays short enough to
+	// read. A filter lifts the cap: it has already searched the whole pool.
+	// The cap applies BEFORE the sort, so it always means the best hundred by
+	// the caller's ranking, whatever column the reader then orders by.
+	if q.Q == "" && q.Pos == "" && q.Team == "" && len(rows) > WatchCap {
+		rows = rows[:WatchCap]
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		return watchLess(rows[i], rows[j], q.Sort, q.Desc)

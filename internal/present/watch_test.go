@@ -1,6 +1,7 @@
 package present
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -65,6 +66,9 @@ func TestWatchApplyFiltersOnNamePositionAndTeam(t *testing.T) {
 
 // TestWatchApplyPaginatesFiftyAtATime. The served page shows 50 rows a page,
 // clamps an out-of-range page to the last one, and reports the row span.
+//
+// The unfiltered view is capped at WatchCap, so the 120 unfiltered rows read
+// as 100 over two pages; a filtered query sees all of them.
 func TestWatchApplyPaginatesFiftyAtATime(t *testing.T) {
 	w := &Watchlist{Rows: make([]WatchRow, 120)}
 	for i := range w.Rows {
@@ -75,27 +79,79 @@ func TestWatchApplyPaginatesFiftyAtATime(t *testing.T) {
 	q.Pageable = true
 
 	rows, page, pages, total := w.Apply(q)
-	if page != 1 || pages != 3 || total != 120 || len(rows) != 50 {
-		t.Fatalf("page 1: got page %d of %d, %d rows shown, %d total",
+	if page != 1 || pages != 2 || total != WatchCap || len(rows) != 50 {
+		t.Fatalf("unfiltered page 1: got page %d of %d, %d rows shown, %d total",
 			page, pages, len(rows), total)
 	}
-	q.Page = 3
+	q.Page = 2
 	rows, page, _, _ = w.Apply(q)
-	if page != 3 || len(rows) != 20 {
-		t.Fatalf("page 3: got page %d with %d rows, want 3 with 20", page, len(rows))
-	}
-	q.Page = 99
-	rows, page, _, _ = w.Apply(q)
-	if page != 3 || len(rows) != 20 {
-		t.Fatalf("page 99 clamped to page %d with %d rows, want 3 with 20", page, len(rows))
+	if page != 2 || len(rows) != 50 {
+		t.Fatalf("page 2: got page %d with %d rows, want 2 with 50", page, len(rows))
 	}
 
-	// The static export pages nothing: every row comes back on page 1.
+	// A filter lifts the cap: the full 120 paginate as three pages.
+	filtered := DefaultWatchQuery()
+	filtered.Pageable = true
+	filtered.Pos = "DEF"
+	rows, page, pages, total = w.Apply(filtered)
+	if page != 1 || pages != 3 || total != 120 || len(rows) != 50 {
+		t.Fatalf("filtered page 1: got page %d of %d, %d rows shown, %d total",
+			page, pages, len(rows), total)
+	}
+	filtered.Page = 3
+	rows, page, _, _ = w.Apply(filtered)
+	if page != 3 || len(rows) != 20 {
+		t.Fatalf("filtered page 3: got page %d with %d rows, want 3 with 20", page, len(rows))
+	}
+	filtered.Page = 99
+	rows, page, _, _ = w.Apply(filtered)
+	if page != 3 || len(rows) != 20 {
+		t.Fatalf("filtered page 99 clamped to page %d with %d rows, want 3 with 20", page, len(rows))
+	}
+
+	// The static export pages nothing: the capped hundred come back on page 1.
 	static := DefaultWatchQuery()
 	rows, page, pages, _ = w.Apply(static)
-	if page != 1 || pages != 3 || len(rows) != 120 {
-		t.Fatalf("unpaged apply: page %d of %d with %d rows; want 1 of 3 with all 120",
-			page, pages, len(rows))
+	if page != 1 || pages != 2 || len(rows) != WatchCap {
+		t.Fatalf("unpaged apply: page %d of %d with %d rows; want 1 of 2 with the capped %d",
+			page, pages, len(rows), WatchCap)
+	}
+}
+
+// TestWatchApplyCapsOnlyTheUnfilteredView pins the ask: 100 is a MAX on the
+// unfiltered list, never a cut that filters must live inside. A player
+// outside the top hundred is invisible on the opening list and reachable the
+// moment a filter names him.
+func TestWatchApplyCapsOnlyTheUnfilteredView(t *testing.T) {
+	w := &Watchlist{Rows: make([]WatchRow, 150)}
+	for i := range w.Rows {
+		w.Rows[i] = watchRow(i+1, fmt.Sprintf("P%03d", i), "AAA", "DEF", 90, 5,
+			5.0, float64(150-i))
+	}
+	// The very last row by score — far outside the hundred — must be
+	// filterable.
+	w.Rows[149].Player.Name = "Zzdeep"
+
+	q := DefaultWatchQuery()
+	if _, _, _, total := w.Apply(q); total != WatchCap {
+		t.Fatalf("the unfiltered view shows %d rows, want the cap of %d", total, WatchCap)
+	}
+	q.Q = "Zzdeep"
+	rows, _, _, total := w.Apply(q)
+	if total != 1 || rows[0].Player.Name != "Zzdeep" {
+		t.Fatalf("a name filter found %d rows %+v; a player outside the hundred "+
+			"must be reachable by filtering", total, names(rows))
+	}
+	q.Q = ""
+	q.Pos = "DEF"
+	if _, _, _, total := w.Apply(q); total != 150 {
+		t.Fatalf("a position filter shows %d rows; the filter searches the whole "+
+			"pool, not the capped hundred", total)
+	}
+	q.Pos = ""
+	q.Team = "AAA"
+	if _, _, _, total := w.Apply(q); total != 150 {
+		t.Fatalf("a team filter shows %d rows; the filter searches the whole pool", total)
 	}
 }
 

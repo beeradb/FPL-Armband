@@ -424,13 +424,19 @@ func withAge(lastChecked string, age int) string {
 //
 // # Why one list, not one per position
 //
-// The watchlist is a single list of the hundred best-scoring players outside the
-// fifteen, with the position as a column the reader can filter and sort on. Per-
-// position groups hid how positions trade against each other — the eighth-best
-// keeper is not a stronger candidate than the thirtieth-best midfielder just
-// because both were eighth on their own list.
-const watchCount = 100
-
+// The watchlist is a single list of the players outside the fifteen, with the
+// position as a column the reader can filter and sort on. Per-position groups
+// hid how positions trade against each other — the eighth-best keeper is not a
+// stronger candidate than the thirtieth-best midfielder just because both were
+// eighth on their own list.
+//
+// # Why the whole pool, not a pre-cut hundred
+//
+// This builds rows for EVERY player outside the fifteen. The cut to the best
+// hundred is a display cap the renderer applies to the unfiltered view, not a
+// selection made here: cut here and a filtered query could only ever find
+// players who made the hundred — a £4.0m promoted defender scores low and
+// would be unfilterable, which is exactly the player a reader filters for.
 func watchlistFor(e *analysis.Engine, sq analysis.Squad, excluded []present.Override,
 	bound map[int]present.Override, gate float64) *present.Watchlist {
 
@@ -462,9 +468,6 @@ func watchlistFor(e *analysis.Engine, sq analysis.Squad, excluded []present.Over
 
 	w := &present.Watchlist{Excluded: excluded, Gate: gate}
 	for _, m := range all {
-		if len(w.Rows) >= watchCount {
-			break
-		}
 		if owned[m.ID] || skip[m.ID] {
 			continue
 		}

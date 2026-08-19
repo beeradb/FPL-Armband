@@ -143,11 +143,12 @@ hitting a points total. So the number to judge a predictor by is how well it ran
 within a gameweek.
 
 The squad page's watchlist tab asks that question a hundred times over, and it is worth seeing
-how: the hundred best-scoring players outside the fifteen form one list, filterable by name,
-position and club and sortable on every column but the fixture strip (price first), with each
-candidate measured not against the league but against the weakest starter you already own in
-that position — named in the legend above the list — and the Δ column giving the gap, green
-marking what clears the free-transfer gate. On this run's data, two of a hundred do.
+how: the best hundred players outside the fifteen form one list by default, filterable by name,
+position and club — a filter searches the whole pool, not just the hundred — and sortable on
+every column but the fixture strip (price first), with each candidate measured not against the
+league but against the weakest starter you already own in that position — named in the legend
+above the list — and the Δ column giving the gap, green marking what clears the free-transfer
+gate. On this run's data, two of a hundred do.
 
 ![The watchlist tab, from the same 2026-08-19 run: the hundred best available players not in the fifteen, as one list. The legend above it names the weakest starter already owned in each position — Kinsky for goalkeepers, Thiaw for defenders, E.Le Fée for midfielders, Thiago for forwards — and every row shows the position, the club, the next five fixtures, expected minutes, ownership, the model's score, the gap to that starter, and the price. Two gaps are shown in green; the note above the table says two of 100 clear the free-transfer gate of 0.40 points per gameweek.](docs/images/watchlist.png)
 
