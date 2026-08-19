@@ -901,7 +901,15 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// ⚠️ Raised rather than compressed, per this comment's own rule. The first pass DID fit
 	// inside 108 KB, with 222 bytes free, and it was wrong in exactly the direction the rule
 	// predicts — the hedges were what it was missing.
-	const budget = 110 * 1024
+	// # 44 KB from 2026-08-19 — the tier-0 cut: rules and pointers stay, verdicts move
+	//
+	// The routing the tier-0 note (cut-claude-md-to-rules-and-pointers) asked for: the
+	// verdict bodies of "Closed lines" and "What has been measured" moved to the vault,
+	// leaving titles and pointers resident, and the season capability table moved to
+	// docs/replay.md. The named lists are deliberate — see the file's own statement — and
+	// a future edit must not "finish the job" by deleting them, nor re-inflate the
+	// resident file with a second copy of a verdict.
+	const budget = 44 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.
