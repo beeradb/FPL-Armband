@@ -1,0 +1,18 @@
+# Keep the build context to the Go tree.
+#
+# data/ alone is ~34 MB of committed season captures that no build step reads,
+# and `reports` is a symlink to a directory outside the repository. Docker will
+# not follow a symlink out of the build context, but excluding it explicitly
+# means nobody has to know that to be sure of it.
+.git
+.github
+.claude
+reports
+data
+stats
+reviews
+docs
+.cache
+*.html
+*.md
+config.json
