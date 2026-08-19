@@ -93,6 +93,21 @@ type Gameweek struct {
 	// rather than the one you own. The distinction matters to a reader: a free hit's
 	// fifteen is handed back the following week and a wildcard's is kept.
 	Rebuilt bool `json:"rebuilt,omitempty"`
+
+	// Playable lists the chips the competition allows in this gameweek, by key. It is
+	// sent per week rather than assumed, because it is not the same every week: gameweek
+	// one offers only the bench boost and the triple captain.
+	//
+	// The client draws its chip row from this. It must not decide for itself which chips
+	// exist in a week — that is a rule about the competition, and a second copy of it here
+	// would disagree with the model the first time either changed.
+	Playable []ChipOption `json:"playable,omitempty"`
+}
+
+// ChipOption is one chip the reader may place in a gameweek.
+type ChipOption struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
 }
 
 // Squad is the fifteen and how it lines up.
@@ -334,4 +349,23 @@ type Session struct {
 	Store string `json:"store"`
 	// Writable reports whether the client may write at all.
 	Writable bool `json:"writable"`
+
+	// Locked and Blocked are the players this reader has pinned into or barred from every
+	// build, by permanent CODE. The client draws its control states from these rather than
+	// keeping its own idea of them, so a reload shows what is actually in force instead of
+	// an empty set that happens to look the same on a fresh page.
+	Locked  []int `json:"locked,omitempty"`
+	Blocked []int `json:"blocked,omitempty"`
+
+	// Chips the reader has placed: gameweek number as a string, to a chip key. A JSON
+	// object cannot have integer keys.
+	Chips map[string]string `json:"chips,omitempty"`
+
+	// Saved reports that this document was built from a stored team rather than freshly
+	// chosen, which is what lets the page say so honestly instead of implying the model
+	// just picked it.
+	Saved bool `json:"saved"`
+	// Optimised reports that the fifteen is the model's best rather than a varied opening
+	// squad. It drives whether the Optimize control reads as available or as already done.
+	Optimised bool `json:"optimised"`
 }

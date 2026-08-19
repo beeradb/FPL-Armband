@@ -56,8 +56,40 @@ type squadPageBuild struct {
 // environment variable: a new FPL_* switch has to be registered in
 // internal/snapshot's fingerprint list, and a switch that can change what the
 // model computes belongs in the fingerprint, not in a page renderer.
+// pageOpts is everything the build needs beyond the config and the engine.
+//
+// A struct rather than ten parameters, and more importantly the place the squad CHOICE is
+// documented: there are three ways a fifteen reaches the page and they cost wildly
+// different amounts. Fixed is a reload and runs no search; Optimised is the true optimum;
+// neither set is a new session and gets a seeded, varied squad.
+type pageOpts struct {
+	Weeks    int
+	WantPage bool
+	// Now is the clock the override staleness rule reads, and it is passed rather than
+	// read because it is the build's ONLY dependence on wall time -- everything else is a
+	// function of the bootstrap and the config. Passing it makes the build reproducible.
+	// Deliberately not an environment variable: a new FPL_* switch has to be registered
+	// in internal/snapshot's fingerprint list, and a switch that can change what the
+	// model computes does not belong in a page build.
+	Now time.Time
+
+	// Fixed is a fifteen by permanent code -- the reader's saved team. When it is set and
+	// still resolves, the optimiser does not run at all: the fifteen is known and only
+	// the arrangement has to be worked out. This is the reload path.
+	Fixed []int
+	// Seed varies which of several good squads a new session is given. Ignored when
+	// Fixed resolves or Optimised is set. See buildVariedSquad.
+	Seed int64
+	// Optimised asks for the true optimum, which is what the Optimize button means.
+	Optimised bool
+	// Arrange is the reader's own lineup within Fixed. Empty means the model's choice.
+	Arrange arrangement
+}
+
 func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
-	e *analysis.Engine, weeks int, wantPage bool, now time.Time) (squadPageBuild, error) {
+	e *analysis.Engine, opts pageOpts) (squadPageBuild, error) {
+
+	weeks, wantPage, now := opts.Weeks, opts.WantPage, opts.Now
 
 	// Stage timings for the page build (FPL_SERVE_TIMINGS=1), printed to stderr.
 	//
@@ -121,9 +153,25 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	for _, note := range e.ApplyChipPlan(&req) {
 		fmt.Printf("\n%s\n", dim("chip plan: "+note))
 	}
-	sq, err := e.Optimize(req)
-	if err != nil {
-		return squadPageBuild{}, err
+	// The three ways a fifteen is chosen. See pageOpts.
+	var sq *analysis.Squad
+	if len(opts.Fixed) > 0 {
+		// Rebuilt from the reader's saved team. Nil means a player has gone -- out of
+		// the game, or a code the bootstrap no longer carries -- and a partial fifteen
+		// is not a team, so it falls through to a fresh build rather than drawing
+		// fourteen players and saying nothing.
+		sq = squadFromCodes(e, e.AllMetrics(), opts.Fixed, opts.Arrange)
+	}
+	if sq == nil {
+		var err error
+		if opts.Optimised || opts.Seed == 0 {
+			sq, err = e.Optimize(req)
+		} else {
+			sq, err = buildVariedSquad(e, req, opts.Seed)
+		}
+		if err != nil {
+			return squadPageBuild{}, err
+		}
 	}
 	mark("optimize")
 

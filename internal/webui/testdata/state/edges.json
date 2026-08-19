@@ -907,6 +907,8 @@
   ],
   "session": {
     "store": "session",
-    "writable": true
+    "writable": true,
+    "saved": false,
+    "optimised": false
   }
 }

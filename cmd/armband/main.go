@@ -766,7 +766,7 @@ func cmdSquad(ctx context.Context, cfg config.Config, client *fpl.Client,
 	if htmlPath != "" {
 		return errPageRetired
 	}
-	b, err := buildSquadPage(ctx, cfg, client, e, weeks, false, time.Now())
+	b, err := buildSquadPage(ctx, cfg, client, e, pageOpts{Weeks: weeks, Now: time.Now()})
 	if err != nil {
 		return err
 	}

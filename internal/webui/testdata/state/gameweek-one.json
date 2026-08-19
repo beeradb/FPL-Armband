@@ -6,106 +6,171 @@
       "gw": 1,
       "deadline": "2026-08-21T17:30:00Z",
       "current": true,
-      "projected": 51.77363217694647,
-      "formation": "3-5-2"
+      "projected": 50.37518322742381,
+      "formation": "3-5-2",
+      "playable": [
+        {
+          "key": "bboost",
+          "label": "Bench Boost"
+        },
+        {
+          "key": "3xc",
+          "label": "Triple Captain"
+        }
+      ]
     },
     {
       "gw": 2,
       "deadline": "2026-08-28T17:30:00Z",
       "current": false,
-      "projected": 51.09749224531045,
-      "formation": "4-4-2"
+      "projected": 50.62700180532898,
+      "formation": "3-5-2",
+      "playable": [
+        {
+          "key": "wildcard",
+          "label": "Wildcard"
+        },
+        {
+          "key": "freehit",
+          "label": "Free Hit"
+        },
+        {
+          "key": "bboost",
+          "label": "Bench Boost"
+        },
+        {
+          "key": "3xc",
+          "label": "Triple Captain"
+        }
+      ]
     },
     {
       "gw": 3,
       "deadline": "2026-09-04T17:30:00Z",
       "current": false,
-      "projected": 49.9199458499405,
-      "formation": "4-4-2"
+      "projected": 50.35724085718338,
+      "formation": "4-4-2",
+      "playable": [
+        {
+          "key": "wildcard",
+          "label": "Wildcard"
+        },
+        {
+          "key": "freehit",
+          "label": "Free Hit"
+        },
+        {
+          "key": "bboost",
+          "label": "Bench Boost"
+        },
+        {
+          "key": "3xc",
+          "label": "Triple Captain"
+        }
+      ]
     },
     {
       "gw": 4,
       "deadline": "2026-09-12T12:30:00Z",
       "current": false,
-      "projected": 50.4239653529724,
-      "formation": "4-4-2"
+      "projected": 49.77326606652887,
+      "formation": "3-5-2",
+      "playable": [
+        {
+          "key": "wildcard",
+          "label": "Wildcard"
+        },
+        {
+          "key": "freehit",
+          "label": "Free Hit"
+        },
+        {
+          "key": "bboost",
+          "label": "Bench Boost"
+        },
+        {
+          "key": "3xc",
+          "label": "Triple Captain"
+        }
+      ]
     },
     {
       "gw": 5,
       "deadline": "2026-09-18T17:30:00Z",
       "current": false,
-      "projected": 50.901596887585384,
-      "formation": "4-5-1"
+      "projected": 50.37839989665997,
+      "formation": "3-5-2",
+      "playable": [
+        {
+          "key": "wildcard",
+          "label": "Wildcard"
+        },
+        {
+          "key": "freehit",
+          "label": "Free Hit"
+        },
+        {
+          "key": "bboost",
+          "label": "Bench Boost"
+        },
+        {
+          "key": "3xc",
+          "label": "Triple Captain"
+        }
+      ]
     }
   ],
   "squad": {
     "players": [
       {
-        "id": 1,
-        "code": 154561,
-        "name": "Raya",
-        "club": "ARS",
+        "id": 109,
+        "code": 489639,
+        "name": "Verbruggen",
+        "club": "BHA",
         "pos": "GKP",
-        "price": 6,
-        "xp": 3.835894107479098,
-        "per90": 4.054534805319148,
-        "minutes": 88,
+        "price": 4.5,
+        "xp": 3.286496953919151,
+        "per90": 3.286496953919151,
+        "minutes": 90,
         "role": "nailed",
-        "reliability": 0.9722998156047347,
-        "start_share": 0.9777777777777777,
-        "ownership": 35,
+        "reliability": 1,
+        "start_share": 1,
+        "ownership": 19.4,
         "status": "available",
         "availability": 1,
         "fixtures": [
           {
             "gw": 1,
-            "opp": "COV",
+            "opp": "AVL",
             "home": true,
-            "fdr": 2
+            "fdr": 3
           },
           {
             "gw": 2,
-            "opp": "AVL",
+            "opp": "CHE",
             "home": false,
             "fdr": 4
           },
           {
             "gw": 3,
-            "opp": "CHE",
+            "opp": "LEE",
             "home": true,
-            "fdr": 4
+            "fdr": 2
           },
           {
             "gw": 4,
-            "opp": "SUN",
+            "opp": "COV",
             "home": false,
-            "fdr": 3
+            "fdr": 2
           },
           {
             "gw": 5,
-            "opp": "BHA",
-            "home": false,
-            "fdr": 3
+            "opp": "ARS",
+            "home": true,
+            "fdr": 4
           }
         ],
-        "avg_fdr": 3.2,
-        "override": {
-          "kind": "minutes",
-          "code": 154561,
-          "session": false,
-          "label": "MIN 88",
-          "reason": "Named first choice for the season. His record is backup minutes; the role is not.",
-          "player": "Raya",
-          "club": "ARS",
-          "pos": "GKP",
-          "set_on": "2026-07-10",
-          "until": "indefinite — review",
-          "checked": "2026-07-10 (40d)",
-          "needs_check": true,
-          "check_age": 40,
-          "in_squad": true,
-          "flag": "CHECK 40d"
-        }
+        "avg_fdr": 3
       },
       {
         "id": 497,
@@ -258,56 +323,6 @@
         "avg_fdr": 2.6
       },
       {
-        "id": 229,
-        "code": 17761,
-        "name": "Tarkowski",
-        "club": "EVE",
-        "pos": "DEF",
-        "price": 6,
-        "xp": 3.7810795641708834,
-        "per90": 3.9664506903656975,
-        "minutes": 87.63157894736842,
-        "role": "nailed",
-        "reliability": 0.9672141897297535,
-        "start_share": 0.9736842105263158,
-        "ownership": 9.4,
-        "status": "available",
-        "availability": 1,
-        "fixtures": [
-          {
-            "gw": 1,
-            "opp": "CRY",
-            "home": true,
-            "fdr": 3
-          },
-          {
-            "gw": 2,
-            "opp": "BOU",
-            "home": false,
-            "fdr": 3
-          },
-          {
-            "gw": 3,
-            "opp": "MUN",
-            "home": true,
-            "fdr": 4
-          },
-          {
-            "gw": 4,
-            "opp": "TOT",
-            "home": false,
-            "fdr": 3
-          },
-          {
-            "gw": 5,
-            "opp": "IPS",
-            "home": true,
-            "fdr": 2
-          }
-        ],
-        "avg_fdr": 3
-      },
-      {
         "id": 445,
         "code": 465642,
         "name": "Thiaw",
@@ -358,19 +373,69 @@
         "avg_fdr": 3
       },
       {
-        "id": 202,
-        "code": 427623,
-        "name": "Richards",
+        "id": 113,
+        "code": 231416,
+        "name": "F.Kadıoğlu",
+        "club": "BHA",
+        "pos": "DEF",
+        "price": 4.5,
+        "xp": 3.213452558939501,
+        "per90": 3.5453831704243264,
+        "minutes": 82.36842105263158,
+        "role": "nailed",
+        "reliability": 0.8951540674202676,
+        "start_share": 0.8947368421052632,
+        "ownership": 3.1,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "AVL",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 2,
+            "opp": "CHE",
+            "home": false,
+            "fdr": 4
+          },
+          {
+            "gw": 3,
+            "opp": "LEE",
+            "home": true,
+            "fdr": 2
+          },
+          {
+            "gw": 4,
+            "opp": "COV",
+            "home": false,
+            "fdr": 2
+          },
+          {
+            "gw": 5,
+            "opp": "ARS",
+            "home": true,
+            "fdr": 4
+          }
+        ],
+        "avg_fdr": 3
+      },
+      {
+        "id": 204,
+        "code": 244723,
+        "name": "Mitchell",
         "club": "CRY",
         "pos": "DEF",
-        "price": 5,
-        "xp": 3.4294370842516986,
-        "per90": 4.128221917934532,
-        "minutes": 74.34210526315789,
-        "role": "likely starter",
-        "reliability": 0.7874816319241461,
-        "start_share": 0.8157894736842105,
-        "ownership": 0.8,
+        "price": 4.5,
+        "xp": 3.0765976352615563,
+        "per90": 3.300434009216695,
+        "minutes": 85.60526315789474,
+        "role": "nailed",
+        "reliability": 0.9393392001575935,
+        "start_share": 0.9473684210526315,
+        "ownership": 6.7,
         "status": "available",
         "availability": 1,
         "fixtures": [
@@ -421,56 +486,6 @@
         "reliability": 0.877971043681463,
         "start_share": 0.9210526315789473,
         "ownership": 49.4,
-        "status": "available",
-        "availability": 1,
-        "fixtures": [
-          {
-            "gw": 1,
-            "opp": "HUL",
-            "home": false,
-            "fdr": 2
-          },
-          {
-            "gw": 2,
-            "opp": "IPS",
-            "home": true,
-            "fdr": 2
-          },
-          {
-            "gw": 3,
-            "opp": "EVE",
-            "home": false,
-            "fdr": 3
-          },
-          {
-            "gw": 4,
-            "opp": "MCI",
-            "home": true,
-            "fdr": 4
-          },
-          {
-            "gw": 5,
-            "opp": "FUL",
-            "home": false,
-            "fdr": 3
-          }
-        ],
-        "avg_fdr": 2.8
-      },
-      {
-        "id": 427,
-        "code": 446008,
-        "name": "Mbeumo",
-        "club": "MUN",
-        "pos": "MID",
-        "price": 8,
-        "xp": 4.270572547179689,
-        "per90": 5.178289517058873,
-        "minutes": 74.6,
-        "role": "likely starter",
-        "reliability": 0.8002291689045699,
-        "start_share": 0.8857142857142857,
-        "ownership": 32.2,
         "status": "available",
         "availability": 1,
         "fixtures": [
@@ -608,104 +623,154 @@
         "avg_fdr": 3
       },
       {
-        "id": 13,
-        "code": 204480,
-        "name": "Rice",
-        "club": "ARS",
+        "id": 542,
+        "code": 484420,
+        "name": "E.Le Fée",
+        "club": "SUN",
         "pos": "MID",
-        "price": 7.5,
-        "xp": 4.013410825638066,
-        "per90": 4.803524834238139,
-        "minutes": 75.85989473684211,
+        "price": 6,
+        "xp": 3.694637230846518,
+        "per90": 4.35136242818466,
+        "minutes": 77.10526315789474,
         "role": "nailed",
-        "reliability": 0.8163032958537604,
-        "start_share": 0.858421052631579,
-        "ownership": 19.5,
+        "reliability": 0.8322413658446308,
+        "start_share": 0.868421052631579,
+        "ownership": 11.6,
         "status": "available",
         "availability": 1,
         "fixtures": [
           {
             "gw": 1,
-            "opp": "COV",
-            "home": true,
+            "opp": "IPS",
+            "home": false,
             "fdr": 2
           },
           {
             "gw": 2,
-            "opp": "AVL",
-            "home": false,
-            "fdr": 4
+            "opp": "FUL",
+            "home": true,
+            "fdr": 2
           },
           {
             "gw": 3,
-            "opp": "CHE",
+            "opp": "BRE",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 4,
+            "opp": "ARS",
             "home": true,
             "fdr": 4
           },
           {
-            "gw": 4,
-            "opp": "SUN",
-            "home": false,
-            "fdr": 3
-          },
-          {
             "gw": 5,
-            "opp": "BHA",
+            "opp": "MCI",
             "home": false,
-            "fdr": 3
+            "fdr": 5
           }
         ],
         "avg_fdr": 3.2
       },
       {
-        "id": 106,
-        "code": 502500,
-        "name": "Thiago",
-        "club": "BRE",
-        "pos": "FWD",
-        "price": 8,
-        "xp": 4.41304248457195,
-        "per90": 4.662968394082318,
-        "minutes": 86.36842105263158,
-        "role": "nailed",
-        "reliability": 0.9498184214155729,
-        "start_share": 0.9736842105263158,
-        "ownership": 17.8,
+        "id": 68,
+        "code": 201658,
+        "name": "Tavernier",
+        "club": "BOU",
+        "pos": "MID",
+        "price": 6,
+        "xp": 3.552676993500179,
+        "per90": 4.483044385209367,
+        "minutes": 71.89473684210526,
+        "role": "likely starter",
+        "reliability": 0.7658872229373196,
+        "start_share": 0.8157894736842105,
+        "ownership": 1.7,
         "status": "available",
         "availability": 1,
         "fixtures": [
           {
             "gw": 1,
-            "opp": "TOT",
+            "opp": "MCI",
+            "home": false,
+            "fdr": 5
+          },
+          {
+            "gw": 2,
+            "opp": "EVE",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 3,
+            "opp": "NEW",
+            "home": false,
+            "fdr": 3
+          },
+          {
+            "gw": 4,
+            "opp": "BRE",
+            "home": true,
+            "fdr": 3
+          },
+          {
+            "gw": 5,
+            "opp": "LIV",
+            "home": true,
+            "fdr": 4
+          }
+        ],
+        "avg_fdr": 3.6
+      },
+      {
+        "id": 411,
+        "code": 223094,
+        "name": "Haaland",
+        "club": "MCI",
+        "pos": "FWD",
+        "price": 15.5,
+        "xp": 5.281650309157718,
+        "per90": 6.243554788705837,
+        "minutes": 77.71052631578948,
+        "role": "nailed",
+        "reliability": 0.8323321613918151,
+        "start_share": 0.8947368421052632,
+        "ownership": 70,
+        "status": "available",
+        "availability": 1,
+        "fixtures": [
+          {
+            "gw": 1,
+            "opp": "BOU",
             "home": true,
             "fdr": 3
           },
           {
             "gw": 2,
-            "opp": "LEE",
+            "opp": "CRY",
             "home": false,
             "fdr": 3
           },
           {
             "gw": 3,
-            "opp": "SUN",
+            "opp": "COV",
             "home": true,
             "fdr": 2
           },
           {
             "gw": 4,
-            "opp": "BOU",
+            "opp": "MUN",
             "home": false,
-            "fdr": 3
+            "fdr": 4
           },
           {
             "gw": 5,
-            "opp": "CHE",
+            "opp": "SUN",
             "home": true,
-            "fdr": 4
+            "fdr": 2
           }
         ],
-        "avg_fdr": 3
+        "avg_fdr": 2.8
       },
       {
         "id": 346,
@@ -810,35 +875,35 @@
     ],
     "xi": [
       426,
+      411,
       4,
-      106,
       356,
-      427,
       237,
       155,
-      13,
-      1,
-      229,
-      346
+      542,
+      346,
+      68,
+      445,
+      109
     ],
     "bench": [
-      445,
-      202,
+      113,
+      204,
       272,
       497
     ],
     "captain": 426,
-    "vice": 4,
+    "vice": 411,
     "formation": "3-5-2",
-    "xi_score": 46.25803807395278,
-    "expected": 51.62484024245697,
-    "bench_score": 9.10216684420584,
-    "cost": 99.5,
-    "bank": 0.5,
+    "xi_score": 45.225202373826804,
+    "expected": 50.59200454233098,
+    "bench_score": 8.49707761266505,
+    "cost": 100,
+    "bank": 0,
     "club_counts": {
       "BHA": 2,
-      "BOU": 1,
-      "BRE": 2,
+      "BOU": 2,
+      "BRE": 1,
       "CHE": 1,
       "CRY": 2,
       "EVE": 1,
@@ -853,56 +918,164 @@
     "rows": [
       {
         "player": {
-          "id": 411,
-          "code": 223094,
-          "name": "Haaland",
-          "club": "MCI",
+          "id": 106,
+          "code": 502500,
+          "name": "Thiago",
+          "club": "BRE",
           "pos": "FWD",
-          "price": 15.5,
-          "xp": 5.281650309157718,
-          "per90": 6.243554788705837,
-          "minutes": 77.71052631578948,
+          "price": 8,
+          "xp": 4.41304248457195,
+          "per90": 4.662968394082318,
+          "minutes": 86.36842105263158,
           "role": "nailed",
-          "reliability": 0.8323321613918151,
-          "start_share": 0.8947368421052632,
-          "ownership": 70,
+          "reliability": 0.9498184214155729,
+          "start_share": 0.9736842105263158,
+          "ownership": 17.8,
           "status": "available",
           "availability": 1,
           "fixtures": [
             {
               "gw": 1,
-              "opp": "BOU",
+              "opp": "TOT",
               "home": true,
               "fdr": 3
             },
             {
               "gw": 2,
-              "opp": "CRY",
+              "opp": "LEE",
               "home": false,
               "fdr": 3
             },
             {
               "gw": 3,
-              "opp": "COV",
+              "opp": "SUN",
               "home": true,
               "fdr": 2
             },
             {
               "gw": 4,
-              "opp": "MUN",
+              "opp": "BOU",
               "home": false,
+              "fdr": 3
+            },
+            {
+              "gw": 5,
+              "opp": "CHE",
+              "home": true,
+              "fdr": 4
+            }
+          ],
+          "avg_fdr": 3
+        },
+        "delta": 0.8349747766062992,
+        "clears_gate": true
+      },
+      {
+        "player": {
+          "id": 427,
+          "code": 446008,
+          "name": "Mbeumo",
+          "club": "MUN",
+          "pos": "MID",
+          "price": 8,
+          "xp": 4.270572547179689,
+          "per90": 5.178289517058873,
+          "minutes": 74.6,
+          "role": "likely starter",
+          "reliability": 0.8002291689045699,
+          "start_share": 0.8857142857142857,
+          "ownership": 32.2,
+          "status": "available",
+          "availability": 1,
+          "fixtures": [
+            {
+              "gw": 1,
+              "opp": "HUL",
+              "home": false,
+              "fdr": 2
+            },
+            {
+              "gw": 2,
+              "opp": "IPS",
+              "home": true,
+              "fdr": 2
+            },
+            {
+              "gw": 3,
+              "opp": "EVE",
+              "home": false,
+              "fdr": 3
+            },
+            {
+              "gw": 4,
+              "opp": "MCI",
+              "home": true,
               "fdr": 4
             },
             {
               "gw": 5,
-              "opp": "SUN",
-              "home": true,
-              "fdr": 2
+              "opp": "FUL",
+              "home": false,
+              "fdr": 3
             }
           ],
           "avg_fdr": 2.8
         },
-        "delta": 1.7035826011920676,
+        "delta": 0.7178955536795097,
+        "clears_gate": true
+      },
+      {
+        "player": {
+          "id": 13,
+          "code": 204480,
+          "name": "Rice",
+          "club": "ARS",
+          "pos": "MID",
+          "price": 7.5,
+          "xp": 4.013410825638066,
+          "per90": 4.803524834238139,
+          "minutes": 75.85989473684211,
+          "role": "nailed",
+          "reliability": 0.8163032958537604,
+          "start_share": 0.858421052631579,
+          "ownership": 19.5,
+          "status": "available",
+          "availability": 1,
+          "fixtures": [
+            {
+              "gw": 1,
+              "opp": "COV",
+              "home": true,
+              "fdr": 2
+            },
+            {
+              "gw": 2,
+              "opp": "AVL",
+              "home": false,
+              "fdr": 4
+            },
+            {
+              "gw": 3,
+              "opp": "CHE",
+              "home": true,
+              "fdr": 4
+            },
+            {
+              "gw": 4,
+              "opp": "SUN",
+              "home": false,
+              "fdr": 3
+            },
+            {
+              "gw": 5,
+              "opp": "BHA",
+              "home": false,
+              "fdr": 3
+            }
+          ],
+          "avg_fdr": 3.2
+        },
+        "delta": 0.4607338321378869,
         "clears_gate": true
       },
       {
@@ -956,8 +1129,8 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.024172572396558234,
-        "clears_gate": false
+        "delta": 0.43656125974132864,
+        "clears_gate": true
       },
       {
         "player": {
@@ -1010,7 +1183,7 @@
           ],
           "avg_fdr": 2.6
         },
-        "delta": -0.0997073496444445,
+        "delta": 0.3610264824934424,
         "clears_gate": false
       },
       {
@@ -1064,61 +1237,131 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.1379003880227785,
+        "delta": 0.3228334441151084,
         "clears_gate": false
       },
       {
         "player": {
-          "id": 542,
-          "code": 484420,
-          "name": "E.Le Fée",
-          "club": "SUN",
-          "pos": "MID",
+          "id": 1,
+          "code": 154561,
+          "name": "Raya",
+          "club": "ARS",
+          "pos": "GKP",
           "price": 6,
-          "xp": 3.694637230846518,
-          "per90": 4.35136242818466,
-          "minutes": 77.10526315789474,
+          "xp": 3.835894107479098,
+          "per90": 4.054534805319148,
+          "minutes": 88,
           "role": "nailed",
-          "reliability": 0.8322413658446308,
-          "start_share": 0.868421052631579,
-          "ownership": 11.6,
+          "reliability": 0.9722998156047347,
+          "start_share": 0.9777777777777777,
+          "ownership": 35,
           "status": "available",
           "availability": 1,
           "fixtures": [
             {
               "gw": 1,
-              "opp": "IPS",
-              "home": false,
+              "opp": "COV",
+              "home": true,
               "fdr": 2
             },
             {
               "gw": 2,
-              "opp": "FUL",
-              "home": true,
-              "fdr": 2
+              "opp": "AVL",
+              "home": false,
+              "fdr": 4
             },
             {
               "gw": 3,
-              "opp": "BRE",
-              "home": false,
-              "fdr": 3
-            },
-            {
-              "gw": 4,
-              "opp": "ARS",
+              "opp": "CHE",
               "home": true,
               "fdr": 4
             },
             {
-              "gw": 5,
-              "opp": "MCI",
+              "gw": 4,
+              "opp": "SUN",
               "home": false,
-              "fdr": 5
+              "fdr": 3
+            },
+            {
+              "gw": 5,
+              "opp": "BHA",
+              "home": false,
+              "fdr": 3
             }
           ],
-          "avg_fdr": 3.2
+          "avg_fdr": 3.2,
+          "override": {
+            "kind": "minutes",
+            "code": 154561,
+            "session": false,
+            "label": "MIN 88",
+            "reason": "Named first choice for the season. His record is backup minutes; the role is not.",
+            "player": "Raya",
+            "club": "ARS",
+            "pos": "GKP",
+            "set_on": "2026-07-10",
+            "until": "indefinite — review",
+            "checked": "2026-07-10 (40d)",
+            "needs_check": true,
+            "check_age": 40,
+            "flag": "CHECK 40d"
+          }
         },
-        "delta": -0.31877359479154777,
+        "delta": 0.5493971535599473,
+        "clears_gate": true
+      },
+      {
+        "player": {
+          "id": 229,
+          "code": 17761,
+          "name": "Tarkowski",
+          "club": "EVE",
+          "pos": "DEF",
+          "price": 6,
+          "xp": 3.7810795641708834,
+          "per90": 3.9664506903656975,
+          "minutes": 87.63157894736842,
+          "role": "nailed",
+          "reliability": 0.9672141897297535,
+          "start_share": 0.9736842105263158,
+          "ownership": 9.4,
+          "status": "available",
+          "availability": 1,
+          "fixtures": [
+            {
+              "gw": 1,
+              "opp": "CRY",
+              "home": true,
+              "fdr": 3
+            },
+            {
+              "gw": 2,
+              "opp": "BOU",
+              "home": false,
+              "fdr": 3
+            },
+            {
+              "gw": 3,
+              "opp": "MUN",
+              "home": true,
+              "fdr": 4
+            },
+            {
+              "gw": 4,
+              "opp": "TOT",
+              "home": false,
+              "fdr": 3
+            },
+            {
+              "gw": 5,
+              "opp": "IPS",
+              "home": true,
+              "fdr": 2
+            }
+          ],
+          "avg_fdr": 3
+        },
+        "delta": 0.3153772226807354,
         "clears_gate": false
       },
       {
@@ -1226,7 +1469,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.34045046808275314,
+        "delta": 0.12028336405513373,
         "clears_gate": false
       },
       {
@@ -1334,7 +1577,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.3629802410318894,
+        "delta": 0.09775359110599746,
         "clears_gate": false
       },
       {
@@ -1388,7 +1631,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.14008479319996026,
+        "delta": 0.17529242948077517,
         "clears_gate": false
       },
       {
@@ -1442,7 +1685,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.19428532370634066,
+        "delta": 0.12109189897439476,
         "clears_gate": false
       },
       {
@@ -1496,61 +1739,7 @@
           ],
           "avg_fdr": 3.2
         },
-        "delta": -0.44742044102390155,
-        "clears_gate": false
-      },
-      {
-        "player": {
-          "id": 68,
-          "code": 201658,
-          "name": "Tavernier",
-          "club": "BOU",
-          "pos": "MID",
-          "price": 6,
-          "xp": 3.552676993500179,
-          "per90": 4.483044385209367,
-          "minutes": 71.89473684210526,
-          "role": "likely starter",
-          "reliability": 0.7658872229373196,
-          "start_share": 0.8157894736842105,
-          "ownership": 1.7,
-          "status": "available",
-          "availability": 1,
-          "fixtures": [
-            {
-              "gw": 1,
-              "opp": "MCI",
-              "home": false,
-              "fdr": 5
-            },
-            {
-              "gw": 2,
-              "opp": "EVE",
-              "home": true,
-              "fdr": 3
-            },
-            {
-              "gw": 3,
-              "opp": "NEW",
-              "home": false,
-              "fdr": 3
-            },
-            {
-              "gw": 4,
-              "opp": "BRE",
-              "home": true,
-              "fdr": 3
-            },
-            {
-              "gw": 5,
-              "opp": "LIV",
-              "home": true,
-              "fdr": 4
-            }
-          ],
-          "avg_fdr": 3.6
-        },
-        "delta": -0.4607338321378869,
+        "delta": 0.013313391113985329,
         "clears_gate": false
       },
       {
@@ -1604,7 +1793,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.2339655583486957,
+        "delta": 0.08141166433203972,
         "clears_gate": false
       },
       {
@@ -1658,7 +1847,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.5135852319250187,
+        "delta": -0.052851399787131825,
         "clears_gate": false
       },
       {
@@ -1712,7 +1901,7 @@
           ],
           "avg_fdr": 2.6
         },
-        "delta": -0.537932611591986,
+        "delta": -0.07719877945409914,
         "clears_gate": false
       },
       {
@@ -1766,7 +1955,7 @@
           ],
           "avg_fdr": 3.6
         },
-        "delta": -0.5390478321442895,
+        "delta": -0.07831400000640265,
         "clears_gate": false
       },
       {
@@ -1820,7 +2009,61 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.5761061920867894,
+        "delta": -0.11537235994890249,
+        "clears_gate": false
+      },
+      {
+        "player": {
+          "id": 202,
+          "code": 427623,
+          "name": "Richards",
+          "club": "CRY",
+          "pos": "DEF",
+          "price": 5,
+          "xp": 3.4294370842516986,
+          "per90": 4.128221917934532,
+          "minutes": 74.34210526315789,
+          "role": "likely starter",
+          "reliability": 0.7874816319241461,
+          "start_share": 0.8157894736842105,
+          "ownership": 0.8,
+          "status": "available",
+          "availability": 1,
+          "fixtures": [
+            {
+              "gw": 1,
+              "opp": "EVE",
+              "home": false,
+              "fdr": 3
+            },
+            {
+              "gw": 2,
+              "opp": "MCI",
+              "home": true,
+              "fdr": 4
+            },
+            {
+              "gw": 3,
+              "opp": "FUL",
+              "home": false,
+              "fdr": 3
+            },
+            {
+              "gw": 4,
+              "opp": "IPS",
+              "home": true,
+              "fdr": 2
+            },
+            {
+              "gw": 5,
+              "opp": "LEE",
+              "home": false,
+              "fdr": 3
+            }
+          ],
+          "avg_fdr": 3
+        },
+        "delta": -0.03626525723844942,
         "clears_gate": false
       },
       {
@@ -1874,7 +2117,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.6289794053180291,
+        "delta": -0.16824557318014222,
         "clears_gate": false
       },
       {
@@ -1928,7 +2171,7 @@
           ],
           "avg_fdr": 3.6
         },
-        "delta": -0.4078283061945118,
+        "delta": -0.0924510835137764,
         "clears_gate": false
       },
       {
@@ -1982,7 +2225,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.6600464075395709,
+        "delta": -0.199312575401684,
         "clears_gate": false
       },
       {
@@ -2036,7 +2279,7 @@
           ],
           "avg_fdr": 2.6
         },
-        "delta": -0.7029102231117399,
+        "delta": -0.24217639097385302,
         "clears_gate": false
       },
       {
@@ -2090,61 +2333,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.48610378472371085,
-        "clears_gate": false
-      },
-      {
-        "player": {
-          "id": 109,
-          "code": 489639,
-          "name": "Verbruggen",
-          "club": "BHA",
-          "pos": "GKP",
-          "price": 4.5,
-          "xp": 3.286496953919151,
-          "per90": 3.286496953919151,
-          "minutes": 90,
-          "role": "nailed",
-          "reliability": 1,
-          "start_share": 1,
-          "ownership": 19.4,
-          "status": "available",
-          "availability": 1,
-          "fixtures": [
-            {
-              "gw": 1,
-              "opp": "AVL",
-              "home": true,
-              "fdr": 3
-            },
-            {
-              "gw": 2,
-              "opp": "CHE",
-              "home": false,
-              "fdr": 4
-            },
-            {
-              "gw": 3,
-              "opp": "LEE",
-              "home": true,
-              "fdr": 2
-            },
-            {
-              "gw": 4,
-              "opp": "COV",
-              "home": false,
-              "fdr": 2
-            },
-            {
-              "gw": 5,
-              "opp": "ARS",
-              "home": true,
-              "fdr": 4
-            }
-          ],
-          "avg_fdr": 3
-        },
-        "delta": -0.5493971535599473,
+        "delta": -0.17072656204297543,
         "clears_gate": false
       },
       {
@@ -2198,61 +2387,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.5556421968948699,
-        "clears_gate": false
-      },
-      {
-        "player": {
-          "id": 113,
-          "code": 231416,
-          "name": "F.Kadıoğlu",
-          "club": "BHA",
-          "pos": "DEF",
-          "price": 4.5,
-          "xp": 3.213452558939501,
-          "per90": 3.5453831704243264,
-          "minutes": 82.36842105263158,
-          "role": "nailed",
-          "reliability": 0.8951540674202676,
-          "start_share": 0.8947368421052632,
-          "ownership": 3.1,
-          "status": "available",
-          "availability": 1,
-          "fixtures": [
-            {
-              "gw": 1,
-              "opp": "AVL",
-              "home": true,
-              "fdr": 3
-            },
-            {
-              "gw": 2,
-              "opp": "CHE",
-              "home": false,
-              "fdr": 4
-            },
-            {
-              "gw": 3,
-              "opp": "LEE",
-              "home": true,
-              "fdr": 2
-            },
-            {
-              "gw": 4,
-              "opp": "COV",
-              "home": false,
-              "fdr": 2
-            },
-            {
-              "gw": 5,
-              "opp": "ARS",
-              "home": true,
-              "fdr": 4
-            }
-          ],
-          "avg_fdr": 3
-        },
-        "delta": -0.5676270052313823,
+        "delta": -0.2402649742141345,
         "clears_gate": false
       },
       {
@@ -2306,7 +2441,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.6068663645723738,
+        "delta": -0.2914891418916383,
         "clears_gate": false
       },
       {
@@ -2360,7 +2495,7 @@
           ],
           "avg_fdr": 3.2
         },
-        "delta": -0.8717895019620654,
+        "delta": -0.4110556698241785,
         "clears_gate": false
       },
       {
@@ -2414,7 +2549,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.8794372939128374,
+        "delta": -0.41870346177495055,
         "clears_gate": false
       },
       {
@@ -2468,7 +2603,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.658106900330917,
+        "delta": -0.3427296776501816,
         "clears_gate": false
       },
       {
@@ -2522,7 +2657,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.9266454260955088,
+        "delta": -0.46591159395762194,
         "clears_gate": false
       },
       {
@@ -2581,60 +2716,6 @@
       },
       {
         "player": {
-          "id": 204,
-          "code": 244723,
-          "name": "Mitchell",
-          "club": "CRY",
-          "pos": "DEF",
-          "price": 4.5,
-          "xp": 3.0765976352615563,
-          "per90": 3.300434009216695,
-          "minutes": 85.60526315789474,
-          "role": "nailed",
-          "reliability": 0.9393392001575935,
-          "start_share": 0.9473684210526315,
-          "ownership": 6.7,
-          "status": "available",
-          "availability": 1,
-          "fixtures": [
-            {
-              "gw": 1,
-              "opp": "EVE",
-              "home": false,
-              "fdr": 3
-            },
-            {
-              "gw": 2,
-              "opp": "MCI",
-              "home": true,
-              "fdr": 4
-            },
-            {
-              "gw": 3,
-              "opp": "FUL",
-              "home": false,
-              "fdr": 3
-            },
-            {
-              "gw": 4,
-              "opp": "IPS",
-              "home": true,
-              "fdr": 2
-            },
-            {
-              "gw": 5,
-              "opp": "LEE",
-              "home": false,
-              "fdr": 3
-            }
-          ],
-          "avg_fdr": 3
-        },
-        "delta": -0.7044819289093271,
-        "clears_gate": false
-      },
-      {
-        "player": {
           "id": 236,
           "code": 215413,
           "name": "Dewsbury-Hall",
@@ -2684,7 +2765,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.9377645204870726,
+        "delta": -0.4770306883491857,
         "clears_gate": false
       },
       {
@@ -2738,7 +2819,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.760961776557477,
+        "delta": -0.21156462299752965,
         "clears_gate": false
       },
       {
@@ -2792,7 +2873,7 @@
           ],
           "avg_fdr": 3.2
         },
-        "delta": -0.9611128386357168,
+        "delta": -0.50037900649783,
         "clears_gate": false
       },
       {
@@ -2846,7 +2927,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.9681919881530434,
+        "delta": -0.5074581560151565,
         "clears_gate": false
       },
       {
@@ -2900,7 +2981,7 @@
           ],
           "avg_fdr": 3.6
         },
-        "delta": -0.8263455856425344,
+        "delta": -0.276948432082587,
         "clears_gate": false
       },
       {
@@ -2954,7 +3035,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.8599397684415804,
+        "delta": -0.31054261488163304,
         "clears_gate": false
       },
       {
@@ -3008,7 +3089,7 @@
           ],
           "avg_fdr": 2.6
         },
-        "delta": -1.037670161062247,
+        "delta": -0.5769363289243601,
         "clears_gate": false
       },
       {
@@ -3062,7 +3143,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.807359020999237,
+        "delta": -0.49198179831850153,
         "clears_gate": false
       },
       {
@@ -3116,7 +3197,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.8121256658392144,
+        "delta": -0.496748443158479,
         "clears_gate": false
       },
       {
@@ -3170,7 +3251,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.8153487988537953,
+        "delta": -0.4999715761730599,
         "clears_gate": false
       },
       {
@@ -3224,7 +3305,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.8832922475548801,
+        "delta": -0.3338950939949328,
         "clears_gate": false
       },
       {
@@ -3332,7 +3413,7 @@
           ],
           "avg_fdr": 3.2
         },
-        "delta": -0.8918024744849338,
+        "delta": -0.34240532092498643,
         "clears_gate": false
       },
       {
@@ -3386,7 +3467,7 @@
           ],
           "avg_fdr": 3.6
         },
-        "delta": -0.8987176558127206,
+        "delta": -0.3493205022527732,
         "clears_gate": false
       },
       {
@@ -3440,7 +3521,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.8453736574350317,
+        "delta": -0.5299964347542963,
         "clears_gate": false
       },
       {
@@ -3548,7 +3629,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -1.0863926331416955,
+        "delta": -0.6256588010038087,
         "clears_gate": false
       },
       {
@@ -3602,7 +3683,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -1.0893181368689504,
+        "delta": -0.6285843047310635,
         "clears_gate": false
       },
       {
@@ -3656,7 +3737,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.8580883443704663,
+        "delta": -0.5427111216897309,
         "clears_gate": false
       },
       {
@@ -3710,7 +3791,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -0.8683312159441932,
+        "delta": -0.5529539932634577,
         "clears_gate": false
       },
       {
@@ -3764,7 +3845,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.8697742251853131,
+        "delta": -0.5543970025045777,
         "clears_gate": false
       },
       {
@@ -3818,7 +3899,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.9255310985529674,
+        "delta": -0.3761339449930201,
         "clears_gate": false
       },
       {
@@ -3872,7 +3953,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.876446456923397,
+        "delta": -0.5610692342426615,
         "clears_gate": false
       },
       {
@@ -3926,7 +4007,7 @@
           ],
           "avg_fdr": 3
         },
-        "delta": -1.1220960239789317,
+        "delta": -0.6613621918410448,
         "clears_gate": false
       },
       {
@@ -3980,7 +4061,7 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -1.1253494499008463,
+        "delta": -0.6646156177629594,
         "clears_gate": false
       },
       {
@@ -4034,7 +4115,7 @@
           ],
           "avg_fdr": 3.6
         },
-        "delta": -1.1285396304263418,
+        "delta": -0.6678057982884549,
         "clears_gate": false
       },
       {
@@ -4088,28 +4169,28 @@
           ],
           "avg_fdr": 2.8
         },
-        "delta": -0.9006496019437162,
+        "delta": -0.5852723792629808,
         "clears_gate": false
       }
     ],
     "benchmarks": [
       {
         "pos": "GKP",
-        "name": "Raya",
-        "score": 3.835894107479098,
-        "price": 6
+        "name": "Verbruggen",
+        "score": 3.286496953919151,
+        "price": 4.5
       },
       {
         "pos": "DEF",
-        "name": "Tarkowski",
-        "score": 3.7810795641708834,
-        "price": 6
+        "name": "Thiaw",
+        "score": 3.465702341490148,
+        "price": 5
       },
       {
         "pos": "MID",
-        "name": "Rice",
-        "score": 4.013410825638066,
-        "price": 7.5
+        "name": "Tavernier",
+        "score": 3.552676993500179,
+        "price": 6
       },
       {
         "pos": "FWD",
@@ -4137,7 +4218,7 @@
       }
     ],
     "count": 60,
-    "clearing": 1,
+    "clearing": 5,
     "gate": 0.4
   },
   "overrides": {
@@ -4156,7 +4237,6 @@
         "checked": "2026-07-10 (40d)",
         "needs_check": true,
         "check_age": 40,
-        "in_squad": true,
         "flag": "CHECK 40d"
       },
       {
@@ -4223,6 +4303,8 @@
   ],
   "session": {
     "store": "session",
-    "writable": true
+    "writable": true,
+    "saved": false,
+    "optimised": false
   }
 }

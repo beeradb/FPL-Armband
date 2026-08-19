@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/mail"
 	"os"
@@ -37,6 +39,7 @@ const (
 	routeApp     = "/app"
 	routeGate    = "/gate"
 	routeState   = "/api/state"
+	routeSession = "/api/session"
 	prefixAssets = "/assets/"
 )
 
@@ -92,7 +95,26 @@ func (s *squadServer) servePage(w http.ResponseWriter, name string) {
 	// be re-interpreted as another type on a sniffing browser.
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(body)
+	_, _ = w.Write(s.withToken(body))
+}
+
+// tokenMeta is the placeholder the embedded document carries, and what the server fills in.
+//
+// The token goes in the PAGE and not in /api/state. That endpoint is an unauthenticated
+// read -- deliberately, since it shows the same squad the page does -- and putting a write
+// capability in its body would turn every read into a handout of one. The retired page
+// carried its token in the markup for the same reason.
+//
+// The embedded file ships with the placeholder EMPTY, so a copy of the document taken off
+// disk carries no capability at all.
+const tokenMeta = `<meta name="armband-token" content="">`
+
+func (s *squadServer) withToken(body []byte) []byte {
+	if s.token == "" {
+		return body
+	}
+	filled := `<meta name="armband-token" content="` + html.EscapeString(s.token) + `">`
+	return bytes.Replace(body, []byte(tokenMeta), []byte(filled), 1)
 }
 
 // gate accepts the landing page's email form and lets the reader through.
@@ -147,14 +169,41 @@ func (s *squadServer) gate(w http.ResponseWriter, r *http.Request) {
 // from a new one, and so the eventual real flow has somewhere to put its answer.
 const gateCookieName = "fpl_gate"
 
-// state answers the client contract.
+// state answers the client contract, for the reader's own team where they have one.
+//
+// A GET may WRITE the cookie, which is worth naming because it looks wrong. A new session
+// has no seed, and a seed drawn per request would hand the reader a different squad on
+// every reload -- the exact staleness complaint this is meant to fix, inverted. So the
+// first GET mints one and stores it, and every later GET is a pure read.
 func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	so := readSessionOverrides(r)
-	cfg := s.effectiveCfgFrom(so)
-	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, s.weeks, true, s.now())
+	sess := readSession(r)
+	if sess.Seed == 0 && !sess.Optimised {
+		sess.Seed = s.nextSeed()
+		if err := sess.write(w); err != nil {
+			fmt.Fprintf(os.Stderr, "serve: storing the session seed: %v\n", err)
+		}
+	}
+	s.answerState(w, r, sess)
+}
+
+// answerState builds and writes the document for a session. Shared by the read and the
+// write route so the two cannot disagree about what the state IS.
+func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess session) {
+	cfg := s.effectiveCfgFrom(sess)
+	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, pageOpts{
+		Weeks:     s.weeks,
+		WantPage:  true,
+		Now:       s.now(),
+		Fixed:     sess.Squad,
+		Seed:      sess.Seed,
+		Optimised: sess.Optimised,
+		Arrange: arrangement{
+			XI: sess.XI, Bench: sess.Bench, Captain: sess.Captain, Vice: sess.Vice,
+		},
+	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -162,15 +211,18 @@ func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 	b.Page.Token = s.token
 	b.Page.SessionMode = !s.persist
 	if !s.persist {
-		markSessionOverrides(&b.Page, so)
+		markSessionOverrides(&b.Page, sess)
 	}
 
 	st, err := viewmodel.Build(viewmodel.Input{
-		Page:    b.Page,
-		Boot:    s.engine.Boot,
-		Cfg:     cfg,
-		Now:     s.now(),
-		Persist: s.persist,
+		Page:      b.Page,
+		Boot:      s.engine.Boot,
+		Cfg:       cfg,
+		Now:       s.now(),
+		Persist:   s.persist,
+		Session:   sess.arrangement(),
+		Optimised: sess.Optimised,
+		Saved:     len(sess.Squad) == 15,
 	})
 	if err != nil {
 		// Build's only failure is a number encoding/json would refuse. Answering 500
@@ -196,4 +248,87 @@ func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 	// bug the whole no-cache design of this server exists to avoid.
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(raw)
+}
+
+// saveSession stores the reader's team and answers with the recomputed document.
+//
+// # Why the answer is the whole state rather than an acknowledgement
+//
+// The client changes something, the server stores it, and the model may then say something
+// different -- a blocked player leaves the squad, a dismissed override changes the
+// projection. Answering "ok" would leave the page to guess at the consequences, which is
+// how a client ends up recomputing model quantities. Answering with the document means the
+// page never holds an opinion the server has not seen.
+//
+// # Why this is a write route with a token and /api/state is not
+//
+// It changes stored state. The token has always gated writes here, and this is one.
+func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
+	// Clamped before the mutex and before the token check, for the same reason /action
+	// clamps: the body is the one thing a caller can make arbitrarily expensive.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
+
+	if r.Method != http.MethodPut && r.Method != http.MethodPost {
+		w.Header().Set("Allow", "PUT, POST")
+		http.Error(w, "the session takes a PUT", http.StatusMethodNotAllowed)
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.tokenOK(r.Header.Get("X-Armband-Token")) {
+		http.Error(w, "missing or wrong token", http.StatusForbidden)
+		return
+	}
+
+	var in session
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "unreadable session: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	in.Version = sessionVersion
+
+	// Every code must resolve, because a code the bootstrap does not carry becomes a
+	// nameless row the reader cannot clear. The client only ever sends codes it was given,
+	// so a miss means a stale page rather than a hostile one -- but it is still refused.
+	if err := s.validateSession(in); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := in.write(w); err != nil {
+		// The ceiling is the interesting failure: a browser drops an oversized cookie
+		// silently, and the reader's work would vanish with no error anywhere.
+		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+		return
+	}
+	s.answerState(w, r, in)
+}
+
+// validateSession refuses anything the bootstrap cannot name.
+func (s *squadServer) validateSession(in session) error {
+	known := map[int]bool{}
+	for i := range s.engine.Boot.Elements {
+		known[s.engine.Boot.Elements[i].Code] = true
+	}
+	for _, group := range [][]int{in.Squad, in.XI, in.Bench, in.Lock, in.Exclude, in.Dismissed} {
+		for _, code := range group {
+			if code != 0 && !known[code] {
+				return fmt.Errorf("no player has code %d", code)
+			}
+		}
+	}
+	for _, code := range []int{in.Captain, in.Vice} {
+		if code != 0 && !known[code] {
+			return fmt.Errorf("no player has code %d", code)
+		}
+	}
+	if n := len(in.Squad); n != 0 && n != 15 {
+		return fmt.Errorf("a squad is fifteen players, not %d", n)
+	}
+	if n := len(in.XI); n != 0 && n != 11 {
+		return fmt.Errorf("an eleven is eleven players, not %d", n)
+	}
+	return nil
 }

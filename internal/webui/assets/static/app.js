@@ -127,7 +127,7 @@ function hydrate(st){
   }
 
   OV=(st.overrides.live||[]).map((o,i)=>({
-    id:'o'+i, t:o.label, kind:o.kind, who:o.player, club:o.club,
+    id:'o'+i, code:o.code, t:o.label, kind:o.kind, who:o.player, club:o.club,
     set:o.set_on, lapse:o.until, chk:o.checked, inSquad:o.in_squad,
     why:o.reason, needsCheck:o.needs_check, age:o.check_age, flag:o.flag,
     session:o.session, eff:''
@@ -143,8 +143,37 @@ function hydrate(st){
   GWS=(st.gameweeks||[]).map(g=>({
     gw:g.gw, deadline:g.deadline ? new Date(g.deadline) : null,
     d:g.deadline ? fmtDeadline(new Date(g.deadline)) : '',
-    chip:CHIPKEY[g.chip]||null, live:!!g.current, projected:g.projected
+    chip:CHIPKEY[g.chip]||null, live:!!g.current, projected:g.projected,
+    /* Which chips the competition allows THIS week, decided by the model. Gameweek one
+       offers only the bench boost and the triple captain -- a wildcard buys nothing when
+       transfers are already unlimited, and the free hit is not offered either. The page
+       must not work that out for itself: it is a rule about the competition, and a second
+       copy of it here would disagree with the model the first time either changed. */
+    /* The icon is design data and stays here; the model decides which chips EXIST this
+       week and what they are called. Merging by key rather than sending an icon from Go
+       keeps the glyph a design decision. */
+    playable:(g.playable||[]).map(c=>{
+      const known=CHIPS.find(x=>x.k===c.key);
+      return {k:c.key, n:c.label, ic:known?known.ic:''};
+    })
   }));
+
+  /* The session, as the server holds it. Rebuilt from the document rather than kept
+     across renders: the server is the one that knows what is stored. */
+  const sess=st.session||{};
+  S.locks=new Set((sess.locked||[]).map(codeToId).filter(Boolean));
+  S.blocks=new Set((sess.blocked||[]).map(codeToId).filter(Boolean));
+  S.optimised=!!sess.optimised;
+  S.saved=!!sess.saved;
+  PENDING={
+    v:1,
+    seed:undefined,          /* the server owns the seed; never sent back */
+    opt:!!sess.optimised,
+    lock:(sess.locked||[]).slice(),
+    excl:(sess.blocked||[]).slice(),
+    dis:(sess.dismissed||[]).slice(),
+    chips:Object.assign({},sess.chips||{})
+  };
 
   const sq=st.squad;
   S.xi=(sq.xi||[]).slice();
@@ -159,6 +188,25 @@ function hydrate(st){
   S.vc=sq.vice||null;
   S.modelXi=(sq.xi||[]).slice();
   S.gw=(GWS.find(g=>g.live)||GWS[0]||{gw:1}).gw;
+
+  /* The team, by code, so a reload restores exactly this arrangement rather than the
+     model's answer to the same fifteen. */
+  PENDING.squad=(sq.players||[]).map(p=>p.code).filter(Boolean);
+  syncArrangement();
+}
+
+/* syncArrangement copies the reader's current lineup into the pending session. */
+function syncArrangement(){
+  PENDING.xi=S.xi.map(codeOf).filter(Boolean);
+  PENDING.bench=[S.benchGk].concat(S.bench).filter(Boolean).map(codeOf).filter(Boolean);
+  PENDING.cap=codeOf(S.cap)||0;
+  PENDING.vc=codeOf(S.vc)||0;
+}
+
+/* codeToId is the reverse of codeOf, for the codes the session carries. */
+function codeToId(code){
+  const p=P.concat(POOL).find(x=>x.code===code);
+  return p?p.id:0;
 }
 
 /* fmtDeadline is the rail's short date. Deliberately not a countdown: the rail
@@ -217,6 +265,64 @@ let S={
   posFilter:'ALL', q:'', affordOnly:false, showAll:false,
   modelXi:[]
 };
+
+/* TOKEN gates every write. It is put on the page by the server and read once here.
+   /api/state is a read and does not need it; changing stored state does. */
+const TOKEN=(document.querySelector('meta[name="armband-token"]')||{}).content||'';
+
+/* save sends the reader's team to the server and redraws from the answer.
+ *
+ * ⚠️ The ANSWER is the new state, not an acknowledgement. The reader blocks a player and
+ * the model may then pick a different eleven; the reader dismisses an override and every
+ * projection moves. A page that applied its own change optimistically would be showing a
+ * squad the model has not agreed to, which is the whole failure this application exists to
+ * avoid -- and it is how a client starts recomputing model quantities to keep up.
+ *
+ * While a save is in flight the page is marked busy rather than frozen. Losing a click is
+ * better than applying it twice, and a spinner over a page that still reads correctly is
+ * better than a page that goes blank. */
+let saving=false;
+function save(mutate){
+  if(saving) return Promise.resolve();
+  mutate(PENDING);
+  saving=true;
+  document.body.classList.add('saving');
+  return fetch('/api/session',{
+    method:'PUT',
+    credentials:'same-origin',
+    headers:{'Content-Type':'application/json','X-Armband-Token':TOKEN},
+    body:JSON.stringify(PENDING)
+  })
+    .then(r=>{
+      if(!r.ok) return r.text().then(t=>{throw new Error(t||('the server answered '+r.status));});
+      return r.json();
+    })
+    .then(st=>{ hydrate(st); renderAll(); })
+    .catch(err=>{
+      /* Said out loud, in place. A save that fails silently is the reader's work
+         disappearing with the page still claiming it is there. */
+      notify('That did not save: '+err.message);
+      console.error(err);
+    })
+    .finally(()=>{ saving=false; document.body.classList.remove('saving'); });
+}
+
+/* PENDING is the session as the server stores it: permanent player CODES, never element
+   ids, because ids are reassigned every summer and this outlives a deploy. hydrate rebuilds
+   it from the document on every load, so it is never assembled from the page's own memory. */
+let PENDING={};
+
+function notify(text){
+  const el=document.getElementById('toast');
+  if(!el){ alert(text); return; }
+  el.textContent=text;
+  el.hidden=false;
+  clearTimeout(notify.t);
+  notify.t=setTimeout(()=>{el.hidden=true;},6000);
+}
+
+/* codeOf maps an element id to the permanent code the server keys on. */
+const codeOf=id=>{const p=byId(id);return p?p.code:0;};
 
 /* snapshot is S as something that survives JSON.stringify.
    HANDOFF.md section 6 says S "maps straight onto a Go struct for Wails bindings". That
@@ -429,11 +535,16 @@ function renderReadout(){
    RENDER — chip row
    ============================================================ */
 function renderChips(){
-  const cur=gwState().chip;
+  const week=gwState()||{};
+  const cur=week.chip;
   const used=new Set(GWS.filter(g=>g.gw!==S.gw&&g.chip).map(g=>g.chip));
+  /* Only the chips the competition allows THIS week. Gameweek one offers the bench boost
+     and the triple captain and nothing else; the model decides that, not this file. The
+     fallback to the full catalogue is for a week the server said nothing about. */
+  const offered=(week.playable&&week.playable.length)?week.playable:CHIPS;
   document.getElementById('chiprow').innerHTML=
     `<span class="k" style="margin-right:2px">Chip for GW${S.gw}</span>`+
-    CHIPS.map(c=>{
+    offered.map(c=>{
       const isUsed=used.has(c.k);
       const wk=GWS.find(g=>g.chip===c.k);
       return `<button class="chipbtn${isUsed?' used':''}" data-chip="${c.k}"
@@ -443,7 +554,11 @@ function renderChips(){
     (cur?`<span class="chipnote">${chipExplain(cur)}</span>`:
       `<span class="dim" style="font-size:12px;margin-left:4px">Pick one and the projection above re-runs under that chip's rules.</span>`);
   document.querySelectorAll('.chipbtn').forEach(b=>b.onclick=()=>{
-    const g=gwState(); g.chip = g.chip===b.dataset.chip ? null : b.dataset.chip; renderAll();
+    const g=gwState()||{}; g.chip = g.chip===b.dataset.chip ? null : b.dataset.chip;
+    save(pending=>{
+      pending.chips=Object.assign({},pending.chips||{});
+      if(g.chip) pending.chips[String(g.gw)]=g.chip; else delete pending.chips[String(g.gw)];
+    });
   });
 }
 function chipExplain(k){
@@ -544,6 +659,16 @@ function canSwap(a,b){
   next.forEach(id=>c[byId(id).pos]++);
   return c.GKP===1&&c.DEF>=3&&c.DEF<=5&&c.MID>=2&&c.MID<=5&&c.FWD>=1&&c.FWD<=3;
 }
+/* Every change to the lineup is saved. The arrangement is the reader's, so the server
+   stores it verbatim and hands it back on the next load rather than re-deriving the
+   model's answer -- otherwise a player dragged to the bench would be back in the eleven
+   after a reload with nothing to explain it. */
+function saveArrangement(){
+  return save(pending=>{ syncArrangement(); Object.assign(pending,{
+    xi:PENDING.xi, bench:PENDING.bench, cap:PENDING.cap, vc:PENDING.vc, squad:PENDING.squad
+  }); });
+}
+
 function doSwap(a,b){
   if(a===b) return;
   if(!canSwap(a,b)){ flashInvalid(); return; }
@@ -559,6 +684,7 @@ function doSwap(a,b){
   set(pa,b); set(pb,a);
   if(!S.xi.includes(S.cap)) S.cap=S.xi.find(id=>byId(id).pos!=='GKP');
   renderAll();
+  saveArrangement();
 }
 function flashInvalid(){
   const hud=document.querySelector('.pitchhud');
@@ -601,6 +727,7 @@ function cycleArmband(id){
     const prev=S.cap; S.cap=id; S.vc = prev===id ? S.vc : prev;
   }
   renderAll();
+  saveArrangement();
 }
 function setSwapbar(){
   const bar=document.getElementById('swapbar');
@@ -647,6 +774,7 @@ function renderShapes(){
     S.bench=P.filter(p=>!S.xi.includes(p.id)&&p.pos!=='GKP').map(p=>p.id);
     S.benchGk=P.find(p=>p.pos==='GKP'&&!S.xi.includes(p.id)).id;
     renderAll();
+    saveArrangement();
   });
 }
 
@@ -764,8 +892,23 @@ function openSheet(id){
     const a=b.dataset.sact;
     if(a==='cap'){S.cap=id; if(S.vc===id)S.vc=S.xi.find(x=>x!==id);}
     if(a==='vc') S.vc=id;
-    if(a==='lock'){S.locks.has(id)?S.locks.delete(id):S.locks.add(id);S.blocks.delete(id);}
-    if(a==='block'){S.blocks.has(id)?S.blocks.delete(id):S.blocks.add(id);S.locks.delete(id);}
+    /* Locking and blocking are STANDING corrections -- they bind every build, not just
+       this page -- so they go to the server and the answer is the squad the model picks
+       under them. Applying them locally would show a fifteen the model has not agreed to. */
+    if(a==='lock'||a==='block'){
+      const code=codeOf(id);
+      closeSheet();
+      save(pending=>{
+        const on=(a==='lock'?pending.lock:pending.excl)||[];
+        const off=(a==='lock'?pending.excl:pending.lock)||[];
+        const has=on.includes(code);
+        pending.lock=(pending.lock||[]).filter(c=>c!==code);
+        pending.excl=(pending.excl||[]).filter(c=>c!==code);
+        if(!has){ (a==='lock'?pending.lock:pending.excl).push(code); }
+        void off;
+      });
+      return;
+    }
     if(a==='swap'){S.swapFrom=id;closeSheet();setSwapbar();return;}
     if(a==='buy'){closeSheet();return;}
     closeSheet();renderAll();
@@ -971,11 +1114,24 @@ function renderOv(){
        <div class="txt clamp">${esc(o.why)}</div>
        ${o.eff?`<div class="effect">→ ${esc(o.eff)}</div>`:''}
      </div>
-     <button class="btn sm ghost rm" data-del="${esc(o.id)}" title="Delete this override">✕</button>
+     <button class="btn sm ghost rm" data-del="${esc(o.id)}" data-code="${o.code||0}"
+       title="Clear this correction for your session">✕</button>
    </div>`).join(''):`<div class="empty panel"><div class="big">No overrides of this kind</div>
      <p>The model is running unaided here — every number in this category is measured, not hand-set.</p></div>`;
+  /* Dismissing an override is a change to what the MODEL is running under, so it goes to
+     the server and the page redraws from the squad that comes back.
+     It used to filter a JavaScript array and re-render: the row vanished, the model went on
+     applying the correction, and the squad did not move -- which is what "nothing gets
+     updated" looked like from the outside. The row disappearing was the only thing that had
+     happened.
+     The config file is untouched. A dismissal is this session's, and `serve -persist` is
+     the deliberate way a correction leaves the standing record. */
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
-    OV=OV.filter(o=>o.id!==b.dataset.del);renderOv();
+    const code=+b.dataset.code;
+    if(!code){ notify('That override has no player to clear.'); return; }
+    save(pending=>{
+      pending.dis=(pending.dis||[]).concat([code]).filter((c,i,a)=>a.indexOf(c)===i);
+    });
   });
   document.querySelectorAll('.txt.clamp').forEach(t=>t.onclick=()=>t.classList.toggle('clamp'));
   document.getElementById('liblist').innerHTML=LIB.map(l=>`
@@ -1053,7 +1209,30 @@ addEventListener('hashchange',()=>setView(location.hash.slice(1), false));
 /* ============================================================
    BOOT
    ============================================================ */
-function renderAll(){renderRail();renderReadout();renderChips();renderPitch();renderShapes();renderWhy();renderPlayers();renderOv();}
+function renderChipSummary(){
+  const el=document.getElementById('chipnow');
+  if(!el) return;
+  const g=gwState()||{};
+  const c=(g.playable&&g.playable.length?g.playable:CHIPS).find(x=>x.k===g.chip);
+  el.textContent=c?c.n:'none this gameweek';
+}
+
+/* Where this fifteen came from, said plainly.
+ *
+ * The opening squad is deliberately varied rather than the model's single best, so a reader
+ * looking at it deserves to know which of the two they have -- otherwise the tool appears to
+ * be recommending something it is not. */
+function renderSquadSource(){
+  const el=document.getElementById('squadsource');
+  if(!el) return;
+  el.textContent = S.saved ? 'your saved team'
+    : S.optimised ? "the model's best fifteen"
+    : 'a strong opening fifteen — press Optimize for the model’s best';
+  const opt=document.getElementById('optimise');
+  if(opt) opt.disabled = !!S.optimised && !S.saved;
+}
+
+function renderAll(){renderRail();renderReadout();renderChips();renderChipSummary();renderSquadSource();renderPitch();renderShapes();renderWhy();renderPlayers();renderOv();}
 
 /* boot fetches the state and draws once.
 
@@ -1087,4 +1266,18 @@ function boot(){
       console.error(err);
     });
 }
+/* Optimize discards the arrangement and asks the model for its best fifteen.
+ *
+ * It CLEARS the squad rather than sending one: the server is what knows what best means,
+ * and a client that sent its own answer would be a second optimiser. */
+const optimiseBtn=document.getElementById('optimise');
+if(optimiseBtn) optimiseBtn.onclick=()=>save(pending=>{
+  pending.opt=true;
+  pending.squad=undefined;
+  pending.xi=undefined;
+  pending.bench=undefined;
+  pending.cap=undefined;
+  pending.vc=undefined;
+});
+
 boot();

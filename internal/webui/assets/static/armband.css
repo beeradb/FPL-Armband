@@ -944,3 +944,60 @@ button{font-family:inherit;color:inherit;}
 .swapbar .x{margin-left:auto;}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+
+
+/* ============================================================
+   SAVING, AND SAYING SO
+   ============================================================ */
+
+/* The page stays readable while a save is in flight. Freezing it would hide the squad the
+   reader is deciding about; dimming the controls says "not yet" without taking the page
+   away. Pointer events go, so a second click cannot apply a change twice. */
+body.saving .card,body.saving .btn,body.saving .iconbtn,body.saving .chipbtn,
+body.saving .shape-row,body.saving .ovcard .rm{opacity:.55;pointer-events:none;}
+body.saving{cursor:progress;}
+
+/* The toast. Bottom centre on desktop, above the tab bar on mobile, and never over the
+   thing it is talking about. */
+.toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:60;
+  max-width:min(560px,calc(100vw - 32px));
+  padding:11px 15px;border-radius:var(--r-sm);
+  background:var(--panel3);border:1px solid var(--warn);color:var(--ink);
+  font-size:13px;line-height:1.45;box-shadow:var(--shadow);
+}
+
+/* ============================================================
+   THE CHIP FOLD
+   ============================================================
+
+   The chip row used to sit between the score bug and the pitch, which gave the best space
+   on the screen to a decision taken four times a season. It is below the team now and
+   closed by default. The summary still states what is planned, so nothing is hidden --
+   only the room to change it, which is one click away. */
+.chipfold{
+  margin-top:14px;border:1px solid var(--line);border-radius:var(--r-md);
+  background:var(--panel);overflow:hidden;
+}
+.chipfold>summary{
+  display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;
+  list-style:none;font-size:13px;
+}
+.chipfold>summary::-webkit-details-marker{display:none;}
+.chipfold>summary::after{
+  content:'';margin-left:auto;width:7px;height:7px;flex:0 0 auto;
+  border-right:2px solid var(--ink3);border-bottom:2px solid var(--ink3);
+  transform:rotate(45deg);transition:transform .15s ease;
+}
+.chipfold[open]>summary::after{transform:rotate(-135deg);}
+.chipfold>summary .dim{margin-left:0;}
+.chipfold .chipnow{color:var(--ink);font-weight:600;}
+.chipfold .chiprow{border-top:1px solid var(--line);border-radius:0;margin:0;}
+
+/* Where the fifteen came from: the model's best, a varied opening, or the reader's own
+   saved team. Quiet, because it is context rather than a number. */
+.squadsource{font-size:11.5px;padding:0 2px 8px;font-family:var(--mono);}
+
+@media (max-width:720px){
+  .toast{bottom:calc(64px + env(safe-area-inset-bottom,0px));}
+}

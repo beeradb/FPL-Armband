@@ -40,6 +40,48 @@ var chipLabels = map[string]string{
 	"3xc":      "Triple Captain",
 }
 
+// firstGameweekChips are the only chips playable in gameweek 1: the bench boost and the
+// triple captain.
+//
+// The wildcard and the free hit are not offered there. The wildcard's redundancy is the
+// evident half — transfers are unlimited until the first deadline, so a chip granting
+// unlimited transfers buys nothing — but that is an observation about why the rule is
+// unsurprising, not a derivation of it. The rule is the game's.
+//
+// It lives here because it is a fact about the competition, alongside the chip windows and
+// the two-set schedule. A page that decided this for itself would be a second statement of
+// a rule the model also has to obey, and the two would disagree the first time either
+// changed.
+var firstGameweekChips = map[string]bool{"bboost": true, "3xc": true}
+
+// PlayableChips lists the chips that may be played in gw, by key, in a stable order.
+//
+// It answers only "does the competition allow it here", not "is it wise" and not "have you
+// used it" — a plan that has already spent a chip is the schedule's business, and whether a
+// week is a good one for it is the model's.
+func PlayableChips(gw int) []string {
+	all := []string{"wildcard", "freehit", "bboost", "3xc"}
+	if gw != 1 {
+		return all
+	}
+	out := make([]string, 0, len(firstGameweekChips))
+	for _, k := range all {
+		if firstGameweekChips[k] {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// ChipLabel is the human name for a chip key, or the key itself if it is unknown — an
+// unrecognised chip should be visible rather than silently dropped.
+func ChipLabel(key string) string {
+	if l, ok := chipLabels[key]; ok {
+		return l
+	}
+	return key
+}
+
 // ChipWindows returns each chip's legal range. FPL splits chips into two sets;
 // only the set covering the upcoming gameweek is returned.
 func (e *Engine) ChipWindows() []ChipWindow {
