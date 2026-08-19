@@ -46,9 +46,9 @@ stands; the horizon headline moved only through the package-unit fix.
 
 | rung | a season | CR2 SE | t (df 5) | p | threshold | wild p |
 |---|---:|---:|---:|---:|---:|---:|
-| 4 | +2.0 | 6.3 | +0.31 | 0.767 | 16.3 | 0.722 |
-| 5 | +6.0 | 5.2 | +1.14 | 0.306 | 13.5 | 0.364 |
-| 6 | +2.1 | 7.3 | +0.29 | 0.785 | 18.8 | 0.755 |
+| 4 | +2.0 | 6.3 | +0.31 | 0.767 | 16.2 | 0.722 |
+| 5 | +6.0 | 5.2 | +1.14 | 0.306 | 13.4 | 0.364 |
+| 6 | +2.1 | 7.3 | +0.29 | 0.785 | 18.6 | 0.755 |
 
 Positive point estimates at all three rungs, no shape (5 the peak), nothing resolves.
 `HOLD` byte-identical in 36 of 36 cells (the code fact). Season means are non-negative in
@@ -68,7 +68,7 @@ it did not convert — though (b) alone already fails the rule on every rung (4/
 season means non-negative). **MinGainHit 3.0 stands; nothing ships.**
 ⚠️ The points arm was pre-registered as a veto only: the whole hit program is ~2.7 hits per
 cell on average (max 8; ~11 points a season at 4 points a hit) against this comparison's own
-thresholds of **13.5-18.8** —
+thresholds of **13.4-18.6** —
 unmeasurable by design, and the grid-wide ~26-39 figure does not apply to a contrast of
 this size. ⚠️ The Holm family in the inference output is **6** with the full-plan arm
 (every alternative against the baseline, sweep-wide; it was 5 at the first bank) where the
@@ -100,15 +100,11 @@ row remains in 4,785 sidecar rows (a full-plan free package), and none in the 98
 rows, so the first bank's fidelity-note exclusion is now vacuous.
 
 **The wait-counterfactual.** Season level: no-hits reads **−10.0 a season** (CR2 SE 16.0,
-t −0.63, p 0.558) — waiting is not better, at point-estimate size, unresolved. Per hit
-(descriptive, matched to the no-hits arm's later free purchase of the same in-player —
-gw+1..gw+4, the earliest later purchase — 47% matched): **workedOut (≥ +4 vs waiting) in
-54% of matched hits** (25 of 46 — a coin flip at this n, and the pairs are clustered by cell
-so the effective n is smaller); mean hitNet +18.1 vs mean waitedNet +13.8 — hits beat
-waiting by +4.3 on average after paying the −4 (descriptive, no SE quoted). The two
-readings agree through the mean: the user's +4 hurdle is not cleared by a majority of
-hits, but the wins are bigger than the losses and the policy level is better for taking
-them.
+t −0.63, p 0.558) — waiting is not better, at point-estimate size, unresolved. The per-hit
+workedOut wait-match (hitNet − waitedNet ≥ 4 against the no-hits arm's later purchase) is
+**retired**: the user's holding criterion superseded it, no committed script computes it,
+and its match-order tie-breaking kept its figures from reproducing across banks — it is
+quoted nowhere as current.
 
 ## The holding-window criterion — the user's ruling, and it vindicates the hits
 
@@ -132,10 +128,11 @@ preference (he kept playing).
 | floored machine (BB+FH+TC) | 82 | **78%** | +44.9 | +34.0 | 79% (n 57) | 76% (n 25) |
 | full plan (all four chips) | 73 | **78%** | +35.2 | +17.0 | 75% (n 57) | 88% (n 16) |
 
-Holds run mean 8.7-10.2 gameweeks (median 7-8, max ~30) — two to three times the five-week
+Holds run mean 8.7-10.2 gameweeks (median 7-8, max ~30) — roughly double the five-week
 horizon the old criterion judged on, which is exactly why it understated the hits. **On the
 user's own criterion, roughly four in five hits pay for themselves, at a mean +35 to +45
-after the −4, on every machine measured — and the forced/preference split does not separate
+GROSS of the −4 (the +4 bar is the charge; +31 to +41 net after it), on every machine
+measured — and the forced/preference split does not separate
 them** (75-88% clear in both populations; the sold player who stops appearing is what the
 horizon criterion's availability adjustment already isolates). The `out_was_captain` flag
 fires on 6-14 packages per arm — a sold captain is rare, so the out-side raw convention
@@ -170,7 +167,7 @@ not a fact about the hit — the verdict tables are.
 
 **Settles**: the hit branch is tuned about right — 23.5% (26.9% adjusted) below its own bar
 against a 50% truncation null on the horizon criterion, and **78-79% of hits clear +4 on the
-holding criterion** (mean +35 to +45 after the −4, holds of ~10 gameweeks) on all three
+holding criterion** (mean +35 to +45 gross of the −4, holds of ~10 gameweeks) on all three
 machines, the full user-facing plan included; the forced/preference split does not separate
 (75-88% clear in both); raising MinGainHit has no suggestive case (no shape, no resolution,
 rate deltas within their own noise, no widening hold−horizon gap, season means inconsistent);

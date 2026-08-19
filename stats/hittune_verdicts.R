@@ -167,14 +167,19 @@ for (arm in c("mgh3", "mgh3floored", "mgh3fullplan")) {
               arm, nrow(a), 100*mean(a$hold_net >= 0), mean(a$hold_net)))
 }
 
-cat("\n=== the wildcard-week-after split (descriptive) ===\n")
+cat("\n=== the wildcard-week-after split (descriptive, all packages) ===\n")
+# The week after a wildcard rebuilds the squad, so the split is about every
+# package that week, hits and frees: worked means hold_net >= 4 for a hit and
+# >= 0 for a free transfer — each channel's own bar.
 for (arm in c("mgh3floored", "mgh3fullplan")) {
-  a <- hits[hits$arm == arm, ]
+  a <- h[h$arm == arm, ]
+  a$workedBar <- a$hold_net >= ifelse(a$hit, 4, 0)
   if (any(a$wildcard_after)) {
     wa <- a[a$wildcard_after, ]
     nw <- a[!a$wildcard_after, ]
-    cat(sprintf("  %s: after-wildcard hits %d, %.0f%% clear +4 in the hold;  other weeks %d, %.0f%%\n",
-                arm, nrow(wa), 100*mean(wa$worked4), nrow(nw), 100*mean(nw$worked4)))
+    cat(sprintf("  %s: after-wildcard packages %d (%d hits), %.0f%% clear their bar, mean hold %+.1f;  other weeks %d, %.0f%%\n",
+                arm, nrow(wa), sum(wa$hit), 100*mean(wa$workedBar), mean(wa$hold_net),
+                nrow(nw), 100*mean(nw$workedBar)))
   } else {
     cat(sprintf("  %s: no wildcard-after packages recorded (its plan plays no wildcard)\n", arm))
   }

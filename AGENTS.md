@@ -837,9 +837,9 @@ nothing checks it stays complete.
 - **`MinGainHit` 3.0 stands, the hits mostly pay, and nothing ships.** On the horizon criterion, 23.5% of hit
   packages come in below the gate's own bar (n 98; 26.9% availability-adjusted, n 78) against a
   ~50% truncation null, mean package +14.1; the MinGainHit ladder 3/4/5/6 resolves nothing
-  (thresholds 13.5-18.8, no shape). On the **holding criterion** (the user's ruling: +4 net
+  (thresholds 13.4-18.6, no shape). On the **holding criterion** (the user's ruling: +4 net
   before the in-players are sold or a wildcard lands, squad contribution incl. captaincy and
-  chips) **78-79% of hits clear, mean +35 to +45 after the −4**, holds ~10 gameweeks, on all
+  chips) **78-79% of hits clear, mean +35 to +45 gross of the −4**, holds ~10 gameweeks, on all
   three machines incl. the full user-facing plan; the forced (replaced player stopped) vs
   preference split does not separate (75-88% clear in both); no-hits costs −10 a season
   (unresolved). `stats/findings/2026-08-18-transfer-hit-tuning.md`. → **transfer-policy**
