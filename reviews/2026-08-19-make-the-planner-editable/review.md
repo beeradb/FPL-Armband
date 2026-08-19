@@ -311,6 +311,15 @@ Two, both process lessons pinned by tests in this branch rather than measurement
 The file is now 44,982 bytes against a 44 KB budget with 74 bytes free. Nothing was dropped to
 fit.
 
+## The accuracy snapshot
+
+`stats/snapshots/2026-08-19-7256e67`, regenerated from the documented recipe after the last
+code change. **Only `stamp.commit` moved.** That is the expected result rather than a missing
+one: `internal/analysis` did change — `PlayableChips` reads the feed's windows and
+`ChipSchedule` gained `Place` — but neither is on the scoring path, and a snapshot records
+WHEN it was taken rather than that the model behaved differently. The R inference ran; no
+cells file was supplied, so the replay half is the previous series' and is unchanged.
+
 ## What is owed
 
 - `carry-the-selling-price-into-the-planner` — tier 1, filed in the research store at the
