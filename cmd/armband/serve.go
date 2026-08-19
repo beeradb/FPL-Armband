@@ -83,6 +83,16 @@ type squadServer struct {
 }
 
 func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// The Host check is the other half of the loopback bind. A browser that
+	// has been DNS-rebound arrives at this socket with a foreign Host header,
+	// and from that browser's point of view the ORIGIN is the foreign name —
+	// so same-origin policy hands the answer to the page the attacker
+	// controls, token and all. Rejecting the Host is what keeps the token
+	// readable only by pages whose origin really is this listener.
+	if !loopbackHost(r.Host) {
+		http.Error(w, "unrecognised host", http.StatusForbidden)
+		return
+	}
 	switch r.URL.Path {
 	case "/":
 		s.page(w, r)
@@ -98,7 +108,7 @@ func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	b, err := buildSquadPage(r.Context(), *s.cfg, s.client, s.engine, s.weeks)
+	b, err := buildSquadPage(r.Context(), *s.cfg, s.client, s.engine, s.weeks, true)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -127,6 +137,11 @@ func (s *squadServer) page(w http.ResponseWriter, r *http.Request) {
 // override the next run will not have — and the redirect lands the reader back
 // on the view and query they acted from.
 func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
+	// Clamped BEFORE the mutex and the token check: the body parse is the one
+	// thing an unauthenticated caller can make arbitrarily expensive, and the
+	// form carries four small fields. Anything bigger is refused rather than
+	// parsed.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -138,6 +153,15 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 	code, err := strconv.Atoi(r.PostFormValue("c"))
 	if err != nil {
 		http.Error(w, "the action needs a player code", http.StatusBadRequest)
+		return
+	}
+	// The code must resolve against the bootstrap, or a stale form could
+	// persist an override on a player this season does not contain — a
+	// nameless card in the excluded list forever. The page only ever posts
+	// codes it read from the bootstrap, so a miss means the form is stale.
+	name := s.playerName(code)
+	if name == "" {
+		http.Error(w, "no such player code", http.StatusBadRequest)
 		return
 	}
 
@@ -156,9 +180,9 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 	}
 	switch act {
 	case "lock":
-		err = next.Roster.Set("lock", pageOverride(s.playerName(code), "locked from the squad page"))
+		err = next.Roster.Set("lock", pageOverride(name, "locked from the squad page"))
 	case "boot":
-		err = next.Roster.Set("exclude", pageOverride(s.playerName(code), "booted from the squad page"))
+		err = next.Roster.Set("exclude", pageOverride(name, "booted from the squad page"))
 	case "unlock":
 		err = next.Roster.Remove("lock", code)
 	case "unboot":
@@ -185,10 +209,29 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 	// what makes the page regenerate: the browser now GETs it fresh, with the
 	// override already in force.
 	ret := r.PostFormValue("ret")
-	if ret == "" || !strings.HasPrefix(ret, "/") || strings.HasPrefix(ret, "//") {
+	if !safeRetPath(ret) {
 		ret = "/?t=" + s.token
 	}
 	http.Redirect(w, r, ret, http.StatusSeeOther)
+}
+
+// safeRetPath reports whether a form-supplied redirect target is path-relative.
+//
+// The obvious check — starts with "/" but not "//" — misses the browsers'
+// parsing of a BACKSLASH after the leading slash as the authority delimiter,
+// so "\\evil.com" is rejected too, along with control characters that the
+// URL parser strips before reading the location. A real page URL never
+// contains either.
+func safeRetPath(ret string) bool {
+	if ret == "" || !strings.HasPrefix(ret, "/") || strings.HasPrefix(ret, "//") {
+		return false
+	}
+	for _, r := range ret {
+		if r == '\\' || r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // watchQuery parses the watchlist's filter, sort and page parameters.
@@ -267,12 +310,29 @@ func validateServeAddr(addr string) error {
 	if err != nil {
 		return fmt.Errorf("serve -addr must be host:port, got %q: %w", addr, err)
 	}
-	switch host {
-	case "127.0.0.1", "::1", "localhost":
+	if loopbackHost(host) {
 		return nil
 	}
 	return fmt.Errorf("serve refuses %q: the page can write config.json, so it binds "+
 		"loopback only — use -addr 127.0.0.1:<port>", addr)
+}
+
+// loopbackHost reports whether a host is one of the loopback names this
+// server will answer for, with or without a port.
+//
+// It serves both ends of the perimeter: validateServeAddr keeps the listener
+// on loopback, and ServeHTTP checks the request's Host against it — the bind
+// alone cannot, because a DNS-rebound browser arrives on this socket with a
+// foreign Host and reads the answer same-origin.
+func loopbackHost(host string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	switch strings.ToLower(host) {
+	case "127.0.0.1", "::1", "localhost":
+		return true
+	}
+	return false
 }
 
 // tokenOK compares a submitted token against the server's, in constant time.

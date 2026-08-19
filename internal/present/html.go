@@ -1447,9 +1447,10 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
 {{if .HasWatch}}<div class="view" id="view-watch">
 <section>
   <h2>Best available, not in the fifteen</h2>
-  <p class="foot" style="margin:0 0 .9rem">Ranked by the model's score. &Delta; is the gap to the
-    weakest starter you already own in that position &mdash; the comparison a transfer actually
-    has to win, where a league rank is not:
+  <p class="foot" style="margin:0 0 .9rem">The hundred best-scoring players outside the fifteen,
+    {{if .WatchQ.Interactive}}ordered by the column you sort on &mdash; price first{{else}}ordered by price{{end}}.
+    &Delta; is the gap to the weakest starter you already own in that position &mdash; the comparison
+    a transfer actually has to win, where a league rank is not:
     {{range $i, $bm := .Watch.Benchmarks}}{{if $i}} &middot; {{end}}<b>{{$bm.Position}}</b> vs {{$bm.Name}} {{pts $bm.Score}}, {{money $bm.Price}}{{end}}.
     {{with .Watch}}{{if .Gate}}<br><b>Green clears the free-transfer gate of {{pts .Gate}} pts/gw.</b>
     {{if .Clearing}}{{.Clearing}} of {{.Count}} do.{{else}}<b>Nothing on this list does</b> &mdash;
@@ -1501,7 +1502,7 @@ var pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
     </tr>{{end}}
     </tbody>
   </table></div>
-  {{else}}<p class="empty">No candidate matches this filter &mdash; clear it to see the list.</p>{{end}}
+  {{else}}<p class="empty">{{if .WatchQ.Interactive}}No candidate matches this filter &mdash; clear it to see the list.{{else}}No candidate outside the fifteen.{{end}}</p>{{end}}
 
   {{.WatchQ.Pager}}
 </section>

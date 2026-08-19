@@ -30,15 +30,23 @@ type squadPageBuild struct {
 	BudgetLine, Source string
 }
 
-// buildSquadPage runs the optimiser and assembles the squad page.
+// buildSquadPage runs the optimiser and, when a page is wanted, assembles
+// the squad page around it.
 //
-// This is the one pipeline behind both `armband squad -html` and `armband
-// serve`, so a page written to disk and a page served over HTTP cannot drift
-// into two pages. Everything in it reads config or the engine and hands
+// This is the one pipeline behind `armband squad -html` and `armband serve`,
+// so a page written to disk and a page served over HTTP cannot drift into two
+// pages. Everything in it reads config or the engine and hands
 // internal/present flat structs it can only draw — the boundary this file
 // exists to keep.
+//
+// wantPage gates the page half. The terminal `armband squad` wants the
+// fifteen only, and the page half is not free: the transfer plan fetches the
+// owned squad from FPL, the watchlist and the research targets each pass the
+// whole pool, and WeekViews re-optimises chip weeks. Computing all of it to
+// throw it away would give the plain command network fetches and a transfer
+// search it never had.
 func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
-	e *analysis.Engine, weeks int) (squadPageBuild, error) {
+	e *analysis.Engine, weeks int, wantPage bool) (squadPageBuild, error) {
 
 	budget, source, err := e.AssemblyBudget()
 	if err != nil {
@@ -70,6 +78,10 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// squad is a bug at the opening allowance and correct on a wildcard budget,
 	// and the reader cannot tell which without the source.
 	budgetLine := fmt.Sprintf("Budget £%.1fm: %s", float64(budget)/10, source)
+
+	if !wantPage {
+		return squadPageBuild{Squad: sq, BudgetLine: budgetLine, Source: source}, nil
+	}
 
 	// One eleven under a five-gameweek heading is a mis-statement, so the
 	// page carries a tab per gameweek with that week's eleven, each
@@ -200,8 +212,10 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 
 	// player builds one card from a player-scoped override. `lapsedNow` is passed in
 	// rather than re-derived: config.Roster already decided which list this came from,
-	// and re-deciding it here would be a second implementation of Expired.
-	player := func(kind, label string, o config.RosterOverride, lapsedNow bool) present.Override {
+	// and re-deciding it here would be a second implementation of Expired. `bind`
+	// decides whether the card takes the per-element badge slot: one slot exists, so
+	// the first list in precedence order that speaks for a player keeps it.
+	player := func(kind, label string, o config.RosterOverride, lapsedNow, bind bool) present.Override {
 		ov := present.Override{
 			Kind: kind, Label: label, Reason: o.Reason, Player: o.Name, Code: o.Code,
 			SetOn: o.SetOn, Until: lapses(o.UntilGameweek),
@@ -219,7 +233,7 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 				m := e.Metrics(el)
 				ov.Team, ov.Pos, ov.Price, ov.Score = m.Team, m.Position, m.Price, m.Score
 			}
-			if !lapsedNow {
+			if !lapsedNow && bind {
 				bound[id] = ov
 			}
 		}
@@ -232,10 +246,10 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 		if o.MustStart {
 			label = "LOCK XI"
 		}
-		live = append(live, player("lock", label, o, false))
+		live = append(live, player("lock", label, o, false, true))
 	}
 	for _, o := range exclude {
-		live = append(live, player("exclude", "EXCL", o, false))
+		live = append(live, player("exclude", "EXCL", o, false, true))
 	}
 	// The value is part of the badge and is never dropped. "MIN 88" holds a backup
 	// keeper in the eleven and "MIN 15" writes an injured defender down: opposite
@@ -246,13 +260,22 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 		if o.ExpectedMinutes != nil {
 			label = fmt.Sprintf("MIN %.0f", *o.ExpectedMinutes)
 		}
-		live = append(live, player("minutes", label, o, false))
+		// A minutes correction takes the badge slot only when no lock or
+		// exclusion already owns it. First writer wins, and lock and exclude
+		// ran first: the page's lock button reads this slot to decide whether
+		// a player is locked, so a MIN badge over a lock would render an OFF
+		// button on a player the optimiser is forced to keep — and clicking it
+		// would re-write the lock, replacing the reason the agent set with the
+		// page's canned one and clearing MustStart. The same guard keeps an
+		// excluded player's EXCL badge, which the watchlist's skip set reads.
+		_, taken := bound[byCode[o.Code]]
+		live = append(live, player("minutes", label, o, false, !taken))
 	}
 	for _, o := range expired {
-		lapsed = append(lapsed, player("lapsed", "LAPSED", o, true))
+		lapsed = append(lapsed, player("lapsed", "LAPSED", o, true, true))
 	}
 	for _, o := range minsExpired {
-		lapsed = append(lapsed, player("lapsed", "LAPSED MIN", o, true))
+		lapsed = append(lapsed, player("lapsed", "LAPSED MIN", o, true, true))
 	}
 
 	teams, teamsExpired := cfg.Roster.ActiveTeams(gw)

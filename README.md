@@ -18,10 +18,11 @@ This is the page `armband -html squad.html squad` writes — real output from a 
 mockup. The whole fifteen under the real rules: the eleven and the bench in substitution order,
 the captain, what was spent and what is left, and against every player the next five fixtures,
 expected minutes, the model's score and the price. The same page serves live over HTTP —
-`armband serve` hosts it on 127.0.0.1, where every player carries a lock and a boot button that
-write standing overrides back to config, and the watchlist gains filters, sorting and paging.
+`armband serve` hosts it on 127.0.0.1, where every player in the fifteen carries a lock and a
+boot button that write standing overrides back to config, and the watchlist gains filters,
+sorting and paging.
 
-![The squad page for gameweek 1, four days before the deadline. A header shows the gameweek, the deadline and free transfers, above three tabs: The eleven, Why this eleven, and Watchlist. Below, the starting eleven in a 3-5-2 — 46.2 XI points per gameweek, Bruno Fernandes as captain, £99.5m spent, £0.5m left — with each row carrying five colour-coded fixture-difficulty pills, expected minutes, the model's score and the price. The four-man bench follows in substitution order.](docs/images/squad-eleven.png)
+![The squad page for gameweek 1, two days before the deadline, from the 2026-08-19 run. A header shows the gameweek, the deadline and free transfers, above three tabs: The eleven, Why this eleven, and Watchlist. Below, the starting eleven in a 3-5-2 — 46.5 XI points per gameweek, Bruno Fernandes as captain, £100.0m spent, £0.0m left — with each row carrying five colour-coded fixture-difficulty pills, expected minutes, the model's score and the price. The four-man bench follows in substitution order.](docs/images/squad-eleven.png)
 
 The shape of the system, and where the split falls: everything up to the agent is deterministic
 and free, and the language model is judgement layered on top of numbers it never computes
@@ -31,7 +32,7 @@ itself.
 flowchart LR
     api["public FPL API<br/>read-only, unauthenticated"]
     engine["quantitative scoring model<br/>deterministic, never calls the LLM"]
-    freecmds["free commands<br/>squad · transfers · fixtures · chips · brief"]
+    freecmds["free commands<br/>squad · serve · transfers · fixtures · chips · brief"]
     agentloop["LLM agent<br/>review · advise · due"]
     search["web search<br/>team news, press conferences"]
     you["you make the transfers<br/>no authenticated write path back to FPL"]
@@ -143,12 +144,12 @@ within a gameweek.
 
 The squad page's watchlist tab asks that question a hundred times over, and it is worth seeing
 how: the hundred best-scoring players outside the fifteen form one list, filterable by name,
-position and club and sortable by any column (price first), with each candidate measured not
-against the league but against the weakest starter you already own in that position — named in
-the legend above the list — and the Δ column giving the gap, green marking what clears the
-free-transfer gate. Two of a hundred do.
+position and club and sortable on every column but the fixture strip (price first), with each
+candidate measured not against the league but against the weakest starter you already own in
+that position — named in the legend above the list — and the Δ column giving the gap, green
+marking what clears the free-transfer gate. On this run's data, two of a hundred do.
 
-![The watchlist tab: the hundred best available players not in the fifteen, as one list. The legend above it names the weakest starter already owned in each position — Kinsky for goalkeepers, Thiaw for defenders, E.Le Fée for midfielders, Thiago for forwards — and every row shows the position, the club, the next five fixtures, expected minutes, ownership, the model's score, the gap to that starter, and the price. Two gaps are shown in green; the note above the table says two of 100 clear the free-transfer gate of 0.40 points per gameweek.](docs/images/watchlist.png)
+![The watchlist tab, from the same 2026-08-19 run: the hundred best available players not in the fifteen, as one list. The legend above it names the weakest starter already owned in each position — Kinsky for goalkeepers, Thiaw for defenders, E.Le Fée for midfielders, Thiago for forwards — and every row shows the position, the club, the next five fixtures, expected minutes, ownership, the model's score, the gap to that starter, and the price. Two gaps are shown in green; the note above the table says two of 100 clear the free-transfer gate of 0.40 points per gameweek.](docs/images/watchlist.png)
 
 The baselines are not straw men; they are what an FPL manager actually reasons from today.
 **Recent form** here is a player's mean score over his last five gameweeks — the same idea as

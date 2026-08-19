@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"armband/internal/analysis"
 	"armband/internal/config"
+	"armband/internal/fpl"
 )
 
 // TestServeRefusesANonLoopbackAddr pins the outer perimeter of the write path.
@@ -56,7 +58,13 @@ func TestServeTokenIsPerStartupAndCheckedExactly(t *testing.T) {
 	if !s.tokenOK(a) {
 		t.Fatal("the correct token was rejected")
 	}
-	for _, bad := range []string{"", a[:31], a + "0", strings.ToUpper(a), "0" + a[1:]} {
+	// One char forced to differ: "0"+a[1:] collides with the token itself
+	// whenever the token happens to start with a 0.
+	mutated := "f" + a[1:]
+	if a[0] == 'f' {
+		mutated = "0" + a[1:]
+	}
+	for _, bad := range []string{"", a[:31], a + "0", strings.ToUpper(a), mutated} {
 		if s.tokenOK(bad) {
 			t.Errorf("token %q was accepted; only the exact token may pass", bad)
 		}
@@ -68,20 +76,32 @@ func TestServeTokenIsPerStartupAndCheckedExactly(t *testing.T) {
 // undiscovered surface for whatever the page later learns to do.
 func TestServeAnswers404OffTheTwoRoutes(t *testing.T) {
 	s := &squadServer{}
+	req := httptest.NewRequest("GET", "/other", nil)
+	req.Host = "127.0.0.1:8080"
 	w := httptest.NewRecorder()
-	s.ServeHTTP(w, httptest.NewRequest("GET", "/other", nil))
+	s.ServeHTTP(w, req)
 	if w.Code != 404 {
 		t.Fatalf("GET /other answered %d, want 404", w.Code)
 	}
 }
 
 // newActionServer builds a squadServer for the action tests: a real config in
-// a temp file, a token, and no engine — the action path never touches the
-// engine, and a nil one failing would be the test doing its job.
+// a temp file, a token, and a two-element bootstrap so the codes the tests
+// post resolve — the handler refuses a code the bootstrap does not contain,
+// because the page only ever posts codes it read from the bootstrap and a
+// miss means a stale form.
 func newActionServer(t *testing.T) (*squadServer, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.json")
-	s := &squadServer{token: "tok", cfg: &config.Config{}, cfgPath: path}
+	s := &squadServer{
+		token:   "tok",
+		cfg:     &config.Config{},
+		cfgPath: path,
+		engine: &analysis.Engine{Boot: &fpl.Bootstrap{Elements: []fpl.Element{
+			{Code: 456, ID: 1, WebName: "Booted"},
+			{Code: 999, ID: 2, WebName: "Other"},
+		}}},
+	}
 	return s, path
 }
 
@@ -89,6 +109,9 @@ func postAction(t *testing.T, s *squadServer, form url.Values) *httptest.Respons
 	t.Helper()
 	req := httptest.NewRequest("POST", "/action", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// httptest.NewRequest stamps Host as example.com, which the handler's
+	// loopback gate refuses — the tests speak as a loopback browser.
+	req.Host = "127.0.0.1:8080"
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, req)
 	return w
@@ -172,10 +195,12 @@ func TestTheActionsWriteAndLiftOverridesByPermanentCode(t *testing.T) {
 		t.Error("unboot left the exclusion in place")
 	}
 
-	// A bad action or a non-numeric code is a client error and changes nothing.
+	// A bad action, a non-numeric code, or a code the bootstrap does not
+	// contain is a client error and changes nothing.
 	for _, form := range []url.Values{
 		{"t": {"tok"}, "a": {"sell"}, "c": {code}},
 		{"t": {"tok"}, "a": {"boot"}, "c": {"notanumber"}},
+		{"t": {"tok"}, "a": {"boot"}, "c": {"123456"}},
 	} {
 		if w := postAction(t, s, form); w.Code != 400 {
 			t.Errorf("POST %v answered %d, want 400", form, w.Code)
@@ -187,6 +212,56 @@ func TestTheActionsWriteAndLiftOverridesByPermanentCode(t *testing.T) {
 		"ret": {"//evil.example"}})
 	if loc := w.Header().Get("Location"); loc != "/?t=tok" {
 		t.Errorf("an off-site ret was honoured: %q", loc)
+	}
+	// A backslash ret is the same attack: browsers read "/\\" as the authority
+	// delimiter, so it must be refused too.
+	w = postAction(t, s, url.Values{"t": {"tok"}, "a": {"boot"}, "c": {code},
+		"ret": {`/\evil.example`}})
+	if loc := w.Header().Get("Location"); loc != "/?t=tok" {
+		t.Errorf("a backslash ret was honoured: %q", loc)
+	}
+}
+
+// TestServeAnswersByLoopbackHostOnly pins the other half of the loopback
+// bind. A DNS-rebound browser arrives at this socket with a foreign Host
+// header and reads the answer same-origin — the origin, from the browser's
+// point of view, is the foreign name — so the Host itself must be refused, or
+// the token gate is readable by whichever page arranged the rebinding.
+func TestServeAnswersByLoopbackHostOnly(t *testing.T) {
+	s := &squadServer{}
+	for _, host := range []string{"evil.example", "evil.example:8080", "127.0.0.1.evil.example"} {
+		req := httptest.NewRequest("GET", "/nope", nil)
+		req.Host = host
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		if w.Code != 403 {
+			t.Errorf("Host %q answered %d, want 403", host, w.Code)
+		}
+	}
+	for _, host := range []string{"127.0.0.1:8080", "localhost:8080", "[::1]:8080", "LOCALHOST"} {
+		req := httptest.NewRequest("GET", "/nope", nil)
+		req.Host = host
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		if w.Code != 404 {
+			t.Errorf("loopback Host %q answered %d, want the 404 for /nope", host, w.Code)
+		}
+	}
+}
+
+// TestTheActionClampsTheBodyBeforeTheTokenCheck. The body parse is the one
+// thing an unauthenticated caller can make arbitrarily expensive, and it runs
+// under the mutex — so a huge body must be refused without ever being parsed
+// in full.
+func TestTheActionClampsTheBodyBeforeTheTokenCheck(t *testing.T) {
+	s, _ := newActionServer(t)
+	huge := strings.Repeat("x", 1<<20)
+	w := postAction(t, s, url.Values{"t": {"tok"}, "a": {"boot"}, "c": {"456"}, "junk": {huge}})
+	if w.Code != 403 && w.Code != 400 {
+		t.Fatalf("an oversized body answered %d, want a refusal", w.Code)
+	}
+	if len(s.cfg.Roster.Exclude) != 0 {
+		t.Error("an oversized body was parsed and acted on")
 	}
 }
 
@@ -236,7 +311,12 @@ func TestTheActionSavesBeforeItAdopts(t *testing.T) {
 	if err := os.WriteFile(blocker, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s := &squadServer{token: "tok", cfg: &config.Config{}, cfgPath: filepath.Join(blocker, "config.json")}
+	s := &squadServer{
+		token: "tok", cfg: &config.Config{}, cfgPath: filepath.Join(blocker, "config.json"),
+		engine: &analysis.Engine{Boot: &fpl.Bootstrap{Elements: []fpl.Element{
+			{Code: 456, ID: 1, WebName: "Booted"},
+		}}},
+	}
 	if w := postAction(t, s, url.Values{"t": {"tok"}, "a": {"boot"}, "c": {"456"}}); w.Code != 500 {
 		t.Fatalf("an unsaveable path answered %d, want 500", w.Code)
 	}

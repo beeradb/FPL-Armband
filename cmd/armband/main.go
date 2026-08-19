@@ -753,7 +753,10 @@ func cmdAgent(ctx context.Context, cfg config.Config, configPath string, client 
 func cmdSquad(ctx context.Context, cfg config.Config, client *fpl.Client,
 	e *analysis.Engine, plain bool, htmlPath string, weeks int) error {
 
-	b, err := buildSquadPage(ctx, cfg, client, e, weeks)
+	// The page half is built only when a page is wanted: the transfer plan,
+	// watchlist and week views cost network calls and pool-wide passes that
+	// the terminal pitch would throw away.
+	b, err := buildSquadPage(ctx, cfg, client, e, weeks, htmlPath != "")
 	if err != nil {
 		return err
 	}
