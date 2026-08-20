@@ -12,6 +12,7 @@ import (
 	"armband/internal/config"
 	"armband/internal/fpl"
 	"armband/internal/present"
+	"armband/internal/viewmodel"
 )
 
 // squadPageBuild is one run of the shared squad pipeline: the optimal fifteen,
@@ -30,6 +31,12 @@ type squadPageBuild struct {
 	// spend and whose money it was. Source answers the same question on its own
 	// for the pitch, which prints the figure separately.
 	BudgetLine, Source string
+	// OverrideEffects is the before/after a standing minutes correction causes
+	// to the model's own score, keyed by permanent player code — the News tab's
+	// effect line, computed here because only this package has both the engine
+	// and the resolved override list at once. See overrideEffects. Nil when
+	// wantPage is false: nothing downstream of the terminal command reads it.
+	OverrideEffects map[int]viewmodel.Effect
 }
 
 // buildSquadPage runs the optimiser and, when a page is wanted, assembles
@@ -237,6 +244,7 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// comes from config or the engine, and the renderer may reach for neither.
 	bound, live, lapsed := pageOverrides(cfg, e, sq.Players, now)
 	mark("overrides")
+	effects := overrideEffects(e, live)
 	var excluded []present.Override
 	for _, o := range live {
 		if o.Kind == "exclude" {
@@ -261,7 +269,10 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 		Teams:              clubShortNames(e),
 	}
 	mark("page assemble")
-	return squadPageBuild{Page: page, Squad: sq, BudgetLine: budgetLine, Source: source}, nil
+	return squadPageBuild{
+		Page: page, Squad: sq, BudgetLine: budgetLine, Source: source,
+		OverrideEffects: effects,
+	}, nil
 }
 
 // clubShortNames lists the clubs in the bootstrap, for the watchlist's team
@@ -495,6 +506,50 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 	return bound, live, lapsed
 }
 
+// overrideEffects computes the before/after a standing minutes correction
+// causes to the model's own score — the News tab's effect line, e.g. "pts a
+// week 4.20 -> 3.15". A genuine model quantity, so it is computed here,
+// against the same engine that scored the page, rather than left for
+// internal/viewmodel to derive.
+//
+// Only "minutes" corrections get one. A lock or an exclude changes which
+// SQUAD is built, not this player's own Score — analysis.Engine.Metrics
+// answers exactly the same for a locked player whether or not he is locked —
+// so there is no comparable before/after to report, and the map simply has
+// no entry for his code rather than a zero that would read as "no effect".
+func overrideEffects(e *analysis.Engine, live []present.Override) map[int]viewmodel.Effect {
+	var out map[int]viewmodel.Effect
+	for _, o := range live {
+		if o.Kind != "minutes" || o.Code == 0 {
+			continue
+		}
+		el := e.Boot.ElementByCode(o.Code)
+		if el == nil || !e.HasMinutesOverride(el.Code) {
+			continue
+		}
+		with := e.Metrics(el)
+		without := e.NaturalMetrics(el)
+		const flatBand = 0.005 // pts/gw: below this, "up" or "down" would claim more precision than the model has
+		dir := "flat"
+		switch {
+		case with.Score > without.Score+flatBand:
+			dir = "up"
+		case with.Score < without.Score-flatBand:
+			dir = "down"
+		}
+		if out == nil {
+			out = map[int]viewmodel.Effect{}
+		}
+		out[o.Code] = viewmodel.Effect{
+			Label:     "pts a week",
+			Was:       fmt.Sprintf("%.2f", without.Score),
+			Now:       fmt.Sprintf("%.2f", with.Score),
+			Direction: dir,
+		}
+	}
+	return out
+}
+
 func teamByShortName(e *analysis.Engine, short string) *fpl.Team {
 	for i := range e.Boot.Teams {
 		if e.Boot.Teams[i].ShortName == short {
@@ -540,6 +595,108 @@ func withAge(lastChecked string, age int) string {
 		s = fmt.Sprintf("%s (%dd)", s, age)
 	}
 	return s
+}
+
+// newsChecked is the News tab's FPL-status freshness line — "FPL status last
+// read 3 minutes ago · next read at 15:00" — built from the disk cache's own
+// modification time, which IS the fetch: see Client.BootstrapFetchedAt.
+// Empty before anything has been cached.
+//
+// ⚠️ The "next read at" half describes the cache's TTL contract, not a
+// promise that THIS process will act on it. `armband serve` holds one
+// *fpl.Client for its whole life and Client.Bootstrap memoizes its result in
+// memory forever (see that method's own comment), so nothing here actually
+// refetches until the process restarts, however old the disk file gets. The
+// line is still honest about what it says — when the data being served was
+// fetched, and when the cache mechanism would next consider it stale — it
+// just does not (yet) describe a live polling loop. Fixing that is a
+// separate, pre-existing gap this pass did not take on.
+func newsChecked(client *fpl.Client, now time.Time) string {
+	if client == nil {
+		return ""
+	}
+	fetched := client.BootstrapFetchedAt()
+	if fetched.IsZero() {
+		return ""
+	}
+	next := fetched.Add(client.CacheTTL())
+	return fmt.Sprintf("FPL status last read %s · next read at %s",
+		minutesAgo(now.Sub(fetched)), next.Format("15:04"))
+}
+
+// minutesAgo phrases a duration the way the News tab's freshness lines do.
+// Negative (a clock skew, or `now` pinned behind the fetch in a test) reads
+// as "just now" rather than a nonsensical negative count.
+func minutesAgo(d time.Duration) string {
+	m := int(d.Minutes())
+	switch {
+	case m <= 0:
+		return "just now"
+	case m == 1:
+		return "1 minute ago"
+	default:
+		return fmt.Sprintf("%d minutes ago", m)
+	}
+}
+
+// newsReadChecked is the News tab's OTHER freshness line — when team news was
+// last read and recorded, as distinct from FPL's own feed above. It is the
+// closest honest proxy this store has: the roster and team corrections in cfg
+// ARE the team news a human has read and told the model about (NOTES.md §3),
+// so the most recent date any of them was set or re-checked is the most
+// recent read.
+//
+// ⚠️ Day granularity, not minutes. The store keeps a DATE
+// (RosterOverride.SetOn / LastChecked), not a timestamp — widening that is a
+// real change to every write site this pass did not make, so this reads
+// coarser than the design's own illustrative "41 minutes ago". No "next read
+// at" half either: nothing schedules the reading process yet, so a predicted
+// next read would be a promise this system cannot keep. See State.News.ReadChecked.
+func newsReadChecked(cfg config.Config, now time.Time) string {
+	best := mostRecentTeamNewsDate(cfg)
+	if best == "" {
+		return ""
+	}
+	read, err := time.Parse("2006-01-02", best)
+	if err != nil {
+		return ""
+	}
+	days := int(now.Sub(read).Hours() / 24)
+	switch {
+	case days <= 0:
+		return "Team news last read today"
+	case days == 1:
+		return "Team news last read yesterday"
+	default:
+		return fmt.Sprintf("Team news last read %d days ago", days)
+	}
+}
+
+// mostRecentTeamNewsDate scans every roster and club correction for the
+// latest SetOn or LastChecked date. "2006-01-02" sorts lexicographically, so
+// a plain string comparison is a correct date comparison.
+func mostRecentTeamNewsDate(cfg config.Config) string {
+	best := ""
+	consider := func(dates ...string) {
+		for _, d := range dates {
+			if d > best {
+				best = d
+			}
+		}
+	}
+	for _, o := range cfg.Roster.Exclude {
+		consider(o.SetOn, o.LastChecked)
+	}
+	for _, o := range cfg.Roster.Lock {
+		consider(o.SetOn, o.LastChecked)
+	}
+	for _, o := range cfg.Roster.Minutes {
+		consider(o.SetOn, o.LastChecked)
+	}
+	for _, o := range cfg.Roster.Teams {
+		consider(o.SetOn, o.LastChecked)
+	}
+	return best
 }
 
 // watchlistFor ranks the players outside the fifteen against the starter each would

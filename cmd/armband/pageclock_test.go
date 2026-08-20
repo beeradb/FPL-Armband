@@ -71,3 +71,53 @@ func TestTheServerClockDefaultsToTheWallClock(t *testing.T) {
 		t.Errorf("an injected clock returned %v, want %v", s.now(), pinned)
 	}
 }
+
+// TestNewsReadCheckedTracksTheMostRecentRosterDate pins newsReadChecked's
+// clock-sensitivity and its choice of which date is "most recent" across
+// every roster and club correction — the closest honest proxy this store
+// has for when team news was last read, since these entries ARE the team
+// news a human has read and told the model about.
+func TestNewsReadCheckedTracksTheMostRecentRosterDate(t *testing.T) {
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+
+	if got := (newsReadChecked(config.Config{}, now)); got != "" {
+		t.Errorf("newsReadChecked with no roster corrections at all = %q, want empty", got)
+	}
+
+	older := now.AddDate(0, 0, -9).Format("2006-01-02")
+	newer := now.AddDate(0, 0, -2).Format("2006-01-02")
+	cfg := config.Config{}
+	cfg.Roster.Minutes = []config.RosterOverride{{SetOn: older, LastChecked: older}}
+	cfg.Roster.Exclude = []config.RosterOverride{{SetOn: older, LastChecked: newer}}
+
+	if got, want := newsReadChecked(cfg, now), "Team news last read 2 days ago"; got != want {
+		t.Errorf("newsReadChecked = %q, want %q — the most recent date (LastChecked on the "+
+			"exclude entry) should win over the older SetOn dates", got, want)
+	}
+
+	// The clock moving forward must move the phrase, or this is not reading a
+	// clock at all.
+	if got, want := newsReadChecked(cfg, now.AddDate(0, 0, 8)), "Team news last read 10 days ago"; got != want {
+		t.Errorf("newsReadChecked 8 days later = %q, want %q", got, want)
+	}
+	if got, want := newsReadChecked(cfg, now.AddDate(0, 0, -2)), "Team news last read today"; got != want {
+		t.Errorf("newsReadChecked on the read date itself = %q, want %q", got, want)
+	}
+}
+
+// TestNewsCheckedReadsTheDiskCacheAndTheClock pins newsChecked's own two
+// dependencies: the client's BootstrapFetchedAt (the fetch time) and the
+// clock passed in (what "ago" is measured against) — not the wall clock,
+// which would make this line un-testably nondeterministic the way every
+// other clock in this file is threaded to avoid.
+func TestNewsCheckedReadsTheDiskCacheAndTheClock(t *testing.T) {
+	if got := newsChecked(nil, time.Now()); got != "" {
+		t.Errorf("newsChecked(nil, ...) = %q, want empty", got)
+	}
+
+	dir := t.TempDir()
+	c := fpl.New(dir, time.Hour)
+	if got := newsChecked(c, time.Now()); got != "" {
+		t.Errorf("newsChecked before anything is cached = %q, want empty", got)
+	}
+}

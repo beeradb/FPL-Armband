@@ -519,6 +519,98 @@ func (e *Engine) ApplyChipPlan(req *OptimizeRequest) []string {
 	return notes
 }
 
+// ChipWindowStatus is the state of one chip window: its last gameweek, how
+// many chips it grants, and how many of those are genuinely still unspent —
+// counting ones already played, which a rail built from "current and
+// upcoming" gameweeks cannot see on its own.
+//
+// It exists to fix a live client-side defect. `app.js:625` renders the
+// remaining count as `(4 - GWS.filter(g => g.chip).length) + ' of 4 left'`,
+// which is wrong three ways: `GWS` is the rail — current and upcoming only —
+// so a chip already spent EARLIER in the window is never counted and the
+// figure overstates what the reader has; the `4` is hard-coded, with no idea
+// that a season has two windows; and it is the client deciding a rule about
+// the competition, which `Gameweek.Playable`'s own doc comment forbids three
+// lines away. This is what lets the client stop guessing.
+type ChipWindowStatus struct {
+	// EndsGW is the last gameweek of the window containing the gameweek
+	// asked about — 19 for the first window in a two-set season, 38 for the
+	// second (or for the whole season in a one-set one).
+	EndsGW int
+	// Size is how many chips this window grants. 4 today; not hard-coded,
+	// because it is read off the same feed as everything else here.
+	Size int
+	// Remaining is how many of Size are not yet played as of the asked-
+	// about gameweek: unplanned, or planned for a gameweek not yet reached.
+	// A chip planned for a PAST gameweek relative to the one asked about
+	// counts as spent even though the rail never showed it being spent —
+	// that is the one-word fix for the defect above.
+	Remaining int
+}
+
+// ChipWindowStatusAt reports the chip window containing gw, reading only the
+// windows FPL's own feed publishes — the same source PlayableChips and
+// ChipWindows read — so a season with one set of chips, or boundaries FPL
+// moves, is answered correctly rather than by a rule restated here.
+//
+// The four chips in one set close together (NOTES.md: "eight chips a
+// season, in two windows of four"), so the window's end is taken as the
+// latest Stop among the windows that contain gw, found across every chip
+// kind rather than assumed to be a single shared value — robust to a kind
+// whose own window opens a gameweek or two later than its siblings, which
+// the 2026/27 feed already does for the wildcard and the free hit.
+//
+// A gameweek outside every window returns the zero value: there is nothing
+// left to report pressure about.
+func (e *Engine) ChipWindowStatusAt(gw int) ChipWindowStatus {
+	return ChipWindowStatusFor(e.Boot, e.Chips, gw)
+}
+
+// ChipWindowStatusFor is ChipWindowStatusAt without an Engine: a plain
+// function of the bootstrap and a chip schedule, both of which
+// internal/viewmodel already holds by the time it builds the rail. It exists
+// so that package can call this directly — the same way it already calls
+// PlayableChips — rather than reaching into an Engine, which would cross the
+// line internal/viewmodel's own package comment draws: it arranges, it does
+// not compute. ChipWindowStatusAt is this function's only caller inside this
+// package, kept for callers that already have an Engine and nothing else.
+func ChipWindowStatusFor(boot *fpl.Bootstrap, chips ChipSchedule, gw int) ChipWindowStatus {
+	byKind := chipWindowsByKind(boot)
+
+	end := 0
+	for _, ws := range byKind {
+		for _, w := range ws {
+			if gw >= w.Start && gw <= w.Stop && w.Stop > end {
+				end = w.Stop
+			}
+		}
+	}
+	if end == 0 {
+		return ChipWindowStatus{}
+	}
+
+	var status ChipWindowStatus
+	status.EndsGW = end
+	for _, k := range chipKinds {
+		for _, w := range byKind[string(k)] {
+			if w.Stop != end {
+				continue
+			}
+			status.Size++
+			// WeekIn checks both sets against this window's own [Start,Stop]
+			// range and returns whichever one is planned inside it, so this
+			// does not need to know which set index this window happens to
+			// be — the same reason WeekIn exists rather than a bare field
+			// read.
+			planned := chips.WeekIn(string(k), w.Start, w.Stop)
+			if planned == 0 || planned >= gw {
+				status.Remaining++
+			}
+		}
+	}
+	return status
+}
+
 // ApplyFreeHitToScoring excludes a planned free-hit gameweek from scoring.
 //
 // The free hit is the one chip that makes a gameweek irrelevant to the squad

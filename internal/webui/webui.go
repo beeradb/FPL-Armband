@@ -24,11 +24,22 @@
 // an intention with a guard on part of it, not a property of the whole.
 //
 // TestThePageHeadlineIsTheModelsNumber covers the projection and the cards. Three surfaces
-// are still not covered and still compute: the formations rail picks and totals its own
-// eleven on a plain sum, where analysis.bestFormation maximises sum plus captain plus vice;
-// the two captain fallbacks apply their own rule; and the player sheet's derivation panel
-// spells out an arithmetic the model does not use. Read that as work owed rather than as a
-// claim already kept.
+// were recorded here as still computing. Two are now discharged and one is not, so the list
+// is kept rather than trimmed — a debt paid silently reads as still owed, and one left
+// standing among paid ones reads as paid.
+//
+//   - The formations rail, which picked and totalled its own eleven on a plain sum where
+//     analysis.bestFormation maximises sum plus captain plus vice. DISCHARGED: renderShapes
+//     is deleted, and deliberately not replaced by another client computation; a
+//     server-computed replacement is filed as deferred rather than rebuilt under a new name.
+//   - The player sheet's derivation panel, which spelled out an arithmetic the model does
+//     not use. DISCHARGED: the panel is gone. What replaced it shows the model's own inputs
+//     and a total the server sent.
+//   - The two captain fallbacks, which apply their own rule. STILL OWED — a swap that moves
+//     the captain out of the eleven reassigns the armband client-side, by position rather
+//     than by anything the model would use.
+//
+// Read the last of those as work owed rather than as a claim already kept.
 //
 // Keeping the shell and the contract apart is what lets Wails bind to the view model
 // directly, without an HTTP server in between.

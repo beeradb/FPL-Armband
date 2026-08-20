@@ -74,6 +74,10 @@
   <!-- the score bug: one number is the product -->
   <div class="scorebug" id="scorebug"></div>
 
+  <!-- the chip catalogue's mobile scrim -- <720px it pins to the bottom edge like
+       .sheetacts, and this dims what's behind it. Hidden above 720px (armband.css). -->
+  <div class="chipscrim" id="chipscrim"></div>
+
   <div class="pitchgrid">
   <div class="pitchwrap">
     <div class="pitchhud" id="pitchhud">
@@ -87,12 +91,18 @@
       <span class="pill" id="clubcap" hidden>max 3/club ✓</span>
       <button class="pill armpill" id="capPick"><b>C</b> <span id="capName">—</span><span class="cmath" id="capMath"></span></button>
       <button class="pill armpill v" id="vcPick"><b>V</b> <span id="vcName">—</span></button>
+      <!-- The chip control: silent by default, one ghost pill, escalating as its window
+           closes. Replaces <details class="chipfold">, deleted below -- a four-times-a-
+           season decision does not need the best space on the screen, and the answer to
+           that is not a worse slab lower down, it is not being a slab. renderChips() (in
+           app.js) fills this in. -->
+      <span class="chipctl" id="chipctl"></span>
       <span class="delta" id="vsmodel"></span>
       <span class="pitchactions">
         <!-- Reset asks the model for its true best with none of your locks or blocks in
              force -- it discards them, which Optimize never does. Ghost + warn so the two
              adjacent buttons do not read as the same weight of action. -->
-        <button class="btn sm ghost warn" id="resetBtn" title="The model's honest best — ignores every lock and block you have set">Reset</button>
+        <button class="btn sm ghost warn" id="resetBtn" title="The model's honest best — ignores every lock-in and leave-out you’ve set">Reset</button>
         <!-- Puts the model's best fifteen back, respecting your locks and blocks. The
              opening squad is deliberately varied, so this is how a reader asks for the
              unvaried answer. -->
@@ -146,19 +156,6 @@
   </div><!-- /pitchside -->
   </div><!-- /pitchgrid -->
 
-  <!-- The chip planner, below the team and closed by default.
-       It used to sit above the pitch, which gave the best space on the screen to a
-       decision taken four times a season. The summary line still says what is planned for
-       this week, so demoting it costs no information -- only the room to change it, which
-       is a click away. -->
-  <details class="chipfold" id="chipfold">
-    <summary>
-      <span class="k">Chips</span>
-      <span class="chipnow" id="chipnow">none this gameweek</span>
-      <span class="dim">change</span>
-    </summary>
-    <div class="chiprow" id="chiprow"></div>
-  </details>
 </section>
 
 <!-- ============================================================
@@ -240,55 +237,34 @@
 </section>
 
 <!-- ============================================================
-     VIEW: NEWS  (was "Overrides")
+     VIEW: NEWS
      ============================================================
-     No authoring here — "no custom overrides at this point". This tab adjudicates three
-     kinds of adjustment, grouped by who decided it, because that decides what you may do
-     about it: FPL's own ruling (not adjudicable), the settings file (Ignore / Use it
-     again — suppresses for this visit only, never touches the file), and this session's
-     own locks and blocks (which live on the pitch page's Your instructions panel). -->
+     Three sources, all provided by the system: FPL's own status; team news we've read; and
+     the standing "who may not start" band. No row here has a button -- nothing on this tab
+     is the reader's to adjudicate; FPL's ruling is not ours to argue with, a reported item
+     is a fact somebody published, and the model's rotation call is the model's.
+     Groups are rendered by renderNews() in app.js: #news-flagged, #news-read, #news-risk
+     replace the old #fplnews / #ovlist, and #news-press is the coming-soon panel. -->
 <section id="view-news" hidden>
-  <div class="ovhead">
-    <div style="flex:1;min-width:220px">
-      <div class="k">News</div>
-      <p style="margin-top:6px">
-        What the model is running under that a human — you, or FPL itself — set rather than
-        measured. Ignoring one switches it off for this visit and picks your team again
-        without it; your settings file is never changed.
-      </p>
+  <div class="nhead">
+    <div class="nheadl">
+      <h1 class="t-title">News</h1>
+      <!-- The canonical line -- the same sentence as the landing hero, one step down the
+           scale (.tight) so it stays under this 20px title. -->
+      <p class="t-lede tight">Most weeks nobody you own is injured, and someone still isn’t playing.</p>
+      <p class="t-body">We read the football news. When something changes what a player is
+        likely to do, we tell the model — with the source and the date — and your numbers
+        move before the deadline. We won't catch everything. What we do catch is below,
+        with where it came from.</p>
+      <span class="nfresh"><span class="dot" aria-hidden="true"></span>
+        <span class="t-meta" id="newsChecked"></span></span>
     </div>
   </div>
 
-  <div class="toolbar">
-    <div class="seg" id="ovfilter">
-      <!-- Named by WHAT CHANGES, not by config.Roster's kind spellings. Selection covers
-           lock/lockXI/exclude; Scoring covers the team-level multiplier (the only
-           scoring-channel adjustment that exists — there is no xG-based override kind). -->
-      <button aria-pressed="true" data-kind="ALL">All <span class="dim" id="ovAll"></span></button>
-      <button aria-pressed="false" data-kind="minutes">Minutes</button>
-      <button aria-pressed="false" data-kind="club">Scoring</button>
-      <button aria-pressed="false" data-kind="selection">Selection</button>
-    </div>
-    <span class="pill warn" id="staleCount"></span>
-  </div>
-
-  <div class="why" style="margin-top:0">
-    <h3>Reported by FPL</h3>
-    <div id="fplnews"></div>
-  </div>
-
-  <div class="why" style="margin-top:14px">
-    <h3>Running from the configuration</h3>
-    <div id="ovlist"></div>
-    <div style="padding:0 13px 13px">
-      <button class="btn sm ghost" id="useAgainAll" disabled>Use these again (0)</button>
-    </div>
-  </div>
-
-  <div class="storenote">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/></svg>
-    These are read from the configuration this server was started with. Ignoring one suppresses it for your visit and the squad is rebuilt without it; the configuration file is not touched.
-  </div>
+  <div id="news-flagged"></div>
+  <div id="news-read"></div>
+  <div id="news-risk"></div>
+  <div id="news-press"></div>
 </section>
 
 <!-- ============================================================

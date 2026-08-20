@@ -451,11 +451,12 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 		markSessionOverrides(&b.Page, sess)
 	}
 
+	now := s.now()
 	st, err := viewmodel.Build(viewmodel.Input{
 		Page:      b.Page,
 		Boot:      s.engine.Boot,
 		Cfg:       cfg,
-		Now:       s.now(),
+		Now:       now,
 		Persist:   s.persist,
 		Session:   sess.arrangement(),
 		Optimised: sess.Optimised,
@@ -465,6 +466,14 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 		// re-deciding it in the client is what keeps the two from disagreeing.
 		Writable: !s.sessionWriteNeedsToken() || s.tokenOK(r.Header.Get("X-Armband-Token")) ||
 			s.authed(r),
+		// cfg.Chips is the exact schedule buildSquadPage installed on the engine for
+		// this request (session placements included — effectiveCfgFrom already
+		// merged them), so the rail's chip window agrees with the week views built
+		// from the same schedule.
+		Chips:           cfg.Chips,
+		NewsChecked:     newsChecked(s.client, now),
+		NewsReadChecked: newsReadChecked(cfg, now),
+		OverrideEffects: b.OverrideEffects,
 	})
 	if err != nil {
 		// Build's only failure is a number encoding/json would refuse. Naming the field

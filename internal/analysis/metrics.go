@@ -1656,6 +1656,33 @@ func (e *Engine) SkipGameweeks() []int {
 
 // Metrics computes the derived view for a single player.
 func (e *Engine) Metrics(el *fpl.Element) PlayerMetrics {
+	return e.metricsIgnoring(el, 0)
+}
+
+// NaturalMetrics is Metrics with this player's own standing minutes override
+// suppressed, so a caller can report what he would score without it.
+//
+// It exists for the news surface's before/after line — "pts a week 4.20 →
+// 3.15" — which is a genuine model quantity and must not be derived
+// client-side. It runs the SAME scoring path Metrics does, with exactly one
+// player's override switched off, rather than a second implementation that
+// could silently drift from the first the way fixtureSensitiveAt's sibling
+// once did (see model.md §3).
+//
+// Meaningless, and not worth calling, for a player with no minutes override:
+// the result is then identical to Metrics. Callers should check
+// e.HasMinutesOverride(el.Code) first, both to avoid the wasted computation
+// and because "no override" is not the same fact as "override with zero
+// effect".
+func (e *Engine) NaturalMetrics(el *fpl.Element) PlayerMetrics {
+	return e.metricsIgnoring(el, el.Code)
+}
+
+// metricsIgnoring is Metrics, with ignoreCode's minutes override (if any)
+// suppressed for the one blendFor call that reads it. ignoreCode 0
+// suppresses nothing — FPL's permanent player codes start at 1 — so
+// Metrics itself is metricsIgnoring(el, 0).
+func (e *Engine) metricsIgnoring(el *fpl.Element, ignoreCode int) PlayerMetrics {
 	team := e.Boot.TeamByID(el.Team)
 	teamName := "?"
 	if team != nil {
@@ -1719,7 +1746,7 @@ func (e *Engine) Metrics(el *fpl.Element) PlayerMetrics {
 
 	// Mix last season in, in proportion to how little of this one there is.
 	// Pre-season this is a no-op — FPL's totals already are last season.
-	b := e.blendFor(el, m)
+	b := e.blendForCode(el, m, ignoreCode)
 	m.XG90, m.XA90, m.XGC90 = b.XG90, b.XA90, b.XGC90
 	// A club-level correction from the analysis layer, for a defence whose
 	// record was earned by a back line that no longer exists. Applied to the
@@ -2907,4 +2934,13 @@ func (e *Engine) hasMinutesOverrides() bool {
 	e.overrideMu.RLock()
 	defer e.overrideMu.RUnlock()
 	return len(e.MinutesOverride) > 0
+}
+
+// HasMinutesOverride reports whether this one player carries a correction.
+// It is the gate a caller checks before calling NaturalMetrics: "no
+// override" and "override with zero effect" are different facts, and this
+// is what tells them apart without paying for the second Metrics call.
+func (e *Engine) HasMinutesOverride(code int) bool {
+	_, _, ok := e.minutesOverrideFor(code)
+	return ok
 }

@@ -79,3 +79,48 @@ func TestPlayableChipsSurvivesAnAbsentBootstrap(t *testing.T) {
 		t.Errorf("a nil bootstrap offered %v", got)
 	}
 }
+
+// TestChipWindowStatusAtCountsSpentChipsOutsideTheRail is the regression test
+// for app.js:625's defect: `(4 - GWS.filter(g => g.chip).length) + ' of 4
+// left'` only ever looks at the rail, current gameweek and upcoming, so a
+// chip already played earlier in the window is never subtracted and the
+// count overstates what the reader has left. ChipWindowStatusAt must see it
+// regardless of which gameweek is asked about.
+func TestChipWindowStatusAtCountsSpentChipsOutsideTheRail(t *testing.T) {
+	boot := &fpl.Bootstrap{Chips: []fpl.Chip{
+		{Name: "wildcard", StartEvent: 2, StopEvent: 19},
+		{Name: "freehit", StartEvent: 2, StopEvent: 19},
+		{Name: "bboost", StartEvent: 1, StopEvent: 19},
+		{Name: "3xc", StartEvent: 1, StopEvent: 19},
+		{Name: "wildcard", StartEvent: 20, StopEvent: 38},
+		{Name: "freehit", StartEvent: 20, StopEvent: 38},
+		{Name: "bboost", StartEvent: 20, StopEvent: 38},
+		{Name: "3xc", StartEvent: 20, StopEvent: 38},
+	}}
+
+	e := &Engine{Boot: boot}
+	// Played back at GW5 — long behind the rail by GW15, where "current +
+	// upcoming" starts.
+	e.Chips.First.BenchBoost = 5
+
+	if got, want := e.ChipWindowStatusAt(15), (ChipWindowStatus{EndsGW: 19, Size: 4, Remaining: 3}); got != want {
+		t.Errorf("GW15 (chip spent behind it): status = %+v, want %+v", got, want)
+	}
+	// Asked about from before the chip was played: still unspent then.
+	if got, want := e.ChipWindowStatusAt(3), (ChipWindowStatus{EndsGW: 19, Size: 4, Remaining: 4}); got != want {
+		t.Errorf("GW3 (chip not yet played): status = %+v, want %+v", got, want)
+	}
+	// A chip PLANNED but not yet reached is not spent either.
+	e.Chips.First.Wildcard = 18
+	if got, want := e.ChipWindowStatusAt(15), (ChipWindowStatus{EndsGW: 19, Size: 4, Remaining: 3}); got != want {
+		t.Errorf("GW15 (wildcard planned ahead, bboost spent behind): status = %+v, want %+v", got, want)
+	}
+	// The second window is untouched by anything planned in the first.
+	if got, want := e.ChipWindowStatusAt(25), (ChipWindowStatus{EndsGW: 38, Size: 4, Remaining: 4}); got != want {
+		t.Errorf("GW25 (second window): status = %+v, want %+v", got, want)
+	}
+	// Outside every window: the zero value, not a stale window carried over.
+	if got := e.ChipWindowStatusAt(39); got != (ChipWindowStatus{}) {
+		t.Errorf("GW39 (outside every window): status = %+v, want the zero value", got)
+	}
+}
