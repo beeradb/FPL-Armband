@@ -87,6 +87,10 @@ Flags:
                    scoring horizon, and may exceed it — a chip is usually
                    planned outside the horizon, so a wildcard at GW6 is
                    invisible on a five-week view
+  -cache-dir string
+                   Override cache_dir from config. For a generator process
+                   sharing a deployment's config with the readers it serves,
+                   pointed at a fresh directory per run
 
 Examples:
   Flags go BEFORE the command. Go's flag package stops parsing at the command
@@ -139,6 +143,7 @@ type globalFlags struct {
 	plain    *bool
 	htmlOut  *string
 	weeks    *int
+	cacheDir *string
 }
 
 // registerGlobalFlags registers them on fs. run() passes flag.CommandLine,
@@ -162,6 +167,7 @@ func registerGlobalFlags(fs *flag.FlagSet) *globalFlags {
 		plain:    fs.Bool("plain", false, "print squads as a plain list rather than a pitch"),
 		htmlOut:  fs.String("html", "", "also write the squad to a self-contained HTML file"),
 		weeks:    fs.Int("weeks", 0, "gameweeks to show in the HTML week view (default: the scoring horizon)"),
+		cacheDir: fs.String("cache-dir", "", "override cache_dir from config"),
 	}
 }
 
@@ -184,6 +190,9 @@ func run() error {
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
 		return err
+	}
+	if *f.cacheDir != "" {
+		cfg.CacheDir = *f.cacheDir
 	}
 	// Diagnostic sweeps, before anything is built from the config. See sweep.go.
 	applyWeightOverrides(&cfg)
@@ -220,7 +229,7 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	client := fpl.New(cfg.CacheDir, ttl)
+	client := fpl.NewWithSnapshot(cfg.CacheDir, cfg.SnapshotDir, ttl)
 
 	// Capture is dispatched before the engine is built, and that is deliberate
 	// rather than an optimisation. It archives a *moment*, so it must not be
