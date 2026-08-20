@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -24,6 +26,27 @@ const baseURL = "https://fantasy.premierleague.com/api"
 // optional read-only base consulted before cacheDir on every read — see get()
 // for the read order and NewWithSnapshot for why it is resolved through
 // symlinks once, at construction, rather than on every read.
+//
+// # Serving stale rather than failing — a deliberate exception
+//
+// get()'s read order ends with a stale fallback: if a live fetch fails and
+// neither the overlay nor the snapshot has anything FRESH, it serves whatever
+// is on disk however old, rather than erroring. That overrides two of this
+// project's own standing rules — "no fallbacks, one correct path" and "throw
+// errors, fail fast" — on purpose, and only here. The reasoning: `armband
+// serve` calls Bootstrap()/Fixtures() once at process startup, so an error
+// here is not "this one request degrades", it is the pod failing to start —
+// CrashLoopBackOff, no service at all, for as long as FPL is unreachable. The
+// alternative to stale-but-coherent data is not a wrong answer the user might
+// act on; it is no answer whatsoever. Every other error path in this codebase
+// still fails loudly — this one exists because failing loudly here has no
+// safe landing.
+//
+// Serving stale data is only acceptable because it is never silent: every
+// fallback logs, and the staleness state is exposed through StaleServing,
+// StaleAgeSeconds and LiveFetchFailures for cmd/armband's /metrics route to
+// publish, so an on-call human is paged rather than finding out from a user
+// report.
 type Client struct {
 	http        *http.Client
 	cacheDir    string
@@ -33,7 +56,52 @@ type Client struct {
 	mu        sync.Mutex
 	bootstrap *Bootstrap
 	fixtures  []Fixture
+
+	staleness staleness
 }
+
+// staleness is the process-lifetime signal behind Client's Stale* accessors.
+// It exists so the deliberate "serve stale rather than fail" exception above
+// is alertable rather than merely logged — see the Client comment for why
+// that trade was made only here.
+//
+// All three fields are updated from get(), which many goroutines may call
+// concurrently (a `serve` process handles overlapping requests), so each is
+// its own atomic rather than being guarded by Client.mu — that mutex is
+// reserved for the Bootstrap/Fixtures memoization, and taking it here would
+// serialise every cache read behind it for no reason.
+type staleness struct {
+	// serving is 1 while the MOST RECENT get() call had to fall back to data
+	// older than cacheTTL because a live fetch failed, 0 once a call
+	// completes via a fresh cache hit or a successful live fetch. It is a
+	// snapshot of the last call, not a sticky "ever happened" flag — the
+	// simplest thing that is still true, and a Prometheus rate() over it is
+	// what turns a flickering series into "how much of the window was
+	// degraded" if that is ever needed.
+	serving atomic.Bool
+	// ageSeconds is the age, in seconds, of the stale copy most recently
+	// served. It is only ever written on a stale read, so a reader who missed
+	// the moment `serving` flipped back to 0 can still see how old the last
+	// bad one was.
+	ageSeconds atomic.Int64
+	// liveFetchFailures counts every live fetch to FPL that has failed, for
+	// the life of the process. Monotonic and never reset, matching the
+	// Prometheus counter type it feeds.
+	liveFetchFailures atomic.Uint64
+}
+
+// StaleServing reports whether the most recent read had to fall back to data
+// older than cacheTTL. See the Client and staleness comments for why that
+// fallback exists and what "most recent" means across concurrent callers.
+func (c *Client) StaleServing() bool { return c.staleness.serving.Load() }
+
+// StaleAgeSeconds is the age, in seconds, of the stale copy most recently
+// served — 0 if none has been served yet this process's lifetime.
+func (c *Client) StaleAgeSeconds() int64 { return c.staleness.ageSeconds.Load() }
+
+// LiveFetchFailures is the number of live fetches to FPL that have failed
+// since this process started.
+func (c *Client) LiveFetchFailures() uint64 { return c.staleness.liveFetchFailures.Load() }
 
 // NewWithSnapshot is New with an optional read-only base checked before
 // cacheDir on every read. cacheDir remains the only place anything is ever
@@ -104,6 +172,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	if fi, err := os.Stat(overlayPath); err == nil && fresh(fi) {
 		if b, err := os.ReadFile(overlayPath); err == nil {
 			if err := json.Unmarshal(b, out); err == nil {
+				c.staleness.serving.Store(false)
 				return nil
 			}
 		}
@@ -117,41 +186,90 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	// generated, or this deployment doesn't use one) falls straight through to
 	// the live fetch below — a snapshot miss must never look like an empty or
 	// wrong answer, only a live one.
+	var snapPath string
 	if c.snapshotDir != "" {
-		snapPath := filepath.Join(c.snapshotDir, key+".json")
+		snapPath = filepath.Join(c.snapshotDir, key+".json")
 		if fi, err := os.Stat(snapPath); err == nil && fresh(fi) {
 			if b, err := os.ReadFile(snapPath); err == nil {
 				if err := json.Unmarshal(b, out); err == nil {
+					c.staleness.serving.Store(false)
 					return nil
 				}
 			}
 		}
 	}
 
-	body, err := c.fetch(ctx, path)
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(body, out); err != nil {
-		// A 200 carrying HTML is FPL serving a login page instead of the
-		// resource, which is what an expired or missing session looks like from
-		// here. Saying "invalid character '<'" sends people to look for a
-		// parsing bug.
-		if len(body) > 0 && body[0] == '<' {
-			return fmt.Errorf("GET %s: FPL returned an HTML page, not data — "+
+	body, fetchErr := c.fetch(ctx, path)
+	if fetchErr == nil {
+		if unmarshalErr := json.Unmarshal(body, out); unmarshalErr == nil {
+			// Writes always go to the overlay (cacheDir), never to snapshotDir. The
+			// snapshot is read-only from this process's side by construction: only the
+			// deployment's generator writes there, on its own schedule. Do not "fix"
+			// this into writing wherever a cache miss came from.
+			if err := os.MkdirAll(c.cacheDir, 0o755); err == nil {
+				_ = os.WriteFile(overlayPath, body, 0o644)
+			}
+			c.staleness.serving.Store(false)
+			return nil
+		} else if len(body) > 0 && body[0] == '<' {
+			// A 200 carrying HTML is FPL serving a login page instead of the
+			// resource, which is what an expired or missing session looks like from
+			// here. Saying "invalid character '<'" sends people to look for a
+			// parsing bug.
+			fetchErr = fmt.Errorf("GET %s: FPL returned an HTML page, not data — "+
 				"the session is missing or expired", path)
+		} else {
+			fetchErr = fmt.Errorf("GET %s: decoding: %w", path, unmarshalErr)
 		}
-		return fmt.Errorf("GET %s: decoding: %w", path, err)
 	}
 
-	// Writes always go to the overlay (cacheDir), never to snapshotDir. The
-	// snapshot is read-only from this process's side by construction: only the
-	// deployment's generator writes there, on its own schedule. Do not "fix"
-	// this into writing wherever a cache miss came from.
-	if err := os.MkdirAll(c.cacheDir, 0o755); err == nil {
-		_ = os.WriteFile(overlayPath, body, 0o644)
+	// The live fetch failed — network error, non-200 status, or a body FPL
+	// sent that did not decode. See the Client comment for why this
+	// deliberately serves stale data rather than returning fetchErr here: at
+	// startup (Bootstrap/Fixtures, called once per process) an error is not
+	// "this read degrades", it is the pod failing to start.
+	//
+	// Stale snapshot before stale overlay: the snapshot is what a healthy
+	// generator most recently published for every endpoint it covers, and is
+	// more likely to be complete than an overlay this one process happened to
+	// fetch piecemeal.
+	c.staleness.liveFetchFailures.Add(1)
+	if snapPath != "" && c.serveStale(snapPath, "snapshot", path, out) {
+		return nil
 	}
-	return nil
+	if c.serveStale(overlayPath, "overlay", path, out) {
+		return nil
+	}
+
+	// Nothing usable anywhere — the one case this deliberate fallback does not
+	// cover, and the original live-fetch error is the right thing to report.
+	return fetchErr
+}
+
+// serveStale is get()'s last resort: read whatever is at diskPath, however
+// old, and unmarshal it into out. Called only after a live fetch has already
+// failed — see the Client and staleness comments for why this override of
+// "no fallbacks, fail fast" is deliberate and only here. Returns false, out
+// untouched, if there is nothing usable at diskPath at all — the one case
+// get() still returns an error for.
+func (c *Client) serveStale(diskPath, source, requestPath string, out any) bool {
+	fi, err := os.Stat(diskPath)
+	if err != nil {
+		return false
+	}
+	b, err := os.ReadFile(diskPath)
+	if err != nil {
+		return false
+	}
+	if err := json.Unmarshal(b, out); err != nil {
+		return false
+	}
+	age := time.Since(fi.ModTime())
+	c.staleness.serving.Store(true)
+	c.staleness.ageSeconds.Store(int64(age.Seconds()))
+	log.Printf("fpl: live fetch to FPL failed; serving stale %s data for %s (age %s) — "+
+		"see the armband_serving_stale_data Prometheus gauge", source, requestPath, age.Round(time.Second))
+	return true
 }
 
 // fetch performs the request and returns the raw body, with no cache on either

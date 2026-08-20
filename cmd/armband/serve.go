@@ -272,6 +272,8 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.state(w, r)
 	case routeSession:
 		s.saveSession(w, r)
+	case routeMetrics:
+		s.metrics(w, r)
 	case "/action":
 		s.action(w, r)
 	default:
