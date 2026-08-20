@@ -141,15 +141,17 @@ func TestEveryPanelRendersAHostileNameAsText(t *testing.T) {
 	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app#pitch")
 
 	// The panels' own markers, so a document that somehow rendered only one of them
-	// fails here rather than passing on a partial page. The formations rail in
-	// particular is the sink that survived the first version of this test.
+	// fails here rather than passing on a partial page. The formations rail was the
+	// sink that survived the first version of this test; it is deleted now (renderShapes
+	// is gone, along with the client-side model computation it did), replaced by Your
+	// instructions, which is the new pitch-side marker below.
 	for _, marker := range []string{
-		// The formations rail. Matched as it appears in the DOM, not as it appears on
-		// screen -- the stylesheet uppercases this heading, and the first version of
-		// this list asserted the screenshot's text against the document's.
-		"Every shape this fifteen can make",
+		// Matched as it appears in the DOM, not as it appears on screen -- the
+		// stylesheet uppercases this heading, and the first version of this list
+		// asserted the screenshot's text against the document's.
+		"Your instructions",
 		"view-players",
-		"view-overrides",
+		"view-news",
 		"view-brief",
 	} {
 		if !strings.Contains(dom, marker) {
@@ -199,7 +201,7 @@ func TestOverrideProseRendersAsText(t *testing.T) {
 	srv := httptest.NewServer(s)
 	defer srv.Close()
 
-	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app#overrides")
+	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app#news")
 	if !strings.Contains(dom, "He is nailed") {
 		t.Fatal("the override's reasoning is not on the page, so this proves nothing")
 	}

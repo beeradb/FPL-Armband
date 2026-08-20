@@ -196,6 +196,10 @@ type Player struct {
 	Fixtures []Fixture `json:"fixtures"`
 	// AvgDifficulty is the mean FDR over the horizon, already computed.
 	AvgDifficulty float64 `json:"avg_fdr"`
+	// ValueScore is XP per million spent — analysis.PlayerMetrics.ValueScore, copied
+	// rather than divided client-side. `Per £m` used to be xpFor(p)/p.pr in app.js, one of
+	// three client surfaces computing a model quantity; this closes it.
+	ValueScore float64 `json:"value_score"`
 
 	// Override is the standing correction acting on this player, if any.
 	Override *Override `json:"override,omitempty"`

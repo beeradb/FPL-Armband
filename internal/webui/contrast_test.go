@@ -119,7 +119,7 @@ var contrastScreens = []struct {
 	{"landing", "gameweek-one", "/?probe=1"},
 	{"pitch", "gameweek-one", "/app?probe=1#pitch"},
 	{"players", "gameweek-one", "/app?probe=1#players"},
-	{"overrides", "gameweek-one", "/app?probe=1#overrides"},
+	{"news", "gameweek-one", "/app?probe=1#news"},
 	{"brief", "gameweek-one", "/app?probe=1#brief"},
 	{"picker", "gameweek-one", "/app?probe=1#replace-542"},
 

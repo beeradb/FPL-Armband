@@ -150,6 +150,7 @@ func buildPlayer(m analysis.PlayerMetrics, p present.Page) Player {
 		News:          m.News,
 		Availability:  m.AvailabilityFactor,
 		AvgDifficulty: m.AvgDifficulty,
+		ValueScore:    m.ValueScore,
 	}
 	for _, f := range m.Fixtures {
 		pl.Fixtures = append(pl.Fixtures, Fixture{

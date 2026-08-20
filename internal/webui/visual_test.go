@@ -179,8 +179,8 @@ var shots = []shot{
 	{"pitch-mobile", "gameweek-one", "/app#pitch", mobile(2000)},
 	{"players-desktop", "gameweek-one", "/app#players", desktop(1600)},
 	{"players-mobile", "gameweek-one", "/app#players", mobile(1800)},
-	{"overrides-desktop", "gameweek-one", "/app#overrides", desktop(1400)},
-	{"overrides-mobile", "gameweek-one", "/app#overrides", mobile(1600)},
+	{"news-desktop", "gameweek-one", "/app#news", desktop(1400)},
+	{"news-mobile", "gameweek-one", "/app#news", mobile(1600)},
 	{"brief-desktop", "gameweek-one", "/app#brief", desktop(1400)},
 
 	// The states live data will not hand you on demand, and which are therefore the most
@@ -188,7 +188,7 @@ var shots = []shot{
 	{"edges-pitch-desktop", "edges", "/app#pitch", desktop(1700)},
 	{"edges-pitch-mobile", "edges", "/app#pitch", mobile(2000)},
 	{"edges-players-desktop", "edges", "/app#players", desktop(1200)},
-	{"edges-overrides-desktop", "edges", "/app#overrides", desktop(1200)},
+	{"edges-news-desktop", "edges", "/app#news", desktop(1200)},
 
 	// The replacement picker, reached by its deep link. It is a panel that otherwise only
 	// exists after a tap, and the states worth seeing are the ones a screenshot can hold

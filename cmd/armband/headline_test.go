@@ -118,7 +118,10 @@ func TestEveryCardShowsTheModelsProjection(t *testing.T) {
 	// into an automaton proportional to the bound, and over a 700KB document that is slow
 	// enough to be mistaken for a hung browser. Splitting is also simply clearer.
 	idOf := regexp.MustCompile(`^(\d+)"`)
-	xpOf := regexp.MustCompile(`<b>([0-9]+\.[0-9]{2})</b><span class="u">xPts`)
+	// "xPts" → "pts": the primary-page redesign replaced the jargon unit with plain
+	// language everywhere on the card (see armband.css/app.js, "the standing constraint:
+	// write for a manager, not a quant").
+	xpOf := regexp.MustCompile(`<b>([0-9]+\.[0-9]{2})</b><span class="u">pts`)
 	found := 0
 	for _, chunk := range strings.Split(dom, `data-id="`)[1:] {
 		im := idOf.FindStringSubmatch(chunk)

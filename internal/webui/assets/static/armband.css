@@ -97,6 +97,11 @@
 }
 
 *{box-sizing:border-box;}
+/* An author rule setting `display` on the same element always beats the user-agent
+   stylesheet's `[hidden]{display:none}`, regardless of selector order — so a `.pill` or
+   `.btn` given the `hidden` attribute would otherwise keep rendering. This makes `hidden`
+   actually hide, everywhere, rather than requiring every component to remember it. */
+[hidden]{display:none!important;}
 html,body{margin:0;padding:0;}
 body{
   background:var(--bg);
@@ -543,10 +548,19 @@ button{font-family:inherit;color:inherit;}
 .pitchhud .form{
   font-family:var(--display);font-weight:800;font-size:17px;letter-spacing:.02em;
 }
-.pitchhud .valid{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--ink2);}
-.pitchhud .valid svg{color:var(--acc);}
-.pitchhud .valid.no,.pitchhud .valid.no svg{color:var(--bad);}
+/* The "legal / no" badge is gone — validity is a REFUSAL, not a permanent status. .formerr
+   carries both states the badge used to: a transient wash on a refused drag (.refused,
+   1.4s, the score bug's own rhythm) and a persistent message when the eleven is illegal
+   with nothing having just happened (a stored arrangement can round-trip into that state). */
+.formerr{font-size:12px;font-weight:600;color:var(--bad);}
+.pitchhud.refused{background:rgba(255,77,106,.18);transition:background .12s;}
 .pitchhud .delta{margin-left:auto;font-family:var(--mono);font-size:11.5px;}
+.pitchactions{display:flex;align-items:center;gap:8px;margin-left:auto;}
+/* Reset is destructive and must not read as the primary action next to it — ghost, and
+   warn-toned rather than the pitch's usual neutral ghost, so the two adjacent buttons are
+   visibly different weights before either is pressed. */
+.btn.ghost.warn{color:var(--warn);border-color:#5A4210;background:transparent;}
+.btn.ghost.warn:hover{background:var(--warn-lo);border-color:var(--warn);}
 
 /* armband controls ------------------------------------------- */
 .armpill{cursor:pointer;font-family:var(--ui);text-transform:none;letter-spacing:0;
@@ -557,11 +571,25 @@ button{font-family:inherit;color:inherit;}
 }
 .armpill.v b{background:var(--panel3);color:var(--ink2);border:1px solid var(--line2);}
 .armpill:hover{border-color:var(--band);}
+/* The captain pill absorbs the arithmetic the scorebug's Captain cell used to carry alone
+   — and alone was the problem: under 720px that cell was the ONLY place the pre-doubled
+   figure rendered at all (.card .xp .pre/.arw are hidden there). One size everywhere means
+   nothing is lost when the pill wraps to a narrower row on a phone. */
+.armpill .cmath{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:2px;}
 
-.iconbtn.arm-btn{font-family:var(--display);font-weight:800;font-size:9.5px;line-height:1;}
-.iconbtn.arm-btn.isc{background:var(--band);border-color:var(--band-hi);color:#fff;}
-.iconbtn.arm-btn.isv{background:var(--panel3);border-color:var(--line2);color:var(--ink);}
-.card .acts .iconbtn.arm-btn svg{width:12px;height:12px;}
+/* the FPL-news corner glyph — an injured or suspended player looks identical to a healthy
+   one everywhere else on the pitch card. Warn by default, bad when availability is 0 (a
+   ruled-out player, whose score is zero for that reason and no other). Opposite corner
+   from the armband glyph so a flagged captain does not collide with his own band. */
+.card .newsflag{
+  position:absolute;top:-6px;right:-4px;z-index:4;min-width:15px;height:15px;
+  border-radius:4px;display:grid;place-items:center;
+  background:var(--warn);color:#241800;border:1.5px solid var(--turf);
+  font-family:var(--display);font-weight:800;font-size:10px;line-height:1;
+}
+/* Black, not white: white-on-var(--bad) is 3.22:1 and fails the 4.5:1 floor this codebase
+   guards on every rendered surface (contrast_test.go). Black on the same fill is 6.52:1. */
+.card .newsflag.bad{background:var(--bad);color:#000;}
 
 /* captain picker rows ---------------------------------------- */
 .caprow{
@@ -641,22 +669,19 @@ button{font-family:inherit;color:inherit;}
 .pitchside .whyrow .d{grid-area:delta;}
 .pitchside .whyrow .rz{grid-area:rz;font-size:12px;line-height:1.5;}
 
-/* formation options — every legal shape this fifteen can make, priced */
-.shapes{display:flex;flex-direction:column;}
-.shape-row{
-  display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;
-  width:100%;text-align:left;padding:9px 13px;background:none;border:0;
-  border-bottom:1px solid var(--line);cursor:pointer;
+/* Your instructions — replaces the formations rail (renderShapes/.shapes/.shape-row are
+   deleted, not reused: see the note in app.js on why a second implementation of
+   bestFormation does not come back under a new name). Rows are sentences in the reader's
+   own voice, split by who set them — that split decides which verb the row gets. */
+.instrrow{
+  display:grid;grid-template-columns:112px 1fr auto;gap:10px;align-items:center;
+  padding:9px 13px;border-bottom:1px solid var(--line);font-size:12.5px;
 }
-.shape-row:last-child{border-bottom:0;}
-.shape-row:hover{background:var(--panel2);}
-.shape-row .f{font-family:var(--display);font-weight:800;font-size:15px;letter-spacing:.01em;}
-.shape-row .who{font-size:11.5px;color:var(--ink3);min-width:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.shape-row .dd{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink3);}
-.shape-row .dd.pos{color:var(--acc);} .shape-row .dd.neg{color:var(--bad);}
-.shape-row[aria-current="true"]{background:var(--band-lo);}
-.shape-row[aria-current="true"] .f{color:#fff;}
+.instrrow:last-child{border-bottom:0;}
+.instrrow .v{font-weight:700;color:var(--ink);}
+.instrrow.cfg .v{font-weight:500;color:var(--ink2);font-family:var(--mono);font-size:11px;letter-spacing:.04em;}
+.instrrow .who{color:var(--ink2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.instrrow .who .club{font-family:var(--mono);font-size:10.5px;color:var(--ink3);margin-left:6px;}
 
 /* brief: two columns above 1080px so the verdict isn't a column of air */
 .briefgrid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;align-items:start;}
@@ -679,6 +704,14 @@ button{font-family:inherit;color:inherit;}
 .sheet header .nm{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:-.03em;}
 .sheet header .sub{font-family:var(--mono);font-size:11px;color:var(--ink3);margin-top:2px;}
 .sheet .body{padding:14px 16px 18px;}
+.newsbanner{
+  margin-bottom:12px;padding:11px 12px;background:var(--warn-lo);border:1px solid #5A4210;
+  border-left:3px solid var(--warn);border-radius:0 var(--r-sm) var(--r-sm) 0;
+  font-size:12.5px;color:var(--ink2);
+}
+.newsbanner .h{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--warn);margin-bottom:5px;}
+.newsbanner.bad{background:var(--bad-lo);border-color:#5E2130;border-left-color:var(--bad);}
+.newsbanner.bad .h{color:var(--bad);}
 .statgrid{
   display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);
   border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-bottom:14px;
@@ -719,13 +752,37 @@ button{font-family:inherit;color:inherit;}
   background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-size:13px;
 }
 .search::placeholder{color:var(--ink3);}
+/* The phone equivalent of the sortable headers -- <thead> does not exist under 720px, so
+   a header click cannot be the control there. Hidden on desktop, where the headers
+   already do the job; a native <select> gets the phone its own picker UI for free. */
+.sortpill{display:none;}
+.sortpill select{
+  height:34px;padding:0 9px;border-radius:var(--r-sm);background:var(--panel2);
+  border:1px solid var(--line);color:var(--ink);font-family:var(--ui);font-size:12.5px;
+}
+@media (max-width:720px){.sortpill{display:flex;align-items:center;gap:6px;}}
 
 .ptable{width:100%;border-collapse:collapse;font-size:13px;}
 .ptable th{
-  position:sticky;top:0;background:var(--bg2);text-align:left;padding:8px 10px;
+  position:sticky;top:0;background:var(--bg2);text-align:left;padding:0;
   border-bottom:1px solid var(--line2);font-family:var(--mono);font-size:9.5px;
   letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);font-weight:500;white-space:nowrap;z-index:2;
 }
+/* Sortable headers are buttons INSIDE the th, so the keyboard reaches them --
+   :focus-visible is already global. aria-sort carries the state; the caret is drawn from
+   it rather than a class, so the two cannot disagree. */
+.ptable th button{
+  appearance:none;background:none;border:0;color:inherit;font:inherit;letter-spacing:inherit;
+  text-transform:inherit;cursor:pointer;padding:8px 10px;display:flex;align-items:center;gap:4px;
+  width:100%;text-align:left;
+}
+.ptable th.n button{justify-content:flex-end;}
+.ptable th button:hover{color:var(--ink2);}
+.ptable th button.active{color:var(--ink);}
+.ptable th button::after{content:'';width:6px;height:6px;flex:0 0 auto;opacity:0;
+  border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);}
+.ptable th[aria-sort="ascending"] button::after{opacity:1;transform:rotate(-135deg) translate(1px,1px);}
+.ptable th[aria-sort="descending"] button::after{opacity:1;transform:rotate(45deg);}
 .ptable td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
 .ptable tr:hover td{background:var(--panel2);}
 .ptable td.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;}
@@ -818,17 +875,24 @@ button{font-family:inherit;color:inherit;}
   font-size:10.5px;padding:3px 8px;border-radius:5px;background:var(--panel2);
   border:1px solid var(--line);color:var(--ink2);
 }
-.lib{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:8px;
-}
-.libcard{
-  padding:11px 12px;background:var(--panel2);border:1px dashed var(--line2);
-  border-radius:var(--r);
-}
-.libcard .t{font-weight:700;font-size:13px;}
-.libcard .d{font-size:11.5px;color:var(--ink3);margin:4px 0 9px;}
+/* News: FPL's own ruling, never adjudicable — no third grid column, because there is no
+   button. Badge colour is reused from the config badge's excl/team modifiers rather than
+   minted twice: bad for ruled out, warn for a reduced-fitness percentage. */
+.ovcard.fpl{grid-template-columns:116px 1fr;}
+/* An ignored config-sourced row STAYS drawn rather than vanishing — that is the whole
+   design, see ignoreOverride's comment in app.js — so it needs a visibly different state
+   rather than disappearing like the old bare "✕" did. */
+.ovcard.ignored{opacity:.55;}
+.ovcard.ignored .badge{opacity:.7;}
 
-/* form -------------------------------------------------------- */
+/* form primitives -----------------------------------------------
+   The override-authoring form these once served (#addOv) is deleted -- "no custom
+   overrides at this point" -- but the primitives stay. #addOv was the only consumer of
+   .field/.frow in the whole application, and a later form (a profile page collecting an
+   email or a phone number, under consideration but not designed here) would need them
+   back. armband.css is organised tokens → primitives → components precisely so a
+   primitive may outlive one consumer; re-deriving type and spacing already decided is how
+   a later form drifts off the scale. Cheap to delete later if nothing ever claims them. */
 .field{margin-bottom:11px;}
 .field label{display:block;margin-bottom:5px;}
 .field input,.field select,.field textarea{
@@ -957,6 +1021,10 @@ button{font-family:inherit;color:inherit;}
 
   .ovcard{grid-template-columns:104px 1fr;}
   .ovcard .rm{grid-column:2;justify-self:end;margin-top:-4px;}
+  .instrrow{grid-template-columns:1fr auto;grid-template-areas:"v v" "who act";gap:2px 8px;}
+  .instrrow .v{grid-area:v;}
+  .instrrow .who{grid-area:who;}
+  .instrrow button{grid-area:act;}
   .ovhead .acts{margin-left:0;width:100%;}
   .frow{grid-template-columns:1fr;}
   .sheet-scrim{align-items:flex-end;padding:0;}
@@ -995,8 +1063,7 @@ button{font-family:inherit;color:inherit;}
 /* The page stays readable while a save is in flight. Freezing it would hide the squad the
    reader is deciding about; dimming the controls says "not yet" without taking the page
    away. Pointer events go, so a second click cannot apply a change twice. */
-body.saving .card,body.saving .btn,body.saving .iconbtn,body.saving .chipbtn,
-body.saving .shape-row,body.saving .ovcard .rm{opacity:.55;pointer-events:none;}
+body.saving .card,body.saving .btn,body.saving .iconbtn,body.saving .chipbtn{opacity:.55;pointer-events:none;}
 body.saving{cursor:progress;}
 
 /* The toast. Bottom centre on desktop, above the tab bar on mobile, and never over the
