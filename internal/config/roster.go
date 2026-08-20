@@ -115,7 +115,10 @@ func (o RosterOverride) Expired(gw int) bool {
 }
 
 func (o RosterOverride) String() string {
-	until := "indefinite — review"
+	// Matches cmd/armband/page.go's lapses(), which renders the same fact for the
+	// served app. Two different words for one expiry was the exact defect a copy
+	// pass over page.go's wording introduced here by not checking this sibling.
+	until := "does not lapse"
 	if o.UntilGameweek > 0 {
 		until = fmt.Sprintf("through GW%d", o.UntilGameweek)
 	}
