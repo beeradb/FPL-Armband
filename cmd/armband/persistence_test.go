@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
+	"armband/internal/analysis"
+	"armband/internal/fpl"
 	"armband/internal/viewmodel"
 )
 
@@ -335,4 +338,100 @@ func TestTheSessionRouteRefusesAnUnknownPlayer(t *testing.T) {
 		t.Errorf("a PUT naming an unknown code answered %d, want 400 — it would render "+
 			"as a nameless row the reader cannot clear", w.Code)
 	}
+}
+
+// TestTheOverBudgetSquadIsServedRatherThanRefused verifies that the session endpoint
+// accepts and returns a squad without validating the budget.
+//
+// This is deliberate: the budget is a fact about the reader's entry (not stored here), and
+// an over-budget squad is a valid state to ask the optimizer about (wildcards, hypotheticals).
+// The endpoint must not validate budget, only the integrity of the squad itself.
+//
+// The test pins the design choice documented in webroutes.go (validateSession, ~line
+// 742): budget is NOT checked, so a reader can submit a squad for analysis even if it
+// exceeds their available funds.
+//
+// ⚠️ A squad built from the reader's own current fifteen is within budget BY CONSTRUCTION
+// — the server already validated it once to get it there — so a test that reuses it would
+// pass identically whether or not this endpoint checks budget at all. This one instead
+// picks the most expensive legal fifteen the fixture's own player pool can field (highest
+// price per position slot, respecting the three-per-club cap validateSession enforces),
+// which comfortably clears analysis.DefaultBudget (£100.0m).
+func TestTheOverBudgetSquadIsServedRatherThanRefused(t *testing.T) {
+	s := fixtureServer(t)
+
+	squad15, totalTenths := priciestLegalSquad(t, s)
+	if totalTenths <= analysis.DefaultBudget {
+		t.Fatalf("the priciest legal squad the fixture can field costs %.1fm, which does not "+
+			"exceed the %.1fm default budget -- this test needs an over-budget squad to prove "+
+			"anything", float64(totalTenths)/10, float64(analysis.DefaultBudget)/10)
+	}
+
+	sess := session{
+		Version: sessionVersion,
+		Squad:   squad15,
+		XI:      squad15[:11],
+		Bench:   squad15[11:],
+		Captain: squad15[0],
+		Vice:    squad15[1],
+	}
+
+	w, state := put(t, s, sess, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("an over-budget squad was refused with %d: %s -- validateSession's own "+
+			"comment says budget is deliberately not checked", w.Code, w.Body.String())
+	}
+
+	if len(state.Squad.Players) != 15 {
+		t.Errorf("returned squad has %d players, want 15", len(state.Squad.Players))
+	}
+
+	// The key assertion: the endpoint served a genuinely unaffordable squad rather than
+	// refusing it, and says so in the figure it hands back -- a negative bank, not merely
+	// a 200 status code that a coincidentally-affordable squad would also have produced.
+	if state.Squad.Bank >= 0 {
+		t.Errorf("bank = %.1f for a squad costing %.1fm against a %.1fm budget, want negative -- "+
+			"the endpoint should report the shortfall, not silently clamp or ignore it",
+			state.Squad.Bank, float64(totalTenths)/10, float64(analysis.DefaultBudget)/10)
+	}
+}
+
+// priciestLegalSquad builds the most expensive fifteen the fixture's player pool can
+// field that still satisfies validateSession's shape rules (2 GKP/5 DEF/5 MID/3 FWD, at
+// most three players from any one club) -- everything EXCEPT budget, which is exactly the
+// rule TestTheOverBudgetSquadIsServedRatherThanRefused exists to show is not enforced.
+func priciestLegalSquad(t *testing.T, s *squadServer) (codes []int, totalTenths int) {
+	t.Helper()
+	need := map[string]int{"GKP": 2, "DEF": 5, "MID": 5, "FWD": 3}
+	byPos := map[string][]fpl.Element{}
+	for _, el := range s.engine.Boot.Elements {
+		pos := s.engine.Boot.PositionShort(el.ElementType)
+		byPos[pos] = append(byPos[pos], el)
+	}
+	clubCount := map[int]int{}
+	for pos, n := range need {
+		els := byPos[pos]
+		sort.Slice(els, func(i, j int) bool { return els[i].NowCost > els[j].NowCost })
+		picked := 0
+		for _, el := range els {
+			if picked == n {
+				break
+			}
+			if clubCount[el.Team] >= 3 {
+				continue
+			}
+			codes = append(codes, el.Code)
+			totalTenths += el.NowCost
+			clubCount[el.Team]++
+			picked++
+		}
+		if picked != n {
+			t.Fatalf("could not fill %d %s slots under the three-per-club cap; the fixture's "+
+				"pool is too thin for this test", n, pos)
+		}
+	}
+	if len(codes) != 15 {
+		t.Fatalf("built %d codes, want 15", len(codes))
+	}
+	return codes, totalTenths
 }

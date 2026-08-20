@@ -215,6 +215,14 @@ button{font-family:inherit;color:inherit;}
 .role.r4{--rdot:#8095A8;}   /* squad player  */
 .role.r5{--rdot:#6D8090;}   /* fringe player */
 .role.sm{font-size:9px;padding:0 4px;letter-spacing:.04em;}
+/* The role band as a bare colour dot, the word taken out. Used unconditionally by the
+   market table's Role column, which frees the width the xG90/xA90/DefCon columns need --
+   the words move to the `.rolekey.always` legend above the table instead. Same declared
+   size as the pitch card's OWN narrow-width rule below (`.card .role`, inside
+   @media(max-width:720px)): a media boundary keeps them from being one selector, so the
+   values are kept identical by hand rather than inventing a second dot size. */
+.role.bare{font-size:0;padding:0;border:0;background:none;gap:0;}
+.role.bare::before{width:8px;height:8px;}
 
 /* micro bar --------------------------------------------------- */
 .mbar{display:block;position:relative;height:4px;border-radius:2px;background:var(--panel3);overflow:hidden;}
@@ -334,6 +342,10 @@ button{font-family:inherit;color:inherit;}
 .sb-cell .v small{font-family:var(--ui);font-size:10px;font-weight:500;color:var(--ink3);margin-left:3px;letter-spacing:0;}
 .sb-cell .sub{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* the "In the bank" cell, over budget -- mirrors .readout .v/.sub.badc so the state is
+   not something you can only see on the Players tab. */
+.sb-cell .v.badc{color:var(--bad);}
+.sb-cell .sub.badc{color:var(--bad);}
 .scorebug .sb-pad{flex:0 0 16px;}
 
 /* ============================================================
@@ -352,6 +364,11 @@ button{font-family:inherit;color:inherit;}
 }
 .readout .v small{font-family:var(--ui);font-size:10.5px;font-weight:500;color:var(--ink3);margin-left:3px;letter-spacing:0;}
 .readout .sub{font-family:var(--mono);font-size:9.5px;color:var(--ink3);margin-top:3px;}
+/* the bank, when you have spent money you do not have. .badc is the shared red-text
+   utility; `.readout .sub` already sets its own color, so it needs the more specific
+   pairing to win over it. */
+.readout .v.badc{color:var(--bad);}
+.readout .sub.badc{color:var(--bad);}
 
 
 /* ============================================================
@@ -613,6 +630,9 @@ button{font-family:inherit;color:inherit;}
 .rolekey{display:none;align-items:center;gap:6px;flex-wrap:wrap;
   padding:7px 12px 9px;background:var(--bg2);border-top:1px solid var(--line);}
 .rolekey .k{margin-right:2px;}
+/* The market table's Role column is a bare dot at every width (.role.bare above), so its
+   legend has to be visible at every width too -- `.rolekey` on its own is mobile-only. */
+.rolekey.always{display:flex;margin:0 0 8px;}
 
 /* ============================================================
    "WHY" — the reasoning surfaces
@@ -791,6 +811,62 @@ button{font-family:inherit;color:inherit;}
 .afford{font-family:var(--mono);font-size:10.5px;}
 .afford.no{color:var(--bad);}
 
+/* market table columns — Replaces is gone, replaced by xG90 / xA90 / DefCon and a row
+   control cluster. Widths are fixed so the header and body line up and so the table never
+   needs horizontal scroll at the app's 1240px content width (--maxw). */
+.ptable .c-gate{width:26px;}
+.ptable .c-pos{width:46px;}
+.ptable .c-fdr{width:103px;}
+.ptable .c-role{width:44px;}
+.ptable .c-own{width:62px;}
+.ptable .c-xg,.ptable .c-xa{width:62px;}
+.ptable .c-dc{width:72px;}
+.ptable .c-price{width:86px;}
+.ptable .c-xp{width:78px;}
+.ptable .c-delta{width:78px;}
+.ptable .c-acts{width:268px;}
+.ptable td.c-xp{font-weight:700;}
+/* the shed order: Own goes first -- it is the least decision-relevant number on the row,
+   and the one the design ask named first to go. Role needs no breakpoint of its own: it is
+   already a bare dot at every width (.role.bare), so freeing more room for the row actions
+   is enough. */
+@media (max-width:1180px){
+  .ptable .c-own{display:none;}
+  .ptable .c-acts .btn.own{font-size:0;padding:0 8px;}
+}
+@media (max-width:980px){
+  .ptable .c-fdr .fdr i:nth-child(n+4){display:none;}
+}
+
+/* the row's control cluster: Lock in / Leave out (.btn.own, above) plus a neutral Transfer
+   button that opens a panel rather than deciding anything, so it is not band-blue. */
+.rowacts{display:flex;gap:5px;align-items:center;justify-content:flex-end;}
+.rowacts .btn{white-space:nowrap;}
+.btn.sm.xfer{gap:5px;}
+.btn.sm.xfer svg{width:13px;height:13px;flex:0 0 auto;}
+
+/* arming a Lock in on a market row: the model would rebuild the whole fifteen around him,
+   so the row asks first. The amber left rule is the same "read this before you act"
+   treatment the overrides screen uses -- amber, not red, because this is a consequence to
+   understand rather than an error. */
+.ptable tr.arming td{background:var(--warn-lo);}
+.ptable tr.armnote td{padding:0 10px 10px;border-bottom:1px solid var(--line);}
+.ptable tr.armnote .marketnote{margin:0;}
+.ptable tr.armnote .spacer{flex:1;}
+
+/* the transfer tray's owned-player rows, in buy mode: "in your XI" is a fact about your
+   squad, not a channel colour, so it is ink rather than band blue or violet. */
+.pill.xi{background:var(--panel3);border-color:var(--line2);color:var(--ink3);}
+
+/* One figure, one formatting, two consumers: statHtml()/pctHtml() (app.js) build this for
+   both a table cell and the mobile card's meta line, which carries a label the column
+   header already states for the table. */
+.stat{display:inline-flex;align-items:baseline;gap:4px;}
+.stat i{font-style:normal;}
+.stat b{font-weight:700;color:var(--ink2);}
+.ptable .stat i{display:none;}
+.ptable .stat b{color:inherit;font-weight:400;}
+
 .marketpanel{overflow:auto;max-height:660px;}
 .marketnote{
   display:flex;align-items:center;gap:7px;flex-wrap:wrap;
@@ -926,7 +1002,9 @@ button{font-family:inherit;color:inherit;}
   .card .ovtag{font-size:10px;padding:1px 5px;bottom:-6px;}
   .card.iscap{transform:none;}          /* no scale — it would clip the row */
   .card.iscap .shirt{height:14px;}
-  /* role becomes a colour dot; the words are in the legend and the sheet */
+  /* role becomes a colour dot; the words are in the legend and the sheet. Same values as
+     `.role.bare` above, which the market table's Role column uses unconditionally --
+     kept identical by hand since the two live either side of this media boundary. */
   .card .role{font-size:0;padding:0;border:0;background:none;gap:0;}
   .card .role::before{width:7px;height:7px;}
   /* status glyphs replace the buttons when a card is locked or blocked */
@@ -1604,17 +1682,21 @@ body.saving{cursor:progress;}
 .pcnews .nrow{padding:11px 13px;}
 .pcbannerhead{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
 
-/* --- the two things on this card that are YOURS ------------------
-   Lock in and Leave out. Resting is an OUTLINE in the blue, not a fill -- nothing has been
-   decided, and a filled blue button next to "Swap him out" (.btn.primary, also band-filled)
-   would read as a second primary action. Pressed is the fill plus a tick, and the label goes
-   past tense, because the button is then reporting a state rather than offering an action. */
-.sheetacts .btn.own{background:var(--band-lo);border-color:#2A3C8C;color:var(--band-hi);}
-.sheetacts .btn.own:hover{border-color:var(--band);color:var(--ink);}
-.sheetacts .btn.own[aria-pressed="true"]{background:var(--band);border-color:var(--band);
+/* --- Lock in / Leave out -- the reader's own two decisions, in the band blue ------
+   Resting is an OUTLINE in the blue, not a fill -- nothing has been decided, and a filled
+   blue button next to "Swap him out" (.btn.primary, also band-filled) would read as a
+   second primary action. Pressed is the fill plus a tick, and the label goes past tense,
+   because the button is then reporting a state rather than offering an action.
+
+   Unscoped (not `.sheetacts .btn.own`): the market table's row controls (`.rowacts`, below)
+   are the same two decisions in the same place a reader makes them, so they get the same
+   treatment from one rule rather than a second copy. */
+.btn.own{background:var(--band-lo);border-color:#2A3C8C;color:var(--band-hi);}
+.btn.own:hover{border-color:var(--band);color:var(--ink);}
+.btn.own[aria-pressed="true"]{background:var(--band);border-color:var(--band);
   color:var(--onband);}
-.sheetacts .btn.own[aria-pressed="true"]::before{content:'✓';margin-right:6px;opacity:.9;}
-.sheetacts .btn.own[aria-pressed="true"]:hover{background:#4064FF;border-color:#4064FF;}
+.btn.own[aria-pressed="true"]::before{content:'✓';margin-right:6px;opacity:.9;}
+.btn.own[aria-pressed="true"]:hover{background:#4064FF;border-color:#4064FF;}
 
 /* --- the sheet at 390px -------------------------------------- */
 @media (max-width:720px){

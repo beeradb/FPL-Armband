@@ -220,6 +220,10 @@ var shots = []shot{
 	{"phone-pitch", "gameweek-one", "/app#pitch", phone()},
 	{"phone-picker", "gameweek-one", "/app#replace-542", phone()},
 	{"phone-sheet-edges", "edges", "/app#pitch", phone()},
+
+	// The buy-mode tray for the redesigned market row controls.
+	{"buytray-desktop", "gameweek-one", "/app#buy-411", desktop(1500)},
+	{"phone-buytray", "gameweek-one", "/app#buy-411", phone()},
 }
 
 func goldenDir() string { return filepath.Join("testdata", "golden") }

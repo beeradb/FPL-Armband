@@ -348,6 +348,18 @@ type Player struct {
 
 	// Override is the standing correction acting on this player, if any.
 	Override *Override `json:"override,omitempty"`
+
+	// XG90 and XA90 are FPL's own expected figures per 90, blended across seasons
+	// exactly as the rates the model scores are. They are NOT the points: scoring
+	// multiplies them by the position's conversion scale. Carried so the market can
+	// show the underlying rate a projection rests on, not only the projection.
+	XG90 float64 `json:"xg_per_90"`
+	XA90 float64 `json:"xa_per_90"`
+
+	// DefConChance is the chance of the defensive-contribution award in a gameweek,
+	// 0-1 — analysis.PlayerMetrics.DefConChance, copied. A pointer because nil means
+	// the model does not price the term for this player, which is not zero.
+	DefConChance *float64 `json:"defensive_contribution_chance,omitempty"`
 }
 
 // Fixture is one upcoming match, as the FDR strip draws it.

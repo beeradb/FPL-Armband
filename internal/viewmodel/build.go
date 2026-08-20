@@ -174,6 +174,9 @@ func buildPlayer(m analysis.PlayerMetrics, p present.Page) Player {
 		Availability:  m.AvailabilityFactor,
 		AvgDifficulty: m.AvgDifficulty,
 		ValueScore:    m.ValueScore,
+		XG90:          m.XG90,
+		XA90:          m.XA90,
+		DefConChance:  m.DefConChance,
 	}
 	for _, f := range m.Fixtures {
 		pl.Fixtures = append(pl.Fixtures, Fixture{

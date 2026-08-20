@@ -648,6 +648,15 @@ type PlayerMetrics struct {
 	PriorWeight float64 `json:"current_season_weight"`
 	// DefCon90 is defensive contributions per 90, blended like the other rates.
 	DefCon90 float64 `json:"defensive_contribution_per_90"`
+	// DefConChance is the probability this player earns the defensive-contribution
+	// award in a gameweek — appearance included. It is the factor defconPerGameweek
+	// multiplies by defConPoints, exposed rather than recomputed, because a client
+	// that derived it from DefCon90 would be a second implementation of the exposure
+	// correction that function exists to make.
+	//
+	// nil means the model does not price defensive contribution for this player at
+	// all. Zero would read as "he never clears the bar", which is a different claim.
+	DefConChance *float64 `json:"defensive_contribution_chance,omitempty"`
 	// Bonus90, Saves90, Yellow90 and Red90 are counting stats per 90, blended
 	// for the same reason: raw, they are the most explosive terms early on.
 	Bonus90  float64 `json:"bonus_per_90"`
@@ -1904,7 +1913,9 @@ func (e *Engine) metricsIgnoring(el *fpl.Element, ignoreCode int) PlayerMetrics 
 		// counted and add the corrected figure, which is per gameweek.
 		if el.Minutes > 0 {
 			rate -= defconPer90(el.ElementType, m.DefCon90)
-			perGW = e.defconPerGameweek(el.ElementType, m)
+			chance := e.defconChance(el.ElementType, m)
+			m.DefConChance = &chance
+			perGW = chance * defConPoints
 		}
 		if thresholdPart > rate {
 			// A negative rate part is not a thing. Scale BOTH halves by the same
@@ -2645,8 +2656,9 @@ func defconPer90(pos int, dc90 float64) float64 {
 	return poissonAtLeast(defconThreshold(pos), dc90) * defConPoints
 }
 
-// defconPerGameweek is the same term computed at the exposure the player
-// actually gets, which is not the same thing and not a scaled version of it.
+// defconChance is the probability of earning the defensive-contribution award
+// in a gameweek, computed at the exposure the player actually gets, which is
+// not the same thing and not a scaled version of the full-90 probability.
 //
 // The bar is a count of actions *in a match*. A player on sixty minutes has two
 // thirds of the chances to reach ten, so his probability of clearing it falls
@@ -2670,7 +2682,7 @@ func defconPer90(pos int, dc90 float64) float64 {
 // fringe defender at start share zero was credited a 62.4% blank rate whatever his
 // minutes said, which both scaled this term down and inflated the exposure it is
 // computed at. See the note at the top of appearance.go.
-func (e *Engine) defconPerGameweek(pos int, m PlayerMetrics) float64 {
+func (e *Engine) defconChance(pos int, m PlayerMetrics) float64 {
 	if m.DefCon90 <= 0 || m.ExpectedMinutes <= 0 {
 		return 0
 	}
@@ -2679,7 +2691,13 @@ func (e *Engine) defconPerGameweek(pos int, m PlayerMetrics) float64 {
 		return 0
 	}
 	mins := clamp(m.ExpectedMinutes/appears, 0, 90)
-	return appears * poissonAtLeast(defconThreshold(pos), m.DefCon90*mins/90) * defConPoints
+	return appears * poissonAtLeast(defconThreshold(pos), m.DefCon90*mins/90)
+}
+
+// defconPerGameweek is defconChance's probability turned into points. See
+// defconChance for the derivation.
+func (e *Engine) defconPerGameweek(pos int, m PlayerMetrics) float64 {
+	return e.defconChance(pos, m) * defConPoints
 }
 
 // fixtureSensitiveAt is every component of the per-90 estimate that depends on
