@@ -93,6 +93,16 @@ type Config struct {
 
 	// CacheMinutes is how long cached API responses stay fresh.
 	CacheMinutes int `json:"cache_minutes"`
+
+	// SnapshotDir is an optional read-only base checked before CacheDir on every
+	// read; CacheDir remains the only place anything is ever written. Empty (the
+	// zero value, and Default()'s value) disables it entirely, which is every
+	// existing config.json and every non-deployed use — the client behaves
+	// exactly as it did before this field existed. This needs no backfill in
+	// Load: Default() already leaves it "", and json.Unmarshal onto that default
+	// leaves it "" for any config.json that predates the field, which is the
+	// correct "disabled" state, not an omission that needs correcting.
+	SnapshotDir string `json:"snapshot_dir"`
 }
 
 func Default() Config {

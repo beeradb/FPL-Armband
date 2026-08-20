@@ -18,27 +18,74 @@ const baseURL = "https://fantasy.premierleague.com/api"
 
 // Client talks to the public FPL API. Responses are cached on disk so a single
 // agent run (which may call many tools) hits the network once per endpoint.
+//
+// cacheDir is the only place this Client ever writes: a live-fetched response
+// always lands there, never in snapshotDir. snapshotDir, when set, is an
+// optional read-only base consulted before cacheDir on every read — see get()
+// for the read order and NewWithSnapshot for why it is resolved through
+// symlinks once, at construction, rather than on every read.
 type Client struct {
-	http     *http.Client
-	cacheDir string
-	cacheTTL time.Duration
+	http        *http.Client
+	cacheDir    string
+	snapshotDir string
+	cacheTTL    time.Duration
 
 	mu        sync.Mutex
 	bootstrap *Bootstrap
 	fixtures  []Fixture
 }
 
-func New(cacheDir string, ttl time.Duration) *Client {
-	return &Client{
-		http:     &http.Client{Timeout: 30 * time.Second},
-		cacheDir: cacheDir,
-		cacheTTL: ttl,
+// NewWithSnapshot is New with an optional read-only base checked before
+// cacheDir on every read. cacheDir remains the only place anything is ever
+// written — see get()'s comment for the read order and why.
+//
+// snapshotDir, if non-empty, is resolved through any symlinks EXACTLY ONCE,
+// here, not on every read. That is deliberate: the deployment's snapshotDir
+// is `.../archive/current`, a symlink a generator process repoints to a new
+// immutable directory periodically. Resolving it once and keeping the
+// concrete target for the client's whole lifetime means a later repoint
+// cannot change what THIS process reads mid-run — matching the existing
+// architecture's "the engine is built once, only a restart unfreezes it"
+// property (see cmd/armband/main.go and internal/fpl.Client.Bootstrap's own
+// memoization) rather than fighting it.
+//
+// If the path cannot be resolved — most likely because it does not exist yet,
+// e.g. the generator has not published a first snapshot — the snapshot is
+// disabled for this process's whole lifetime (every read falls through to a
+// live fetch) rather than used as given. Using the unresolved path would not
+// actually fail here: os.Stat and os.ReadFile transparently re-resolve a
+// symlink component on every call, so if the path later starts existing —
+// entirely plausible on the exact cold-start race this comment is about — the
+// client would silently start tracking every later repoint instead of staying
+// frozen, which is the per-read behaviour this whole mechanism exists to
+// avoid. Disabling on failure fails in the safe direction (more live fetches)
+// instead of quietly reintroducing that inconsistency.
+func NewWithSnapshot(cacheDir, snapshotDir string, ttl time.Duration) *Client {
+	if snapshotDir != "" {
+		resolved, err := filepath.EvalSymlinks(snapshotDir)
+		if err != nil {
+			snapshotDir = ""
+		} else {
+			snapshotDir = resolved
+		}
 	}
+	return &Client{
+		http:        &http.Client{Timeout: 30 * time.Second},
+		cacheDir:    cacheDir,
+		snapshotDir: snapshotDir,
+		cacheTTL:    ttl,
+	}
+}
+
+// New is NewWithSnapshot with no snapshot base — every existing caller's
+// behaviour, unchanged.
+func New(cacheDir string, ttl time.Duration) *Client {
+	return NewWithSnapshot(cacheDir, "", ttl)
 }
 
 func (c *Client) get(ctx context.Context, path string, out any) error {
 	key := strings.NewReplacer("/", "_", "?", "_", "&", "_").Replace(strings.Trim(path, "/"))
-	cachePath := filepath.Join(c.cacheDir, key+".json")
+	overlayPath := filepath.Join(c.cacheDir, key+".json")
 
 	// Every endpoint this client reaches is public and TTL-cached. There is no
 	// authenticated endpoint and no credentialled response, so there is nothing
@@ -47,10 +94,36 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 		return time.Since(fi.ModTime()) < c.cacheTTL
 	}
 
-	if fi, err := os.Stat(cachePath); err == nil && fresh(fi) {
-		if b, err := os.ReadFile(cachePath); err == nil {
+	// The overlay first: it holds anything a process sharing this cacheDir has
+	// itself fetched, and it is where -refresh's ttl=0 refetches land. This
+	// does not compare mtimes against the snapshot, so it is not "always the
+	// freshest available" — an overlay entry a minute inside its own TTL wins
+	// even if the snapshot underneath it was regenerated more recently. It is
+	// "fresh enough by this process's own TTL", the same guarantee cacheTTL
+	// gave before snapshotDir existed.
+	if fi, err := os.Stat(overlayPath); err == nil && fresh(fi) {
+		if b, err := os.ReadFile(overlayPath); err == nil {
 			if err := json.Unmarshal(b, out); err == nil {
 				return nil
+			}
+		}
+	}
+
+	// Then the read-only snapshot, if one is configured. Its mtime is the
+	// moment the GENERATOR fetched it, not the moment this process started —
+	// cacheTTL is measuring the same thing it always measured (how long ago
+	// this exact JSON was fetched from FPL), so a process that has fetched
+	// nothing itself can still serve fresh data. A missing snapshot (not yet
+	// generated, or this deployment doesn't use one) falls straight through to
+	// the live fetch below — a snapshot miss must never look like an empty or
+	// wrong answer, only a live one.
+	if c.snapshotDir != "" {
+		snapPath := filepath.Join(c.snapshotDir, key+".json")
+		if fi, err := os.Stat(snapPath); err == nil && fresh(fi) {
+			if b, err := os.ReadFile(snapPath); err == nil {
+				if err := json.Unmarshal(b, out); err == nil {
+					return nil
+				}
 			}
 		}
 	}
@@ -71,8 +144,12 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 		return fmt.Errorf("GET %s: decoding: %w", path, err)
 	}
 
+	// Writes always go to the overlay (cacheDir), never to snapshotDir. The
+	// snapshot is read-only from this process's side by construction: only the
+	// deployment's generator writes there, on its own schedule. Do not "fix"
+	// this into writing wherever a cache miss came from.
 	if err := os.MkdirAll(c.cacheDir, 0o755); err == nil {
-		_ = os.WriteFile(cachePath, body, 0o644)
+		_ = os.WriteFile(overlayPath, body, 0o644)
 	}
 	return nil
 }
