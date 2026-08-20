@@ -46,9 +46,29 @@ const deadline = 300 * time.Second
 // thing in these suites that legitimately skips. Everything else — the committed capture,
 // the committed fixtures — fails, because a skip that fires for the wrong reason turns
 // every assertion behind it into a silent pass.
+//
+// ⚠️ EXPERIMENT — this order is the whole content of this branch, and it is a probe, not
+// a pin. See the pull request.
+//
+// The layout goldens have never passed in CI, from the commit that introduced them onward.
+// The renderer is an unpinned input to a pixel-exact comparison: this function takes the
+// first browser on PATH, and the two machines do not agree on what that is. The GitHub
+// runner carries Chromium 151.0.7922.0 AND Google Chrome 151.0.7922.108; the development
+// machine carries snap Chromium 151.0.7922.108, which is what rendered the goldens. Under
+// the old order CI picked its Chromium — build .0 — and every golden came back differing
+// by a worst channel delta of 2 of 255, which is text rasterisation, not layout.
+//
+// Putting google-chrome first makes CI render with the build the goldens were made on,
+// while the development machine, which has no google-chrome, still resolves to the same
+// snap Chromium as before. So a green CI here says the BUILD was the whole story; a red one
+// says the difference lives below the browser, in fontconfig or freetype, and no choice
+// among the runner's browsers can fix it.
+//
+// Either answer decides the real fix, and the real fix is a pin rather than an order —
+// nothing here stops the next runner image moving these versions again.
 func Find(t *testing.T) string {
 	t.Helper()
-	for _, name := range []string{"chromium", "chromium-browser", "google-chrome"} {
+	for _, name := range []string{"google-chrome", "chromium", "chromium-browser"} {
 		if p, err := exec.LookPath(name); err == nil {
 			return p
 		}
