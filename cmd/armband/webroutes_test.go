@@ -143,19 +143,23 @@ func TestTheApplicationIsServedOnItsOwnRoutes(t *testing.T) {
 	for _, tc := range []struct {
 		path, wantType, wantBody string
 	}{
-		// The hero, which is what proves the LANDING page was served rather than
-		// the app shell.
+		// Proof that the LANDING page was served rather than the app shell.
 		//
-		// ⚠️ Pin a CONTIGUOUS fragment. The second line is
-		// `You make the <span class="u">call.</span>` — the highlight span splits
-		// it, so "You make the call" does not appear in the markup at all and an
-		// assertion on it fails against a page that is perfectly correct. The
-		// first line carries no span.
+		// ⚠️ Pin a CONTIGUOUS fragment. The headline carries a highlight span —
+		// today `Pick eleven who’ll <span class="u">play.</span>` — which splits
+		// the sentence, so the obvious assertion fails against a page that is
+		// perfectly correct.
 		//
-		// The wording has moved three times in two days ("See the working", "See
-		// why.", now this), so this pins the shortest fragment that still means
-		// the landing page and not something else.
-		{"/", "text/html", "make the case"},
+		// ⚠️ And do not pin the headline at all. This assertion has now been
+		// broken FOUR times by copy moving underneath it ("See the working",
+		// "See why.", "make the case", and the news-led rewrite that retired
+		// that line entirely). A headline is the most-edited string on the page,
+		// which makes it the worst available sentinel.
+		//
+		// The gate's button is pinned instead: it is landing-only — it appears
+		// nowhere in app.html — it carries no span, and it survived a whole
+		// redesign untouched because it is a control rather than an argument.
+		{"/", "text/html", "Claim my armband"},
 		{"/app", "text/html", "FPL Armband"},
 		{"/assets/armband.css", "text/css", "--band"},
 		{"/assets/fonts.css", "text/css", "@font-face"},
