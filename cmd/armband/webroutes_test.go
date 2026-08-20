@@ -143,7 +143,19 @@ func TestTheApplicationIsServedOnItsOwnRoutes(t *testing.T) {
 	for _, tc := range []struct {
 		path, wantType, wantBody string
 	}{
-		{"/", "text/html", "Pick your XI"},
+		// The hero, which is what proves the LANDING page was served rather than
+		// the app shell.
+		//
+		// ⚠️ Pin a CONTIGUOUS fragment. The second line is
+		// `You make the <span class="u">call.</span>` — the highlight span splits
+		// it, so "You make the call" does not appear in the markup at all and an
+		// assertion on it fails against a page that is perfectly correct. The
+		// first line carries no span.
+		//
+		// The wording has moved three times in two days ("See the working", "See
+		// why.", now this), so this pins the shortest fragment that still means
+		// the landing page and not something else.
+		{"/", "text/html", "make the case"},
 		{"/app", "text/html", "FPL Armband"},
 		{"/assets/armband.css", "text/css", "--band"},
 		{"/assets/fonts.css", "text/css", "@font-face"},
