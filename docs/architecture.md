@@ -207,9 +207,10 @@ two front doors.
 
 ### The supporting packages
 
-Seven more packages fill gaps in what the FPL API publishes. None of them is on the path of
-an ordinary scoring call, so a reader tracing `Score` can safely ignore them; each matters
-when the question is where a number *came from*.
+Eight more packages sit outside the model. Seven fill gaps in what the FPL API publishes;
+the eighth is not about football at all. None is on the path of an ordinary scoring call, so
+a reader tracing `Score` can safely ignore them; each of the seven matters when the question
+is where a number *came from*.
 
 | package | what it is for |
 |---|---|
@@ -220,6 +221,7 @@ when the question is where a number *came from*.
 | `internal/wayback` | the Internet Archive's CDX index and raw-payload endpoints. The only other package that does network I/O, deliberately separate from `internal/fpl` because its results are an immutable record rather than a cache — see [backfill.md](backfill.md) |
 | `internal/backfill` | recovers the same point-in-time team news for **finished** seasons from archived crawls of `bootstrap-static`. Selection is the last crawl strictly before each deadline, never the nearest, and nothing is stored that cannot prove from its own payload that it predates its deadline |
 | `internal/snapshot` | renders the dated model-and-harness accuracy record. It **reads** inference and never computes it; `TestThisPackageDoesNotComputeInference` fails if it grows a copy |
+| `internal/signup` | the addresses the landing page's gate collects, in Postgres. The only package that **collects** personal data rather than archiving what FPL publishes, and the only one that talks to a database. It has **no read side** — nothing in the application ever lists what it has collected, because nothing has a reason to. No store is opened unless `ARMBAND_SIGNUPS_DSN` is set, which is a deployment setting rather than a local one; with none configured `/gate` **refuses with a 503** rather than accepting and discarding, so a deployment that lost its database URL cannot tell readers they signed up. Address validation runs either way. The landing page posts to the live site from wherever it is served, so one address lands in one list |
 
 ---
 

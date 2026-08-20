@@ -911,6 +911,36 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// docs/replay.md. The named lists are deliberate — see the file's own statement — and
 	// a future edit must not "finish the job" by deleting them, nor re-inflate the
 	// resident file with a second copy of a verdict.
+	// # 45 KB from 2026-08-19 — the security bullet now covers a store of personal data
+	//
+	// The claim that needed the room: `armband serve`'s inbound listener "accepts a gate
+	// POST that records an email address to Postgres — the only personal data this project
+	// COLLECTS, as against the published FPL payloads it archives."
+	//
+	// The qualifier is the part that cost the bytes and the part worth having. A first pass
+	// said "the one personal data this project holds", which review falsified from the tree
+	// in three ways: `data/captures/` holds bootstrap payloads carrying players' full
+	// names, `config.json`'s `rest_players` names real footballers, and `internal/fpl`
+	// deserialises the FPL account holder's own name. Dropping "collects, as against …" to
+	// fit would have restored exactly the overstatement review caught, in the file's
+	// SECURITY bullet, where a reader scoping a data-handling change reads it and misses
+	// the capture store — the flattering direction.
+	//
+	// Measured, with the commits, per this block's own rule against reasoning from a
+	// difference nobody recorded: `AGENTS.md` is 44,106 bytes at 4691fae (the branch base),
+	// 44,251 at 47bebed (this edit, +145, which FIT under 44 KB with 805 free), 44,982 at
+	// origin/main 99ae9f2, and 45,127 after merging the two — 71 over.
+	//
+	// So the claim above is what the bytes bought, and the MERGE is why the ceiling moved:
+	// two branches grew independently from one 44,106 base and the result fits under
+	// neither ceiling alone. That is the same arithmetic as the 150 KB entry above, and it
+	// is worth naming because the alternative reading — "the signup sentence broke the
+	// budget" — would put the blame on the one qualifier that must not be dropped.
+	//
+	// ⚠️ Raised rather than compressed, per this comment's own rule. This entry is NOT an
+	// instance of the deletion the failure message counts: nothing was cut to fit, which is
+	// why that count is left where it is.
+	//
 	// # 46 KB from 2026-08-19 — "the tests are slow" was a full disk, and the record has to say so
 	//
 	// The claim that needed the room, and it is a diagnosis rather than a verdict:

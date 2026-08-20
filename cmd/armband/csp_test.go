@@ -47,15 +47,31 @@ func TestTheDocumentsCarryAPolicyThatForbidsInlineScript(t *testing.T) {
 				"it is why app.js and landing.js are separate files.", path, script)
 		}
 
+		// connect-src is the one directive that differs by document, so it is
+		// asserted below rather than here. The landing page reaches the signup
+		// origin; the application must not.
 		for name, want := range map[string]string{
 			"default-src":     "'self'",
-			"connect-src":     "'self'",
 			"frame-ancestors": "'none'",
 			"base-uri":        "'none'",
 		} {
 			if got := directives[name]; got != want {
 				t.Errorf("GET %s: %s is %q, want %q", path, name, got, want)
 			}
+		}
+
+		// ⚠️ The APPLICATION's connect-src must stay exactly 'self'. That is the
+		// directive this whole test is written around: /app renders FPL's prose and
+		// player names by innerHTML, so it is the document an injected string could
+		// ride into, and 'self' is what stops such a string sending the squad
+		// anywhere. The landing page renders nothing untrusted and carries the one
+		// named peer its signup form posts to.
+		want := "'self'"
+		if path == "/" {
+			want = "'self' " + signupOrigin
+		}
+		if got := directives["connect-src"]; got != want {
+			t.Errorf("GET %s: connect-src is %q, want %q", path, got, want)
 		}
 	}
 }

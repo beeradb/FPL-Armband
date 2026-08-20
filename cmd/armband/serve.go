@@ -19,8 +19,15 @@ import (
 	"armband/internal/config"
 	"armband/internal/fpl"
 	"armband/internal/present"
+	"armband/internal/signup"
 	"armband/internal/webui"
 )
+
+// signupDSNEnv names the environment variable carrying the signup database URL.
+//
+// Set means the landing page's gate records what it accepts; unset means it accepts and
+// discards. There is no flag equivalent, on purpose — see cmdServe.
+const signupDSNEnv = "ARMBAND_SIGNUPS_DSN"
 
 // cmdServe hosts the client application over HTTP: the two embedded documents from
 // internal/webui, and the model behind them at /api/state.
@@ -100,6 +107,27 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 		weeks = e.Weights.Horizon
 	}
 
+	// The signup store comes from the ENVIRONMENT, not from a flag.
+	//
+	// A DSN carries a password, and a flag puts it in the process table for every
+	// other user on the box, in the Kubernetes manifest that describes the pod, and
+	// in the shell history of whoever last ran it by hand. An environment variable
+	// sourced from a Secret is the one that can be granted without being published.
+	//
+	// Unset is a supported mode rather than an error: the local `armband serve` is one
+	// reader who does not need to be captured, and its landing page posts to the live
+	// site anyway. Which mode is in force is printed below, because a capture that is
+	// silently off is the failure this whole change exists to remove.
+	var signups signup.Store
+	if dsn := os.Getenv(signupDSNEnv); dsn != "" {
+		store, err := signup.Open(ctx, dsn)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		signups = store
+	}
+
 	s := &squadServer{
 		token:   token,
 		cfg:     &cfg,
@@ -108,6 +136,7 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 		engine:  e,
 		weeks:   weeks,
 		persist: *persist,
+		signups: signups,
 	}
 
 	fmt.Fprintf(os.Stderr, "\n%s\n", dim("Serving the squad page on http://"+*addr+"/?t="+token))
@@ -117,6 +146,14 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 	} else {
 		fmt.Fprintf(os.Stderr, "%s\n", dim("Overrides live in a browser-session cookie — "+
 			"config.json is untouched. Run serve -persist to write them back instead."))
+	}
+	if signups != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", dim("Landing-page signups are recorded to the "+
+			"database named by "+signupDSNEnv+"."))
+	} else {
+		fmt.Fprintf(os.Stderr, "%s\n", dim("Landing-page signups are NOT recorded — "+
+			signupDSNEnv+" is unset, so /gate refuses with a 503. The landing "+
+			"page posts to the live site, so this is the ordinary local mode."))
 	}
 	fmt.Fprintf(os.Stderr, "%s\n\n", dim("Ctrl-C stops the server."))
 	// ListenAndServe never looks at the context, and signal.NotifyContext
@@ -154,6 +191,18 @@ type squadServer struct {
 	// The default config stays a default — the page never mutates it unless
 	// the user asked.
 	persist bool
+	// signups records the landing page's email gate. Nil means no store is
+	// configured, and the gate then REFUSES with a 503 rather than accepting
+	// and discarding — a deployment that lost its database URL must not tell
+	// readers they signed up. See cmdServe and the gate handler.
+	//
+	// Deliberately NOT guarded by the mutex above. That mutex serialises the
+	// optimiser, and the deployment's nginx sidecar permits POST /gate through
+	// its perimeter specifically because the gate does not queue behind a
+	// render; taking the engine's lock here would make that justification
+	// false and put a form submission behind a multi-second squad rebuild.
+	// The store is safe for concurrent use on its own.
+	signups signup.Store
 	// clock is the wall clock, injectable so a test can pin the date the page
 	// is ABOUT. It is the only non-determinism left in a rendered page: the
 	// squad is a function of the bootstrap, but the override staleness rule

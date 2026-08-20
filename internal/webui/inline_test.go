@@ -49,7 +49,8 @@ func TestNoPageCarriesInlineScript(t *testing.T) {
 
 // TestTheLandingFormCanActuallyReachTheGate pins a gap that every other test missed.
 //
-// POST /gate exists, is tested, validates, sets its cookie and redirects. And no shipped
+// POST /gate exists, is tested, validates, records the address, sets its cookie and
+// answers 204. And no shipped
 // page could reach it: both forms were `onsubmit="event.preventDefault()"` with no action,
 // no method, and no name on the input — so the reader saw "check your inbox" and nothing
 // was ever sent. A server-side test of an endpoint says nothing about whether anything
