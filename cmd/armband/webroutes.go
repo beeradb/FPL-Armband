@@ -90,10 +90,9 @@ const signupOrigin = "https://fplarmband.com"
 //
 // ga4 adds a second, independent exception to the same directive, and it is ALWAYS false
 // for page != "landing" -- checked inside this function, not only by the caller, so a
-// mistake in servePage's call cannot widen the application's policy. See scriptSrcFor and
-// imgSrcFor for the two directives GA4 needs alongside this one; they travel together
-// because a script that ships but cannot POST its events is a widened policy spent on
-// tracking nobody.
+// mistake in servePage's call cannot widen the application's policy. See scriptSrcFor for
+// the other directive GA4 needs alongside this one; they travel together because a script
+// that ships but cannot POST its events is a widened policy spent on tracking nobody.
 func connectSrcFor(page string, ga4 bool) string {
 	if page != "landing" {
 		return "connect-src 'self'"
@@ -122,18 +121,6 @@ func scriptSrcFor(page string, ga4 bool) string {
 		return "script-src 'self' https://www.googletagmanager.com"
 	}
 	return "script-src 'self'"
-}
-
-// imgSrcFor gains GA4's own hosts on the landing page alone, for the no-JS beacon
-// fallback it falls back to when a measurement cannot go out as a fetch. img-src already
-// permits data: for the page's own inline assets, so this is one more named exception
-// layered on that, and again only ever on "landing" -- checked here, not just by the
-// caller.
-func imgSrcFor(page string, ga4 bool) string {
-	if page == "landing" && ga4 {
-		return "img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com"
-	}
-	return "img-src 'self' data:"
 }
 
 // ga4EnvVar is spelled once and read from both the CSP decision (servePage, through
@@ -236,7 +223,11 @@ func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name str
 		"default-src 'self'",
 		scriptSrcFor(name, ga4),
 		"style-src 'self' 'unsafe-inline'",
-		imgSrcFor(name, ga4),
+		// img-src does not widen for GA4: gtag.js reports over fetch/XHR, not an
+		// <img> beacon, so there is nothing here that would use a wider img-src --
+		// unlike script-src and connect-src, which the loader and its reporting
+		// genuinely need.
+		"img-src 'self' data:",
 		"font-src 'self'",
 		connectSrcFor(name, ga4),
 		"frame-ancestors 'none'",

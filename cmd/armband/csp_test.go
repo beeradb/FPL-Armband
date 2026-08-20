@@ -137,12 +137,26 @@ func TestGA4WidensOnlyTheLandingPagesCSPWhenConfigured(t *testing.T) {
 		"https://www.googletagmanager.com", // script-src: the GA4 loader itself
 		"https://*.google-analytics.com",   // connect-src: measurement events
 		"https://*.googletagmanager.com",   // connect-src: the loader's own fetches
-		"https://www.google-analytics.com", // img-src: the no-JS beacon fallback
 	} {
 		if !strings.Contains(widenedLanding, want) {
 			t.Errorf("landing CSP with ARMBAND_GA4_ID set does not contain %q: %s",
 				want, widenedLanding)
 		}
+	}
+	// img-src does NOT widen for GA4: gtag.js reports over fetch/XHR, not an <img>
+	// beacon, so there is nothing that would use a wider img-src. Widening it anyway
+	// was caught by security review as unused capability and removed -- this pins that
+	// img-src stays exactly what the unconfigured page already carries.
+	var imgSrc string
+	for _, d := range strings.Split(widenedLanding, ";") {
+		d = strings.TrimSpace(d)
+		if strings.HasPrefix(d, "img-src ") {
+			imgSrc = d
+			break
+		}
+	}
+	if imgSrc != "img-src 'self' data:" {
+		t.Errorf("landing img-src with GA4 configured is %q, want it unwidened", imgSrc)
 	}
 	// script-src alone must gain exactly the one named host, never 'unsafe-inline' or
 	// 'unsafe-eval' — scoped to that one directive, because style-src legitimately
