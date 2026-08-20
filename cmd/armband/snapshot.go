@@ -289,8 +289,8 @@ func runSnapshot(cfg config.Config, args []string) error {
 	// rather than a commit so a later rebase cannot orphan this snapshot.
 	//
 	// Digested from HEAD rather than from the index: a snapshot describes figures
-	// that were *measured*, and measuring happens against a committed tree. A review
-	// record is the other case and digests the index — see `IndexRev`.
+	// that were *measured*, and measuring happens against a committed tree. See
+	// `IndexRev` for the staged-index case this deliberately does not use.
 	root, err := snapshot.RepoRoot(".")
 	if err != nil {
 		return err
