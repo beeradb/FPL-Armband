@@ -216,6 +216,41 @@ func truncate(s string, n int) string {
 	return s[:n] + "..."
 }
 
+// BootstrapFetchedAt reports when the bootstrap payload now in hand was last
+// pulled from FPL — the disk cache file's own modification time, since that
+// write IS the fetch and this client keeps no separate record of it. The
+// zero time means nothing has been cached yet.
+//
+// It exists for the News tab's freshness line ("FPL status last read 3
+// minutes ago"), which must be server-formatted for the same reason every
+// other staleness figure in the client contract is: the client has no
+// honest way to compute "ago" against a clock it does not share with the
+// server. See internal/viewmodel.State.News.
+//
+// ⚠️ For a long-running `armband serve` process this answers "when was the
+// data now being served fetched", which is right — but Bootstrap memoizes
+// the result in memory for the life of the process (see its own comment),
+// so nothing in this client will fetch AGAIN until the process restarts,
+// however old the disk cache gets. A caller pairing this with CacheTTL to
+// print "next read at HH:MM" is describing the cache file's TTL contract,
+// not a promise that THIS process will act on it — that would need a
+// periodic refresh this client does not have.
+func (c *Client) BootstrapFetchedAt() time.Time {
+	fi, err := os.Stat(filepath.Join(c.cacheDir, "bootstrap-static.json"))
+	if err != nil {
+		return time.Time{}
+	}
+	return fi.ModTime()
+}
+
+// CacheTTL is how long a cached response is served before a fresh request
+// would refetch it — cache_minutes, as constructed by New. Exported so a
+// caller can compute what BootstrapFetchedAt's own freshness window is,
+// without a second copy of the number.
+func (c *Client) CacheTTL() time.Duration {
+	return c.cacheTTL
+}
+
 // Bootstrap returns players, teams and gameweeks, memoized for the process.
 func (c *Client) Bootstrap(ctx context.Context) (*Bootstrap, error) {
 	c.mu.Lock()
@@ -304,6 +339,23 @@ func (b *Bootstrap) TeamByName(name string) *Team {
 func (b *Bootstrap) ElementByID(id int) *Element {
 	for i := range b.Elements {
 		if b.Elements[i].ID == id {
+			return &b.Elements[i]
+		}
+	}
+	return nil
+}
+
+// ElementByCode looks a player up by his PERMANENT code rather than his
+// season-scoped element id. Every standing correction is keyed on the code
+// for exactly this reason — element ids are reassigned every summer, so a
+// caller holding only a code (a config override, for instance) needs this
+// rather than reconstructing a code-to-id map of its own.
+func (b *Bootstrap) ElementByCode(code int) *Element {
+	if code == 0 {
+		return nil
+	}
+	for i := range b.Elements {
+		if b.Elements[i].Code == code {
 			return &b.Elements[i]
 		}
 	}

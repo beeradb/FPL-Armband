@@ -342,6 +342,85 @@ func TestMinutesOverrideBeatsTheData(t *testing.T) {
 	}
 }
 
+// TestNaturalMetricsUndoesExactlyOneOverride guards the mechanism behind the
+// news surface's before/after line ("pts a week 4.20 -> 3.15"): NaturalMetrics
+// must reproduce the pre-override score for the overridden player, through the
+// same scoring path Metrics uses, and must not move any OTHER player's score —
+// a player check-in for one footballer must not silently reprice the pool.
+func TestNaturalMetricsUndoesExactlyOneOverride(t *testing.T) {
+	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	el := findEverPresent(t, e)
+	mins, starts := el.Minutes, el.Starts
+	defer func() { el.Minutes, el.Starts = mins, starts }()
+
+	playGameweeks(t, e, 10)
+	el.Minutes, el.Starts = 90, 1 // one appearance in ten gameweeks
+
+	// A bystander, scored before the override exists, so the same-figure check
+	// below is not comparing against a value the override could have moved.
+	var bystander *fpl.Element
+	for i := range e.Boot.Elements {
+		if c := e.Boot.Elements[i].Code; c != 0 && c != el.Code {
+			bystander = &e.Boot.Elements[i]
+			break
+		}
+	}
+	if bystander == nil {
+		t.Skip("no second player in the pool")
+	}
+	bystanderBefore := e.Metrics(bystander).Score
+
+	if e.HasMinutesOverride(el.Code) {
+		t.Fatal("override present before one was installed")
+	}
+	natural := e.Metrics(el)
+
+	e.MinutesOverride = map[int]float64{el.Code: 90}
+	if !e.HasMinutesOverride(el.Code) {
+		t.Fatal("HasMinutesOverride false immediately after installing one")
+	}
+	overridden := e.Metrics(el)
+	undone := e.NaturalMetrics(el)
+
+	t.Logf("%s: natural %.2f, overridden %.2f, NaturalMetrics %.2f",
+		el.WebName, natural.Score, overridden.Score, undone.Score)
+
+	if overridden.Score == natural.Score {
+		t.Fatal("test is not exercising the override: overridden score did not move")
+	}
+	if math.Abs(undone.Score-natural.Score) > 1e-9 {
+		t.Errorf("NaturalMetrics gave %.4f, want the pre-override %.4f", undone.Score, natural.Score)
+	}
+	if math.Abs(undone.ExpectedMinutes-natural.ExpectedMinutes) > 1e-9 {
+		t.Errorf("NaturalMetrics minutes %.2f, want the pre-override %.2f",
+			undone.ExpectedMinutes, natural.ExpectedMinutes)
+	}
+
+	// The bystander must be untouched by both the override and by asking to
+	// ignore someone else's.
+	if got := e.Metrics(bystander).Score; math.Abs(got-bystanderBefore) > 1e-9 {
+		t.Errorf("bystander's score moved from %.4f to %.4f", bystanderBefore, got)
+	}
+	if got := e.NaturalMetrics(bystander).Score; math.Abs(got-bystanderBefore) > 1e-9 {
+		t.Errorf("NaturalMetrics moved a player with no override of his own: %.4f -> %.4f",
+			bystanderBefore, got)
+	}
+
+	// A player with no override at all: NaturalMetrics must be a no-op, not an
+	// error and not a different number, so a caller who forgets to gate on
+	// HasMinutesOverride gets the honest answer rather than a silently wrong one.
+	e.MinutesOverride = nil
+	if e.HasMinutesOverride(el.Code) {
+		t.Fatal("override still reported present after clearing")
+	}
+	plain := e.Metrics(el)
+	plainNatural := e.NaturalMetrics(el)
+	if math.Abs(plain.Score-plainNatural.Score) > 1e-9 {
+		t.Errorf("NaturalMetrics diverged from Metrics with no override in force: %.4f vs %.4f",
+			plainNatural.Score, plain.Score)
+	}
+}
+
 // TestMinutesOverrideToZeroSuppresses — setting a player to zero is how the
 // analysis layer says "he is out", and it should make him unpickable without
 // needing the certainty a hard exclusion implies.

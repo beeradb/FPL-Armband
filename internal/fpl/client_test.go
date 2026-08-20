@@ -17,6 +17,58 @@ func liveBootstrap(t *testing.T) *Bootstrap {
 	return b
 }
 
+// TestBootstrapFetchedAtTracksTheDiskCacheAndTTL pins the two facts the News
+// tab's FPL-status freshness line is built from: the disk cache file's own
+// mtime is the fetch time, and CacheTTL reports the same window New was
+// constructed with, so a caller can compute "next read at" without a second
+// copy of the TTL.
+func TestBootstrapFetchedAtTracksTheDiskCacheAndTTL(t *testing.T) {
+	dir := t.TempDir()
+	ttl := 45 * time.Minute
+	c := New(dir, ttl)
+
+	if got := c.BootstrapFetchedAt(); !got.IsZero() {
+		t.Errorf("BootstrapFetchedAt = %v before anything was cached, want the zero time", got)
+	}
+
+	before := time.Now()
+	if _, err := c.Bootstrap(context.Background()); err != nil {
+		t.Skipf("FPL API unreachable: %v", err)
+	}
+	after := time.Now()
+
+	fetched := c.BootstrapFetchedAt()
+	if fetched.IsZero() {
+		t.Fatal("BootstrapFetchedAt is still zero after a successful fetch")
+	}
+	if fetched.Before(before.Add(-time.Second)) || fetched.After(after.Add(time.Second)) {
+		t.Errorf("BootstrapFetchedAt = %v, want between %v and %v", fetched, before, after)
+	}
+	if c.CacheTTL() != ttl {
+		t.Errorf("CacheTTL = %v, want the %v passed to New", c.CacheTTL(), ttl)
+	}
+}
+
+// TestElementByCodeFindsThePermanentIdentifier pins the lookup the News
+// surface's before/after line depends on: config keys every standing
+// correction by permanent code, never by the season-scoped element id, so
+// resolving one to an *Element has to go through the code.
+func TestElementByCodeFindsThePermanentIdentifier(t *testing.T) {
+	boot := &Bootstrap{Elements: []Element{
+		{ID: 1, Code: 111, WebName: "Kinsky"},
+		{ID: 2, Code: 222, WebName: "Kadıoğlu"},
+	}}
+	if got := boot.ElementByCode(222); got == nil || got.WebName != "Kadıoğlu" {
+		t.Errorf("ElementByCode(222) = %+v, want Kadıoğlu", got)
+	}
+	if got := boot.ElementByCode(999); got != nil {
+		t.Errorf("ElementByCode(999) = %+v, want nil for a code nobody has", got)
+	}
+	if got := boot.ElementByCode(0); got != nil {
+		t.Errorf("ElementByCode(0) = %+v, want nil — 0 is never a real player code", got)
+	}
+}
+
 // FreeTransfers is pure, so unlike most tests in this repo it needs no network.
 // Fixtures are built from JSON because EntryHistory's fields are anonymous
 // structs — which also exercises the wire shape the API actually returns.

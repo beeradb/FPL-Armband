@@ -119,117 +119,25 @@ func TestEveryControlOnACardReachesTheServer(t *testing.T) {
 	}
 }
 
-// TestNewsIgnoreReachesTheServer.
+// TestNewsIgnoreReachesTheServer was here and is RETIRED, because the control it drove no
+// longer exists anywhere in the product.
 //
-// # The defect this guards
+// It clicked Ignore on a config-sourced row in the News tab and asserted a PUT carrying a
+// dismissal reached the server -- guarding the defect where a control repaints the DOM and
+// sends nothing. That property still matters and is still covered for every surviving
+// control by TestEveryControlOnACardReachesTheServer above, which drives the same
+// save() -> PUT /api/session path.
 //
-// News replaced the old Overrides tab's bare "✕" delete button with Ignore / Use it again,
-// and the whole point of that redesign is that clearing a config-sourced override suppresses
-// it for the session WITHOUT touching config.json -- and the row stays drawn, greyed, rather
-// than vanishing. All of that runs through the same save() -> PUT /api/session path the lock
-// and block icons use, and that path has a documented history of controls that repainted the
-// DOM and sent nothing (see TestEveryControlOnACardReachesTheServer above). This asserts a
-// REQUEST reaches the server when Ignore is clicked, not merely that the row's class changes.
+// What went: the News tab now carries no per-row control at all, and Your instructions
+// stopped listing config entries, which took ignoreOverride()'s last caller with it. Framed
+// as news rather than as a setting, "don't count this" is not an offer the reader is being
+// made in v1.
 //
-// It does not additionally cover Use it again, Remove or Reset: those share the exact same
-// save()/sendSave() plumbing and PUT shape (a mutated field on the PENDING object), so a
-// control-specific browser test for each would be duplicating the proof that the shared
-// mechanism works rather than testing anything different about them.
-func TestNewsIgnoreReachesTheServer(t *testing.T) {
-	browser := browsertest.Find(t)
-
-	body, err := os.ReadFile(filepath.Join("testdata", "state", "gameweek-one.json"))
-	if err != nil {
-		t.Fatalf("reading the state fixture: %v", err)
-	}
-
-	var mu sync.Mutex
-	var puts []map[string]any
-
-	mux := http.NewServeMux()
-	mux.Handle("/assets/", webui.StaticHandler("/assets/"))
-	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_, _ = w.Write(body)
-	})
-	mux.HandleFunc("/api/session", func(w http.ResponseWriter, r *http.Request) {
-		var got map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		mu.Lock()
-		puts = append(puts, got)
-		mu.Unlock()
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_, _ = w.Write(body)
-	})
-	mux.HandleFunc("/probe.js", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-		_, _ = w.Write([]byte(probeIgnoreClick))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		page, err := webui.Page("app")
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		page = append(page, []byte(`<script src="/probe.js"></script>`)...)
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(page)
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app#news")
-	report := between(dom, "PROBE:", ":END")
-	if report == "" {
-		t.Fatalf("the probe never reported, so nothing was clicked and this test asserts "+
-			"nothing. DOM was %d bytes", len(dom))
-	}
-	if !strings.HasPrefix(report, "ok ") {
-		t.Fatalf("the probe could not run: %s", report)
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	if len(puts) == 0 {
-		t.Fatalf("clicking Ignore in News sent NOTHING to the server. The row could still "+
-			"grey out client-side and the model would go on applying the correction, which "+
-			"is exactly the defect the old bare '✕' button had. Probe: %s", report)
-	}
-	var sawDismissal bool
-	for _, p := range puts {
-		if len(asInts(p["dis"])) > 0 {
-			sawDismissal = true
-		}
-	}
-	if !sawDismissal {
-		t.Errorf("no request carried a dismissal, over %d requests: %v", len(puts), puts)
-	}
-}
-
-// probeIgnoreClick opens the News tab, waits for a config-sourced override row's Ignore
-// button, and clicks it.
-const probeIgnoreClick = `(function(){
-  function report(msg){
-    var el=document.createElement('div');
-    el.id='probe';
-    el.textContent='PROBE:'+msg+':END';
-    document.body.appendChild(el);
-  }
-  var tries=0;
-  function go(){
-    var ignore=document.querySelector('#ovlist [data-ignore]');
-    if(!ignore){
-      if(++tries>100){ report('no Ignore button after '+tries+' tries'); return; }
-      setTimeout(go,50); return;
-    }
-    ignore.click();
-    setTimeout(function(){ report('ok clicked Ignore'); }, 400);
-  }
-  window.addEventListener('load', go);
-})();`
+// ⚠️ Do not restore this test against a different button to keep the coverage. The dismissal
+// path it asserted is unreachable from the client, so a test pointed at any other control
+// would be asserting the shared save() plumbing under a misleading name -- and that plumbing
+// already has its own test. If suppression returns, this test returns with it, pointed at
+// the real control.
 
 // probeClicks drives the two icons and reports what it managed to do.
 //

@@ -96,6 +96,22 @@ let BENCHMARKS=[]; /* the same, with the name and price the legend prints */
 let TODAY=new Date();
 let STATE=null;    /* the raw document, for anything not mapped below */
 
+/* NEWS carries the two freshness strings the News tab prints. Both are formatted BY THE
+   SERVER, for the same reason app.js:1388 (see renderNews) has always given for staleness:
+   a relative "3 minutes ago" is a clock reading, and the client does not own the clock.
+   checked covers FPL's own status feed; readChecked is a second, independent cadence for
+   the team news a person reads and passes to the model -- LAST READ ONLY, no "next read
+   at", because there is no scheduler behind it yet (NOTES.md §3). */
+let NEWS={checked:'', readChecked:''};
+
+/* CHIPWIN is the two chip-window facts the client is not allowed to invent: the last
+   gameweek of the current window, and how many chips are genuinely unspent IN it --
+   counting ones already played, which GWS (current + upcoming only) cannot see. The one
+   arithmetic the client performs on these is a subtraction of two gameweek integers, in
+   chipWeeksLeft() below -- a calendar fact, not a competition rule. See app.js:625's old
+   defect, fixed by this pair. */
+let CHIPWIN={endsGw:null, remaining:null};
+
 /* The chip spellings the engine uses, mapped to the keys this file already had.
    One direction only: the engine's spelling is authoritative and the client must
    not invent a chip the plan does not name. */
@@ -113,7 +129,11 @@ const CHIPKEY={
 function player(p){
   return {
     id:p.id, code:p.code, n:p.name, club:p.club, pos:p.pos, pr:p.price,
-    xp:p.xp, p90:p.per90, mn:p.minutes, rel:p.reliability, own:p.ownership,
+    /* mn is Player.ModelledMinutes -- the "54" in "minutes 90 → 54 modelled" on the News
+       tab's standing band and the player card's Will he start? cell. Falls back to the
+       older `minutes` name so a build straddling the rename does not go blank. */
+    xp:p.xp, p90:p.per90, mn:p.modelled_minutes!==undefined?p.modelled_minutes:p.minutes,
+    rel:p.reliability, own:p.ownership,
     role:p.role, status:p.status, news:p.news, fixtures:p.fixtures||[],
     /* XP per million, from analysis.PlayerMetrics.ValueScore. Used to be xpFor(p)/p.pr in
        the sheet -- one of three client surfaces computing a model quantity; this closes it. */
@@ -126,10 +146,15 @@ function player(p){
     /* Sort keys must be numbers the server already sent -- see the sortable-tables
        comment near renderPlayers. avgFdr is Player.AvgDifficulty, already decided. */
     avgFdr:p.avg_fdr,
+    /* ov is what v1 draws as news, not as a hand-set override -- see the News tab and the
+       player card's .pcnews band. `eff` is NewsItem.effect, {label,was,now,direction},
+       pre-formatted by the server; undefined until the field ships, and undefined means
+       "do not render a before/after", never a fabricated one. */
     ov:p.override ? {
       t:p.override.label, why:p.override.reason, set:p.override.set_on,
       lapse:p.override.until, chk:p.override.checked,
-      needsCheck:p.override.needs_check, age:p.override.check_age
+      needsCheck:p.override.needs_check, age:p.override.check_age,
+      eff:p.override.effect
     } : undefined
   };
 }
@@ -164,7 +189,11 @@ function hydrate(st){
     id:'o'+i, code:o.code, t:o.label, kind:o.kind, who:o.player, club:o.club,
     set:o.set_on, lapse:o.until, chk:o.checked, inSquad:o.in_squad,
     why:o.reason, needsCheck:o.needs_check, age:o.check_age, flag:o.flag,
-    session:o.session, eff:''
+    session:o.session,
+    /* NewsItem.effect -- {label,was,now,direction}, pre-formatted by the server. Absent
+       until the field ships; absent means the News tab's row renders no before/after
+       rather than faking one from xpFor(). */
+    eff:o.effect
   }));
   /* Upsert into the cache -- never clear it here. A code that has dropped out of `live`
      this time might be one the reader just ignored, and the cache is what lets News keep
@@ -179,6 +208,12 @@ function hydrate(st){
   saveOvCache();
 
   BLIND=st.blind||[];
+
+  NEWS={checked:(st.news&&st.news.checked)||'', readChecked:(st.news&&st.news.read_checked)||''};
+  CHIPWIN={
+    endsGw:(st.chips&&st.chips.window_ends_gw!=null)?st.chips.window_ends_gw:null,
+    remaining:(st.chips&&st.chips.remaining_in_window!=null)?st.chips.remaining_in_window:null
+  };
 
   BENCHMARKS=st.market.benchmarks||[];
   WEAKEST={};
@@ -295,8 +330,13 @@ let S={
   gw:1, view:'pitch',
   xi:[], bench:[], benchGk:null,
   cap:null, vc:null,
-  locks:new Set(), blocks:new Set(), ovKind:'ALL',
+  locks:new Set(), blocks:new Set(),
   swapFrom:null,
+  /* Whether the chip catalogue is open. Kept here, not local to renderChips(), so it
+     survives the re-render every save() triggers -- picking a chip should not close the
+     popover the reader just picked it from. moveConfirm names the chip whose "move it
+     here?" strip is open, or null. */
+  chipOpen:false, moveConfirm:null,
   posFilter:'ALL', q:'', affordOnly:false, showAll:false,
   modelXi:[],
   /* Sort and filter are independent axes and sort survives a filter change -- one state
@@ -440,7 +480,7 @@ function notify(text){
  * guessing at that on the client would draw a squad the model has not agreed to. */
 function toggleCorrection(id, kind){
   const code=codeOf(id);
-  if(!code){ notify('That player has no code, so the correction cannot be saved.'); return; }
+  if(!code){ notify('That player has no code, so we can’t save that.'); return; }
   return save(pending=>{
     const had=((kind==='lock'?pending.lock:pending.excl)||[]).includes(code);
     pending.lock=(pending.lock||[]).filter(c=>c!==code);
@@ -491,6 +531,12 @@ function role(band){
 const roleChip=(band,sm)=>{const r=role(band);
   return `<span class="role ${r.c}${sm?' sm':''}">${esc(sm?r.s:r.l)}</span>`;};
 
+/* The same band, as a number -- 1 (nailed) through 5 (fringe) -- for riskRows() below,
+   which has to filter and sort the fifteen rather than just colour a chip. Reads the same
+   ROLES table role() does, so the two can never disagree about which band a string names. */
+const ROLE_NUM={'nailed':1,'likely starter':2,'rotation risk':3,'squad player':4,'fringe':5};
+const roleNum=band=>ROLE_NUM[band]||5;
+
 /* The strip for `n` gameweeks starting at `from`, which is a GAMEWEEK NUMBER and not an
    index into the fixture list. */
 function fdrHtml(club,n=5,from=S.gw){
@@ -501,6 +547,29 @@ function fdrHtml(club,n=5,from=S.gw){
   return '<span class="fdr">'+
     f.map(x=>`<i class="f${x.fdr}" title="${esc(x.opp)} (${esc(x.ha)}) difficulty ${x.fdr}">${x.fdr}</i>`).join('')+
     pad.map(()=>'<i class="blank" title="no fixture scheduled this far out">·</i>').join('')+
+    '</span>';
+}
+/* The fixture ribbon for the player sheet's header -- "Coming up", drawn once, replacing
+   both the old .fdr chip strip AND the mono line that repeated the same five fixtures
+   underneath it (P-14, deleted). Kept apart from fdrHtml(), which the pitch cards still
+   use unchanged: this is a wider cell carrying the opponent's own code, not a bare digit.
+
+   HOME AND AWAY ARE ONE GLYPH -- away is @MCI, home is bare MCI, and there is no legend.
+   Colour is difficulty and nothing else; the previous solid-vs-outlined construction
+   spent colour on a second meaning and is deleted, not merely superseded (NOTES.md §1).
+   Padded to a constant cell count with .blank, exactly as fdrHtml() does. */
+function ribbon(club,n,from){
+  n=n||5; from=from===undefined?S.gw:from;
+  const all=FIX[club]||[];
+  const f=all.filter(x=>x.gw>=from && x.gw<from+n);
+  const pad=Array(Math.max(0,n-f.length)).fill(null);
+  return '<span class="fxr">'+
+    f.map(x=>{
+      const away=x.ha==='A';
+      return `<i class="f${x.fdr}" title="${esc(x.opp)} ${away?'away':'home'}, difficulty ${x.fdr}">`
+        +`${away?'<span class="at">@</span>':''}${esc(x.opp)}</i>`;
+    }).join('')+
+    pad.map(()=>'<i class="blank" aria-hidden="true">·</i>').join('')+
     '</span>';
 }
 /* The club's fixture in a given gameweek, or null. A blank week is a real answer and the
@@ -575,18 +644,181 @@ function clubCounts(){const m={};P.forEach(p=>m[p.club]=(m[p.club]||0)+1);return
 /* ============================================================
    RENDER — gameweek rail
    ============================================================ */
+/* weeksLeft/urgency are the chip control's clock: pressure = weeks left in the window
+   divided by chips still unspent in it. A fixed gameweek cannot do this job -- "week 10"
+   is early for a reader who has spent three chips and late for one who has spent none.
+   Both inputs are CHIPWIN, server-sent (see hydrate()); the only arithmetic here is a
+   subtraction of two gameweek integers, a calendar fact and not a competition rule. */
+function chipWeeksLeft(){ return CHIPWIN.endsGw!=null ? CHIPWIN.endsGw-S.gw+1 : null; }
+function chipUrgency(){
+  const left=CHIPWIN.remaining, w=chipWeeksLeft();
+  if(!left || w===null) return '';                 /* nothing to lose, or no window yet known: stay silent */
+  const p=w/left;
+  if(p>=3) return '';                               /* quiet */
+  if(p>=1.5) return 'due';                          /* an outline */
+  return 'due last';                                /* the fill */
+}
 function renderRail(){
   const el=document.getElementById('gwrail');
+  const due=!!chipUrgency();
   el.innerHTML=GWS.map(g=>{
     const c=CHIPS.find(c=>c.k===g.chip);
+    /* The window boundary is a fact about the calendar, so it lives on the calendar: the
+       19px .chipslot already reserves per week, on the window's last week, quiet ink while
+       the pill is quiet and amber when the pill is amber. Because the rail only shows the
+       current week and the ones ahead, GW{endsGw} walks into view on its own about five
+       weeks out -- the reader meets the deadline before the alarm (NOTES.md §4). */
+    const slot=c?`<span class="pill on">${c.ic} ${c.n}</span>`
+      :(g.gw===CHIPWIN.endsGw?`<span class="wend${due?' due':''}">Chips end</span>`:'');
     return `<button class="gw${g.live?' live':''}" role="tab" data-gw="${g.gw}"
       aria-selected="${g.gw===S.gw}">
       <div class="n">GW${g.gw}${g.live?' <span class="k" style="letter-spacing:.1em">NOW</span>':''}</div>
       <div class="d">${g.d}</div>
-      <div class="chipslot">${c?`<span class="pill on">${c.ic} ${c.n}</span>`:''}</div>
+      <div class="chipslot">${slot}</div>
     </button>`;}).join('');
   el.querySelectorAll('.gw').forEach(b=>b.onclick=()=>{S.gw=+b.dataset.gw;renderAll();});
 }
+
+/* ============================================================
+   RENDER — the chip control
+   ============================================================
+   Nothing is the default and a chip is the exception, so the resting state is one ghost
+   pill in .pitchhud -- no slab, no row of four buttons, no space taken from the team. It
+   escalates as its window closes (chipUrgency() above) rather than looking the same in
+   GW3, when there is nothing to do, as in GW17, when two chips are about to evaporate.
+   Replaces the deleted <details class="chipfold"> and its #chiprow.
+   ============================================================ */
+/* Every chip this week, in the state the row has to draw. `on` is running now; `planned`
+   is the READER'S plan for a different week -- not disabled, selecting it moves the plan
+   here (see wireChips' .cmrow handler); `closed` is everything the reader cannot act on,
+   which is either FPL's own week.playable refusal or a chip already spent. The client
+   cannot always tell those two apart (there is no "spent in GWn" field on the wire), so a
+   closed row states only what it knows for certain: this chip is not offered this week. */
+function chipListFor(week){
+  const cur=week.chip;
+  const offered=new Set((week.playable||[]).map(c=>c.k));
+  return CHIPS.map(c=>{
+    const on=cur===c.k;
+    const plannedGw=on?null:((GWS.find(g=>g.gw!==S.gw && g.chip===c.k)||{}).gw||null);
+    return {k:c.k, n:c.n, ic:c.ic, on, planned:!!plannedGw, plannedGw, playable:offered.has(c.k)};
+  });
+}
+function chipExplain(k){
+  return {
+    bboost:`Bench Boost: all fifteen score. Your bench adds ${benchPts().toFixed(1)} pts and the order stops mattering, so pick for points, not safety.`,
+    '3xc':`Triple Captain: ${esc(byId(S.cap).n)} scores three times over — ${(xpFor(byId(S.cap))*3).toFixed(1)} pts.`,
+    wildcard:`Wildcard: change as many players as you like, with no points deducted. You still have to afford them. The Players tab becomes a full rebuild.`,
+    freehit:`Free Hit: a team for one week only. After GW${S.gw} you get your old fifteen back — nothing you buy here sticks.`
+  }[k];
+}
+function cmRowHtml(c,week){
+  const closed=c.on?false:(c.planned?false:!c.playable);
+  const state=c.on?'running this week'
+    : c.planned?`planned for GW${c.plannedGw}`
+    : !c.playable?`FPL doesn’t offer this in GW${S.gw}`
+    : 'available';
+  const cls=closed?' closed':c.planned?' placed':'';
+  const confirmOpen=S.moveConfirm===c.k;
+  return `<button class="cmrow${cls}" type="button" role="menuitemradio" data-chip="${c.k}"
+      ${c.planned?`data-move="${c.plannedGw}"`:''}
+      aria-pressed="${c.on}" ${closed?'disabled':''}>
+      <span class="ic" aria-hidden="true">${c.on?'✓':c.ic}</span>
+      <span><span class="t-row cmname">${esc(c.n)}</span><span class="t-meta">${esc(state)}</span></span>
+      ${c.planned?`<span class="gwtag">Move here</span>`:`<span class="tick">${c.on?'✓':''}</span>`}
+    </button>
+    ${c.planned?`<div class="cmconfirm"${confirmOpen?'':' hidden'} data-for="${c.k}">
+      <span class="t-body">Move your ${esc(c.n)} from GW${c.plannedGw} to GW${S.gw}?</span>
+      <button class="btn sm ghost" type="button" data-keep="${c.k}">Keep GW${c.plannedGw}</button>
+      <button class="btn sm" type="button" data-moveok="${c.k}">Move it</button>
+    </div>`:''}`;
+}
+function chipMenuHtml(week){
+  const list=chipListFor(week), cur=week.chip;
+  const u=chipUrgency(), w=chipWeeksLeft();
+  const left=CHIPWIN.remaining, size=4;
+  return `<div class="chipmenu"${S.chipOpen?'':' hidden'} role="menu">
+    <div class="cmhead">
+      <span class="t-label">Play a chip in GW${S.gw}</span>
+      <span class="sp"></span>
+      <span class="t-meta">${left==null?'—':left} of ${size} left</span>
+      <span class="t-meta cmwindow">${CHIPWIN.endsGw==null?'The chip window has not loaded yet.'
+        :`This window ends after GW${CHIPWIN.endsGw}. Unused chips do not carry over.`}</span>
+    </div>
+    ${u&&left!=null&&w!=null?`<div class="cmwarn"><span class="g" aria-hidden="true">!</span>
+      <span class="t-body">${left} unspent, ${w} gameweek${w===1?'':'s'} left in this window.</span></div>`:''}
+    ${list.map(c=>cmRowHtml(c,week)).join('')}
+    ${cur?`<p class="cmnote t-body acc">${esc(chipExplain(cur))}</p>`:''}
+    <div class="cmfoot"><span class="t-meta">You get a few of these for the whole season, so most weeks the answer is none. Pick one and your points re-run with it on.</span></div>
+  </div>`;
+}
+function chipPillHtml(week){
+  const cur=week.chip, c=CHIPS.find(x=>x.k===cur);
+  const u=chipUrgency(), left=CHIPWIN.remaining, w=chipWeeksLeft();
+  return `<button class="chippill${c?' set':u?' '+u:''}" type="button"
+      aria-expanded="${S.chipOpen}" aria-haspopup="menu">
+      <span>Chip</span>
+      ${c?`<b>${esc(c.n)}</b>`
+        :u&&left!=null?`<span class="lft">${left} left</span><span class="by">· by GW${CHIPWIN.endsGw}</span>`
+        :`<span class="dash">none</span>`}
+      <span class="car" aria-hidden="true"></span>
+    </button>`;
+}
+function renderChips(){
+  const week=gwState()||{};
+  const el=document.getElementById('chipctl');
+  if(!el) return;
+  el.innerHTML=chipPillHtml(week)+chipMenuHtml(week);
+  wireChips(el,week);
+}
+function wireChips(el,week){
+  const pill=el.querySelector('.chippill'), menu=el.querySelector('.chipmenu');
+  const scrim=document.getElementById('chipscrim');
+  pill.onclick=e=>{
+    e.stopPropagation();
+    S.chipOpen=!S.chipOpen;
+    if(!S.chipOpen) S.moveConfirm=null;
+    renderChips();
+  };
+  if(scrim){ scrim.classList.toggle('on',S.chipOpen); scrim.onclick=()=>{S.chipOpen=false;S.moveConfirm=null;renderChips();}; }
+  el.querySelectorAll('.cmrow').forEach(r=>r.onclick=e=>{
+    e.stopPropagation();
+    if(r.classList.contains('placed')){
+      /* The reader's own plan, so it may move -- but a wildcard is a season-defining
+         decision and it may not relocate on a mis-tap. One in-place confirm, naming both
+         gameweeks (NOTES.md §4). */
+      S.moveConfirm = S.moveConfirm===r.dataset.chip ? null : r.dataset.chip;
+      renderChips();
+      return;
+    }
+    if(r.disabled) return;
+    const chip = r.getAttribute('aria-pressed')==='true' ? null : r.dataset.chip;
+    save(pending=>{
+      pending.chips=Object.assign({},pending.chips||{});
+      if(chip) pending.chips[String(S.gw)]=chip; else delete pending.chips[String(S.gw)];
+    });
+  });
+  el.querySelectorAll('[data-keep]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation(); S.moveConfirm=null; renderChips();
+  });
+  el.querySelectorAll('[data-moveok]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();
+    const chip=b.dataset.moveok;
+    const from=(GWS.find(g=>g.chip===chip)||{}).gw;
+    S.moveConfirm=null;
+    /* One write, not two: the plan leaves the week it was in and lands in the current
+       one. */
+    save(pending=>{
+      pending.chips=Object.assign({},pending.chips||{});
+      if(from) delete pending.chips[String(from)];
+      pending.chips[String(S.gw)]=chip;
+    });
+  });
+}
+/* Registered once, not per render (wireChips runs on every save) -- a listener added again
+   on every redraw would fire the same Escape press once per render since boot. */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape' && S.chipOpen){ S.chipOpen=false; S.moveConfirm=null; renderChips(); }
+});
 
 /* ============================================================
    RENDER — readout
@@ -622,7 +854,13 @@ function renderReadout(){
    <div class="sb-div"></div>
    <div class="sb-cell"><span class="k">Chip</span>
      <div class="v">${c?c.n:'None'}</div>
-     <div class="sub">${c?'included above':(4-GWS.filter(g=>g.chip).length)+' of 4 left'}</div></div>
+     <!-- ⚠️ Was (4 - GWS.filter(g=>g.chip).length) + ' of 4 left' -- GWS is the rail,
+          current + upcoming (app.js:93), so a chip already spent earlier in the window
+          was never counted and the figure overstated what the reader had; the 4 was
+          hardcoded with no concept of the two windows; and it was the client deciding a
+          competition rule. CHIPWIN.remaining is server-sent and scoped to the window
+          (NOTES.md §6). -->
+     <div class="sub">${c?'in the number above':(CHIPWIN.remaining==null?'—':CHIPWIN.remaining+' left this season')}</div></div>
    <div class="sb-pad"></div>`;
 
   // the score reacts to your hand
@@ -648,45 +886,6 @@ function renderReadout(){
   const imminent=!!g.live;
   t.textContent = imminent ? countdown(g.deadline) : (g.d||'');
   t.className='t'+(imminent?' soon':'');
-}
-
-/* ============================================================
-   RENDER — chip row
-   ============================================================ */
-function renderChips(){
-  const week=gwState()||{};
-  const cur=week.chip;
-  const used=new Set(GWS.filter(g=>g.gw!==S.gw&&g.chip).map(g=>g.chip));
-  /* Only the chips the competition allows THIS week. Gameweek one offers the bench boost
-     and the triple captain and nothing else; the model decides that, not this file. The
-     fallback to the full catalogue is for a week the server said nothing about. */
-  const offered=(week.playable&&week.playable.length)?week.playable:CHIPS;
-  document.getElementById('chiprow').innerHTML=
-    `<span class="k" style="margin-right:2px">Chip for GW${S.gw}</span>`+
-    offered.map(c=>{
-      const isUsed=used.has(c.k);
-      const wk=GWS.find(g=>g.chip===c.k);
-      return `<button class="chipbtn${isUsed?' used':''}" data-chip="${esc(c.k)}"
-        aria-pressed="${cur===c.k}" ${isUsed?'disabled title="planned for GW'+wk.gw+'"':''}>
-        <span class="dot"></span>${c.ic} ${esc(c.n)}${isUsed?` <span class="k">GW${wk.gw}</span>`:''}</button>`;
-    }).join('')+
-    (cur?`<span class="chipnote">${chipExplain(cur)}</span>`:
-      `<span class="dim" style="font-size:12px;margin-left:4px">Pick one and the projection above re-runs under that chip's rules.</span>`);
-  document.querySelectorAll('.chipbtn').forEach(b=>b.onclick=()=>{
-    const g=gwState()||{}; g.chip = g.chip===b.dataset.chip ? null : b.dataset.chip;
-    save(pending=>{
-      pending.chips=Object.assign({},pending.chips||{});
-      if(g.chip) pending.chips[String(g.gw)]=g.chip; else delete pending.chips[String(g.gw)];
-    });
-  });
-}
-function chipExplain(k){
-  return {
-    bboost:`Bench boost: the fifteen all score. Your bench adds ${benchPts().toFixed(1)} pts — order stops mattering, so pick for points not safety.`,
-    '3xc':`Triple captain: ${esc(byId(S.cap).n)} scores ×3 (${(xpFor(byId(S.cap))*3).toFixed(1)} pts).`,
-    wildcard:`Wildcard: unlimited transfers, no hits. Budget rules still apply — the Players tab is now a full rebuild.`,
-    freehit:`Free hit: this week's team only, reverts after GW${S.gw}. Nothing you buy here carries forward.`
-  }[k];
 }
 
 /* ============================================================
@@ -874,56 +1073,57 @@ document.getElementById('swapcancel').onclick=()=>{S.swapFrom=null;setSwapbar();
    ignoring locks and the three-per-club rule), and a server-computed replacement is filed
    as deferred rather than rebuilt here under a new name.
    ============================================================ */
+/* ⚠️ Only the reader's own locks and leave-outs appear here, and that is the whole point of
+   the panel now. It used to carry a second group -- config-sourced entries for a player in
+   the fifteen, under "Set in your settings file", each with an Ignore button. Those are NEWS,
+   provided by the system, and they live on the News tab; listing them under a heading that
+   says "Your instructions" asserted the one thing about them that is not true.
+
+   Dropping that group removes the last caller of ignoreOverride() and useAgain(), so both are
+   deleted with it, and the suppression capability leaves the product in v1. That is deliberate
+   and was taken on the product owner's ruling, not inferred: news is not something the reader
+   adjudicates. If it returns, it returns on the News tab where the item is, and the violet
+   channel this design reserves is what it should wear. */
 function renderInstructions(){
-  const mine=OV.filter(o=>o.session);                       // this session's own locks/blocks
-  const cfgd=OV.filter(o=>!o.session && o.inSquad);          // the settings file, for a player you own
+  const mine=OV.filter(o=>o.session);                       // this session's own locks and leave-outs
   const el=document.getElementById('instrbody');
   const count=document.getElementById('instrCount');
-  const n=mine.length+cfgd.length;
-  count.textContent=n?`${n} active`:'';
-  if(!n){
+  count.textContent=mine.length?`${mine.length} active`:'';
+  if(!mine.length){
     el.innerHTML=`<div class="empty" style="padding:22px 16px">
-      <div class="big">You haven't told it anything yet</div>
-      <p>This eleven is our own pick. Open a player and choose <b>always pick him</b> to keep
-      him through a rebuild.</p>
+      <div class="big">You haven't told us anything yet.</div>
+      <p>This eleven is our own pick. Open any player and <b>Lock in</b> to keep him, or
+      <b>Leave out</b> to make sure we never pick him.</p>
     </div>`;
     return;
   }
-  const verb=o=>o.kind==='exclude'?'Never pick':'Always pick';
-  const rows=(list,cfg)=>list.map(o=>`
-    <div class="instrrow${cfg?' cfg':''}">
-      <span class="v">${esc(cfg?(o.t):verb(o))}</span>
+  /* Past tense, because these label a state that already exists rather than an action -- and
+     they are the same two words as the buttons that created it. */
+  const verb=o=>o.kind==='exclude'?'Left out':'Locked in';
+  el.innerHTML=mine.map(o=>`
+    <div class="instrrow">
+      <span class="v">${esc(verb(o))}</span>
       <span class="who">${esc(o.who)}<span class="club">${esc(o.club)}</span></span>
-      <button class="btn sm ghost" data-instr="${cfg?'ignore':'remove'}" data-code="${o.code||0}">${cfg?'Ignore':'Remove'}</button>
+      <button class="btn sm ghost" data-instr="undo" data-code="${o.code||0}">Undo</button>
     </div>`).join('');
-  el.innerHTML =
-    (mine.length?rows(mine,false):'')+
-    (mine.length&&cfgd.length?`<div class="hr" style="margin:8px 13px"></div>
-      <div class="k" style="padding:0 13px 6px">Set in your settings file</div>`:'')+
-    (cfgd.length?rows(cfgd,true):'');
   el.querySelectorAll('[data-instr]').forEach(b=>b.onclick=()=>{
     const code=+b.dataset.code;
-    if(!code){ notify('That entry has no player to act on.'); return; }
-    if(b.dataset.instr==='remove'){
-      const o=mine.find(x=>x.code===code);
-      if(o) toggleCorrection(codeToId(code), o.kind==='exclude'?'block':'lock');
-    } else {
-      ignoreOverride(code);
-    }
+    if(!code){ notify('That player has no code, so we can’t save that.'); return; }
+    const o=mine.find(x=>x.code===code);
+    if(o) toggleCorrection(codeToId(code), o.kind==='exclude'?'block':'lock');
   });
 }
 
-/* Both News and Your instructions Ignore the same way: the code goes on the dismissal
-   list, the row STAYS drawn (from OV_CACHE) but greyed, and the settings file is
-   untouched. See OV_CACHE's own comment for why the row would otherwise vanish. */
-function ignoreOverride(code){
-  return save(pending=>{
-    pending.dis=(pending.dis||[]).concat([code]).filter((c,i,a)=>a.indexOf(c)===i);
-  });
-}
-function useAgain(code){
-  return save(pending=>{ pending.dis=(pending.dis||[]).filter(c=>c!==code); });
-}
+/* ignoreOverride() and useAgain() were here and are DELETED, with their last caller.
+   They put a player's code on `pending.dis`, which suppressed a config-sourced entry for the
+   visit and had the server rebuild the squad without it.
+
+   Nothing suppresses news in v1. The News tab carries no per-row control at all, and the
+   instructions panel no longer lists config entries -- see renderInstructions.
+
+   ⚠️ `pending.dis` is still in the wire format and the server still honours it. It is only
+   the client that stopped writing to it, so restoring the capability is a UI change and not
+   a protocol one. Do not remove it from the contract on the strength of this deletion. */
 
 /* ============================================================
    RENDER — the model's blind spots (Brief tab)
@@ -952,28 +1152,31 @@ function renderBlind(){
    covers both "still loading" (never reached, the caller shows a skeleton instead) and "FPL
    has no Premier League season on record for him", which is the ordinary case for a
    debutant or a player promoted from a division this feed does not cover. */
+/* Eight cells, one grid, plus a meta footer -- not a 2x2 statgrid and two floating lines.
+   Goals, assists, xG and xA were always the same KIND of thing as points, minutes, starts
+   and pts/90 -- a measured season count -- and printing half of them as grid cells and half
+   as loose sentences is exactly why they used to float. Row one is the rate, row two is the
+   return, on a slightly darker ground so it reads as the underlying layer. Clean sheets,
+   bonus and the price move are not counts of that kind (position-dependent, a bonus ledger,
+   money) and sit in one meta footer line under the grid (NOTES.md §2). */
 function lastSeasonHtml(ls){
-  if(!ls) return `<div class="panel" style="padding:10px 12px;font-size:12.5px;color:var(--ink2)">
-    No Premier League minutes last season.</div>`;
-  const cs = ls.clean_sheets===undefined||ls.clean_sheets===null ? '' :
-    ` · ${ls.clean_sheets} clean sheet${ls.clean_sheets===1?'':'s'}`;
+  if(!ls) return `<p class="pcnil"><span class="g" aria-hidden="true">–</span>
+    <span class="t-meta">He didn’t play in the Premier League last season.</span></p>`;
+  const cs = ls.clean_sheets===undefined||ls.clean_sheets===null ? 0 : ls.clean_sheets;
   return `
-    <div class="dim" style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">${esc(ls.season)}</div>
-    <div class="statgrid">
-      <div><div class="k">points</div><div class="v">${ls.points}</div></div>
-      <div><div class="k">minutes</div><div class="v">${ls.minutes}</div></div>
-      <div><div class="k">starts</div><div class="v">${ls.starts}</div></div>
-      <div><div class="k">pts/90</div><div class="v">${ls.points_per_90.toFixed(2)}</div></div>
+    <div class="msgrid">
+      <div><span class="t-label">points</span><span class="t-stat">${ls.points}</span></div>
+      <div><span class="t-label">minutes</span><span class="t-stat">${ls.minutes}</span></div>
+      <div><span class="t-label">starts</span><span class="t-stat">${ls.starts}</span></div>
+      <div><span class="t-label">pts/90</span><span class="t-stat">${ls.points_per_90.toFixed(2)}</span></div>
+      <div class="und"><span class="t-label">goals</span><span class="t-stat">${ls.goals}</span></div>
+      <div class="und"><span class="t-label">assists</span><span class="t-stat">${ls.assists}</span></div>
+      <div class="und"><span class="t-label">xG</span><span class="t-stat">${ls.xg.toFixed(1)}</span></div>
+      <div class="und"><span class="t-label">xA</span><span class="t-stat">${ls.xa.toFixed(1)}</span></div>
     </div>
-    <div style="font-size:12.5px;color:var(--ink2);margin-bottom:4px">
-      ${ls.goals} goal${ls.goals===1?'':'s'} · ${ls.assists} assist${ls.assists===1?'':'s'}${cs}
-    </div>
-    <div style="font-size:12.5px;color:var(--ink2);margin-bottom:6px">
-      ${ls.xg.toFixed(1)} xG · ${ls.xa.toFixed(1)} xA · ${ls.bonus} bonus
-    </div>
-    <div class="dim" style="font-family:var(--mono);font-size:11px">
-      £${ls.price_start.toFixed(1)}m → £${ls.price_end.toFixed(1)}m over the season
-    </div>`;
+    <p class="t-meta msfoot"><span>${esc(ls.season)}</span><span>·</span>
+      <span>${cs} clean sheet${cs===1?'':'s'}</span><span>·</span><span>${ls.bonus} bonus</span><span>·</span>
+      <span>£${ls.price_start.toFixed(1)}m → £${ls.price_end.toFixed(1)}m</span></p>`;
 }
 
 /* gameweeksHtml draws band 4. gws is viewmodel.PlayerGameweek[] or undefined/empty -- empty
@@ -986,18 +1189,22 @@ function lastSeasonHtml(ls){
    the same 720px breakpoint the rest of this design uses and reappear, per row, on tap --
    see .pdgwdetail in armband.css. Not horizontal scroll: the bench already owns that
    gesture on this page. */
+/* Wrapped in .gwscroll so a long log (up to 38 rows by the end of a season) does not push
+   the sheet's actions out of reach -- the table scrolls inside a fixed-height box with a
+   sticky header, rather than the sheet growing without limit. The .pdmore column-hiding
+   mechanism and wireGwTaps() below it are otherwise unchanged. */
 function gameweeksHtml(gws){
-  if(!gws || !gws.length) return `<div class="panel" style="padding:10px 12px;font-size:12.5px;color:var(--ink2)">
-    No gameweeks played yet. The figures above are last season's, shrunk toward the league.</div>`;
+  if(!gws || !gws.length) return `<p class="pcnil"><span class="g" aria-hidden="true">–</span>
+    <span class="t-meta">No games played yet this season.</span></p>`;
   const rows=gws.slice().reverse();
-  return `<table class="gwtable"><thead><tr>
+  return `<div class="gwscroll"><table class="gwtable"><thead><tr>
       <th>GW</th><th>Opp</th><th class="n">Min</th><th class="n">Pts</th>
       <th class="n pdmore">G</th><th class="n pdmore">A</th><th class="n pdmore">CS</th>
       <th class="n pdmore">BPS</th><th class="n pdmore">xG</th><th class="n pdmore">xA</th>
     </tr></thead><tbody>${rows.map(r=>`
       <tr class="pdgwrow" tabindex="0">
         <td class="n">${r.gw}</td>
-        <td>${esc(r.opponent)} (${r.home?'H':'A'})</td>
+        <td>${r.home?'':'@'}${esc(r.opponent)}</td>
         <td class="n">${r.minutes}</td>
         <td class="n">${r.points}</td>
         <td class="n pdmore">${r.goals}</td>
@@ -1009,7 +1216,7 @@ function gameweeksHtml(gws){
       </tr>
       <tr class="pdgwdetail"><td colspan="4">
         G ${r.goals} · A ${r.assists} · CS ${r.clean_sheet} · BPS ${r.bps} · xG ${r.xg.toFixed(2)} · xA ${r.xa.toFixed(2)}
-      </td></tr>`).join('')}</tbody></table>`;
+      </td></tr>`).join('')}</tbody></table></div>`;
 }
 
 /* Tapping a row on a narrow screen reveals its .pdgwdetail sibling -- the mobile answer to
@@ -1047,126 +1254,183 @@ async function loadPlayerDetail(code){
     if(wired) wireGwTaps(wired);
   }catch(e){
     if(!stillOpen()) return;
-    const msg=`<div class="panel" style="padding:10px 12px;font-size:12.5px;color:var(--ink2)">
-      Last season and this season's log could not be loaded.</div>`;
+    const msg=`<p class="pcnil"><span class="g" aria-hidden="true">–</span>
+      <span class="t-meta">We couldn't load his history. Close the card and open it again.</span></p>`;
     const ls=document.getElementById('pd-lastseason'), gw=document.getElementById('pd-gameweeks');
     if(ls) ls.outerHTML=`<div id="pd-lastseason">${msg}</div>`;
     if(gw) gw.outerHTML=`<div id="pd-gameweeks"></div>`;
   }
 }
 
+/* The five-word difficulty scale (P-08): FDR as a rank a reader has to look up is the
+   worst jargon on the card. Used in the derivation popover's "Who's he playing" row and
+   nowhere else -- the header ribbon and the by-gameweek table carry difficulty as colour,
+   not as a word, exactly as .fdr already does on the pitch. */
+const FDR_WORD={1:'very easy',2:'easy',3:'even',4:'hard',5:'very hard'};
+
+/* Every piece of news on this player, in the News tab's own row shape, minus the third
+   column: nothing here is the reader's to adjudicate (NOTES.md §2). Two sources, both
+   system-provided -- FPL's own flag, first, and whatever team news was read and passed to
+   the model for this specific player. Absent on both counts renders nothing at all. */
+function playerNewsRows(p){
+  const rows=[];
+  const av=p.availability===undefined?1:p.availability;
+  if(p.news || av<1){
+    rows.push({
+      chip: av===0?'OUT':(av<1?`${Math.round(av*100)}% FIT`:'FPL'),
+      cls: av===0?'out':(av<1?'fpl':''),
+      when:'FPL',
+      text: p.news?p.news:'FPL hasn’t said why.',
+      pill: av===0?'<span class="pill bad">He scores nothing this week</span>'
+          : av<1?`<span class="pill warn">We're counting ${Math.round(av*100)}% of his points</span>`:''
+    });
+  }
+  if(p.ov){
+    rows.push({
+      chip:'Reported', cls:'read', when:'Read '+esc(p.ov.set||''),
+      text:p.ov.why, pill:'',
+      /* NewsItem.effect -- render only once the server sends it (NOTES.md §6). */
+      effect:p.ov.eff
+    });
+  }
+  return rows;
+}
+function effectClass(dir){ return dir==='acc'||dir==='warnc'||dir==='badc' ? dir : ''; }
+function pcNewsRowHtml(o){
+  return `<div class="nrow">
+    <div class="nsrc">
+      <span class="chip${o.cls?' '+o.cls:''}">${esc(o.chip)}</span>
+      <span class="when t-meta">${esc(o.when)}</span>
+    </div>
+    <div class="nbody">
+      ${o.pill?`<div class="nwho">${o.pill}</div>`:''}
+      <p class="t-body">${esc(o.text)}</p>
+      ${o.effect?`<span class="neffect">
+        <span class="t-label">${esc(o.effect.label)}</span>
+        <span class="t-meta">${esc(o.effect.was)}</span>
+        <span class="arw" aria-hidden="true">→</span>
+        <span class="t-stat ${effectClass(o.effect.direction)}">${esc(o.effect.now)}</span>
+      </span>`:''}
+    </div>
+  </div>`;
+}
+
+/* The derivation popover -- desktop hover only, gone outright under 720px (wireWhy /
+   the media query in armband.css). These rows are the model's INPUTS, not an expression
+   that produces the total under them, and the footer says so rather than implying an
+   arithmetic this file does not perform (NOTES.md §2). */
+function derivPopHtml(p,f,mult,isCap){
+  const figure=(xpFor(p)*(isCap?mult:1)).toFixed(2);
+  const av=p.availability===undefined?1:p.availability;
+  return `<div class="derivpop" role="tooltip" id="deriv-${p.id}">
+    <div class="t-label dhead">What goes into the number</div>
+    <div class="dstep"><span class="t-body">How much he scores</span>
+      <span class="dv">${p.p90.toFixed(2)} per 90</span></div>
+    <div class="dstep"><span class="t-body">Who's he playing</span>
+      <span class="dv">${f?`${f.ha==='A'?'@':''}${esc(f.opp)}, ${f.ha==='A'?'away':'home'} — ${FDR_WORD[f.fdr]||f.fdr}`:'No game this week'}</span></div>
+    <div class="dstep"><span class="t-body">Will he play</span><span class="dv">${p.rel.toFixed(2)}</span></div>
+    <div class="dstep"><span class="t-body">Is he fit</span><span class="dv">${av.toFixed(2)}</span></div>
+    ${isCap?`<div class="dstep"><span class="t-body">${mult===3?'Your armband, tripled':'Your armband'}</span><span class="dv">×${mult}</span></div>`:''}
+    <div class="dstep total"><span class="t-row">His score this week</span><span class="dv">${figure}</span></div>
+    <p class="t-meta derivfoot">These are the inputs. The figure is the model's own — we don't re-do its sums here.</p>
+  </div>`;
+}
+
 /* ============================================================
    RENDER — player sheet (the "why" for one player)
+   ============================================================
+   Deliberately shaped as design-assets/v2/player-card.html's sheetHtml(): same data, same
+   guards, new bands. Band order: header with the fixture ribbon opposite the name; .pcnews
+   (every piece of news, absent = nothing); .pchero (the figure, its hover derivation, Will
+   he start?, Per £m); Last season; This season by gameweek; Lock in / Leave out on the
+   band channel. "No corrections" and the old .statgrid/.deriv panels are gone with the
+   override concept they explained -- see NOTES.md §2.
    ============================================================ */
 function openSheet(id){
   const p=byId(id), chip=gwState().chip;
   const f=fixtureIn(p.club,S.gw);
   const inSquad=P.some(x=>x.id===id);
   const onPitch=S.xi.includes(id);
+  const isCap=S.cap===id, mult=chip==='3xc'?3:2;
+  const locked=S.locks.has(id), leftOut=S.blocks.has(id);
+  const news=playerNewsRows(p);
   const sheet=document.getElementById('sheet');
   sheet.innerHTML=`
-   <header>
-     <div style="width:6px;align-self:stretch;border-radius:3px;background:${CLUBC[p.club]||'#39506A'}"></div>
-     <div style="flex:1">
-       <div class="nm">${esc(p.n)}</div>
-       <div class="sub">${esc(p.pos)} · ${esc(p.club)} · £${p.pr.toFixed(1)}m · ${p.own.toFixed(1)}% owned</div>
-     </div>
-     <button class="btn icon ghost" id="sheetclose" aria-label="Close">✕</button>
-   </header>
-   <div class="body">
-     <!-- FPL's own news, if any. First -- above the projection, not the derivation -- because
-          a reduced availability is the largest single fact about the number below it, and
-          today it is invisible everywhere except the replacement picker. Existing contract
-          fields (Player.News/Status); no new endpoint needed for this. -->
-     ${p.news?`<div class="newsbanner${p.availability===0?' bad':''}">
-       <div class="h">${p.availability===0?'Ruled out':'FPL news'}</div>
-       ${esc(p.news)}
-     </div>`:''}
-     <div class="statgrid">
-       <div><div class="k">pts a week</div><div class="v acc">${xpFor(p).toFixed(2)}</div></div>
-       <!-- p.value is analysis.PlayerMetrics.ValueScore, sent by the server on every Player
-            (viewmodel.Player.ValueScore carries no omitempty tag, so it is always a number,
-            never undefined) -- this used to be xpFor(p)/p.pr, one of three client surfaces
-            computing a model quantity. No fallback: a fallback that can never run is not
-            protecting anything, it only reads as though it is. -->
-       <div><div class="k">Per £m</div><div class="v">${p.value.toFixed(2)}</div></div>
-       <div><div class="k">Role</div><div class="v" style="font-size:12px;padding-top:3px">${roleChip(p.role)}</div>
-            <div class="dim" style="font-family:var(--mono);font-size:10px;margin-top:3px">${p.mn.toFixed(0)} min/gw modelled</div></div>
-       <div><div class="k">Reliability</div><div class="v">${p.rel.toFixed(2)}</div>
-            <div class="dim" style="font-family:var(--mono);font-size:10px;margin-top:3px">how often that role held up</div></div>
-     </div>
+<div class="sheet pc">
+  <header>
+    <div class="pcbar" style="background:${CLUBC[p.club]||'#39506A'}"></div>
+    <div class="pcid">
+      <h2 class="t-title">${esc(p.n)}</h2>
+      <p class="t-meta">${esc(p.pos)} · ${esc(p.club)} · £${p.pr.toFixed(1)}m · ${p.own.toFixed(1)}% owned</p>
+    </div>
+    <div class="pcnext">
+      <span class="t-label">Next five</span>
+      ${ribbon(p.club,5,S.gw)}
+    </div>
+    <button class="btn icon ghost pcclose" aria-label="Close">✕</button>
+  </header>
 
-     <!-- ⚠️ These are the model's INPUTS, not a derivation, and the difference is
-          deliberate. This panel used to print "points per 90" then "x minutes mn/90" and a
-          total -- the exact expression that was removed from xpFor for being wrong. Score
-          is (rate x reliability + appearance + clean sheet + defensive contribution) x
-          congestion x role certainty x availability x fixture load; minutes/90 is not one
-          of its terms, and the figure shown as Reliability above is the one it uses.
-          The steps did not produce the total under them.
+  <div class="body">
+    ${news.length?`<div class="pcnews">${news.map(pcNewsRowHtml).join('')}</div>`:''}
 
-          Reproducing the real expression here would be a second implementation of it,
-          which is what this whole change exists to remove. So the inputs are shown as
-          inputs and the answer is the model's. -->
-     <div class="k" style="margin-bottom:6px">What goes into the number</div>
-     <div class="deriv panel" style="padding:10px 12px">
-       <div class="step"><span class="muted">points per 90, after fixtures</span><b>${p.p90.toFixed(2)}</b></div>
-       <div class="step"><span class="muted">${f?`fixture ${esc(f.opp)} (${esc(f.ha)}) FDR ${f.fdr}`:'no fixture'}</span><b></b></div>
-       <div class="step"><span class="muted">minutes reliability</span><b>${p.rel.toFixed(2)}</b></div>
-       <div class="step"><span class="muted">availability</span><b>${(p.availability===undefined?1:p.availability).toFixed(2)}</b></div>
-       ${chip==='3xc'&&S.cap===id?`<div class="step"><span class="muted">× triple captain</span><b>×3</b></div>`:
-         S.cap===id?`<div class="step"><span class="muted">× captain</span><b>×2</b></div>`:''}
-       <div class="step total"><span>the model's figure, per gameweek</span>
-         <b>${(xpFor(p)*(S.cap===id?(chip==='3xc'?3:2):1)).toFixed(2)}</b></div>
-     </div>
+    <div class="pchero">
+      <div class="pcfig">
+        <span class="t-label">pts a week</span>
+        <button class="pcwhy" type="button" aria-describedby="deriv-${p.id}">
+          <span class="t-figure">${(xpFor(p)*(isCap?mult:1)).toFixed(2)}</span>
+          <span class="cue" aria-hidden="true">?</span>
+        </button>
+        ${derivPopHtml(p,f,mult,isCap)}
+      </div>
+      <div class="pcstats">
+        <div class="pcstart">
+          <span class="t-label">Will he start?</span>
+          <span class="srow">
+            ${roleChip(p.role)}
+            <span class="t-stat">${Math.round(p.mn||0)}</span>
+            <span class="t-meta">we expect ${Math.round(p.mn||0)} mins a game</span>
+          </span>
+          <span class="mbar" aria-hidden="true"><span style="width:${Math.round((p.rel||0)*100)}%"></span></span>
+          <span class="t-meta">1.00 is nailed on</span>
+        </div>
+        <div>
+          <span class="t-label">points per £m</span>
+          <span class="t-stat">${p.value.toFixed(2)}</span>
+          <span class="t-meta">points for the money</span>
+        </div>
+      </div>
+    </div>
 
-     <div class="k" style="margin:14px 0 6px">Next five</div>
-     ${fdrHtml(p.club,5,S.gw)}
-     <div class="dim" style="font-family:var(--mono);font-size:11px;margin-top:6px">
-       ${(FIX[p.club]||[]).filter(x=>x.gw>=S.gw&&x.gw<S.gw+5).map(x=>`${esc(x.opp)}(${esc(x.ha)},${x.fdr})`).join(' · ')||'no fixtures in the next five'}
-     </div>
+    <div class="pcsec"><span class="t-label">Last season</span></div>
+    <div id="pd-lastseason"><p class="pcnil"><span class="t-meta">Loading…</span></p></div>
 
-     <!-- Last season and this-season-by-gameweek are the depth this card exists to carry.
-          Neither is in State -- ~590 players times a full match log is a payload nobody
-          reads on every page build -- so the sheet opens on what State already has (above)
-          and these two bands arrive from a per-player fetch. Skeleton text reserves the
-          space so the arrival does not jump the layout. See loadPlayerDetail. -->
-     <div class="k" style="margin:14px 0 6px">Last season</div>
-     <div id="pd-lastseason" class="dim" style="font-size:12.5px">Loading…</div>
+    <div class="pcsec"><span class="t-label">Week by week</span></div>
+    <div id="pd-gameweeks"><p class="pcnil"><span class="t-meta">Loading…</span></p></div>
 
-     <div class="k" style="margin:14px 0 6px">This season, by gameweek</div>
-     <div id="pd-gameweeks" class="dim" style="font-size:12.5px">Loading…</div>
-
-     ${p.ov?`<div class="reason">
-        <div class="h">Hand-set override — role set to ${esc(p.ov.t.toLowerCase())}</div>
-        ${esc(p.ov.why)}
-        <div style="margin-top:8px;font-family:var(--mono);font-size:10px;opacity:.75">
-          set ${esc(p.ov.set)} · lapses after ${esc(p.ov.lapse)} · checked ${esc(p.ov.chk)}</div>
-      </div>`:`<div class="panel" style="margin-top:12px;padding:10px 12px;font-size:12.5px;color:var(--ink2)">
-        <b style="color:var(--ink)">No corrections.</b> This is the raw model number, measured from last season's returns.
-      </div>`}
-
-     <div class="sheetacts">
-       ${inSquad?`
-         <button class="btn primary" data-sact="swap">${onPitch?'Swap out of the XI':'Swap into the XI'}</button>
-         <button class="btn" data-sact="replace">Replace him…</button>
-         <button class="btn ghost" data-sact="lock">${S.locks.has(id)?'Unlock':'Lock in'}</button>
-         <button class="btn ghost" data-sact="block">${S.blocks.has(id)?'Unblock':'Block'}</button>`
-       :`<button class="btn primary" data-sact="buy">Transfer in — £${p.pr.toFixed(1)}m</button>
-         <button class="btn ghost" data-sact="block">${S.blocks.has(id)?'Unblock':'Block from every build'}</button>`}
-     </div>
-   </div>`;
+    <div class="sheetacts">
+      ${inSquad?`
+        <button class="btn primary" data-sact="swap">${onPitch?'Swap him out':'Swap him in'}</button>
+        <button class="btn" data-sact="replace">Replace him…</button>
+        <button class="btn own" type="button" aria-pressed="${locked}" data-sact="lock">${locked?'Locked in':'Lock in'}</button>
+        <button class="btn own" type="button" aria-pressed="${leftOut}" data-sact="block">${leftOut?'Left out':'Leave out'}</button>`
+      :`<button class="btn primary" data-sact="buy">Transfer in — £${p.pr.toFixed(1)}m</button>
+        <button class="btn own" type="button" aria-pressed="${leftOut}" data-sact="block">${leftOut?'Left out':'Leave out'}</button>`}
+    </div>
+  </div>
+</div>`;
   document.getElementById('scrim').classList.add('open');
   /* Marks which player the two skeleton bands above belong to, checked when the fetch below
      resolves -- the reader may close the sheet, or open a DIFFERENT player, before then, and
      a stale response must not paint over whoever is showing now. */
   sheet.dataset.pdcode=String(p.code);
   loadPlayerDetail(p.code);
-  sheet.querySelector('#sheetclose').onclick=closeSheet;
+  sheet.querySelector('.pcclose').onclick=closeSheet;
+  wireWhy(sheet);
   /* No "Make captain" / "Make vice" here any more -- the armband picker
      (openArmbandPicker) is the one route, priced and ranked, at every width. */
   sheet.querySelectorAll('[data-sact]').forEach(b=>b.onclick=()=>{
     const a=b.dataset.sact;
-    /* Locking and blocking are STANDING corrections -- they bind every build, not just
+    /* Locking and leaving out are STANDING corrections -- they bind every build, not just
        this page -- so they go to the server and the answer is the squad the model picks
        under them. Applying them locally would show a fifteen the model has not agreed to. */
     if(a==='lock'||a==='block'){
@@ -1188,6 +1452,13 @@ function openSheet(id){
       return;
     }
     closeSheet();renderAll();
+  });
+}
+/* Click as well as hover, so a desktop touch screen can reach the derivation. Under 720px
+   .pcwhy is pointer-events:none (armband.css), so this never fires there. */
+function wireWhy(root){
+  root.querySelectorAll('.pcwhy').forEach(b=>{
+    b.onclick=()=>b.closest('.pcfig').classList.toggle('open');
   });
 }
 /* Captain picker — ranked by what the armband is actually worth this week */
@@ -1371,130 +1642,158 @@ document.getElementById('affordToggle').onclick=e=>{
 };
 
 /* ============================================================
-   RENDER — News (was "overrides")
+   RENDER — News
    ============================================================
-   No authoring here: "no custom overrides at this point" was unambiguous, and the deleted
-   "+ New override" form displayed a HARDCODED projected effect for whoever you picked --
-   fabricated arithmetic on a page whose whole pitch is showing its working. Gone with it:
-   the suggested library (its "+ Add" button never had a handler) and "Reset to defaults"
-   (which never re-imported anything). Two controls that did nothing, closed by deletion.
+   Three sources, all provided by the system: FPL's own status; team news we've read; and
+   the standing "who may not start" band, drawn from role bands the model already produces.
+   The old kind filter (All / Minutes / Scoring / Selection, newsKindMatch, SELECTION_KINDS)
+   is deleted with the "your settings" framing it served -- on a news page the reader's
+   question is who says so, not which config key, and the groups now do the work a filter
+   did (NOTES.md §3).
 
-   Three sources, and only one is adjudicable: FPL's own ruling never gets a reject button
-   (Availability's most important value is 0 -- a squad built around a ruled-out player is
-   the one failure mode worth guarding against here); the configuration gets Ignore / Use
-   it again, which never touches the file; the reader's own locks and blocks are not shown
-   here at all -- they live on the pitch page's Your instructions panel (renderInstructions),
-   because News is about adjudicating what the MODEL was told, not about what you decided. */
-/* ⚠️ There is no daysSince() here, and there must not be one.
+   No row here has a button. Ignore / Use it again went with the override concept: framed
+   as news rather than a setting, "don't count this" is a strange offer, and it is the last
+   thing on the page implying the reader owns any of it. ignoreOverride() and useAgain() are
+   deleted outright -- Your instructions stopped listing config entries in the same change,
+   which took their last caller with it. The reader's own locks and leave-outs stay there and
+   keep their control. */
 
-   The prototype computed staleness as `daysSince(o.chk) > 14`. The rule actually in
-   force is in internal/config: stale at SEVEN days, or within two gameweeks of lapsing
-   -- a second condition the arithmetic above cannot express at all. So an override the
-   model considered overdue rendered as fine for another week.
-
-   The server decides it and sends `needsCheck`, the age in days, and the badge text. */
-const SELECTION_KINDS=new Set(['lock','lockXI','exclude']);
-function newsKindMatch(kind,filter){
-  if(filter==='ALL') return true;
-  if(filter==='selection') return SELECTION_KINDS.has(kind);
-  return kind===filter;
+/* riskRows filters the owned fifteen to a rotation risk or worse and sorts by role, then
+   by modelled minutes within a role -- FILTERING AND SORTING a list the server already
+   produced. No new model quantity: it is Player.role, reordered. */
+function riskRows(){
+  return P.filter(p=>roleNum(p.role)>=3)
+    .sort((a,b)=>(roleNum(a.role)-roleNum(b.role))||((b.mn||0)-(a.mn||0)));
 }
-function renderNews(){
-  // Config-sourced only. A session lock or block is the reader's own and is drawn on the
-  // pitch page's Your instructions panel instead — see the comment above.
-  const cfgAll=OV.filter(o=>!o.session);
-  const list=cfgAll.filter(o=>newsKindMatch(o.kind,S.ovKind))
-    .sort((a,b)=>(b.needsCheck-a.needsCheck)||(b.age-a.age));
-  const stale=cfgAll.filter(o=>o.needsCheck);
-  document.getElementById('ovAll').textContent=cfgAll.length;
-  const sc=document.getElementById('staleCount');
-  sc.style.display=stale.length?'':'none';
-  sc.textContent=stale.length?`${stale.length} due a re-check`:'';
 
-  // Owned players FPL itself has news on. Scoped to the fifteen you own -- the market's
-  // news stays where it is, on picker rows.
-  const fplRows=P.filter(p=>(p.availability!==undefined&&p.availability<1)||p.news);
-  document.getElementById('fplnews').innerHTML=fplRows.length?fplRows.map(p=>{
-    const av=p.availability===undefined?1:p.availability;
-    const badge=av===0?'RULED OUT':`${Math.round(av*100)}% FIT`;
-    return `<div class="ovcard fpl">
-      <span class="badge ${av===0?'excl':'team'}">${esc(badge)}</span>
-      <div>
-        <div class="who">${esc(p.n)}<span class="club">${esc(p.club)}</span></div>
-        <div class="txt">${p.news?esc(p.news):'No further detail from FPL.'}</div>
-        <div class="dates">availability ×${av.toFixed(2)}${av===0?' — he scores nothing':''}</div>
-        <div class="dim" style="font-size:11px;margin-top:5px">FPL's own ruling — not adjudicable here</div>
+/* One row shape for every source: [ who says so, and when ][ what happened ]. The third
+   column (.nact) is documented in v2.css but has no caller in v1 -- nothing on this tab is
+   the reader's to adjudicate -- so it is never emitted here. */
+function nrow(o){
+  return `
+  <div class="nrow${o.stale?' stale':''}">
+    <div class="nsrc">
+      <span class="chip ${o.chipClass||''}">${esc(o.chip)}</span>
+      <span class="when t-meta">${esc(o.when||'')}</span>
+    </div>
+    <div class="nbody">
+      <div class="nwho">
+        <span class="t-row">${esc(o.who)}</span>
+        <span class="t-meta">${esc(o.club)}</span>
+        ${o.roleBand?roleChip(o.roleBand):''}
+        ${o.pill||''}
       </div>
-    </div>`;}).join('') : `<div class="empty panel"><div class="big">No news</div>
-      <p>FPL has nothing to report on the fifteen you own.</p></div>`;
+      ${o.text?`<p class="t-body ntext${o.clamp?' clamp':''}">${esc(o.text)}</p>`:''}
+      ${o.meta?`<p class="t-meta">${esc(o.meta)}</p>`:''}
+      ${o.effect?`<span class="neffect">
+        <span class="t-label">${esc(o.effect.label)}</span>
+        <span class="t-meta">${esc(o.effect.was)}</span>
+        <span class="arw" aria-hidden="true">→</span>
+        <span class="t-stat ${effectClass(o.effect.direction)}">${esc(o.effect.now)}</span>
+      </span>`:''}
+    </div>
+  </div>`;
+}
+function newsGroupHtml(title,countHtml,rows,nilHtml,freshHtml){
+  return `<div class="ngroup">
+    <div class="ngrouphead">
+      <span class="t-label">${esc(title)}</span>
+      <span class="sp"></span>
+      ${countHtml}
+      ${freshHtml||''}
+    </div>
+    ${rows.length?rows.map(nrow).join(''):nilHtml}
+  </div>`;
+}
+const nilRow=txt=>`<p class="nempty"><span class="g" aria-hidden="true">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></span>
+  <span class="txt"><span class="t-row muted">${esc(txt)}</span></span></p>`;
+const allGoodHtml=`<p class="nallgood"><span class="g" aria-hidden="true">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 12.5l5 5L20 6.5"/></svg></span>
+  <span class="txt">
+    <span class="t-row">All fifteen are nailed starters this week.</span>
+    <span class="t-meta">Rare. Enjoy it.</span></span></p>`;
+/* The press feed's shape, one specimen row so it can be judged -- not the live thing. One
+   badge, no prose about what is or is not wired up (NOTES.md §3). */
+const pressPanelHtml=`<div class="notyet nypanel">
+  <div class="nyhead">
+    <span class="pill soon">Coming soon</span>
+    <span class="t-row">Team news, press conferences and leaked lineups, read as they land</span>
+  </div>
+  <div class="specimen" aria-hidden="true">
+    ${nrow({chip:'Press',chipClass:'press',when:'',who:'A player in your fifteen',club:'',
+      text:'Who said it, when they said it, and what it did to his number.'})}
+  </div>
+</div>`;
 
-  // Config-sourced. The row for a code the reader has ignored is drawn from OV_CACHE, not
-  // from `list` -- an ignored override is not in `overrides.live` at all any more (it was
-  // stripped from cfg.Roster before the server built Reasoning), so the live list alone
-  // cannot show it. See OV_CACHE's own comment.
-  const dis=new Set(PENDING.dis||[]);
-  const ignored=[...dis].map(c=>OV_CACHE[c]).filter(o=>o&&!o.session&&newsKindMatch(o.kind,S.ovKind));
-  document.getElementById('useAgainAll').disabled=!ignored.length;
-  document.getElementById('useAgainAll').textContent=`Use these again (${ignored.length})`;
+function renderNews(){
+  // Config-sourced only ("team news we've read"). A session lock or leave-out is the
+  // reader's own and is drawn on the pitch page's Your instructions panel instead.
+  const read=OV.filter(o=>!o.session).sort((a,b)=>(b.needsCheck-a.needsCheck)||(b.age-a.age));
+  const stale=read.filter(o=>o.needsCheck);
+  const flagged=P.filter(p=>(p.availability!==undefined&&p.availability<1)||p.news);
+  const risk=riskRows();
 
-  const row=(o,ignoredRow)=>`
-   <div class="ovcard${o.needsCheck?' stale':''}${ignoredRow?' ignored':''}">
-     <span class="badge ${o.kind==='exclude'?'excl':o.kind==='club'?'team':''}">${esc(o.t)}</span>
-     <div>
-       <div class="who">${esc(o.who)}<span class="club">${esc(o.club)}</span>
-         ${o.inSquad?'<span class="pill acc" style="margin-left:8px">in the fifteen</span>':''}</div>
-       ${ignoredRow?`<div class="pill warn" style="margin-top:6px">IGNORED FOR THIS VISIT</div>`:`
-       <!-- The three dates are printed exactly as the server phrased them. Until is
-            already a clause ("lapses after GW10", or "indefinite — review"), and Checked
-            already carries its age ("2026-07-10 (40d)"). Adding a "lapses after" prefix
-            and a "(40d)" suffix here produced "lapses after indefinite — review" and
-            "checked 2026-07-10 (40d) (40d)" -- the client re-deriving presentation the
-            server had already decided. -->
-       <div class="dates">set ${esc(o.set)}${o.lapse?` · ${esc(o.lapse)}`:''} · checked ${esc(o.chk||'never')}
-         ${o.needsCheck?`<span class="pill warn" style="margin-left:6px">${esc(o.flag||'recheck')}</span>`:''}</div>
-       <div class="txt clamp">${esc(o.why)}</div>`}
-     </div>
-     <button class="btn sm ghost" data-${ignoredRow?'again':'ignore'}="${o.code||0}">${ignoredRow?'Use it again':'Ignore'}</button>
-   </div>`;
-  document.getElementById('ovlist').innerHTML =
-    (list.length?list.map(o=>row(o,false)).join(''):'')+
-    (ignored.length?ignored.map(o=>row(o,true)).join(''):'')||
-    `<div class="empty panel"><div class="big">Nothing here</div>
-     <p>Nothing of yours is applied here — this is the model's own pick, every number measured, not hand-set.</p></div>`;
+  const checkedEl=document.getElementById('newsChecked');
+  if(checkedEl) checkedEl.textContent=NEWS.checked;
 
-  /* Ignoring is a change to what the MODEL is running under, so it goes to the server and
-     the page redraws from the squad that comes back. The row stays drawn, greyed -- see
-     ignoreOverride's comment. The configuration file is never touched; `serve -persist` is
-     the deliberate way a correction leaves the standing record. */
-  document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>{
-    const code=+b.dataset.ignore;
-    if(!code){ notify('That entry has no player to ignore.'); return; }
-    ignoreOverride(code);
-  });
-  document.querySelectorAll('[data-again]').forEach(b=>b.onclick=()=>{
-    const code=+b.dataset.again;
-    if(!code){ notify('That entry has no player to restore.'); return; }
-    useAgain(code);
-  });
-  document.getElementById('useAgainAll').onclick=()=>{
-    const codes=new Set(ignored.map(o=>o.code));
-    save(pending=>{ pending.dis=(pending.dis||[]).filter(c=>!codes.has(c)); });
-  };
-  document.querySelectorAll('.txt.clamp').forEach(t=>t.onclick=()=>t.classList.toggle('clamp'));
+  const flaggedEl=document.getElementById('news-flagged');
+  if(flaggedEl) flaggedEl.innerHTML = flagged.length ? newsGroupHtml('Hurt, suspended or doubtful',
+    `<span class="pill ${flagged.some(p=>p.availability===0)?'bad':'warn'}">${flagged.length}</span>
+     <span class="t-meta">FPL's own ruling — nothing to decide here</span>`,
+    flagged.map(p=>{
+      const av=p.availability===undefined?1:p.availability;
+      return {
+        chip: av===0?'OUT':`${Math.round(av*100)}% FIT`, chipClass: av===0?'out':'fpl',
+        who:p.n, club:p.club,
+        text:p.news?p.news:'FPL hasn’t said why.',
+        pill: av===0?'<span class="pill bad">He scores nothing this week</span>'
+            : `<span class="pill warn">We're counting ${Math.round(av*100)}% of his points</span>`
+      };
+    }), '', '') : '';
 
-  // The nav badge counts what needs attention, not everything: overdue re-checks plus
-  // owned players FPL has ruled below full fitness. A count that is on for every visit is
-  // a badge the eye learns to skip.
-  const need=stale.length+fplRows.filter(p=>(p.availability===undefined?1:p.availability)<1).length;
+  const readEl=document.getElementById('news-read');
+  if(readEl) readEl.innerHTML = newsGroupHtml('Team news we’ve read',
+    read.length
+      ? `<span class="pill">${read.length}</span>
+         ${stale.length?`<span class="pill warn">${stale.length} need a look</span>`:''}
+         <span class="t-meta">Reported elsewhere, read by us, and fed to the model</span>`
+      : `<span class="t-meta">Reported elsewhere, read by us, and fed to the model</span>`,
+    read.map(o=>({
+      chip:'Reported', chipClass:'read', stale:o.needsCheck, who:o.who, club:o.club,
+      text:o.why, clamp:true,
+      meta:`Read ${o.set}${o.lapse?` · ${o.lapse}`:''} · last checked ${o.chk||'never'}`,
+      pill:o.needsCheck?'<span class="pill warn">Due a re-check</span>':'',
+      effect:o.eff
+    })),
+    nilRow('Nothing reported on your fifteen this week.'),
+    `<span class="nfresh gfresh"><span class="dot" aria-hidden="true"></span>
+     <span class="t-meta">${esc(NEWS.readChecked)}</span></span>`);
+
+  const riskEl=document.getElementById('news-risk');
+  if(riskEl) riskEl.innerHTML = newsGroupHtml('Who may not start',
+    risk.length
+      ? `<span class="pill warn">${risk.length}</span><span class="t-meta">Fit, but not certain to be picked</span>`
+      : `<span class="t-meta">Fit, but not certain to be picked</span>`,
+    risk.map(p=>({
+      chip:'Model', chipClass:'model', when:'this gameweek', who:p.n, club:p.club, roleBand:p.role,
+      effect:{label:'minutes', was:'90', now:`${Math.round(p.mn||0)} modelled`}
+    })),
+    allGoodHtml);
+
+  const pressEl=document.getElementById('news-press');
+  if(pressEl) pressEl.innerHTML=pressPanelHtml;
+
+  document.querySelectorAll('.ntext.clamp').forEach(t=>t.onclick=()=>t.classList.toggle('clamp'));
+
+  // The nav badge counts what needs attention: reported items overdue for a re-check --
+  // staleness the server still decides, the same rule as before on a renamed thing -- plus
+  // owned players FPL has ruled below full fitness. A count that is on for every visit is a
+  // badge the eye learns to skip.
+  const need=stale.length+flagged.filter(p=>(p.availability===undefined?1:p.availability)<1).length;
   const newsCount=document.getElementById('newsCount');
   if(newsCount){ newsCount.hidden=need===0; newsCount.textContent=need; }
 }
-document.getElementById('ovfilter').onclick=e=>{
-  const b=e.target.closest('button'); if(!b)return;
-  S.ovKind=b.dataset.kind;
-  document.querySelectorAll('#ovfilter button').forEach(x=>x.setAttribute('aria-pressed',x===b));
-  renderNews();
-};
 
 /* ============================================================
    VIEW SWITCHING
@@ -1520,14 +1819,6 @@ addEventListener('hashchange',()=>setView(location.hash.slice(1), false));
 /* ============================================================
    BOOT
    ============================================================ */
-function renderChipSummary(){
-  const el=document.getElementById('chipnow');
-  if(!el) return;
-  const g=gwState()||{};
-  const c=(g.playable&&g.playable.length?g.playable:CHIPS).find(x=>x.k===g.chip);
-  el.textContent=c?c.n:'none this gameweek';
-}
-
 /* Where this fifteen came from, said plainly.
  *
  * The opening squad is deliberately varied rather than the model's single best, so a reader
@@ -1543,7 +1834,7 @@ function renderSquadSource(){
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderChipSummary();renderSquadSource();renderPitch();renderInstructions();renderBlind();renderPlayers();renderNews();}
+function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderInstructions();renderBlind();renderPlayers();renderNews();}
 
 /* boot fetches the state and draws once.
 

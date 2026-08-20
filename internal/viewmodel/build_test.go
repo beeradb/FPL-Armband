@@ -327,3 +327,152 @@ func TestARoleBandIsNeverInventedHere(t *testing.T) {
 			s.Squad.Players[0].Role)
 	}
 }
+
+// TestModelledMinutesStatesTheFullMatchBaseline pins the phrasing and the one number in
+// it that is NOT a passthrough: 90, a fixed fact of football rather than anything the
+// model computed.
+func TestModelledMinutesStatesTheFullMatchBaseline(t *testing.T) {
+	s := build(t, samplePage())
+	if got, want := s.Squad.Players[1].ModelledMinutes, "90 → 72 modelled"; got != want {
+		t.Errorf("ModelledMinutes = %q, want %q", got, want)
+	}
+}
+
+// TestNewsCarriesBothFreshnessLinesAsGiven pins that News.Checked and News.ReadChecked
+// are copied from the caller rather than reformatted or recomputed — this package has no
+// clock of its own to compute "ago" against, and app.js:1388's own argument for why the
+// client may not compute staleness applies just as much to this package.
+func TestNewsCarriesBothFreshnessLinesAsGiven(t *testing.T) {
+	s, err := Build(Input{
+		Page: samplePage(), Boot: &fpl.Bootstrap{}, Now: pinned,
+		NewsChecked:     "FPL status last read 3 minutes ago · next read at 15:00",
+		NewsReadChecked: "Team news last read 2 days ago",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.News.Checked != "FPL status last read 3 minutes ago · next read at 15:00" {
+		t.Errorf("News.Checked = %q, was not carried through unchanged", s.News.Checked)
+	}
+	if s.News.ReadChecked != "Team news last read 2 days ago" {
+		t.Errorf("News.ReadChecked = %q, was not carried through unchanged", s.News.ReadChecked)
+	}
+}
+
+// TestNewsItemsCoverBothSourcesAndOnlyAttachEffectWhereOneWasGiven is the shape test for
+// State.News.Items: an FPL-status row drawn off a flagged squad player, a REPORTED row per
+// live override, and an Effect ONLY on the row whose code Input.OverrideEffects named — a
+// lock changes which squad is built, not this player's own score, so it must come back
+// with no Effect rather than a zero that would read as "no effect" instead of "not
+// applicable".
+func TestNewsItemsCoverBothSourcesAndOnlyAttachEffectWhereOneWasGiven(t *testing.T) {
+	p := samplePage()
+	p.Squad.Players[0].AvailabilityFactor = 0.75
+	p.Squad.Players[0].Status = "doubtful"
+	p.Squad.Players[0].News = "75% chance of playing — knock"
+
+	s, err := Build(Input{
+		Page: p, Boot: &fpl.Bootstrap{}, Now: pinned,
+		OverrideEffects: map[int]Effect{
+			111: {Label: "pts a week", Was: "4.20", Now: "3.15", Direction: "down"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var fpl_, reported int
+	var minutesRow, lockRow *NewsItem
+	for i := range s.News.Items {
+		it := &s.News.Items[i]
+		switch it.Source {
+		case "FPL":
+			fpl_++
+			if it.Body != "75% chance of playing — knock" {
+				t.Errorf("FPL row body = %q", it.Body)
+			}
+		case "REPORTED":
+			reported++
+			switch it.PlayerCode {
+			case 111:
+				minutesRow = it
+			case 333:
+				lockRow = it
+			}
+		default:
+			t.Errorf("unexpected news source %q", it.Source)
+		}
+	}
+	if fpl_ != 1 {
+		t.Errorf("%d FPL-status rows, want exactly 1 (only Kinsky is flagged)", fpl_)
+	}
+	if reported != 2 {
+		t.Errorf("%d REPORTED rows, want exactly 2 (both live overrides)", reported)
+	}
+	if minutesRow == nil {
+		t.Fatal("no REPORTED row for code 111 (the minutes override)")
+	}
+	if minutesRow.Effect == nil {
+		t.Fatal("the minutes override's row carries no Effect, but one was given for its code")
+	}
+	if minutesRow.Effect.Was != "4.20" || minutesRow.Effect.Now != "3.15" || minutesRow.Effect.Direction != "down" {
+		t.Errorf("Effect = %+v, want the exact values passed in", *minutesRow.Effect)
+	}
+	if lockRow == nil {
+		t.Fatal("no REPORTED row for code 333 (the lock override)")
+	}
+	if lockRow.Effect != nil {
+		t.Errorf("the lock override's row carries an Effect (%+v); a lock does not change "+
+			"this player's own score, so it must stay absent, not a zeroed struct", *lockRow.Effect)
+	}
+}
+
+// TestChipWindowReportsWhatTheScheduleHasSpentAlready is the view-model half of the
+// app.js:625 fix: the window's own last gameweek and how many chips are unspent, agreeing
+// with analysis.Engine.ChipWindowStatusAt regardless of which gameweek the rail is
+// currently showing.
+func TestChipWindowReportsWhatTheScheduleHasSpentAlready(t *testing.T) {
+	p := samplePage()
+	p.Weeks = []analysis.WeekView{
+		{Event: 15, Formation: "3-5-2", Expected: 52.3},
+		{Event: 25, Formation: "3-5-2", Expected: 50.1},
+	}
+	boot := &fpl.Bootstrap{
+		Events: []fpl.Event{{ID: 15, IsNext: true}},
+		Chips: []fpl.Chip{
+			{Name: "wildcard", StartEvent: 2, StopEvent: 19},
+			{Name: "freehit", StartEvent: 2, StopEvent: 19},
+			{Name: "bboost", StartEvent: 1, StopEvent: 19},
+			{Name: "3xc", StartEvent: 1, StopEvent: 19},
+			{Name: "wildcard", StartEvent: 20, StopEvent: 38},
+			{Name: "freehit", StartEvent: 20, StopEvent: 38},
+			{Name: "bboost", StartEvent: 20, StopEvent: 38},
+			{Name: "3xc", StartEvent: 20, StopEvent: 38},
+		},
+	}
+	var chips analysis.ChipSchedule
+	chips.First.BenchBoost = 5 // played behind GW15, outside "current + upcoming"
+
+	s, err := Build(Input{Page: p, Boot: boot, Cfg: config.Config{}, Now: pinned, Chips: chips})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Gameweeks) != 2 {
+		t.Fatalf("%d gameweeks, want 2", len(s.Gameweeks))
+	}
+	first := s.Gameweeks[0].ChipWindow
+	if first == nil {
+		t.Fatal("GW15 carries no chip window")
+	}
+	if first.EndsGW != 19 || first.Size != 4 || first.Remaining != 3 {
+		t.Errorf("GW15 window = %+v, want EndsGW 19, Size 4, Remaining 3 (bench boost "+
+			"already spent at GW5, invisible on the rail alone)", *first)
+	}
+	second := s.Gameweeks[1].ChipWindow
+	if second == nil {
+		t.Fatal("GW25 carries no chip window")
+	}
+	if second.EndsGW != 38 || second.Remaining != 4 {
+		t.Errorf("GW25 window = %+v, want EndsGW 38, Remaining 4 (second window untouched)", *second)
+	}
+}

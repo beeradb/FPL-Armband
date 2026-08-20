@@ -459,6 +459,76 @@ func TestTheStateEndpointAnswersTheContract(t *testing.T) {
 	}
 }
 
+// TestTheNewsTabCarriesBothSourcesAndAnEffectOnlyForTheMinutesOverride pins
+// the News tab's wiring end to end, through the real HTTP route: the
+// fixture's two standing overrides — one "minutes", one "exclude" — must
+// each produce a REPORTED row, and only the minutes row may carry an
+// Effect, since a lock or an exclude changes which squad is built rather
+// than this player's own score. It also pins that ReadChecked and at least
+// one player's ModelledMinutes are non-empty, since the fixture's overrides
+// carry SetOn dates and every player has a modelled-minutes figure.
+func TestTheNewsTabCarriesBothSourcesAndAnEffectOnlyForTheMinutesOverride(t *testing.T) {
+	s := fixtureServer(t)
+	w := get(t, s, "/api/state")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/state answered %d: %s", w.Code, w.Body.String())
+	}
+	var st viewmodel.State
+	if err := json.Unmarshal(w.Body.Bytes(), &st); err != nil {
+		t.Fatalf("the state did not decode: %v", err)
+	}
+
+	var minutesItem, excludeItem *viewmodel.NewsItem
+	for i := range st.News.Items {
+		it := &st.News.Items[i]
+		if it.Source != "REPORTED" {
+			continue
+		}
+		switch it.Body {
+		case "Named first choice for the season. His record is backup minutes; the role is not.":
+			minutesItem = it
+		case "Long-term injury with no named return date.":
+			excludeItem = it
+		}
+	}
+	if minutesItem == nil {
+		t.Fatal("no REPORTED row for the fixture's minutes override")
+	}
+	if minutesItem.Effect == nil {
+		t.Fatal("the minutes override's row carries no Effect")
+	}
+	if minutesItem.Effect.Was == "" || minutesItem.Effect.Now == "" {
+		t.Errorf("Effect = %+v, want both Was and Now populated", *minutesItem.Effect)
+	}
+	switch minutesItem.Effect.Direction {
+	case "up", "down", "flat":
+	default:
+		t.Errorf("Effect.Direction = %q, want up, down or flat", minutesItem.Effect.Direction)
+	}
+	if excludeItem == nil {
+		t.Fatal("no REPORTED row for the fixture's exclude override")
+	}
+	if excludeItem.Effect != nil {
+		t.Errorf("the exclude override's row carries an Effect (%+v); an exclusion does "+
+			"not change this player's own score", *excludeItem.Effect)
+	}
+
+	if st.News.ReadChecked == "" {
+		t.Error("News.ReadChecked is empty, but the fixture's overrides carry SetOn dates")
+	}
+
+	found := false
+	for _, p := range st.Squad.Players {
+		if p.ModelledMinutes != "" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("no player in the squad carries ModelledMinutes")
+	}
+}
+
 // TestEveryPlayerInTheStateIsDrawable pins that no card can render blank.
 //
 // The design's card carries a name, a club, a position, a price, a projection and a role

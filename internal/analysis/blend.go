@@ -154,13 +154,25 @@ func (e *Engine) prorateOverride(code int, override, natural float64) float64 {
 }
 
 func (e *Engine) blendFor(el *fpl.Element, m PlayerMetrics) blend {
-	b := e.blendRates(el, m)
+	return e.blendForCode(el, m, 0)
+}
+
+// blendForCode is blendFor with ignoreCode's minutes override suppressed, if
+// el carries one. It exists only for NaturalMetrics — see there — and is not
+// a second implementation: blendFor is now the ignoreCode==0 case of this
+// one function, so the override logic cannot drift between "the score" and
+// "the score without the override" the way this codebase has seen a
+// duplicated expression drift before (model.md §3, fixtureSensitiveAt).
+func (e *Engine) blendForCode(el *fpl.Element, m PlayerMetrics, ignoreCode int) blend {
+	b := e.blendRatesCode(el, m, ignoreCode)
 
 	// A minutes correction from the analysis layer is a statement of fact about
 	// what this player will actually play, so it already accounts for the
 	// summer. Discounting it again would double-count.
-	if _, _, ok := e.minutesOverrideFor(el.Code); ok {
-		return b
+	if ignoreCode == 0 || el.Code != ignoreCode {
+		if _, _, ok := e.minutesOverrideFor(el.Code); ok {
+			return b
+		}
 	}
 	if _, f := e.restFactor(el); f < 1 {
 		b.MinutesPerMatch *= f
@@ -356,6 +368,13 @@ func (e *Engine) blankRunFactor(run int) float64 {
 }
 
 func (e *Engine) blendRates(el *fpl.Element, m PlayerMetrics) blend {
+	return e.blendRatesCode(el, m, 0)
+}
+
+// blendRatesCode is blendRates with ignoreCode's minutes override suppressed
+// at both places blendRates reads one. See blendForCode for why this is a
+// parameter on the one implementation rather than a second copy of it.
+func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int) blend {
 	played := e.GameweeksPlayed()
 	minsPerMatch := float64(el.Minutes) / float64(e.matchesAvailable(el))
 	startShare := float64(el.Starts) / float64(e.matchesAvailable(el))
@@ -393,10 +412,12 @@ func (e *Engine) blendRates(el *fpl.Element, m PlayerMetrics) blend {
 	// a correction that is wrong costs a mis-scored player rather than a
 	// mandated one. Unlike the blend it is not shrunk toward anything: it is a
 	// statement of fact, not a sample.
-	if v, _, ok := e.minutesOverrideFor(el.Code); ok {
-		v = e.prorateOverride(el.Code, v, minsPerMatch)
-		minsPerMatch = v
-		startShare = clamp(v/90, 0, 1)
+	if ignoreCode == 0 || el.Code != ignoreCode {
+		if v, _, ok := e.minutesOverrideFor(el.Code); ok {
+			v = e.prorateOverride(el.Code, v, minsPerMatch)
+			minsPerMatch = v
+			startShare = clamp(v/90, 0, 1)
+		}
 	}
 
 	b := blend{
@@ -445,10 +466,12 @@ func (e *Engine) blendRates(el *fpl.Element, m PlayerMetrics) blend {
 			b.Red90 = per90(float64(p.Red), p.Minutes)
 		}
 		// A minutes correction still wins over everything.
-		if v, _, ok := e.minutesOverrideFor(el.Code); ok {
-			v = e.prorateOverride(el.Code, v, b.MinutesPerMatch)
-			b.MinutesPerMatch = v
-			b.StartShare = clamp(v/90, 0, 1)
+		if ignoreCode == 0 || el.Code != ignoreCode {
+			if v, _, ok := e.minutesOverrideFor(el.Code); ok {
+				v = e.prorateOverride(el.Code, v, b.MinutesPerMatch)
+				b.MinutesPerMatch = v
+				b.StartShare = clamp(v/90, 0, 1)
+			}
 		}
 		return b
 	}

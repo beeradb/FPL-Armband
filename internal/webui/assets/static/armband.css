@@ -353,29 +353,6 @@ button{font-family:inherit;color:inherit;}
 .readout .v small{font-family:var(--ui);font-size:10.5px;font-weight:500;color:var(--ink3);margin-left:3px;letter-spacing:0;}
 .readout .sub{font-family:var(--mono);font-size:9.5px;color:var(--ink3);margin-top:3px;}
 
-/* ============================================================
-   CHIP PLANNER
-   ============================================================ */
-.chiprow{
-  display:flex;gap:8px;align-items:center;flex-wrap:wrap;
-  padding:10px 12px;background:var(--panel);border:1px solid var(--line);
-  border-radius:var(--r);margin-bottom:14px;
-}
-.chipbtn{
-  display:flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;
-  background:var(--panel2);border:1px solid var(--line);cursor:pointer;
-  font-size:12px;font-weight:600;transition:.12s;
-}
-.chipbtn .dot{width:7px;height:7px;border-radius:50%;background:var(--line2);}
-.chipbtn:hover{border-color:var(--line2);}
-.chipbtn[aria-pressed="true"]{background:var(--band-lo);border-color:var(--band);color:#fff;}
-.chipbtn[aria-pressed="true"] .dot{background:var(--acc);box-shadow:0 0 0 3px rgba(0,232,138,.2);}
-.chipbtn.used{opacity:.35;cursor:not-allowed;}
-.chipnote{
-  font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:6px;
-  padding:6px 10px;border-radius:var(--r-sm);background:var(--acc-lo);
-  border:1px solid #0F553A;color:var(--acc);
-}
 
 /* ============================================================
    THE PITCH
@@ -712,20 +689,10 @@ button{font-family:inherit;color:inherit;}
 .newsbanner .h{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--warn);margin-bottom:5px;}
 .newsbanner.bad{background:var(--bad-lo);border-color:#5E2130;border-left-color:var(--bad);}
 .newsbanner.bad .h{color:var(--bad);}
-.statgrid{
-  display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);
-  border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;margin-bottom:14px;
-}
-.statgrid > div{background:var(--panel2);padding:8px 10px;}
-.statgrid .v{font-family:var(--mono);font-size:14px;font-weight:700;margin-top:2px;}
-.deriv{font-size:12.5px;}
-.deriv .step{
-  display:flex;justify-content:space-between;gap:10px;padding:6px 0;
-  border-bottom:1px dashed var(--line);
-}
-.deriv .step:last-child{border-bottom:0;}
-.deriv .step b{font-family:var(--mono);font-weight:700;}
-.deriv .step.total b{color:var(--acc);font-size:14px;}
+/* .newsbanner and .reason lose their only caller in the sheet, which now renders .pcnews
+   (below) instead -- see NOTES.md §6. Not deleted: .reason in particular is the violet band
+   this design reserves (§1.5), and neither has been checked for another caller elsewhere in
+   the app; deleting on spec rather than on evidence is how a callback rots. */
 .reason{
   margin-top:12px;padding:11px 12px;background:var(--ov-lo);border:1px solid #3B2F63;
   border-left:3px solid var(--ov);border-radius:0 var(--r-sm) var(--r-sm) 0;
@@ -867,51 +834,6 @@ button{font-family:inherit;color:inherit;}
   display:flex;align-items:center;gap:10px;justify-content:center;
   padding:12px;border-top:1px solid var(--line);font-size:12px;color:var(--ink3);
 }
-
-/* ============================================================
-   OVERRIDES
-   ============================================================ */
-.ovhead{
-  display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;
-  padding:13px;background:var(--panel);border:1px solid var(--line);
-  border-radius:var(--r);margin:14px 0;
-}
-.ovhead p{margin:0;font-size:12.5px;color:var(--ink2);max-width:62ch;}
-.ovhead .acts{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
-.ovcard{
-  display:grid;grid-template-columns:116px 1fr auto;gap:12px;
-  padding:12px 13px;background:var(--panel);border:1px solid var(--line);
-  border-radius:var(--r);margin-bottom:8px;
-}
-.ovcard .badge{                      /* fixed column so every card starts on the same line */
-  align-self:start;justify-self:stretch;text-align:center;
-  font-family:var(--mono);font-size:10.5px;font-weight:700;
-  padding:4px 6px;border-radius:5px;background:var(--ov-lo);border:1px solid #3B2F63;
-  color:var(--ov);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.ovcard .badge.excl{background:var(--bad-lo);border-color:#5E2130;color:var(--bad);}
-.ovcard .badge.team{background:var(--warn-lo);border-color:#5A4210;color:var(--warn);}
-.ovcard .who{font-weight:700;font-size:14px;}
-.ovcard .who .club{font-family:var(--mono);font-size:10.5px;color:var(--ink3);margin-left:6px;}
-.ovcard .dates{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:3px;letter-spacing:.04em;}
-.ovcard.stale{border-left:3px solid var(--warn);}
-.ovcard .txt{font-size:12.5px;color:var(--ink2);margin-top:7px;line-height:1.5;}
-.ovcard .txt.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.ovcard .rm{align-self:start;}
-.ovcard .effect{
-  display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--mono);
-  font-size:10.5px;padding:3px 8px;border-radius:5px;background:var(--panel2);
-  border:1px solid var(--line);color:var(--ink2);
-}
-/* News: FPL's own ruling, never adjudicable — no third grid column, because there is no
-   button. Badge colour is reused from the config badge's excl/team modifiers rather than
-   minted twice: bad for ruled out, warn for a reduced-fitness percentage. */
-.ovcard.fpl{grid-template-columns:116px 1fr;}
-/* An ignored config-sourced row STAYS drawn rather than vanishing — that is the whole
-   design, see ignoreOverride's comment in app.js — so it needs a visibly different state
-   rather than disappearing like the old bare "✕" did. */
-.ovcard.ignored{opacity:.55;}
-.ovcard.ignored .badge{opacity:.7;}
 
 /* form primitives -----------------------------------------------
    The override-authoring form these once served (#addOv) is deleted -- "no custom
@@ -1103,33 +1025,6 @@ body.saving{cursor:progress;}
   background:var(--panel3);border:1px solid var(--warn);color:var(--ink);
   font-size:13px;line-height:1.45;box-shadow:var(--shadow);
 }
-
-/* ============================================================
-   THE CHIP FOLD
-   ============================================================
-
-   The chip row used to sit between the score bug and the pitch, which gave the best space
-   on the screen to a decision taken four times a season. It is below the team now and
-   closed by default. The summary still states what is planned, so nothing is hidden --
-   only the room to change it, which is one click away. */
-.chipfold{
-  margin-top:14px;border:1px solid var(--line);border-radius:var(--r-md);
-  background:var(--panel);overflow:hidden;
-}
-.chipfold>summary{
-  display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;
-  list-style:none;font-size:13px;
-}
-.chipfold>summary::-webkit-details-marker{display:none;}
-.chipfold>summary::after{
-  content:'';margin-left:auto;width:7px;height:7px;flex:0 0 auto;
-  border-right:2px solid var(--ink3);border-bottom:2px solid var(--ink3);
-  transform:rotate(45deg);transition:transform .15s ease;
-}
-.chipfold[open]>summary::after{transform:rotate(-135deg);}
-.chipfold>summary .dim{margin-left:0;}
-.chipfold .chipnow{color:var(--ink);font-weight:600;}
-.chipfold .chiprow{border-top:1px solid var(--line);border-radius:0;margin:0;}
 
 /* Where the fifteen came from: the model's best, a varied opening, or the reader's own
    saved team. Quiet, because it is context rather than a number. */
@@ -1541,3 +1436,433 @@ body.saving{cursor:progress;}
    --band-lo is 4.79:1. */
 .pill.soon{background:var(--band-lo);border-color:var(--band-hi);color:var(--band-hi);
   font-weight:700;}
+
+
+/* ============================================================
+   V2 — PHASE 2: the player card, the rest of News, the chip control
+   ============================================================
+   Copied verbatim from design-assets/v2/v2.css §2-§4, minus the rules Phase 1 already
+   pulled forward for the landing page's "Working now" demo (the .ov* violet rules live in
+   §1.5 above; the base .ngrouphead/.nrow/.nsrc/.nbody/.neffect/.pill.soon rules are just
+   above this block). Do not edit these three sections independently of v2.css; resolve any
+   future drift there, not here.
+   ------------------------------------------------------------ */
+
+/* --- the by-gameweek table: kept, retyped -----------------------
+   .gwtable's structure and its 720px column-hiding behaviour are right and unchanged; only
+   the type moves onto the ten-role scale (NOTES.md §6). */
+.gwtable th{font-family:var(--t-label-f);font-size:var(--t-label-s);font-weight:var(--t-label-w);
+  color:var(--t-label-i);letter-spacing:var(--t-label-tr);}
+.gwtable td{font-family:var(--t-row-f);font-size:var(--t-row-s);font-weight:400;color:var(--ink2);}
+.gwtable td.n{font-family:var(--mono);font-weight:500;color:var(--ink);}
+.gwtable .pdgwdetail td{font-family:var(--t-meta-f);font-size:var(--t-meta-s);
+  font-weight:var(--t-meta-w);color:var(--t-meta-i);}
+/* A long log (up to 38 rows by season's end) should not push the sheet's actions out of
+   reach: the table scrolls inside the sheet after roughly eight rows rather than the sheet
+   growing without limit. Header stays put. */
+.gwscroll{max-height:268px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r-sm);}
+.gwscroll .gwtable th{position:sticky;top:0;background:var(--panel);z-index:1;}
+.gwscroll .gwtable td:first-child,.gwscroll .gwtable th:first-child{padding-left:10px;}
+.gwscroll .gwtable tr:last-child td{border-bottom:0;}
+
+/* ============================================================
+   2. PLAYER CARD  (.sheet.pc)
+   ============================================================ */
+.sheet.pc header{align-items:stretch;gap:10px;flex-wrap:wrap;}
+.pc .pcid{flex:1 1 210px;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px;}
+.pc .pcnext{display:flex;flex-direction:column;gap:5px;align-items:flex-start;justify-content:center;}
+.pc .pcclose{align-self:flex-start;}
+@media (max-width:720px){
+  .pc .pcnext{flex:1 0 100%;order:1;}
+}
+
+/* --- the fixture ribbon (.fxr) ---------------------------------
+   The opponent's club code IS the cell; the FDR is the cell's colour. Home/away is one
+   glyph -- away is @MCI, home is bare MCI, and there is no legend (NOTES.md §1). Cell count
+   is padded with .blank exactly as .fdr is, so the rhythm survives the end of the horizon. */
+.fxr{display:flex;gap:3px;}
+.fxr i{
+  display:flex;align-items:center;justify-content:center;min-width:38px;height:22px;padding:0 5px;
+  border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:700;
+  font-style:normal;letter-spacing:.02em;border:1px solid transparent;
+  white-space:nowrap;
+}
+.fxr i.f1{background:var(--fdr1);color:rgba(255,255,255,.94);}
+.fxr i.f2{background:var(--fdr2);color:rgba(255,255,255,.94);}
+.fxr i.f3{background:var(--fdr3);color:rgba(255,255,255,.94);}
+.fxr i.f4{background:var(--fdr4);color:rgba(255,255,255,.94);}
+.fxr i.f5{background:var(--fdr5);color:rgba(255,255,255,.94);}
+.fxr i.blank{background:transparent;border:1px dashed var(--line2);color:var(--ink3);}
+.fxr i.dgw{box-shadow:inset 0 0 0 1px var(--acc);}
+.fxr i .at{letter-spacing:.06em;}
+
+/* --- the hero: the number, and what goes into it ---------------- */
+.pchero{
+  display:grid;grid-template-columns:auto minmax(0,1fr);gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--r-sm);
+  overflow:visible;margin-bottom:12px;
+}
+.pcfig{
+  background:var(--panel2);padding:10px 14px 11px;position:relative;
+  display:flex;flex-direction:column;gap:3px;min-width:132px;
+  border-radius:var(--r-sm) 0 0 var(--r-sm);
+}
+/* A button, so the derivation is reachable by keyboard, not only by a pointer. Under 720px
+   it is inert -- see the media query at the bottom of this section -- and the derivation
+   does not exist there at all. */
+.pcwhy{
+  appearance:none;background:none;border:0;padding:0;margin:0;text-align:left;
+  cursor:help;display:flex;align-items:baseline;gap:6px;
+}
+.pcwhy .cue{
+  display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;
+  border:1px solid var(--line2);color:var(--ink-idle);
+  font-family:var(--mono);font-size:9px;font-weight:700;line-height:1;
+  transition:color .12s,border-color .12s;
+}
+.pcwhy:hover .cue,.pcwhy:focus-visible .cue{color:var(--ink);border-color:var(--band-hi);}
+
+/* Two supporting cells, not four. Role and Reliability used to be a quarter of a 2x2 grid
+   each with a sub-line nobody joined up; they are one question, Will he start, merged into
+   a wide cell with the role chip, the modelled minutes and a bar for the reliability figure
+   -- the bar's width is the server's own 0-1 value expressed as a percentage, a formatting
+   of a number that arrived, not a new one. */
+.pcstats{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:1px;
+  background:var(--line);}
+.pcstats > div{background:var(--panel2);padding:10px 12px 11px;min-width:0;
+  display:flex;flex-direction:column;gap:4px;}
+.pcstats > div:last-child{border-radius:0 var(--r-sm) var(--r-sm) 0;}
+.pcstart .srow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;}
+.pcbar{width:6px;flex:0 0 6px;align-self:stretch;border-radius:3px;}
+.derivpop .dhead{margin-bottom:7px;display:block;}
+.pcstart .mbar{width:100%;margin-top:1px;}
+
+/* --- the derivation popover -------------------------------------
+   Desktop only. Hover- AND focus-driven, and INSIDE .pcfig so the pointer can travel from
+   the number into the panel without it closing. */
+.derivpop{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:20;width:330px;
+  background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:11px 13px 12px;
+  opacity:0;visibility:hidden;transform:translateY(-4px);
+  transition:opacity .13s,transform .13s,visibility .13s;
+}
+.pcfig:hover .derivpop,
+.pcwhy:focus-visible ~ .derivpop,
+.pcfig.open .derivpop{opacity:1;visibility:visible;transform:none;}
+.derivpop::before{
+  content:'';position:absolute;top:-5px;left:26px;width:8px;height:8px;
+  background:var(--panel);border-left:1px solid var(--line2);border-top:1px solid var(--line2);
+  transform:rotate(45deg);
+}
+.dstep{
+  display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding:5px 0;border-bottom:1px dashed var(--line);
+}
+.dstep:last-of-type{border-bottom:0;}
+.dstep .dv{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink);
+  font-variant-numeric:tabular-nums;white-space:nowrap;}
+.dstep.total{border-top:1px solid var(--line2);border-bottom:0;margin-top:4px;padding-top:8px;}
+.dstep.total .dv{color:var(--acc);font-size:13px;}
+/* The honesty line: these rows are the model's INPUTS, not an expression that produces the
+   total under them, and the panel says so rather than implying an arithmetic it does not
+   perform. */
+.derivfoot{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);}
+
+/* --- last season -------------------------------------------------
+   Eight cells, one grid. Row one is the rate, row two is the return, on a slightly darker
+   ground so it reads as the underlying layer. Clean sheets, bonus and the price move sit in
+   one meta footer under the grid rather than as cells (NOTES.md §2). */
+.msgrid{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;
+}
+.msgrid > div{background:var(--panel2);padding:8px 10px;min-width:0;display:flex;
+  flex-direction:column;gap:3px;}
+.msgrid > div.und{background:var(--panel);}
+.msfoot{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:7px;}
+
+/* --- the quiet nil -------------------------------------------------
+   Replaces three full panels ("No corrections…", "No Premier League minutes…", "No
+   gameweeks played…"): one line and a glyph. Where the nil carries no information at all
+   (no news) there is no line either -- nothing renders. */
+.pcnil{display:flex;align-items:center;gap:7px;padding:2px 0;}
+.pcnil .g{
+  flex:0 0 auto;display:grid;place-items:center;width:15px;height:15px;border-radius:50%;
+  border:1px dashed var(--line2);color:var(--ink3);font-family:var(--mono);font-size:9px;line-height:1;
+}
+
+/* --- section heads inside the sheet -------------------------- */
+.pcsec{display:flex;align-items:baseline;gap:8px;margin:14px 0 6px;}
+.pcsec:first-child{margin-top:0;}
+
+/* --- news on the card (.pcnews) ---------------------------------
+   ONE region, ONE row shape -- the News tab's own .nrow, no third column: nothing on this
+   card is the reader's to adjudicate. Absent = nothing at all, not a panel (NOTES.md §2). */
+.pcnews{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  overflow:hidden;margin-bottom:12px;}
+.pcnews .nrow{padding:11px 13px;}
+.pcbannerhead{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+
+/* --- the two things on this card that are YOURS ------------------
+   Lock in and Leave out. Resting is an OUTLINE in the blue, not a fill -- nothing has been
+   decided, and a filled blue button next to "Swap him out" (.btn.primary, also band-filled)
+   would read as a second primary action. Pressed is the fill plus a tick, and the label goes
+   past tense, because the button is then reporting a state rather than offering an action. */
+.sheetacts .btn.own{background:var(--band-lo);border-color:#2A3C8C;color:var(--band-hi);}
+.sheetacts .btn.own:hover{border-color:var(--band);color:var(--ink);}
+.sheetacts .btn.own[aria-pressed="true"]{background:var(--band);border-color:var(--band);
+  color:var(--onband);}
+.sheetacts .btn.own[aria-pressed="true"]::before{content:'✓';margin-right:6px;opacity:.9;}
+.sheetacts .btn.own[aria-pressed="true"]:hover{background:#4064FF;border-color:#4064FF;}
+
+/* --- the sheet at 390px -------------------------------------- */
+@media (max-width:720px){
+  /* "What goes into the number" does not exist here. Not hidden behind a tap, not
+     collapsed -- gone. So the number stops pretending to be a control. */
+  .pcwhy{cursor:default;pointer-events:none;}
+  .pcwhy .cue{display:none;}
+  .derivpop{display:none;}
+  .pchero{grid-template-columns:minmax(0,1fr);}
+  .pcfig{border-radius:var(--r-sm) var(--r-sm) 0 0;min-width:0;}
+  .pcstats > div:last-child{border-radius:0 0 var(--r-sm) 0;}
+  .pcstats > div:first-child{border-radius:0 0 0 var(--r-sm);}
+  .msgrid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .gwscroll{max-height:none;overflow:visible;border:0;border-radius:0;}
+}
+
+
+/* ============================================================
+   3. NEWS — the rest of it
+   ============================================================
+   .ngrouphead / .nrow / .nsrc / .nsrc .chip / .nsrc .chip.model / .nbody / .neffect /
+   .pill.soon are Phase 1's, just above §1.5 — the landing page's "Working now" demo needs
+   them too. Everything below is new for Phase 2.
+   ------------------------------------------------------------ */
+.nhead{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;
+  padding:14px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r);margin:14px 0 12px;}
+.nhead .nheadl{flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:7px;}
+
+/* the machine's own state, stated. Not decoration: a news product that cannot say when it
+   last looked is asking to be trusted on nothing. */
+.nfresh{display:flex;align-items:center;gap:7px;}
+.nfresh .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);
+  box-shadow:0 0 0 3px rgba(0,232,138,.18);flex:0 0 auto;}
+.nfresh .dot.stale{background:var(--warn);box-shadow:0 0 0 3px rgba(255,176,32,.18);}
+/* A group with its own read cadence carries its own last-read line, on the head's second
+   row. ⚠️ LAST-READ ONLY -- no "next read at": there is no scheduler behind the news read,
+   so a predicted next time would be false (NOTES.md §3). */
+.ngrouphead .gfresh{flex:1 0 100%;margin-top:2px;}
+
+/* the group wrapper */
+.ngroup{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  overflow:hidden;margin-bottom:12px;}
+
+/* --- the standing band: WHO MAY NOT START ------------------------
+   The tab's most important group and the only one that is always populated -- drawn from
+   the role bands the model already produces, reordered, never recomputed. Source chip is
+   MODEL on the --acc channel because that is who says so. */
+.nallgood{display:flex;align-items:center;gap:11px;padding:16px 13px;}
+.nallgood .g{flex:0 0 auto;display:grid;place-items:center;width:26px;height:26px;
+  border-radius:50%;background:var(--acc-lo);border:1px solid #0F553A;color:var(--acc);}
+.nallgood .g svg{width:14px;height:14px;}
+.nallgood .txt{display:flex;flex-direction:column;gap:3px;min-width:0;}
+.notyet.nypanel{margin-bottom:12px;}
+
+/* --- the other source chips --------------------------------------
+   .fpl and .out carry a channel because their meaning IS the channel: a doubt is risk, a
+   player who scores nothing is negative. .read (team news we've read) is deliberately on
+   NO channel — it is an input that moved the model's own number, not a meaning of its own
+   (NOTES.md §3). .press is the coming-soon source, drawn in the band-blue the badge uses. */
+.nsrc .chip.fpl{background:var(--warn-lo);border-color:#5A4210;color:var(--warn);}
+.nsrc .chip.out{background:var(--bad-lo);border-color:#5E2130;color:var(--bad);}
+.nsrc .chip.read{background:var(--panel2);border-color:var(--line2);color:var(--ink2);}
+.nsrc .chip.press{background:var(--band-lo);border-color:#2A3C8C;color:var(--band-hi);}
+.nsrc .when{text-align:center;}
+
+.nbody .ntext.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;cursor:pointer;}
+
+/* the third column of .nrow. No source in v1 uses it -- see NOTES.md §3 -- but the grammar
+   keeps it styled so the row shape does not change the day one arrives. */
+.nact{display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
+.nrow.stale{box-shadow:inset 3px 0 0 var(--warn);}
+.nrow.ignored{opacity:.55;}
+
+/* --- the coming-soon state, as a first-class thing ---------------
+   ONE badge, adjacent to the thing it governs, on a shape visibly different from a working
+   row: dashed edge, band-blue ground, the mock inside it. No disabled controls -- a greyed
+   button is clutter pretending to be a feature. */
+.notyet{
+  border:1px dashed #2A3C8C;background:linear-gradient(180deg,var(--band-lo),rgba(22,32,74,.28));
+  border-radius:var(--r);padding:13px 14px;
+}
+.notyet .nyhead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:11px;}
+/* ⚠️ v2.css's own opacity:.92 is dropped, deliberately: a specimen row inside .notyet is
+   already dashed and inside a "Coming soon" panel, and does not additionally need to be
+   dimmed. Rendered (not merely computed) it composited .nsrc .chip.press's --band-hi on
+   --band-lo down to 4.27:1, below the 4.5:1 floor -- the exact compositing case
+   contrast_test.go exists to catch, since a stylesheet scan alone cannot see it. No ink
+   token changes; the paper contrast in v2.css §1's own table (4.79:1) is correct once
+   nothing is thinning it. */
+.notyet .specimen{
+  border:1px dashed #2A3C8C;border-radius:var(--r-sm);
+  background:var(--panel);
+}
+.notyet .specimen .nrow{border-bottom:0;}
+
+/* --- empty -------------------------------------------------- */
+.nempty{display:flex;align-items:center;gap:11px;padding:26px 16px;}
+.nempty .g{
+  flex:0 0 auto;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;
+  border:1px dashed var(--line2);color:var(--ink3);
+}
+.nempty .g svg{width:14px;height:14px;}
+.nempty .txt{display:flex;flex-direction:column;gap:3px;min-width:0;}
+
+@media (max-width:720px){
+  .nrow{grid-template-columns:88px minmax(0,1fr);gap:10px;padding:11px 12px;}
+  .nact{grid-column:2;flex-direction:row;justify-content:flex-end;}
+  /* ⚠️ v2.css shrinks this to 9px on a phone; TestMobileTypeIsNeverSmallerThanDesktopType
+     forbids it outright (a phone is read further away and one-handed, so mobile type must
+     be equal or larger, never smaller) -- kept at the desktop size instead. */
+  .nsrc .chip{letter-spacing:.06em;}
+}
+
+
+/* ============================================================
+   4. THE CHIP CONTROL
+   ============================================================
+   Nothing is the default and a chip is the exception, so the resting state is one ghost
+   pill in .pitchhud -- no slab, no row of four buttons, no space on the pitch. It escalates
+   as its window closes, on weeks-remaining-per-unspent-chip rather than a fixed gameweek
+   (app.js's chipWeeksLeft/chipUrgency; full rationale in NOTES.md §4).
+   ------------------------------------------------------------ */
+.chipctl{position:relative;display:inline-flex;}
+
+/* resting — nearly invisible. No fill, no border until it is touched. */
+.chippill{
+  display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+  height:24px;padding:0 9px;border-radius:999px;
+  background:transparent;border:1px solid transparent;color:var(--ink-idle);
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;white-space:nowrap;transition:.12s;
+}
+.chippill:hover{background:var(--panel3);border-color:var(--line2);color:var(--ink);}
+.chippill[aria-expanded="true"]{background:var(--panel3);border-color:var(--line2);color:var(--ink);}
+.chippill .dash{color:var(--ink-idle);}
+.chippill .lft{color:inherit;}
+.chippill .by{opacity:.78;}
+
+/* --- escalation ---------------------------------------------
+   due: an outline only. --warn on --bg2 (the .pitchhud ground) is 10.37:1. */
+.chippill.due{background:transparent;border-color:#5A4210;color:var(--warn);}
+.chippill.due:hover,.chippill.due[aria-expanded="true"]{background:var(--warn-lo);
+  border-color:var(--warn);color:var(--warn);}
+/* last: the SOLID amber, not a tint -- the same lockup .pill.on uses on the band channel,
+   moved onto --warn. --bg on --warn is 10.37:1; no new value is minted. It never reaches
+   red: --bad is illegal or negative, and an unspent chip is neither (NOTES.md §4). */
+.chippill.due.last{background:var(--warn);border-color:var(--warn);color:var(--bg);}
+.chippill.due.last .by{opacity:.72;}
+.chippill.due.last:hover,.chippill.due.last[aria-expanded="true"]{background:#FFC24F;
+  border-color:#FFC24F;color:var(--bg);}
+.chippill .car{
+  width:0;height:0;border-left:3.5px solid transparent;border-right:3.5px solid transparent;
+  border-top:4px solid currentColor;opacity:.75;
+}
+
+/* set — a chip is YOUR decision, so it is the band channel. --onband on --band is the same
+   lockup .pill.on already uses. */
+.chippill.set{background:var(--band);border-color:var(--band);color:var(--onband);}
+.chippill.set:hover{background:#4064FF;border-color:#4064FF;}
+
+/* --- the catalogue -------------------------------------------- */
+.chipmenu{
+  position:absolute;top:calc(100% + 7px);right:0;z-index:40;width:298px;
+  background:var(--panel);border:1px solid var(--line2);border-radius:var(--r);
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.chipmenu[hidden]{display:none!important;}
+.chipmenu .cmhead{display:flex;align-items:center;gap:8px;padding:9px 12px;
+  border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.chipmenu .cmhead .sp{flex:1;}
+/* The window, spelled out, always, at every width -- the answer to "tell them the reset
+   date on hover"; hover excludes the phone and the phone is where this reader is. */
+.chipmenu .cmwindow{flex:1 0 100%;}
+.chipmenu .cmwarn{display:flex;align-items:flex-start;gap:8px;padding:9px 12px;
+  background:var(--warn-lo);border-bottom:1px solid #5A4210;}
+.chipmenu .cmwarn .g{flex:0 0 auto;color:var(--warn);font-family:var(--mono);
+  font-size:11px;font-weight:700;line-height:1.45;}
+.chipmenu .cmwarn .t-body{color:var(--ink);}
+.cmrow{
+  display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:10px;align-items:center;
+  width:100%;text-align:left;padding:9px 12px;background:none;border:0;
+  border-bottom:1px solid var(--line);cursor:pointer;
+}
+.cmrow:last-of-type{border-bottom:0;}
+.cmrow:hover:not(:disabled){background:var(--panel2);}
+.cmrow .ic{
+  display:grid;place-items:center;width:24px;height:24px;border-radius:6px;
+  background:var(--panel2);border:1px solid var(--line2);color:var(--ink2);
+  font-family:var(--display);font-size:11px;font-weight:800;
+}
+.cmrow[aria-pressed="true"]{background:var(--band-lo);}
+.cmrow[aria-pressed="true"] .ic{background:var(--band);border-color:var(--band);color:var(--onband);}
+.cmrow .cmname{display:block;}
+.cmrow .tick{color:var(--band-hi);font-size:13px;line-height:1;}
+
+/* --- the two unavailable states, which are not the same thing ---
+   .closed — nothing the reader can do: FPL does not offer this chip this week, or it has
+   already been played. .placed — the reader planned this chip for another week, which is
+   their own decision and stays actionable: full contrast, the icon on the band channel,
+   and choosing it MOVES the plan here (NOTES.md §4). */
+.cmrow.closed{cursor:not-allowed;}
+.cmrow.closed .ic{background:transparent;border-style:dashed;color:var(--ink3);}
+.cmrow.closed .cmname{color:var(--ink3);}
+.cmrow.closed .t-meta{color:var(--ink3);}
+
+.cmrow.placed .ic{background:var(--band-lo);border-color:#2A3C8C;color:var(--band-hi);}
+.cmrow.placed .gwtag{
+  padding:2px 7px;border-radius:999px;background:var(--band-lo);border:1px solid #2A3C8C;
+  color:var(--band-hi);font-family:var(--mono);font-size:9.5px;font-weight:700;
+  letter-spacing:.08em;white-space:nowrap;
+}
+.cmrow.placed:hover{background:var(--band-lo);}
+
+/* --- moving a planned chip ------------------------------------
+   One confirm strip, in place, naming both gameweeks -- a wildcard is a season-defining
+   decision and may not move on a mis-tap. */
+.cmconfirm{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;
+  background:var(--band-lo);border-bottom:1px solid #2A3C8C;}
+.cmconfirm .t-body{flex:1 1 150px;min-width:0;color:var(--ink);}
+.cmconfirm[hidden]{display:none!important;}
+.chipmenu .cmfoot{padding:9px 12px;border-top:1px solid var(--line);
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+/* the consequence sentence chipExplain() writes, on the --acc channel because it states a
+   number the MODEL produced. */
+.chipmenu .cmnote{padding:9px 12px;background:var(--acc-lo);border-top:1px solid #0F553A;}
+
+/* --- the window boundary on the rail ----------------------------
+   The deadline is a fact about the calendar, so it lives on the calendar: the last week of
+   a chip window fills the 19px slot the rail already reserves and already leaves empty. */
+.gw .chipslot .wend{
+  display:grid;place-items:center;width:100%;height:19px;border-radius:999px;
+  background:transparent;border:1px dashed var(--line2);color:var(--ink3);
+  font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;white-space:nowrap;
+}
+.gw .chipslot .wend.due{background:var(--warn-lo);border:1px solid #5A4210;color:var(--warn);}
+
+@media (max-width:720px){
+  /* An anchored 298px popover does not fit next to a pill on a 390px strip, so it pins to
+     the bottom edge like .sheetacts already does. */
+  .chipmenu{
+    position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;
+    border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:0;
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .chipscrim{position:fixed;inset:0;background:var(--scrim);z-index:39;}
+}
+.chipscrim{display:none;}
+@media (max-width:720px){.chipscrim.on{display:block;}}

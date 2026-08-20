@@ -68,6 +68,89 @@ type State struct {
 	// Session reports where a change the reader makes will be stored, so the page can
 	// say so instead of the reader finding out later. See Session.
 	Session Session `json:"session"`
+
+	// News is the News tab: freshness of the two sources it draws from, and every
+	// row it has to show. See News.
+	News News `json:"news"`
+}
+
+// News is the News tab's own data, kept apart from Player so a page that has not
+// opened the tab does not carry it, and so the tab's two clocks live beside the
+// items they describe rather than beside the squad.
+type News struct {
+	// Checked is a pre-formatted freshness line for FPL's own status feed —
+	// "FPL status last read 3 minutes ago · next read at 15:00". Server-formatted
+	// for the reason every other staleness figure in this contract is: the client
+	// has no honest way to compute "ago" against a clock it does not share with
+	// the server, and app.js's own comment on needsCheck/age/flag makes the same
+	// argument at length. Empty when nothing has been fetched yet.
+	Checked string `json:"checked,omitempty"`
+
+	// ReadChecked is the same idea for the team news a human (soon, an automated
+	// process) has read and recorded — "Team news last read 3 days ago" — on its
+	// own, separate and much less frequent cadence. Two sources, two clocks, so
+	// one string cannot honestly describe both.
+	//
+	// ⚠️ Last-read only, deliberately coarser than the illustrative "41 minutes
+	// ago" the design was drawn against: the store behind this (config's roster
+	// corrections) keeps a DATE, not a timestamp, so this reads in days. Widening
+	// it to minutes would need every writer of a roster correction to start
+	// saving a full timestamp instead of a date, which is a real change this pass
+	// did not make. There is also no "next read at" half: nothing schedules the
+	// reading process yet, so a predicted next read would be a promise this
+	// system cannot keep. Add both refinements together, when the process is
+	// automated and hands them the resolution to match.
+	ReadChecked string `json:"read_checked,omitempty"`
+
+	// Items is every row the tab draws: FPL's own status feed and the team news
+	// that has been read and recorded, in one shape so the client is not
+	// stitching two lists into one row itself. Grouping and sorting THIS list is
+	// the client's job — the design's own rule for the rotation band applies here
+	// too, filtering and sorting a list the server sent is not derivation.
+	Items []NewsItem `json:"items,omitempty"`
+}
+
+// NewsItem is one row: something a source said, when, and — when it can be
+// computed honestly — what it changed about the model's own number.
+type NewsItem struct {
+	// Source is who says so: "FPL" for the status feed, "REPORTED" for team news
+	// a human has read and recorded. It carries no severity of its own — FPL's
+	// status IS a risk and REPORTED is an input the model already consumed, not a
+	// human overruling it, so the source is a label rather than a channel.
+	Source string `json:"source"`
+
+	Player     string `json:"player,omitempty"`
+	PlayerCode int    `json:"player_code,omitempty"`
+	Club       string `json:"club,omitempty"`
+	Pos        string `json:"pos,omitempty"`
+
+	// Body is what was said: FPL's own News string, or a correction's Reason.
+	Body string `json:"body"`
+	// When is a pre-formatted fragment for this one row — "set 2026-08-08" or
+	// "checked 3d ago" — never a raw timestamp the client would format itself.
+	When string `json:"when,omitempty"`
+	// Flag is FPL's status letter for a status row (i, d, s, u), empty for a
+	// reported row — REPORTED carries no channel of its own, so there is nothing
+	// to flag.
+	Flag string `json:"flag,omitempty"`
+
+	// Effect is the before/after this input causes to the model's own number,
+	// when one exists and can be computed honestly — a real model quantity, never
+	// derived client-side. Absent, not zero, for a row with no comparable
+	// before/after: a lock or an exclude changes which SQUAD is built, not this
+	// player's own score, so there is nothing here to report.
+	Effect *Effect `json:"effect,omitempty"`
+}
+
+// Effect is a before/after a model input causes, all three strings
+// pre-formatted server-side because the comparison itself is a model quantity.
+type Effect struct {
+	Label string `json:"label"`
+	Was   string `json:"was"`
+	Now   string `json:"now"`
+	// Direction is "up", "down" or "flat", so the client can colour the change
+	// without re-deriving which way it went from two formatted strings.
+	Direction string `json:"direction"`
 }
 
 // Gameweek is one entry on the rail.
@@ -102,12 +185,64 @@ type Gameweek struct {
 	// exist in a week — that is a rule about the competition, and a second copy of it here
 	// would disagree with the model the first time either changed.
 	Playable []ChipOption `json:"playable,omitempty"`
+
+	// ChipWindow is the chip window this gameweek falls in, when it falls in one
+	// at all: its own last gameweek and how many of its four chips are still
+	// genuinely unspent. See analysis.Engine.ChipWindowStatusAt for why this
+	// cannot be the client's own arithmetic — chiefly that "unspent" has to
+	// count a chip already played earlier in the window, which a rail of
+	// current-and-upcoming weeks cannot see. The client's only arithmetic on
+	// these fields is EndsGW − this gameweek's Number + 1, a subtraction of two
+	// integers the server sent, not a rule about the competition.
+	ChipWindow *ChipWindow `json:"chip_window,omitempty"`
+}
+
+// ChipWindow is one season chip window's state, attached to the gameweek that
+// falls inside it.
+type ChipWindow struct {
+	// EndsGW is the window's last gameweek — 19, then 38.
+	EndsGW int `json:"window_ends_gw"`
+	// Size is how many chips this window grants. 4 today, sent rather than
+	// hard-coded so the client's "n of 4 left" is not a constant it has to
+	// change the day the competition does.
+	Size int `json:"window_size,omitempty"`
+	// Remaining is chips genuinely unspent in this window, counting ones
+	// already played — the fix for app.js:625, which only ever looked at the
+	// rail and so could not see a chip spent before the rail's own start.
+	Remaining int `json:"remaining_in_window"`
+	// EndsAt is a pre-formatted date for the window's deadline, e.g. "Tue 29
+	// Dec" — absent when the deadline is not known.
+	EndsAt string `json:"window_ends_at,omitempty"`
 }
 
 // ChipOption is one chip the reader may place in a gameweek.
 type ChipOption struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
+
+	// Gain is the delta against playing no chip that week, in points per
+	// gameweek — a genuine model quantity, never derivable client-side.
+	//
+	// ⚠️ NOT POPULATED by this build. The catalogue's projected-gain feature
+	// was drawn, then shelved by the product owner on visual-load grounds
+	// (NOTES.md §9.6) — "if it visually clutters things too much then don't
+	// do it" — not on merit, so the contract gap this field closes is real
+	// either way and the analysis should not have to be redone when the
+	// feature comes back. A pointer rather than a bare float so an unpopulated
+	// week reads as "not computed" and not as "no gain from this chip".
+	//
+	// The cost of populating it, for whoever picks this up: Bench Boost and
+	// Triple Captain are cheap — both are already computed and printed in
+	// prose by chipExplain() in app.js, so wiring them through is mostly
+	// plumbing. Free Hit and Wildcard are not: each needs a full squad
+	// re-optimisation against the market for that one week — an entire
+	// alternative fifteen, discarded afterwards for the free hit — which is
+	// the expensive half and was not attempted here. NOTES.md §6.6 also warns
+	// against shipping only the cheap two: two numbered chips beside two
+	// blank ones reads as "these are the good ones" on the one screen where
+	// the reader is making a genuine choice, so a client should render this
+	// field only once all four chips carry it.
+	Gain *float64 `json:"gain,omitempty"`
 }
 
 // Squad is the fifteen and how it lines up.
@@ -180,6 +315,13 @@ type Player struct {
 	Role        string  `json:"role"`
 	Reliability float64 `json:"reliability"`
 	StartShare  float64 `json:"start_share"`
+
+	// ModelledMinutes is the rotation band's own line — "minutes 90 → 54
+	// modelled" — pre-formatted so the client is not pasting together the
+	// baseline, an arrow and a word. Minutes above already carries the 54; what
+	// is new is the 90 (a full match, a fixed fact of football rather than
+	// anything the model computed) and the phrasing.
+	ModelledMinutes string `json:"modelled_minutes,omitempty"`
 
 	Ownership float64 `json:"ownership"`
 
