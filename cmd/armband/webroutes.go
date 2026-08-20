@@ -45,6 +45,12 @@ const (
 	routeState   = "/api/state"
 	routeSession = "/api/session"
 	prefixAssets = "/assets/"
+
+	// prefixPlayer serves one footballer's history behind /api/player/{code} — a code, not
+	// the season-scoped element id every other route here uses. See viewmodel.PlayerDetail's
+	// doc comment for why a read still keys on the permanent identifier. A prefix route,
+	// like assets, because the code varies; see playerdetail.go.
+	prefixPlayer = "/api/player/"
 )
 
 // signupOrigin is where the landing page's gate posts, from wherever it is served.

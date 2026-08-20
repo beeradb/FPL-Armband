@@ -736,6 +736,34 @@ button{font-family:inherit;color:inherit;}
 .sheet .body{position:relative;}
 
 /* ============================================================
+   PLAYER SHEET — history (last season, this season by gameweek)
+
+   The gameweek table reuses .ptable's proven values (13px body, 9.5px ink3 mono headers,
+   tabular-nums mono numerics) under its own class rather than .ptable itself: .ptable goes
+   display:none under 720px, where the MARKET swaps to a card list (.plist), and this
+   table's mobile answer is fewer COLUMNS on the same component, not a different one.
+   ============================================================ */
+.gwtable{width:100%;border-collapse:collapse;font-size:13px;}
+.gwtable th{
+  text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink3);font-weight:500;white-space:nowrap;
+}
+.gwtable td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+.gwtable .n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.gwtable tr.pdgwrow:hover td{background:var(--panel2);}
+/* The detail row is the mobile answer to "ten columns will not fit at 390px": the extra
+   stats a tap reveals, right under the row they belong to. Hidden outright above the
+   breakpoint, where .pdmore already shows them inline and a second copy would be noise. */
+.gwtable .pdgwdetail{display:none;}
+.gwtable .pdgwdetail td{font-family:var(--mono);font-size:11px;color:var(--ink3);}
+@media (max-width:720px){
+  .gwtable .pdmore{display:none;}
+  .gwtable .pdgwrow{cursor:pointer;}
+  .gwtable .pdgwdetail.open{display:table-row;}
+}
+
+/* ============================================================
    PLAYERS (market) TABLE
    ============================================================ */
 .toolbar{

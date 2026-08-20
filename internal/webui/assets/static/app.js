@@ -939,6 +939,123 @@ function renderBlind(){
 }
 
 /* ============================================================
+   The player card's depth — /api/player/{code}
+
+   A SECOND endpoint, keyed on the player's permanent code, fetched only when his card
+   opens. It carries HISTORY (finished football), never a projection, so it cannot disagree
+   with anything State says -- see viewmodel.PlayerDetail's doc comment. Every number below
+   is a passthrough or a plain reordering of what the server sent; nothing here computes a
+   model quantity, and nothing here needs to -- there is no model quantity in a match log.
+   ============================================================ */
+
+/* lastSeasonHtml draws band 3. ls is viewmodel.SeasonSummary or undefined -- undefined
+   covers both "still loading" (never reached, the caller shows a skeleton instead) and "FPL
+   has no Premier League season on record for him", which is the ordinary case for a
+   debutant or a player promoted from a division this feed does not cover. */
+function lastSeasonHtml(ls){
+  if(!ls) return `<div class="panel" style="padding:10px 12px;font-size:12.5px;color:var(--ink2)">
+    No Premier League minutes last season.</div>`;
+  const cs = ls.clean_sheets===undefined||ls.clean_sheets===null ? '' :
+    ` · ${ls.clean_sheets} clean sheet${ls.clean_sheets===1?'':'s'}`;
+  return `
+    <div class="dim" style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">${esc(ls.season)}</div>
+    <div class="statgrid">
+      <div><div class="k">points</div><div class="v">${ls.points}</div></div>
+      <div><div class="k">minutes</div><div class="v">${ls.minutes}</div></div>
+      <div><div class="k">starts</div><div class="v">${ls.starts}</div></div>
+      <div><div class="k">pts/90</div><div class="v">${ls.points_per_90.toFixed(2)}</div></div>
+    </div>
+    <div style="font-size:12.5px;color:var(--ink2);margin-bottom:4px">
+      ${ls.goals} goal${ls.goals===1?'':'s'} · ${ls.assists} assist${ls.assists===1?'':'s'}${cs}
+    </div>
+    <div style="font-size:12.5px;color:var(--ink2);margin-bottom:6px">
+      ${ls.xg.toFixed(1)} xG · ${ls.xa.toFixed(1)} xA · ${ls.bonus} bonus
+    </div>
+    <div class="dim" style="font-family:var(--mono);font-size:11px">
+      £${ls.price_start.toFixed(1)}m → £${ls.price_end.toFixed(1)}m over the season
+    </div>`;
+}
+
+/* gameweeksHtml draws band 4. gws is viewmodel.PlayerGameweek[] or undefined/empty -- empty
+   is the ordinary state for every player in the game at GW1, and the copy says so rather
+   than rendering a blank table. The server sends oldest first; the client reverses it for
+   display only -- reordering an already-complete list, not computing anything -- because
+   "most recent first" is right here even though it inverts the market table's own default.
+
+   Ten columns will not fit at 390px, so six (G/A/CS/BPS/xG/xA, the .pdmore cells) hide under
+   the same 720px breakpoint the rest of this design uses and reappear, per row, on tap --
+   see .pdgwdetail in armband.css. Not horizontal scroll: the bench already owns that
+   gesture on this page. */
+function gameweeksHtml(gws){
+  if(!gws || !gws.length) return `<div class="panel" style="padding:10px 12px;font-size:12.5px;color:var(--ink2)">
+    No gameweeks played yet. The figures above are last season's, shrunk toward the league.</div>`;
+  const rows=gws.slice().reverse();
+  return `<table class="gwtable"><thead><tr>
+      <th>GW</th><th>Opp</th><th class="n">Min</th><th class="n">Pts</th>
+      <th class="n pdmore">G</th><th class="n pdmore">A</th><th class="n pdmore">CS</th>
+      <th class="n pdmore">BPS</th><th class="n pdmore">xG</th><th class="n pdmore">xA</th>
+    </tr></thead><tbody>${rows.map(r=>`
+      <tr class="pdgwrow" tabindex="0">
+        <td class="n">${r.gw}</td>
+        <td>${esc(r.opponent)} (${r.home?'H':'A'})</td>
+        <td class="n">${r.minutes}</td>
+        <td class="n">${r.points}</td>
+        <td class="n pdmore">${r.goals}</td>
+        <td class="n pdmore">${r.assists}</td>
+        <td class="n pdmore">${r.clean_sheet}</td>
+        <td class="n pdmore">${r.bps}</td>
+        <td class="n pdmore">${r.xg.toFixed(2)}</td>
+        <td class="n pdmore">${r.xa.toFixed(2)}</td>
+      </tr>
+      <tr class="pdgwdetail"><td colspan="4">
+        G ${r.goals} · A ${r.assists} · CS ${r.clean_sheet} · BPS ${r.bps} · xG ${r.xg.toFixed(2)} · xA ${r.xa.toFixed(2)}
+      </td></tr>`).join('')}</tbody></table>`;
+}
+
+/* Tapping a row on a narrow screen reveals its .pdgwdetail sibling -- the mobile answer to
+   the six columns .pdmore hides. Harmless at desktop: those columns are already visible
+   there, and the media query in armband.css keeps .pdgwdetail.open closed above 720px
+   regardless of this handler firing. */
+function wireGwTaps(root){
+  root.querySelectorAll('.pdgwrow').forEach(row=>{
+    const toggle=()=>{
+      const detail=row.nextElementSibling;
+      if(detail && detail.classList.contains('pdgwdetail')) detail.classList.toggle('open');
+    };
+    row.onclick=toggle;
+    row.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } };
+  });
+}
+
+/* loadPlayerDetail fetches the depth behind the open card and paints it into the two
+   skeleton bands openSheet already drew. Guarded on sheet.dataset.pdcode at both the
+   success and failure exits, because the reader can close the sheet -- or open a DIFFERENT
+   player -- before this resolves, and a late response must not paint over whoever is
+   showing by then. */
+async function loadPlayerDetail(code){
+  const sheet=document.getElementById('sheet');
+  const stillOpen=()=>sheet.dataset.pdcode===String(code);
+  try{
+    const res=await fetch('/api/player/'+encodeURIComponent(code));
+    if(!res.ok) throw new Error('http '+res.status);
+    const d=await res.json();
+    if(!stillOpen()) return;
+    const ls=document.getElementById('pd-lastseason'), gw=document.getElementById('pd-gameweeks');
+    if(ls) ls.outerHTML=`<div id="pd-lastseason">${lastSeasonHtml(d.last_season)}</div>`;
+    if(gw) gw.outerHTML=`<div id="pd-gameweeks">${gameweeksHtml(d.gameweeks)}</div>`;
+    const wired=document.getElementById('pd-gameweeks');
+    if(wired) wireGwTaps(wired);
+  }catch(e){
+    if(!stillOpen()) return;
+    const msg=`<div class="panel" style="padding:10px 12px;font-size:12.5px;color:var(--ink2)">
+      Last season and this season's log could not be loaded.</div>`;
+    const ls=document.getElementById('pd-lastseason'), gw=document.getElementById('pd-gameweeks');
+    if(ls) ls.outerHTML=`<div id="pd-lastseason">${msg}</div>`;
+    if(gw) gw.outerHTML=`<div id="pd-gameweeks"></div>`;
+  }
+}
+
+/* ============================================================
    RENDER — player sheet (the "why" for one player)
    ============================================================ */
 function openSheet(id){
@@ -1008,6 +1125,17 @@ function openSheet(id){
        ${(FIX[p.club]||[]).filter(x=>x.gw>=S.gw&&x.gw<S.gw+5).map(x=>`${esc(x.opp)}(${esc(x.ha)},${x.fdr})`).join(' · ')||'no fixtures in the projected window'}
      </div>
 
+     <!-- Last season and this-season-by-gameweek are the depth this card exists to carry.
+          Neither is in State -- ~590 players times a full match log is a payload nobody
+          reads on every page build -- so the sheet opens on what State already has (above)
+          and these two bands arrive from a per-player fetch. Skeleton text reserves the
+          space so the arrival does not jump the layout. See loadPlayerDetail. -->
+     <div class="k" style="margin:14px 0 6px">Last season</div>
+     <div id="pd-lastseason" class="dim" style="font-size:12.5px">Loading…</div>
+
+     <div class="k" style="margin:14px 0 6px">This season, by gameweek</div>
+     <div id="pd-gameweeks" class="dim" style="font-size:12.5px">Loading…</div>
+
      ${p.ov?`<div class="reason">
         <div class="h">Hand-set override — role set to ${esc(p.ov.t.toLowerCase())}</div>
         ${esc(p.ov.why)}
@@ -1028,6 +1156,11 @@ function openSheet(id){
      </div>
    </div>`;
   document.getElementById('scrim').classList.add('open');
+  /* Marks which player the two skeleton bands above belong to, checked when the fetch below
+     resolves -- the reader may close the sheet, or open a DIFFERENT player, before then, and
+     a stale response must not paint over whoever is showing now. */
+  sheet.dataset.pdcode=String(p.code);
+  loadPlayerDetail(p.code);
   sheet.querySelector('#sheetclose').onclick=closeSheet;
   /* No "Make captain" / "Make vice" here any more -- the armband picker
      (openArmbandPicker) is the one route, priced and ranked, at every width. */
@@ -1090,7 +1223,13 @@ function openArmbandPicker(which){
 document.getElementById('capPick').onclick=()=>openArmbandPicker('cap');
 document.getElementById('vcPick').onclick=()=>openArmbandPicker('vc');
 
-function closeSheet(){document.getElementById('scrim').classList.remove('open');}
+function closeSheet(){
+  document.getElementById('scrim').classList.remove('open');
+  /* Clears the guard loadPlayerDetail checks, so a fetch already in flight for the player
+     who was just closed paints nothing if it resolves afterwards -- belt to the id lookups
+     already failing gracefully once the sheet's markup is replaced by whatever opens next. */
+  document.getElementById('sheet').dataset.pdcode='';
+}
 document.getElementById('scrim').onclick=e=>{if(e.target.id==='scrim')closeSheet();};
 
 /* ============================================================
