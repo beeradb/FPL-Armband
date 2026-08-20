@@ -44,12 +44,11 @@ const (
 	routeGate    = "/gate"
 	routeState   = "/api/state"
 	routeSession = "/api/session"
-	// routeMetrics serves this process's own Prometheus text-format metrics —
-	// the staleness signal behind internal/fpl.Client's deliberate
-	// stale-fallback. See metrics.go's doc comment for why it needs no token
-	// and why it is safe to serve here: the nginx sidecar proxies it on a
-	// SEPARATE port from the public vhost, which is what actually keeps it
-	// off the public internet.
+	// routeMetrics serves this process's own Prometheus metrics — the
+	// staleness signal behind internal/fpl.Client's deliberate stale-fallback,
+	// plus the HTTP and pipeline-timing series alongside it. See metrics.go's
+	// doc comment for why it needs no token: keeping it off the public
+	// internet is the deployment's job, not this handler's.
 	routeMetrics = "/metrics"
 	prefixAssets = "/assets/"
 
@@ -418,8 +417,7 @@ func (s *squadServer) hasGatePass(r *http.Request) bool {
 // straight optimum rather than a varied squad -- a fine answer to "what does the model
 // think", and not a store.
 func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.lockRender("state")()
 
 	sess := s.readValidSession(r)
 	if sess.Seed == 0 && !sess.Optimised && s.authed(r) {
@@ -615,8 +613,7 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.lockRender("session")()
 
 	var in session
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {

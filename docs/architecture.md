@@ -87,6 +87,20 @@ degrades", it is the pod failing to start. Serving stale data is paged on rather
 silent — see `Client`'s doc comment for the reasoning and `cmd/armband/metrics.go` for
 what a deployment scrapes.
 
+`cmd/armband/instruments.go` builds that scrape on `github.com/prometheus/client_golang`
+rather than hand-rolled exposition text, on its own `prometheus.Registry` — never the
+global default, since `package main` is every subcommand of this binary, not just
+`serve`. Beyond the three staleness series (`armband_serving_stale_data`,
+`armband_stale_data_age_seconds`, `armband_live_fetch_failures_total`) it adds HTTP
+dispatch counters and histograms (`armband_http_requests_total`,
+`armband_http_request_duration_seconds`, both origin traffic only — see their HELP text
+for why a deployment's own edge metrics will disagree with them), how long a request
+waited on `squadServer.mu` (`armband_render_mutex_wait_seconds`), and two pipeline
+timings: `armband_optimize_duration_seconds` for `Engine.Optimize` alone, wired through
+the package-level `analysis.ObserveOptimize` hook so `internal/analysis` stays free of a
+metrics dependency, and `armband_page_build_seconds` for `buildSquadPage`'s own stage
+breakdown (the same stages `FPL_SERVE_TIMINGS` prints to stderr).
+
 Three quirks of the API are absorbed here so nothing downstream has to know about them:
 
 - The API rejects requests without a browser-like `User-Agent`.

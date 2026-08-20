@@ -111,17 +111,22 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// why the fingerprint guard skips it rather than recording it: a run with it
 	// set is the same run. Pair it with FPL_CPU_PROFILE below, which names where
 	// to write a pprof profile of the same pipeline.
+	//
+	// Every mark also feeds armband_page_build_seconds{stage=...}, unconditionally
+	// — the stderr print stays opt-in behind FPL_SERVE_TIMINGS, but the metric is
+	// the always-on version of the same question, for a deployment rather than a
+	// sitting at a terminal. The same duration feeds both, so they cannot disagree.
 	last := time.Now()
 	mark := func(s string) {
-		if os.Getenv("FPL_SERVE_TIMINGS") == "" {
-			return
-		}
 		// Deliberately the wall clock, and deliberately not the `now`
 		// parameter: this measures how long the build took, which is a fact
 		// about this machine, while `now` is the date the page is ABOUT. A
 		// pinned `now` must not make the timings read as zero.
 		at := time.Now()
-		fmt.Fprintf(os.Stderr, "TIMING %-14s %6.0fms\n", s, float64(at.Sub(last).Milliseconds()))
+		appMetrics.pageBuildSeconds.WithLabelValues(s).Observe(at.Sub(last).Seconds())
+		if os.Getenv("FPL_SERVE_TIMINGS") != "" {
+			fmt.Fprintf(os.Stderr, "TIMING %-14s %6.0fms\n", s, float64(at.Sub(last).Milliseconds()))
+		}
 		last = at
 	}
 
