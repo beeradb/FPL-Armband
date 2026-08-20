@@ -66,7 +66,7 @@ cost nothing to run.
 
 ## Packages
 
-Each core package below owns one concern; the seven supporting packages at the end each
+Each core package below owns one concern; the eight supporting packages at the end each
 exist because the FPL bootstrap does not carry something the model needs.
 
 ### `internal/fpl`
