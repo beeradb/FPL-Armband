@@ -96,7 +96,7 @@
         <!-- Puts the model's best fifteen back, respecting your locks and blocks. The
              opening squad is deliberately varied, so this is how a reader asks for the
              unvaried answer. -->
-        <button class="btn sm" id="optimise">Optimize</button>
+        <button class="btn sm" id="optimise">Optimise</button>
       </span>
     </div>
     <div class="squadsource dim" id="squadsource"></div>
@@ -141,7 +141,7 @@
 
   <div class="storenote">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/></svg>
-    Your team stays yours. This preview reads the model and does not write to it yet, so changes you make here last until you reload. Make the changes on FPL when you're happy.
+    Your team stays yours. Every change here is saved on our side as you make it, but nothing reaches FPL — make the changes there yourself when you're happy.
   </div>
   </div><!-- /pitchside -->
   </div><!-- /pitchgrid -->
@@ -172,12 +172,12 @@
          "unlimited / until the GW1 deadline" as a literal that nothing updates -- true
          for one week a season, and stated next to a market recommending moves. It says
          what the policy is instead, which the contract does carry. -->
-    <div><div class="k">Bank up to</div><div class="v acc" id="bankUpTo">—</div><div class="sub">free transfers the policy will hold</div></div>
-    <div><div class="k">Transfer gate</div><div class="v" id="gateValue">—</div><div class="sub">the bar a swap must clear</div></div>
+    <div><div class="k">Bank up to</div><div class="v acc" id="bankUpTo">—</div><div class="sub">free transfers worth saving</div></div>
+    <div><div class="k">Worth it?</div><div class="v" id="gateValue">—</div><div class="sub">the gain a transfer has to beat</div></div>
   </div>
 
   <div class="panel" style="padding:11px 13px;font-size:12.5px;color:var(--ink2);line-height:1.5;">
-    <b style="color:var(--ink)">Δ is the comparison a transfer actually has to win</b> — the gap to the
+    <b style="color:var(--ink)">Gain is the comparison a transfer actually has to win</b> — the gap to the
     <em>weakest starter you already own in that position</em>, not a league rank.
     <span class="dim" id="benchLegend"></span>
   </div>

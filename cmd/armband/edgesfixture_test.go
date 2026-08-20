@@ -29,7 +29,7 @@ import (
 //
 // What it covers:
 //
-//   - a blanking club, so the FDR strip and the "no fixture this gameweek" copy render;
+//   - a blanking club, so the FDR strip and the "no fixture" copy render;
 //   - a ruled-out player, whose availability is 0 and whose projection is therefore zero —
 //     the case a card is most likely to draw as though nothing were wrong;
 //   - a very long name, because the design's compact card has 68px at 390px and every

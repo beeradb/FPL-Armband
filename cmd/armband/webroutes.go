@@ -407,8 +407,12 @@ func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess session) {
 	body, err := s.buildState(r, sess)
 	if err != nil {
+		// The full error is for whoever is running the server -- a viewmodel marshal
+		// failure like "State.Squad.Players[3].XP is NaN, which encoding/json cannot
+		// marshal" names a Go type, not something the browser's reader did or can
+		// fix. The response says only that the build failed and what to try.
 		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "the squad could not be built just now — try reloading", http.StatusInternalServerError)
 		return
 	}
 	writeState(w, body)
@@ -602,7 +606,15 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 	if s.persist {
 		var err error
 		if in, err = s.persistCorrections(in); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			// The empty-cfgPath case is already a fixed, safe sentence (see
+			// persistCorrections). A real write failure -- config.Save wrapping
+			// os.CreateTemp/os.Rename -- carries the server's own filesystem path in
+			// its *PathError string, e.g. "saving config: open
+			// /home/alice/.config/fplagent/.config-183920481.json: permission
+			// denied". Same treatment as answerState and saveSession's buildState
+			// branch: log it, tell the reader only that it did not land.
+			fmt.Fprintf(os.Stderr, "serve: %v\n", err)
+			http.Error(w, "that could not be saved just now — try again", http.StatusInternalServerError)
 			return
 		}
 	}
@@ -616,8 +628,10 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 	// saved before it is adopted, and a failure leaves everything as it was.
 	body, err := s.buildState(r, in)
 	if err != nil {
+		// Same reasoning as answerState: log the Go error, tell the reader only that
+		// the save did not land.
 		fmt.Fprintf(os.Stderr, "serve: %v\n", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "that change could not be saved just now — try again", http.StatusInternalServerError)
 		return
 	}
 	if err := in.write(w); err != nil {
@@ -648,8 +662,11 @@ func (s *squadServer) persistCorrections(in session) (session, error) {
 		return in, nil
 	}
 	if s.cfgPath == "" {
-		return in, fmt.Errorf("there is no config path, so -persist has nowhere to write " +
-			"— your corrections were not saved")
+		// Said without the flag name: this reaches a browser, and "-persist" answers a
+		// question only the person who started the server can act on. What the reader
+		// needs is the fact, not the switch that controls it.
+		return in, fmt.Errorf("there is nowhere set up to save your corrections " +
+			"permanently, so they were not saved")
 	}
 
 	today := s.now().Format("2006-01-02")

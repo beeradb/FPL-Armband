@@ -116,7 +116,13 @@ type Override struct {
 // renderings of one fact, disagreeing on the same line.
 func (o Override) Flag() string {
 	if o.NeverChecked {
-		return fmt.Sprintf("CHECK — never verified, set %dd ago", o.CheckAge)
+		// The badge column is fixed-width (116px) for a mono 10.5px label; the fuller
+		// "CHECK — never verified, set 12d ago" ran to 36 characters and was clipped
+		// to an ellipsis the reader could not read at all. "never (%dd)" is the same
+		// wording the meta row already uses, lowercase and all -- the .pill styling
+		// that displays this uppercases it either way, but the word "never" is what
+		// TestEveryCheckFlagCarriesItsAge checks for, and it must actually be there.
+		return fmt.Sprintf("never (%dd)", o.CheckAge)
 	}
 	return fmt.Sprintf("CHECK %dd", o.CheckAge)
 }

@@ -65,9 +65,17 @@
         .then(function (r) {
           /* 204 means recorded. Anything else is not a success to report as one --
              400 for an address the server would not take, 500 for a write that did
-             not land, and the reader can act on both by retrying. */
-          if (!r.ok) throw new Error('the server answered ' + r.status);
-          window.location.href = '/app';
+             not land, and the reader can act on both by retrying.
+
+             The body is read before anything is thrown. /gate's own error text is
+             already written for the person reading it -- "that does not look like an
+             email address", "we could not record that just now — please try again" --
+             and discarding it in favour of the status code replaced a helpful answer
+             with a number nobody can act on. */
+          if (r.ok) { window.location.href = '/app'; return; }
+          return r.text().then(function (msg) {
+            throw new Error(msg || ('the server answered ' + r.status));
+          });
         })
         .catch(function (err) {
           button.disabled = false;
