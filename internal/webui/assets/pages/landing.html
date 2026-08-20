@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>FPL Armband — your man on the pitch</title>
-<meta name="description" content="Every Fantasy Premier League player scored from FPL's own rules. See why. Set your eleven, order your bench, give the armband. Open preview.">
+<meta name="description" content="Every Fantasy Premier League player scored from FPL’s own rules — then shown the working, so you can argue with it. Set your eleven, order your bench, give the armband. Free while it’s in preview.">
 <link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/assets/armband.css">
 <style>
@@ -136,6 +136,13 @@
 .cta h2{font-family:var(--display);font-weight:800;font-size:clamp(24px,3.4vw,34px);letter-spacing:-.035em;margin:12px 0 8px;}
 .cta p{color:var(--ink2);margin:0 auto 20px;max-width:46ch;font-size:14.5px;}
 .cta .gatecard{margin:0 auto;}
+/* The SMS pitch: one named, clearly future-tense promise, full width in the CTA card --
+   not a features section of its own, and not a hint buried in small print. It sits
+   between the CTA's own pitch and its form, because the reason to hand over an email
+   belongs next to the thing that asks for one. */
+.soon{max-width:46ch;margin:0 auto 22px;}
+.soon .soonhead{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.015em;color:var(--ink);margin:0 0 6px;line-height:1.4;}
+.soon .soonsub{font-size:13px;color:var(--ink3);margin:0;line-height:1.5;}
 
 footer{border-top:1px solid var(--line);padding:22px 0 40px;font-size:12.5px;color:var(--ink3);}
 footer .r{display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
@@ -195,12 +202,12 @@ footer .spacer{flex:1;}
   <!-- ============ HERO ============ -->
   <section class="hero">
     <div>
-      <div class="k">2026/27 · Gameweek 1 opens Fri 21 Aug 17:30</div>
-      <h1>Pick your XI.<br>See <span class="u">why.</span></h1>
+      <div class="k">2026/27 · Gameweek 1 locks Fri 21 Aug 17:30</div>
+      <h1>Pick your XI.<br>Argue with the <span class="u">maths.</span></h1>
       <p class="lede">
-        Every player scored from <b>FPL's own scoring rules</b> — minutes, fixtures, set pieces, the lot.
-        Then Armband shows you the arithmetic behind the number, and lets you argue with it.
-        Drag your eleven, order your bench, plan your chips across the gameweeks ahead.
+        Every player in the game, scored on <b>FPL’s own points</b> — minutes, fixtures, clean sheets, the lot.
+        Armband shows you what went into each number, so you can argue with it and overrule it
+        when you know something it doesn’t. Drag your eleven, order your bench, plan your chips weeks ahead.
       </p>
 
       <form class="gatecard">
@@ -210,9 +217,7 @@ footer .spacer{flex:1;}
           <button class="btn primary" type="submit">Claim my armband</button>
         </div>
         <div class="gatefoot">
-          <span><span class="counter">2,418</span> managers in the preview</span>
-          <span class="dotsep">·</span><span>No card. No FPL login.</span>
-          <span class="dotsep">·</span><span>One email, then you're in.</span>
+          <span>No card. No FPL login. Straight in — and we’ll email you when the alerts land.</span>
         </div>
         <div class="done" hidden style="margin-top:11px"></div>
       </form>
@@ -229,9 +234,13 @@ footer .spacer{flex:1;}
           <div class="mini"><div class="sh" style="background:#241F20"></div><div class="n">Thiaw</div><div class="p">3.47</div></div>
         </div>
         <div class="miniline">
-          <div class="mini cap"><div class="sh" style="background:#DA291C"><span class="arm">C</span></div><div class="n">B.Fernandes</div><div class="p">5.37</div></div>
+          <div class="mini cap"><div class="sh" style="background:#DA291C"><span class="arm">C</span></div><div class="n">B.Fernandes</div><div class="p">5.40</div></div>
           <div class="mini"><div class="sh" style="background:#6CABDD"></div><div class="n">Anderson</div><div class="p">4.17</div></div>
           <div class="mini"><div class="sh" style="background:#003399"></div><div class="n">Ndiaye</div><div class="p">4.15</div></div>
+        </div>
+        <div class="miniline">
+          <div class="mini"><div class="sh" style="background:#034694"></div><div class="n">Palmer</div><div class="p">3.86</div></div>
+          <div class="mini"><div class="sh" style="background:#EF0107"></div><div class="n">Saka</div><div class="p">3.82</div></div>
         </div>
         <div class="miniline">
           <div class="mini"><div class="sh" style="background:#6CABDD"></div><div class="n">Haaland</div><div class="p">5.28</div></div>
@@ -240,7 +249,7 @@ footer .spacer{flex:1;}
       </div>
       <div style="padding:10px 12px;background:var(--bg2);border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
         <span class="pill acc">▲ 46.5 xPts XI</span>
-        <span class="pill ov">9 overrides binding</span>
+        <span class="pill ov">9 of your calls applied</span>
         <span class="pill">£0.0m ITB</span>
       </div>
     </div>
@@ -248,24 +257,24 @@ footer .spacer{flex:1;}
 
   <!-- ============ PROOF ============ -->
   <div class="proof">
-    <div><div class="k">Players scored</div><div class="v">590</div><div class="d">every registered player, re-scored on every data pull</div></div>
-    <div><div class="k">Seasons replayed</div><div class="v">6</div><div class="d">the model is backtested against finished seasons, not vibes</div></div>
-    <div><div class="k">Planning window</div><div class="v">Rolling</div><div class="d">lineup and chips projected across the gameweeks ahead</div></div>
-    <div><div class="k">Costs you</div><div class="v acc">£0</div><div class="d">free while it's in open preview — no card, no FPL login</div></div>
+    <div><div class="k">Players scored</div><div class="v">All of them</div><div class="d">every player in the game, re-scored each time FPL updates</div></div>
+    <div><div class="k">Seasons replayed</div><div class="v">6</div><div class="d">six seasons of real football, played out in full. Not vibes.</div></div>
+    <div><div class="k">Weeks ahead</div><div class="v">Next 4</div><div class="d">your eleven and your chips, planned past this Saturday</div></div>
+    <div><div class="k">Costs you</div><div class="v acc">£0</div><div class="d">free while it’s in open preview — no card, no FPL login</div></div>
   </div>
 
   <!-- ============ FEATURES ============ -->
   <div class="sechead">
     <div class="k">What you get</div>
-    <h2>A number is not an answer. Armband hands you both.</h2>
-    <p>Most tools give you a ranking. This one gives you the ranking, the derivation underneath it, and a switch to overrule it when you know something the data doesn't.</p>
+    <h2>A number on its own is not an answer. You get the number and the working.</h2>
+    <p>Most tools give you a ranking. This one gives you the ranking, what’s underneath it, and a switch to overrule it when you know something the data doesn’t.</p>
   </div>
 
   <div class="feats">
     <div class="feat">
       <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg></div>
       <h3>Drag the pitch, keep it legal</h3>
-      <p>Formation rules enforced live. Drop a fourth forward and Armband tells you why it won't take. Bench order is drag-to-rank, not a dropdown.</p>
+      <p>You can’t build an illegal eleven by accident. Try a fourth forward and it won’t take — and it’ll tell you why. Bench order is drag-to-rank, not a dropdown.</p>
       <div class="demo">
         <div style="display:flex;align-items:center;gap:9px;">
           <span style="font-family:var(--display);font-weight:800;font-size:19px;">3-5-2</span>
@@ -278,11 +287,11 @@ footer .spacer{flex:1;}
     <div class="feat">
       <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg></div>
       <h3>Every number, opened up</h3>
-      <p>Tap any player for the full derivation: points per 90, the fixture adjustment, the minutes model, the reliability score, and anything a human hand has changed.</p>
+      <p>Tap any player and see what went into his number: his points per 90 after fixtures, who he’s playing, how reliably he starts, whether he’s fit — and anything you’ve changed by hand.</p>
       <div class="demo deriv" style="font-size:11.5px">
-        <div class="step"><span class="dim">base per 90</span><b>3.65</b></div>
-        <div class="step"><span class="dim">× fixtures (2.8 avg)</span><b>3.68</b></div>
-        <div class="step"><span class="dim">× minutes 88/90</span><b>3.60</b></div>
+        <div class="step"><span class="dim">points per 90, after fixtures</span><b>3.65</b></div>
+        <div class="step"><span class="dim">next up</span><b>vs BOU (H)</b></div>
+        <div class="step"><span class="dim">minutes reliability</span><b>0.92</b></div>
         <div class="step total"><span>xPts / gw</span><b>3.48</b></div>
       </div>
     </div>
@@ -290,13 +299,13 @@ footer .spacer{flex:1;}
     <div class="feat">
       <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div>
       <h3>Overrule it, on the record</h3>
-      <p>The model can't see a lost place or a pre-season injury. Lock a player in, block one out, or hand-set his minutes — with your reasoning saved beside it and an expiry date.</p>
+      <p>Lock a player in so every rebuild keeps him, or block one out so it never picks him — and watch the squad re-pick itself around your call.</p>
       <div class="demo">
         <div style="display:flex;gap:9px;align-items:flex-start;">
           <span class="pill ov">NAILED</span>
           <div style="font-size:11.5px;color:var(--ink2);line-height:1.45;">
             <b style="color:var(--ink)">Kinsky</b> <span class="dim">TOT</span><br>
-            Named first choice for 26/27. His record is backup minutes; the role isn't.
+            Named first choice for 26/27. His record is backup minutes; the role isn’t.
           </div>
         </div>
       </div>
@@ -324,19 +333,23 @@ footer .spacer{flex:1;}
     <span class="pill on">Open preview · 2026/27</span>
     <h2>Gameweek 1 locks Friday.</h2>
     <p>Get in now and set your eleven with the reasons in front of you.</p>
+    <div class="soon">
+      <p class="soonhead"><b>Soon:</b> we’ll text you when your striker is named on the bench.</p>
+      <p class="soonsub">Not yet — it’s the next thing we’re building, for people who signed up in the preview. This page will say “soon” until it’s true.</p>
+    </div>
     <form class="gatecard">
       <div class="gateform">
         <input type="email" placeholder="you@email.com" required aria-label="Email address">
         <button class="btn primary" type="submit">Claim my armband</button>
       </div>
-      <div class="gatefoot" style="justify-content:center"><span>We'll only email you about the preview. Unsubscribe in one click.</span></div>
+      <div class="gatefoot" style="justify-content:center"><span>No card. No FPL login. Straight in — and we’ll email you when the alerts land.</span></div>
       <div class="done" hidden style="margin-top:11px"></div>
     </form>
   </div>
 
   <footer>
     <div class="r">
-      <span><b style="color:var(--ink2)">Your team stays yours.</b> Plan it here, argue with it, get it how you want it — then make the changes on FPL when you're happy.</span>
+      <span><b style="color:var(--ink2)">Your team stays yours.</b> Plan it here, argue with it, get it how you want it — then make the changes on FPL when you’re happy.</span>
       <span class="spacer"></span>
       <a href="#">Privacy</a><a href="#">GitHub</a><a href="#">Method</a>
     </div>

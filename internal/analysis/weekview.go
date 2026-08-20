@@ -96,11 +96,18 @@ func (e *Engine) rebuildCaveat() string {
 			"guidance is to wildcard late enough that roles have resolved, and four or " +
 			"five gameweeks of real football settles most of them."
 	}
-	return fmt.Sprintf("Only %d gameweek(s) have been played, so the minutes behind this "+
+	// Singularised rather than "gameweek(s)" — a parenthesised plural is the one
+	// register this page otherwise avoids, and "1 gameweek(s) have" is also a
+	// number/verb mismatch on top of it.
+	noun, verb := "gameweeks", "have"
+	if played == 1 {
+		noun, verb = "gameweek", "has"
+	}
+	return fmt.Sprintf("Only %d %s %s been played, so the minutes behind this "+
 		"fifteen are about %.0f%% this season and %.0f%% last. A wildcard or free hit "+
 		"re-picks all fifteen on that mix, and it is the decision most exposed to a thin "+
 		"sample; four or five gameweeks settle most roles.",
-		played, share*100, (1-share)*100)
+		played, noun, verb, share*100, (1-share)*100)
 }
 
 // Blanks lists the squad members whose club has no fixture that week. They are

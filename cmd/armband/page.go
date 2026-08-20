@@ -528,7 +528,10 @@ func lapses(gw int) string {
 	if gw > 0 {
 		return fmt.Sprintf("lapses after GW%d", gw)
 	}
-	return "indefinite — review"
+	// A clause, to match "lapses after GW10" — the meta row reads "set 2026-08-05 ·
+	// checked 2026-08-07 · does not lapse", not a bare fragment butted against the
+	// date before it.
+	return "does not lapse"
 }
 
 func withAge(lastChecked string, age int) string {

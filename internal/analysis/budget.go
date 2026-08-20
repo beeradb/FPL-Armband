@@ -55,8 +55,14 @@ func (b BudgetTrust) Warning() string {
 	if b.Verified {
 		return ""
 	}
-	return fmt.Sprintf("BUDGET NOT VERIFIED — sales are priced at market value, "+
-		"which overstates what this squad can raise. %s", b.Reason)
+	msg := "BUDGET NOT VERIFIED — sales are priced at market value, " +
+		"which overstates what this squad can raise."
+	// b.Reason can be empty (an unverified budget with nothing further to say), and
+	// appending it unconditionally left a trailing space after the period.
+	if b.Reason != "" {
+		msg += " " + b.Reason
+	}
+	return msg
 }
 
 // Label is a short form for compact output, including tool JSON that is

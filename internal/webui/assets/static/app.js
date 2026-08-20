@@ -278,7 +278,7 @@ const CHIPS=[
  {k:'wildcard', n:'Wildcard',       ic:'★'},
  {k:'freehit',  n:'Free Hit',       ic:'⇄'},
  {k:'bboost',   n:'Bench Boost',    ic:'▤'},
- {k:'tcap',     n:'Triple Captain', ic:'3×'}
+ {k:'3xc',      n:'Triple Captain', ic:'3×'}
 ];
 
 /* S is the reader's state: what he has changed, and what he is looking at. Everything
@@ -500,7 +500,7 @@ function fdrHtml(club,n=5,from=S.gw){
   const pad=Array(Math.max(0,n-f.length)).fill(null);
   return '<span class="fdr">'+
     f.map(x=>`<i class="f${x.fdr}" title="${esc(x.opp)} (${esc(x.ha)}) difficulty ${x.fdr}">${x.fdr}</i>`).join('')+
-    pad.map(()=>'<i class="blank" title="beyond the projected horizon">·</i>').join('')+
+    pad.map(()=>'<i class="blank" title="no fixture scheduled this far out">·</i>').join('')+
     '</span>';
 }
 /* The club's fixture in a given gameweek, or null. A blank week is a real answer and the
@@ -682,7 +682,7 @@ function renderChips(){
 }
 function chipExplain(k){
   return {
-    bboost:`Bench boost: all 15 score. Your bench adds ${benchPts().toFixed(1)} pts — order stops mattering, so pick for points not safety.`,
+    bboost:`Bench boost: the fifteen all score. Your bench adds ${benchPts().toFixed(1)} pts — order stops mattering, so pick for points not safety.`,
     '3xc':`Triple captain: ${esc(byId(S.cap).n)} scores ×3 (${(xpFor(byId(S.cap))*3).toFixed(1)} pts).`,
     wildcard:`Wildcard: unlimited transfers, no hits. Budget rules still apply — the Players tab is now a full rebuild.`,
     freehit:`Free hit: this week's team only, reverts after GW${S.gw}. Nothing you buy here carries forward.`
@@ -1110,7 +1110,7 @@ function openSheet(id){
      <div class="k" style="margin-bottom:6px">What goes into the number</div>
      <div class="deriv panel" style="padding:10px 12px">
        <div class="step"><span class="muted">points per 90, after fixtures</span><b>${p.p90.toFixed(2)}</b></div>
-       <div class="step"><span class="muted">${f?`fixture ${esc(f.opp)} (${esc(f.ha)}) FDR ${f.fdr}`:'no fixture this gameweek'}</span><b>${f?'':'blank'}</b></div>
+       <div class="step"><span class="muted">${f?`fixture ${esc(f.opp)} (${esc(f.ha)}) FDR ${f.fdr}`:'no fixture'}</span><b></b></div>
        <div class="step"><span class="muted">minutes reliability</span><b>${p.rel.toFixed(2)}</b></div>
        <div class="step"><span class="muted">availability</span><b>${(p.availability===undefined?1:p.availability).toFixed(2)}</b></div>
        ${chip==='3xc'&&S.cap===id?`<div class="step"><span class="muted">× triple captain</span><b>×3</b></div>`:
@@ -1122,7 +1122,7 @@ function openSheet(id){
      <div class="k" style="margin:14px 0 6px">Next five</div>
      ${fdrHtml(p.club,5,S.gw)}
      <div class="dim" style="font-family:var(--mono);font-size:11px;margin-top:6px">
-       ${(FIX[p.club]||[]).filter(x=>x.gw>=S.gw&&x.gw<S.gw+5).map(x=>`${esc(x.opp)}(${esc(x.ha)},${x.fdr})`).join(' · ')||'no fixtures in the projected window'}
+       ${(FIX[p.club]||[]).filter(x=>x.gw>=S.gw&&x.gw<S.gw+5).map(x=>`${esc(x.opp)}(${esc(x.ha)},${x.fdr})`).join(' · ')||'no fixtures in the next five'}
      </div>
 
      <!-- Last season and this-season-by-gameweek are the depth this card exists to carry.
@@ -1176,7 +1176,17 @@ function openSheet(id){
     }
     if(a==='swap'){S.swapFrom=id;closeSheet();setSwapbar();return;}
     if(a==='replace'){openPicker(id);return;}
-    if(a==='buy'){closeSheet();return;}
+    if(a==='buy'){
+      // He is not in the fifteen, so there is no single player this sheet already
+      // knows he would replace -- unlike the market table's own "Replaces" column,
+      // which starts from an owned player. Defaulting to the weakest starter in his
+      // position is the same suggestion the market table makes for every other
+      // candidate; the picker lets the reader change it before anything is bought.
+      const w=P.filter(x=>x.pos===p.pos).sort((x,y)=>x.xp-y.xp)[0];
+      closeSheet();
+      if(w){ openPicker(w.id); R.sel=id; renderPicker(); }
+      return;
+    }
     closeSheet();renderAll();
   });
 }
@@ -1201,7 +1211,7 @@ function openArmbandPicker(which){
          <span class="armslot">${isC?'C':isV?'V':''}</span>
          <span class="cn"><b>${esc(p.n)}</b> <span class="dim" style="font-family:var(--mono);font-size:10.5px">${esc(p.club)} ${esc(p.pos)}</span>
            <span style="display:block;margin-top:3px">${roleChip(p.role,true)}
-             <span class="dim" style="font-family:var(--mono);font-size:10px">${f?`vs ${esc(f.opp)} (${esc(f.ha)})`:'blank gameweek'}</span>
+             <span class="dim" style="font-family:var(--mono);font-size:10px">${f?`vs ${esc(f.opp)} (${esc(f.ha)})`:'no fixture'}</span>
              <i style="font-style:normal">${fdrHtml(p.club,1,S.gw)}</i></span></span>
          <span class="cx"><b>${x.toFixed(2)}</b><span class="dim">pts</span>
            <span class="gain">${which==='cap'?`+${gain.toFixed(2)} from the armband`:'backup'}</span></span>
@@ -1278,7 +1288,7 @@ function renderPlayers(){
     if([...sortPill.options].some(o=>o.value===pillVal)) sortPill.value=pillVal;
   }
   document.getElementById('marketnote').innerHTML=`
-    <span class="gate pass"></span><b>${clears}</b> of ${POOL.length} clear the +${gate.toFixed(2)} transfer gate
+    <span class="gate pass"></span><b>${clears}</b> of ${POOL.length} clear the +${gate.toFixed(2)} gate
     <span class="sep">·</span>
     <b>${reachable}</b> are reachable with £${bank.toFixed(1)}m in the bank
     ${bank<0.5?`<span class="sep">·</span><span class="warnc">every other move needs you to sell first</span>`:''}`;
@@ -1286,7 +1296,7 @@ function renderPlayers(){
 
   const MOB_CAP=40, shown=list.slice(0,S.showAll?list.length:MOB_CAP);
   const emptyHtml=`<div class="empty">
-      <div class="big">Nothing clears this filter</div>
+      <div class="big">Nothing matches</div>
       <p>No player matches ${S.q?`“${esc(S.q)}”`:'these settings'}${S.affordOnly?' inside your budget':''}.</p>
       <button class="btn sm" id="clearFilters">Show all ${POOL.length} players</button>
     </div>`;
@@ -1299,7 +1309,7 @@ function renderPlayers(){
 
   document.getElementById('ptbody').innerHTML=list.map(p=>`
    <tr data-id="${p.id}">
-     <td><span class="gate${p.clears?' pass':''}" title="${p.clears?`clears the +${gate.toFixed(2)} transfer gate`:'below the transfer gate'}"></span></td>
+     <td><span class="gate${p.clears?' pass':''}" title="${p.clears?`clears the +${gate.toFixed(2)} gate`:'below the gate'}"></span></td>
      <td><span class="who">${esc(p.n)}</span><span class="club">${esc(p.club)}</span></td>
      <td class="k">${esc(p.pos)}</td>
      <td>${fdrHtml(p.club,5,S.gw)}</td>
@@ -1307,7 +1317,7 @@ function renderPlayers(){
      <td class="n">£${p.pr.toFixed(1)}${p.afford<0?`<span class="short">needs +£${Math.abs(p.afford).toFixed(1)}m</span>`:''}</td>
      <td class="n" style="font-weight:700">${p.xp.toFixed(2)}</td>
      <td class="n ${p.clears?'dpos':'dneg'}">${p.d>0?'+':''}${p.d.toFixed(2)}</td>
-     <td class="n"><button class="btn sm" data-buy="${p.id}" title="Transfer in ${esc(p.n)}, sell ${esc(p.out.n)}">${esc(p.out.n.length>10?p.out.n.slice(0,10)+'…':p.out.n)}</button></td>
+     <td class="n"><button class="btn sm" data-buy="${p.id}" data-out="${p.out.id}" title="Transfer in ${esc(p.n)}, sell ${esc(p.out.n)}">${esc(p.out.n.length>10?p.out.n.slice(0,10)+'…':p.out.n)}</button></td>
    </tr>`).join('');
 
   document.getElementById('plist').innerHTML=shown.map(p=>`
@@ -1337,7 +1347,12 @@ function renderPlayers(){
   if(sm) sm.onclick=()=>{S.showAll=true;renderPlayers();};
 
   document.querySelectorAll('#ptbody tr,.prow').forEach(r=>r.onclick=e=>{
-    if(e.target.closest('[data-buy]')) return;
+    // The "Replaces" column already knows which of your fifteen it would sell, so a
+    // click there jumps straight into the picker with this candidate pre-staged,
+    // rather than opening this row's own sheet -- which used to be exactly what the
+    // click on it silently ignored.
+    const buy=e.target.closest('[data-buy]');
+    if(buy){ openPicker(+buy.dataset.out); R.sel=+buy.dataset.buy; renderPicker(); return; }
     openSheet(+r.dataset.id);
   });
 }
@@ -1445,7 +1460,7 @@ function renderNews(){
     (list.length?list.map(o=>row(o,false)).join(''):'')+
     (ignored.length?ignored.map(o=>row(o,true)).join(''):'')||
     `<div class="empty panel"><div class="big">Nothing here</div>
-     <p>The model is running unaided in this group — every number is measured, not hand-set.</p></div>`;
+     <p>Nothing of yours is applied here — this is the model's own pick, every number measured, not hand-set.</p></div>`;
 
   /* Ignoring is a change to what the MODEL is running under, so it goes to the server and
      the page redraws from the squad that comes back. The row stays drawn, greyed -- see
@@ -1523,7 +1538,7 @@ function renderSquadSource(){
   if(!el) return;
   el.textContent = S.saved ? 'your saved team'
     : S.optimised ? "our best fifteen"
-    : 'a strong opening fifteen — press Optimize for the model’s best';
+    : 'a strong opening fifteen — press Optimise for the model’s best';
   const opt=document.getElementById('optimise');
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
@@ -1560,8 +1575,8 @@ function boot(){
       if(el) el.innerHTML=`<div class="panel" style="padding:24px">
         <b>The squad could not be loaded.</b>
         <div class="dim" style="margin-top:8px">${esc(err.message)}</div>
-        <div class="dim" style="margin-top:8px">The page is served by <code>armband serve</code>;
-        if it is still running, its output will say more.</div></div>`;
+        <div class="dim" style="margin-top:8px">Try reloading the page. If it keeps
+        happening, the preview may be down for a moment — come back shortly.</div></div>`;
       console.error(err);
     });
 }
@@ -1592,7 +1607,7 @@ const resetBtn=document.getElementById('resetBtn');
 if(resetBtn) resetBtn.onclick=()=>{
   const n=(PENDING.lock||[]).length+(PENDING.excl||[]).length;
   if(n && !confirm(`Reset asks the model for its honest best and forgets what you told it: `+
-    `${n} instruction${n===1?'':'s'} will be discarded. Optimize keeps them; Reset does not. Continue?`)) return;
+    `${n} instruction${n===1?'':'s'} will be discarded. Optimise keeps them; Reset does not. Continue?`)) return;
   save(pending=>{
     pending.opt=true;
     pending.squad=undefined;
@@ -1740,7 +1755,7 @@ function renderPicker(){
        sells <b>£${sellPriceOf(o).toFixed(1)}m</b> <span class="op">+</span> bank <b>£${bankOf().toFixed(1)}m</b>
        <span class="op">=</span> <b>£${B.toFixed(1)}m</b> to spend
        <span class="sep">·</span> gate +${gateOf().toFixed(2)} pts a week
-       <span class="sep">·</span> Δ vs ${esc(o.n)}, per gameweek
+       <span class="sep">·</span> Gain vs ${esc(o.n)}, per gameweek
      </div>
      <div class="toolbar" style="margin:10px 0 8px">
        <div class="seg" id="pkpos">
@@ -1763,7 +1778,7 @@ function pickerRow(c,o,browse){
   const av=(c.availability===undefined?1:c.availability);
   return `<button class="reprow${R.sel===c.id?' on':''}${browse?' browse':''}" data-id="${c.id}">
     <span class="g">${browse?'':`<span class="gate${clears?' pass':''}"
-      title="${clears?'clears':'below'} the +${gateOf().toFixed(2)} transfer gate"></span>`}</span>
+      title="${clears?'clears':'below'} the +${gateOf().toFixed(2)} gate"></span>`}</span>
     <span class="n"><b>${esc(c.n)}</b><span class="club">${esc(c.club)}</span>
       ${c.ov?`<span class="pill ov">set: ${esc((c.ov.t||'').toLowerCase())}</span>`:''}
       ${av===0?`<span class="pill bad">ruled out</span>`:av<1?`<span class="pill warn">${Math.round(av*100)}% fit</span>`:''}
@@ -1783,7 +1798,7 @@ function pickerEmpty(o){
     <div class="big">Nothing at £${pickerBudget().toFixed(1)}m</div>
     <p>Selling ${esc(o.n)} raises £${sellPriceOf(o).toFixed(1)}m and the bank adds £${bankOf().toFixed(1)}m.
     ${cheapest?`The cheapest ${esc(R.pos)} on the market is £${cheapest.pr.toFixed(1)}m — £${gap}m short.`:''}</p>
-    <button class="btn sm" id="pkwiden">Show the ${esc(R.pos)}s you can’t afford</button>
+    <button class="btn sm" id="pkwiden">Show the ones you can’t afford</button>
   </div>`;
 }
 
@@ -1795,7 +1810,7 @@ function pickerStage(c,o){
       <span class="in"><b>${esc(c.n)}</b> £${c.pr.toFixed(1)}m</span>
       <span class="sep">·</span> ${gap>=0?`leaves <b>£${gap.toFixed(1)}m</b> in the bank`
         :`<span class="short" style="display:inline;margin:0">needs +£${Math.abs(gap).toFixed(1)}m — raise it by selling elsewhere first</span>`}</div>
-    <div class="verdict ${clears?'pass':'miss'}">Δ ${d>0?'+':''}${d.toFixed(2)} pts a week —
+    <div class="verdict ${clears?'pass':'miss'}">Gain ${d>0?'+':''}${d.toFixed(2)} pts a week —
       ${clears?`clears the +${gateOf().toFixed(2)} gate`:`below the +${gateOf().toFixed(2)} gate`}</div>
     <div class="acts">
       <button class="btn primary" id="pkgo" ${gap<0||overClub(c)?'disabled':''}>Make this transfer</button>
