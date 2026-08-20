@@ -203,6 +203,16 @@ func run() error {
 	}
 
 	ttl := time.Duration(cfg.CacheMinutes) * time.Minute
+	// -refresh forces ttl to zero, which internal/fpl.Client's get() treats as
+	// "never fresh" — every read refetches, and the file is still rewritten with
+	// a new mtime. This is also the mechanism a shared-archive generator process
+	// (a Kubernetes CronJob's warm/init container, in this project's deployment)
+	// needs: it runs the same binary against the same config as the readers it
+	// generates the archive for, so it cannot rely on cache_minutes for its own
+	// freshness — raising cache_minutes so a READER never refetches on its own
+	// would, without -refresh, also make the GENERATOR see its own last run as
+	// still fresh and stop fetching forever. -refresh is how the generator opts
+	// out of whatever TTL the reader-facing config carries.
 	if *refresh {
 		ttl = 0
 	}
