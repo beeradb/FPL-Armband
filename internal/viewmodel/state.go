@@ -316,12 +316,15 @@ type Player struct {
 	Reliability float64 `json:"reliability"`
 	StartShare  float64 `json:"start_share"`
 
-	// ModelledMinutes is the rotation band's own line — "minutes 90 → 54
-	// modelled" — pre-formatted so the client is not pasting together the
-	// baseline, an arrow and a word. Minutes above already carries the 54; what
-	// is new is the 90 (a full match, a fixed fact of football rather than
-	// anything the model computed) and the phrasing.
-	ModelledMinutes string `json:"modelled_minutes,omitempty"`
+	// ⚠️ ModelledMinutes was here and is REMOVED. It was Minutes pre-formatted as
+	// "90 → 54 modelled", justified as saving the client from pasting a baseline,
+	// an arrow and a word — but the client's own row template already draws that
+	// arrow, so the two were one quantity in two shapes.
+	//
+	// It cost a live NaN. The client aliased the STRING into the slot its
+	// arithmetic used, so Math.round() rendered "NaN" on the player card and in
+	// the News tab's standing band, and two sorts silently compared strings.
+	// Minutes is the number; there is now one of it.
 
 	Ownership float64 `json:"ownership"`
 

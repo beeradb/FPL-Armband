@@ -53,7 +53,6 @@
     <button data-view="pitch"    aria-selected="true">Pitch</button>
     <button data-view="players"  aria-selected="false">Players <span class="c" id="poolCount">—</span></button>
     <button data-view="news"     aria-selected="false">News <span class="c" id="newsCount" hidden></span></button>
-    <button data-view="brief"    aria-selected="false">Brief</button>
   </div>
 </nav>
 
@@ -256,46 +255,22 @@
         likely to do, we tell the model — with the source and the date — and your numbers
         move before the deadline. We won't catch everything. What we do catch is below,
         with where it came from.</p>
-      <span class="nfresh"><span class="dot" aria-hidden="true"></span>
-        <span class="t-meta" id="newsChecked"></span></span>
+      <span class="nfresh"><span class="t-meta" id="newsChecked"></span></span>
     </div>
   </div>
+
+  <!-- ⚠️ The coming-soon panel is FIRST, above the three groups, and that placement is
+       deliberate rather than incidental. It sat at the foot, where it was below the fold on
+       every screen -- the one thing on this tab announcing where the product is going, and
+       nobody scrolled to it. It is one badge and one line, so it costs almost no height at
+       the top and earns all of it. -->
+  <div id="news-press"></div>
 
   <div id="news-flagged"></div>
   <div id="news-read"></div>
   <div id="news-risk"></div>
-  <div id="news-press"></div>
 </section>
 
-<!-- ============================================================
-     VIEW: BRIEF
-     ============================================================ -->
-<section id="view-brief" hidden>
-  <div class="briefgrid" style="margin-top:14px">
-  <div class="why" style="margin-top:0">
-    <h3>The verdict</h3>
-    <!-- The weekly verdict is not wired up. What stood here was prose written by hand
-         against one GW1 build -- a captain, a chip plan, and the one thing that would
-         change it -- and none of it came from the model, so it would have kept saying
-         the same thing in April.
-
-         The material for a real one is computed on every request and thrown away:
-         buildSquadPage produces a transfer plan, a briefing and the engine's chip plan,
-         and internal/viewmodel carries none of them to the client yet. Saying so is the
-         honest state; asserting last August's judgement is not. -->
-    <div style="padding:14px 15px;font-size:14px;line-height:1.6;color:var(--ink2);max-width:70ch">
-      <p style="margin-top:0">The weekly verdict — whether to hold or act, who takes the
-      armband, and the one thing that would change it — is not wired through to this page
-      yet. Run <code>armband brief</code> for it in the meantime.</p>
-      <p>What is below is real: the model's own account of where it cannot see.</p>
-    </div>
-  </div>
-  <div class="why" style="margin-top:0">
-    <h3>Where the model says it is blind</h3>
-    <div id="blindrows"></div>
-  </div>
-  </div>
-</section>
 
 </div><!-- /wrap -->
 
@@ -307,8 +282,6 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 11h5M19.5 8.5v5"/></svg>Players</button>
   <button data-view="news" aria-selected="false">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>News</button>
-  <button data-view="brief" aria-selected="false">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l4 4v14H5z"/><path d="M8 11h8M8 15h8M8 7h4"/></svg>Brief</button>
 </nav>
 
 <!-- ===================== PLAYER SHEET ===================== -->

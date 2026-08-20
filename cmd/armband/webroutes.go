@@ -371,10 +371,32 @@ func allowGateOrigin(w http.ResponseWriter, r *http.Request) bool {
 
 // gateCookieName marks a reader who has been through the landing form.
 //
-// It gates nothing today — /app is reachable directly, exactly as the design's "I have
-// access" link expects. It exists so the landing page can tell a returning reader apart
-// from a new one, and so the eventual real flow has somewhere to put its answer.
+// ⚠️ It now GATES, which reverses what this comment said for its whole life. The two
+// documents answer each other: "/" sends a reader who has the cookie on to /app, and /app
+// sends one who does not back to "/". There is no third way in — the landing page's
+// "I have access" link, which was the by-design bypass, is deleted.
 const gateCookieName = "fpl_gate"
+
+// gated reports whether the gate is enforced at all.
+//
+// ⚠️ It keys on the SIGNUP STORE rather than on a flag, and that is what makes enforcing it
+// safe. A local `armband serve` has no store: signups is nil, the gate answers 503 rather
+// than accepting and discarding, and there is therefore no way for a local reader to obtain
+// the cookie at all. Enforcing there would lock an operator out of their own tool behind a
+// form that cannot succeed. The public deployment configures a store, so the gate binds
+// exactly where it can be passed.
+func (s *squadServer) gated() bool { return s.signups != nil }
+
+// hasGatePass reports whether the request carries the landing form's cookie.
+//
+// Presence is the whole test, and the value is a constant "1" that proves nothing on its
+// own. ⚠️ This is a soft gate on a free preview, not an authorisation boundary, and it must
+// not be read as one or grown into one without a threat model: anyone willing to set a
+// cookie is through it. What it buys is that the ordinary path runs through the form.
+func (s *squadServer) hasGatePass(r *http.Request) bool {
+	c, err := r.Cookie(gateCookieName)
+	return err == nil && c.Value != ""
+}
 
 // state answers the client contract, for the reader's own team where they have one.
 //

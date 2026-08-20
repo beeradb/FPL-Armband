@@ -152,7 +152,10 @@ func TestEveryPanelRendersAHostileNameAsText(t *testing.T) {
 		"Your instructions",
 		"view-players",
 		"view-news",
-		"view-brief",
+		// view-brief was here. The Brief tab is deleted -- it held a verdict that was
+		// never wired through and said so, plus the model's blind spots. Removed from
+		// this list rather than the list being shortened silently, because the point of
+		// the list is that it enumerates every panel the walk must reach.
 	} {
 		if !strings.Contains(dom, marker) {
 			t.Errorf("the rendered document does not contain %q, so this test is not "+

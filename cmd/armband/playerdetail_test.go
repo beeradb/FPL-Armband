@@ -154,14 +154,20 @@ func TestPlayerDetailTranslatesHistory(t *testing.T) {
 	}
 }
 
-// TestPlayerDetailOmitsCleanSheetsOffThePitch checks the position-gated field: a clean sheet
-// is not a midfielder's or forward's stat, so LastSeason.CleanSheets must be entirely absent
-// from the document for one rather than printed as a bare, misleading zero -- and present,
-// even at zero, for a defender or goalkeeper.
+// TestPlayerDetailOmitsCleanSheetsOffThePitch checks the position-gated field on the wire.
+//
+// ⚠️ The line is the SCORING RULE, and this test used to draw it in the wrong place. A clean
+// sheet pays a keeper or a defender 4, a MIDFIELDER 1, and a forward nothing. It grouped MID
+// with FWD and required the field absent for both, which hid from every midfielder's card a
+// figure that genuinely pays him.
+//
+// So: present even at zero for everyone it pays, and entirely absent for a forward --
+// absent rather than zero, because the client omits the whole clause when the field is
+// missing, and a bare 0 would read as a claim about a player it does not describe.
 func TestPlayerDetailOmitsCleanSheetsOffThePitch(t *testing.T) {
 	s, _ := withFetch(t)
 
-	var def, mid *fpl.Element
+	var def, mid, fwd *fpl.Element
 	for i := range s.engine.Boot.Elements {
 		el := &s.engine.Boot.Elements[i]
 		switch s.engine.Boot.PositionShort(el.ElementType) {
@@ -169,14 +175,18 @@ func TestPlayerDetailOmitsCleanSheetsOffThePitch(t *testing.T) {
 			if def == nil {
 				def = el
 			}
-		case "MID", "FWD":
+		case "MID":
 			if mid == nil {
 				mid = el
 			}
+		case "FWD":
+			if fwd == nil {
+				fwd = el
+			}
 		}
 	}
-	if def == nil || mid == nil {
-		t.Fatal("the committed capture has no defender/goalkeeper and outfield attacker to compare")
+	if def == nil || mid == nil || fwd == nil {
+		t.Fatal("the committed capture lacks one of a defender/keeper, a midfielder and a forward")
 	}
 
 	for _, tc := range []struct {
@@ -185,7 +195,8 @@ func TestPlayerDetailOmitsCleanSheetsOffThePitch(t *testing.T) {
 		wantNil bool
 	}{
 		{"defender or keeper", def, false},
-		{"midfielder or forward", mid, true},
+		{"midfielder", mid, false},
+		{"forward", fwd, true},
 	} {
 		w := get(t, s, playerPath(tc.el.Code))
 		if w.Code != 200 {

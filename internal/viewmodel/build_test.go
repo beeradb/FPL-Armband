@@ -328,13 +328,44 @@ func TestARoleBandIsNeverInventedHere(t *testing.T) {
 	}
 }
 
-// TestModelledMinutesStatesTheFullMatchBaseline pins the phrasing and the one number in
-// it that is NOT a passthrough: 90, a fixed fact of football rather than anything the
-// model computed.
-func TestModelledMinutesStatesTheFullMatchBaseline(t *testing.T) {
+// TestMinutesReachTheClientAsANumber is a regression guard, and it replaces a test that
+// pinned the phrasing of a pre-formatted ModelledMinutes string.
+//
+// That string was Minutes wrapped as "90 → 72 modelled". The client aliased it into the
+// slot its arithmetic used, so Math.round() rendered "NaN" on the player card and in the
+// News tab's standing band, and two sorts compared strings and ordered nothing. It
+// reached production.
+//
+// So the property worth pinning is not a phrase, it is a TYPE: the field the client does
+// arithmetic on must serialise as a JSON number. A future change that helpfully
+// pre-formats it re-creates the same defect, and this fails instead.
+func TestMinutesReachTheClientAsANumber(t *testing.T) {
 	s := build(t, samplePage())
-	if got, want := s.Squad.Players[1].ModelledMinutes, "90 → 72 modelled"; got != want {
-		t.Errorf("ModelledMinutes = %q, want %q", got, want)
+	b, err := json.Marshal(s)
+	if err != nil {
+		t.Fatalf("marshalling the state: %v", err)
+	}
+	var raw struct {
+		Squad struct {
+			Players []map[string]json.RawMessage `json:"players"`
+		} `json:"squad"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatalf("re-reading the state: %v", err)
+	}
+	if len(raw.Squad.Players) == 0 {
+		t.Fatal("the sample page produced no players, so this proves nothing")
+	}
+	for i, p := range raw.Squad.Players {
+		v, ok := p["minutes"]
+		if !ok {
+			t.Fatalf("player %d carries no minutes field at all", i)
+		}
+		var n float64
+		if err := json.Unmarshal(v, &n); err != nil {
+			t.Fatalf("player %d: minutes is %s, which is not a number. The client rounds "+
+				"and sorts on this; a string here renders NaN and orders nothing.", i, v)
+		}
 	}
 }
 
