@@ -5,10 +5,17 @@
 # checklist cannot fail a merge, so "the gates passed" and "someone said the
 # gates passed" were the same claim, and only one of them is checkable.
 #
-# `go test ./...` is the whole suite and takes about three minutes wall-clock;
+# `go test ./...` is the whole suite and takes about four minutes wall-clock;
 # there is no value in splitting it into faster jobs that each report a partial
-# answer. `internal/backtest` and `internal/analysis` are ~95% of that time and
-# they are the two packages whose failure matters most.
+# answer. `internal/backtest`, `cmd/armband` and `internal/analysis` are ~90% of
+# that time and they are the packages whose failure matters most.
+#
+# ⚠️ This job is the ONLY place the whole suite runs on a machine that is not the
+# author's, and that is the point of it rather than a detail: a local run is
+# uncheckable after the fact, and merge-gate condition 1 now cites this run by id
+# as the witness a reader who was not present can pull. A partial job here would
+# not be a smaller version of that check — it would leave a hole with nothing
+# behind it.
 #
 # ⚠️ Expect `TestSnapshotCoversTheCurrentCode` to fail on any pull request that
 # touches internal/analysis, internal/backtest, internal/config or config.json —
@@ -17,19 +24,44 @@
 # also the known churn problem; it is not a reason to weaken this workflow. The
 # fix belongs in the gate, not here.
 #
-# ⚠️ The triggers are `pull_request` and `push`, deliberately NOT
+# ⚠️ The triggers are `push` and `pull_request`, deliberately NOT
 # `pull_request_target`. This job compiles and runs the pull request's own test
-# files, so a fork PR already executes attacker-authored code; that is safe only
-# because the token is read-only and this workflow holds no secrets. Converting
-# to `pull_request_target`, or adding any `secrets.` reference, makes a test
-# function a one-line exfiltration path. Either change needs a security review,
-# not a rubber stamp.
+# files, so a fork PR already executes attacker-authored code. That is safe for
+# two reasons and it takes both: the token is read-only, AND a fork's
+# `pull_request` run receives no secrets.
+#
+# The second half used to be written here as "this workflow holds no secrets",
+# which was already false when written — the leak scan below names
+# `secrets.LEAKSCAN_PATTERN`. The reference is safe because a fork cannot read
+# it and the scan skips-and-says-so; it is NOT made safe by the `pull_request`
+# trigger, since a same-repo pull request reads secrets exactly as a push does.
+# Correcting it matters because a safety argument that contradicts its own file
+# is the one that gets waved through next time.
+#
+# So: `pull_request_target` breaks the first half. A secret a FORK could read
+# breaks the second. Either change needs a security review, not a rubber stamp.
 
 name: CI
 
 on:
   push:
-    branches: [main]
+    # Every branch, not just main, mirroring image.yml. Until this changed, CI ran
+    # only AFTER a merge had landed on `main` — a detector, not a gate, and one
+    # nobody was reading: `main` merged four times over a red CI on 2026-08-19.
+    # A run keyed to a pushed commit is something merge-gate condition 1 can cite
+    # by id and a reader who was not there can pull. Branches are pushed before
+    # merging anyway (condition 8), so this costs a trigger, not a habit.
+    #
+    # A same-repo branch with an open pull request therefore builds twice, once
+    # per event. That is accepted rather than deduplicated. Folding both into one
+    # concurrency group is the WRONG way to dedup — it would let a push cancel the
+    # very run condition 1 is quoting. The right way is a job-level
+    # `if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name
+    # != github.repository`, which skips only the redundant pull_request run. It is
+    # not worth the conditional today because no pull request has ever been opened
+    # here, but dedup is available and safe — do not read this block as saying
+    # otherwise.
+    branches: ["**"]
   pull_request:
 
 # A superseded run tells you about code nobody is going to merge.
@@ -96,6 +128,17 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .cache/fpl
+          # ⚠️ `.cache/fpl` is also `config.CacheDir` (internal/config/config.go),
+          # so this uploads whatever the suite wrote through internal/fpl, not
+          # only the season archive. This repository is public and a
+          # default-branch-scoped cache is restorable by any fork's pull request
+          # — treat this path as PUBLISHED. It is safe because `internal/fpl` has
+          # no authenticated surface at all: no session cookie, no `my-team`, no
+          # POST, pinned by `TestTheClientHasNoAuthenticatedSurface`. There is no
+          # credential for this cache to capture. Reviving one re-opens this.
+          # (An earlier version of this comment credited "the client refuses to
+          # cache `my-team`" — a guard that no longer exists, which sent a reader
+          # looking for the wrong thing and left the real one unnamed.)
           # ⚠️ The key is DERIVED, and a static one is a silent trap. `Load`
           # revalidates a cached season against the parse version, team
           # strength, availability, starts, restart gameweeks and rowGuardCount
@@ -116,10 +159,16 @@ jobs:
           key: fpl-archive-${{ hashFiles('internal/backtest/season.go', 'internal/priors/priors.go') }}
           restore-keys: fpl-archive-
 
-      # The private bare repository has a fail-closed `pre-receive` hook doing this.
-      # A hosted remote runs no such hook, so without this step the guard simply
-      # disappears on publication — and a pull request is exactly when it matters,
-      # because that is when content arrives from a branch nobody has read.
+      # ⚠️ This comment used to say "the private bare repository has a fail-closed
+      # `pre-receive` hook doing this", and that there is no such hook on a hosted
+      # remote so this step restores the guard "and a pull request is exactly when
+      # it matters". Both halves were false. There is ONE remote, it is the public
+      # GitHub repository, and no `pre-receive` hook runs anywhere on the push path
+      # — so this step is not a restoration of a guard that exists elsewhere, it is
+      # the ONLY automated guard on this channel. And a pull request is not when it
+      # matters: every merge in this repository's history is a local merge commit
+      # pushed straight to a branch, which is why this step is no longer gated on
+      # the event.
       #
       # ⚠️ The pattern lives in a repository secret, NOT in the tracked script. A
       # published file containing the strings it searches for would be the
@@ -129,13 +178,43 @@ jobs:
       # SHAs are passed through `env:` rather than interpolated into `run:`. They
       # are hex and safe, but the rule is worth keeping absolute: nothing
       # attacker-controlled has a path into a shell here.
+      #
+      # ⚠️ It runs on BOTH events, and it was `pull_request`-only until
+      # 2026-08-19. In that state it had NEVER EXECUTED ONCE: this repository has
+      # no pull request in its history — `git log --grep='Merge pull request'`
+      # is empty and every merge is a local merge commit pushed straight to
+      # `main` — so the condition was never true. The fallback the comment above
+      # names is not on the path either: there is one remote, it is the public
+      # GitHub repository, and no hosted remote runs a `pre-receive` hook. The
+      # only automated guard on this channel was therefore a step that could not
+      # fire, sitting under a green check.
+      #
+      # A fork's pull request still reads no secret and still skips, loudly, and
+      # nothing new becomes reachable: a fork cannot trigger `push` here.
       - name: Scan the diff for disclosures
-        if: github.event_name == 'pull_request'
         env:
           LEAKSCAN_PATTERN: ${{ secrets.LEAKSCAN_PATTERN }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: ./scripts/leakscan "$BASE_SHA..$HEAD_SHA"
+          # `github.event.before` is the ref's previous value, so it is the exact
+          # pushed range. It is all-zeros on a branch's first push and unreachable
+          # after a force-push, which is what the reachability test below is for;
+          # both fall back to the whole branch against the default branch, which
+          # over-scans rather than under-scans.
+          BEFORE_SHA: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            range="$BASE_SHA..$HEAD_SHA"
+          elif [ -n "$BEFORE_SHA" ] \
+            && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ] \
+            && git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+            range="$BEFORE_SHA..$GITHUB_SHA"
+          else
+            range="origin/$DEFAULT_BRANCH..$GITHUB_SHA"
+          fi
+          echo "leakscan range: $range"
+          ./scripts/leakscan "$range"
 
       - name: Build
         run: go build ./...

@@ -909,7 +909,32 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// docs/replay.md. The named lists are deliberate — see the file's own statement — and
 	// a future edit must not "finish the job" by deleting them, nor re-inflate the
 	// resident file with a second copy of a verdict.
-	const budget = 44 * 1024
+	// # 46 KB from 2026-08-19 — "the tests are slow" was a full disk, and the record has to say so
+	//
+	// The claim that needed the room, and it is a diagnosis rather than a verdict:
+	// this suite re-running everything on every invocation is the symptom of a disk
+	// with no room to write a test result, and Go declines to cache one it cannot
+	// write WITHOUT SAYING SO. Measured the day it was written: `/` at 100%, 61 MB
+	// free, 27 GB of a 58 GB volume inside GOCACHE, and a reviewer's run dying on
+	// `no space left on device` writing testlog.txt. Warm, with room, the whole
+	// suite is 6.3s against 227s under `-count=1` -- warm WITH NOTHING CHANGED, which
+	// is the qualifier that makes the pair mean anything.
+	//
+	// The bytes are the two qualifiers and the closed line, not the numbers. Drop
+	// "check `df -h /`" and the entry becomes advice about a flag; drop "Go
+	// declines silently" and the next reader has no reason to look at the disk at
+	// all, which is the whole finding. The closed line pays for itself once: a
+	// scoped local test run was built, measured against this, and refused — the Go
+	// test cache already implements it and tracks the cross-package source scans an
+	// import graph cannot see, so the hand-derived version skipped exactly the
+	// guards the record above pins its shipped bugs with.
+	//
+	// ⚠️ Raised rather than compressed, per this comment's own rule. And 44 KB left
+	// 74 bytes free, which is the ratchet the "why the number is not pinned to the
+	// current size" section above warns against — the first honest edit after it
+	// broke the build, which is what that section predicts. 46 KB is set above the
+	// current size deliberately.
+	const budget = 46 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

@@ -32,6 +32,28 @@ rebuilding anything.
 go build ./... && go vet ./... && go test ./...
 ```
 
+**Do not pass `-count=1` out of habit, and check `df -h /` before believing the suite is slow.**
+Go's test cache already re-runs exactly the packages a change can reach — the changed package,
+everything importing it, and anything whose tests *read* a changed file — and serves the rest
+from cache. One run each, 2026-08-19, one machine: **227s under `-count=1`**, **6.3s warm with
+nothing changed**, every package with tests cached. `-count=1` belongs in a sweep, where
+`scripts/replay` sets it.
+
+⚠️ **The merge gate is the exception: run it `-count=1` there.** The cache keys on files a test
+*opens*, and `internal/snapshot`'s guards read git through a subprocess — so a HEAD move they
+would fail on is invisible to the cache, and conditions 3 and 4 can come back green on a stale
+result. Measured: with five modified files and a new `reviews/` directory uncommitted, the
+package passed, because it digests the committed tree and `HEAD` had not moved.
+
+⚠️ **A suite that re-runs everything every time is the symptom of a FULL DISK, and so are browser
+tests that fail.** Go declines to cache a result it cannot write, silently. Observed 2026-08-19:
+several sessions running the suite at once took `/` to **100%, 61 MB free of 58 GB** — 27 GB of it
+in `$(go env GOCACHE)` — and in that state a run died on `no space left on device` writing
+`testlog.txt`, `internal/webui` reported eleven `TestLayout` failures that were the browser unable
+to write a screenshot, and `internal/backtest` alternated cached and not with nothing changed. It
+drained to 26 GB free within the hour, so **it is contention, not a standing state**: check
+`df -h /` before believing a red run, and `go clean -cache` if it is not draining.
+
 Tests hit the live FPL API and skip when it is unreachable. They assert invariants, not exact
 values — the underlying data changes weekly, so a test pinned to a specific player or score rots
 within days.
@@ -431,6 +453,7 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **Do not build a state trigger for the wildcard, and do not read a wildcard replay as a
   valuation.** → **chips**
 - **Do not add a lock.** → **optimiser-and-squad**
+- **Do not scope the local test run to the packages a change touches.** Built and measured 2026-08-19: the Go test cache already does it, and better — it tracks the cross-package source scans an import graph cannot see, so a hand-derived scope skips exactly the guards this record pins its shipped bugs with. → **work/ruled-out/scope-the-test-run-and-move-the-suite-to-ci**
 - **Do not memoise `blankRate`.** Answer-exact and measured no faster —
   `playsAtAll` is cheaper than the cache lookup that would replace it. →
   **optimiser-and-squad**

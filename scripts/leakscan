@@ -5,7 +5,14 @@
 #
 # # Why this exists
 #
-# There is a `pre-receive` hook on the private bare repository that does exactly
+# ⚠️ Corrected 2026-08-19: the paragraph below is the reason this script was
+# written, and its premise has since expired. There is one remote, the hosted
+# public GitHub repository, and it runs no `pre-receive` hook — so this script is
+# not a second copy of a guard that still exists elsewhere. It is the only
+# automated check on this channel, which is also why it now runs on `push` and
+# not on `pull_request` alone.
+#
+# There was a `pre-receive` hook on the private bare repository that did exactly
 # this, fail-closed and unbypassable. **It does not survive publication.** A hosted
 # remote runs no such hook, so the moment `origin` moves the guard is simply gone
 # — and a pull-request workflow is when it is most wanted, because that is when
