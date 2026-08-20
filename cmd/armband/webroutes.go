@@ -44,6 +44,13 @@ const (
 	routeGate    = "/gate"
 	routeState   = "/api/state"
 	routeSession = "/api/session"
+	// routeMetrics serves this process's own Prometheus text-format metrics —
+	// the staleness signal behind internal/fpl.Client's deliberate
+	// stale-fallback. See metrics.go's doc comment for why it needs no token
+	// and why it is safe to serve here: the nginx sidecar proxies it on a
+	// SEPARATE port from the public vhost, which is what actually keeps it
+	// off the public internet.
+	routeMetrics = "/metrics"
 	prefixAssets = "/assets/"
 
 	// prefixPlayer serves one footballer's history behind /api/player/{code} — a code, not

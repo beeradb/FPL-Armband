@@ -2,6 +2,7 @@ package fpl
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -328,5 +329,248 @@ func TestASnapshotSymlinkThatDoesNotExistYetIsDisabledForTheProcessLifetime(t *t
 		t.Fatalf("the snapshot must stay disabled for this process's lifetime once construction "+
 			"failed to resolve it — got %q, which means a later-appearing symlink was picked up "+
 			"mid-run", out.From)
+	}
+}
+
+// failingTransport fails every request without dialling out, so a test can
+// force get()'s live-fetch branch to fail deterministically.
+type failingTransport struct{}
+
+func (failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("simulated FPL outage")
+}
+
+// TestALiveFetchFailureFallsBackToTheStaleSnapshot is the direct regression
+// test for the defect this change fixes: previously, a live-fetch failure
+// with nothing FRESH cached returned an error outright, which is what made
+// `armband serve` CrashLoop during an FPL outage once its cache aged out.
+func TestALiveFetchFailureFallsBackToTheStaleSnapshot(t *testing.T) {
+	overlayDir, snapDir := t.TempDir(), t.TempDir()
+	mustWrite(t, snapshotKeyFile(snapDir), `{"from":"stale-snapshot"}`)
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(snapshotKeyFile(snapDir), old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		http:        &http.Client{Transport: failingTransport{}},
+		cacheDir:    overlayDir,
+		snapshotDir: snapDir,
+		cacheTTL:    time.Minute,
+	}
+
+	var out struct {
+		From string `json:"from"`
+	}
+	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+		t.Fatalf("get: %v, want the stale fallback to succeed", err)
+	}
+	if out.From != "stale-snapshot" {
+		t.Fatalf("expected the stale snapshot's content, got %q", out.From)
+	}
+	if !c.StaleServing() {
+		t.Error("StaleServing() should report true after a stale fallback")
+	}
+	if c.StaleAgeSeconds() < 3600 {
+		t.Errorf("StaleAgeSeconds() = %d, want at least the ~2h backdate", c.StaleAgeSeconds())
+	}
+	if c.LiveFetchFailures() != 1 {
+		t.Errorf("LiveFetchFailures() = %d, want 1", c.LiveFetchFailures())
+	}
+}
+
+// TestALiveFetchFailureFallsBackToTheStaleOverlayWhenNoSnapshotIsConfigured
+// covers the local, non-deployment shape of this client: no snapshotDir at
+// all, only its own overlay.
+func TestALiveFetchFailureFallsBackToTheStaleOverlayWhenNoSnapshotIsConfigured(t *testing.T) {
+	overlayDir := t.TempDir()
+	mustWrite(t, snapshotKeyFile(overlayDir), `{"from":"stale-overlay"}`)
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(snapshotKeyFile(overlayDir), old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		http:     &http.Client{Transport: failingTransport{}},
+		cacheDir: overlayDir,
+		cacheTTL: time.Minute,
+	}
+
+	var out struct {
+		From string `json:"from"`
+	}
+	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if out.From != "stale-overlay" {
+		t.Fatalf("expected the stale overlay's content, got %q", out.From)
+	}
+	if !c.StaleServing() {
+		t.Error("StaleServing() should report true")
+	}
+}
+
+// TestStaleSnapshotIsPreferredOverStaleOverlay pins the fallback ORDER: the
+// snapshot is what a healthy generator most recently published, and is tried
+// before this process's own overlay.
+func TestStaleSnapshotIsPreferredOverStaleOverlay(t *testing.T) {
+	overlayDir, snapDir := t.TempDir(), t.TempDir()
+	mustWrite(t, snapshotKeyFile(overlayDir), `{"from":"stale-overlay"}`)
+	mustWrite(t, snapshotKeyFile(snapDir), `{"from":"stale-snapshot"}`)
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(snapshotKeyFile(overlayDir), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(snapshotKeyFile(snapDir), old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		http:        &http.Client{Transport: failingTransport{}},
+		cacheDir:    overlayDir,
+		snapshotDir: snapDir,
+		cacheTTL:    time.Minute,
+	}
+
+	var out struct {
+		From string `json:"from"`
+	}
+	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if out.From != "stale-snapshot" {
+		t.Fatalf("expected the stale SNAPSHOT to win over the stale overlay, got %q", out.From)
+	}
+}
+
+// TestNoFallbackAvailableAnywhereStillReturnsTheLiveFetchError is the "must
+// not fail in the dangerous direction" bound on the other side: a totally
+// cold cache (nothing on disk at all, e.g. a fresh archive plus an FPL
+// outage) must still error rather than serve empty or wrong data.
+func TestNoFallbackAvailableAnywhereStillReturnsTheLiveFetchError(t *testing.T) {
+	overlayDir, snapDir := t.TempDir(), t.TempDir()
+	// Nothing written anywhere.
+
+	c := &Client{
+		http:        &http.Client{Transport: failingTransport{}},
+		cacheDir:    overlayDir,
+		snapshotDir: snapDir,
+		cacheTTL:    time.Minute,
+	}
+
+	var out struct {
+		From string `json:"from"`
+	}
+	err := c.get(context.Background(), snapshotTestPath, &out)
+	if err == nil {
+		t.Fatal("expected an error when nothing exists anywhere to fall back to")
+	}
+	if c.StaleServing() {
+		t.Error("StaleServing() should stay false — nothing was actually served")
+	}
+	if c.LiveFetchFailures() != 1 {
+		t.Errorf("LiveFetchFailures() = %d, want 1", c.LiveFetchFailures())
+	}
+}
+
+// respectsContextTransport returns the request's own context error
+// immediately, mirroring how Go's real http.Transport reacts to an
+// already-canceled or expired context — used so the test below doesn't
+// depend on the real network stack's timing to exercise get()'s carve-out.
+type respectsContextTransport struct{}
+
+func (respectsContextTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, req.Context().Err()
+}
+
+// TestARequestContextEndingIsNotCountedAsALiveFetchFailure is the regression
+// test for a security review finding on the stale-fallback change: playerdetail.go
+// passes the inbound HTTP request's own context straight through to
+// ElementSummary -> get(), and that context is canceled whenever a browser
+// tab navigates away mid-request — a routine, frequent event on the
+// player-card route, not an FPL outage. Counting it would let ordinary page
+// navigation page on-call.
+func TestARequestContextEndingIsNotCountedAsALiveFetchFailure(t *testing.T) {
+	overlayDir, snapDir := t.TempDir(), t.TempDir()
+	// A stale copy IS on disk, to prove get() doesn't fall back to it either —
+	// a canceled request should return the cancellation error outright, not
+	// silently serve stale data as if FPL were down.
+	mustWrite(t, snapshotKeyFile(snapDir), `{"from":"stale-snapshot"}`)
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(snapshotKeyFile(snapDir), old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		http:        &http.Client{Transport: respectsContextTransport{}},
+		cacheDir:    overlayDir,
+		snapshotDir: snapDir,
+		cacheTTL:    time.Minute,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var out struct {
+		From string `json:"from"`
+	}
+	err := c.get(ctx, snapshotTestPath, &out)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("get() error = %v, want it to wrap context.Canceled", err)
+	}
+	if c.LiveFetchFailures() != 0 {
+		t.Errorf("LiveFetchFailures() = %d, want 0 — a canceled request context is not an FPL failure", c.LiveFetchFailures())
+	}
+	if c.StaleServing() {
+		t.Error("StaleServing() should stay false — nothing was actually served")
+	}
+}
+
+// TestAFreshReadClearsTheStaleGaugeAfterFPLRecovers checks that the "most
+// recent call" gauge is not sticky: once a later call succeeds via a live
+// fetch, StaleServing must go back to false.
+func TestAFreshReadClearsTheStaleGaugeAfterFPLRecovers(t *testing.T) {
+	overlayDir, snapDir := t.TempDir(), t.TempDir()
+	mustWrite(t, snapshotKeyFile(snapDir), `{"from":"stale"}`)
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(snapshotKeyFile(snapDir), old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		http:        &http.Client{Transport: failingTransport{}},
+		cacheDir:    overlayDir,
+		snapshotDir: snapDir,
+		cacheTTL:    time.Minute,
+	}
+
+	var out struct {
+		From string `json:"from"`
+	}
+	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !c.StaleServing() {
+		t.Fatal("expected StaleServing() to be true after the simulated outage")
+	}
+
+	// FPL "recovers": swap in a working transport and read a DIFFERENT key, so
+	// the fresh-checks for the FIRST key cannot short-circuit the live fetch
+	// and mask the gauge reset.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"from":"live"}`))
+	}))
+	t.Cleanup(srv.Close)
+	c.http = &http.Client{Transport: rewrite{to: srv.URL}}
+
+	var out2 struct {
+		From string `json:"from"`
+	}
+	if err := c.get(context.Background(), "/fixtures/", &out2); err != nil {
+		t.Fatalf("get (recovery): %v", err)
+	}
+	if c.StaleServing() {
+		t.Error("expected StaleServing() to be false again once a live fetch succeeds")
 	}
 }
