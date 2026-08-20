@@ -174,10 +174,6 @@ func buildPlayer(m analysis.PlayerMetrics, p present.Page) Player {
 		Availability:  m.AvailabilityFactor,
 		AvgDifficulty: m.AvgDifficulty,
 		ValueScore:    m.ValueScore,
-		// A full match is a fixed fact of football, not anything the model
-		// computed — 90 is safe to state directly, unlike the modelled figure
-		// beside it.
-		ModelledMinutes: fmt.Sprintf("90 → %.0f modelled", m.ExpectedMinutes),
 	}
 	for _, f := range m.Fixtures {
 		pl.Fixtures = append(pl.Fixtures, Fixture{

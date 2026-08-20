@@ -385,7 +385,6 @@ footer a{color:var(--ink3);}
     <span class="tagline hideSm" data-copy="ln.tagline">Your man on the pitch.</span>
     <span class="spacer"></span>
     <span class="pill on" data-copy="ln.previewpill">Open preview</span>
-    <a class="btn sm ghost" href="/app" data-copy="ln.haveaccess"><span class="hideSm">I have access</span> →</a>
   </nav>
 
   <!-- ============ HERO — the scene ============ -->
@@ -407,6 +406,31 @@ footer a{color:var(--ink3);}
         <p class="t-body practical" data-copy="hero.practical">Armband marks every player from <b>Nailed</b> down to
           <b>Fringe</b> before you pick him, and reads FPL’s own team news straight into his score. We’re the sort of
           people who have strong opinions about expected minutes. Now you don’t have to be.</p>
+
+        <!-- ⚠️ The gate lives IN the hero, and it has to. It used to sit under the
+             built/not-built pair further down, on the argument that the reason to hand
+             over an address belongs beside the thing that asks for one. That argument is
+             sound and it lost to a plainer fact: at every width the pair pushed the form
+             below the fold, so the page's only ask was invisible on load. A reason nobody
+             scrolls to persuades nobody.
+
+             The reason still travels with it -- the two footnote lines below carry it in
+             two lines instead of a whole section -- and the closing CTA still repeats the
+             ask for a reader who went the distance. -->
+        <form class="gatecard">
+          <span class="t-label lbl" data-copy="gate.label">Get preview access</span>
+          <div class="gateform">
+            <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
+            <button class="btn primary" type="submit" data-copy="gate.cta">Claim my armband</button>
+          </div>
+          <div class="gatefoot">
+            <span class="t-meta" data-copy="gate.foot">No card. No FPL login. Just an email address, like it’s 2009.</span>
+          </div>
+          <div class="gatefoot gatepromise">
+            <span class="t-meta" data-copy="gate.promise">We’ll email you when notifications go live.</span>
+          </div>
+          <div class="done t-body" hidden></div>
+        </form>
       </div>
 
       <!-- The preview is the real card design. One card carries the FPL news flag,
@@ -664,28 +688,6 @@ footer a{color:var(--ink3);}
       </div>
     </div>
 
-    <div class="seriousfoot">
-      <form class="gatecard">
-        <span class="t-label lbl" data-copy="gate.label">Get preview access</span>
-        <div class="gateform">
-          <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
-          <button class="btn primary" type="submit" data-copy="gate.cta">Claim my armband</button>
-        </div>
-        <!-- Two lines, not one. The promise about notifications had been living
-             in four words at the tail of the footnote; it gets its own line, and
-             the footnote takes a shot at us for running an email gate at all.
-             ⚠️ The promise takes no qualifier — we have the addresses, the
-             database and the means. It carries no badge either: the one badge on
-             this page is in the card above. -->
-        <div class="gatefoot">
-          <span class="t-meta" data-copy="gate.foot">No card. No FPL login. Just an email address, like it’s 2009.</span>
-        </div>
-        <div class="gatefoot gatepromise">
-          <span class="t-meta" data-copy="gate.promise">We’ll email you when notifications go live.</span>
-        </div>
-        <div class="done t-body" hidden></div>
-      </form>
-    </div>
   </section>
 
   <!-- ============ THE CLOSE: proof strip + CTA, one object ============

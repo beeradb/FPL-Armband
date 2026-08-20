@@ -58,7 +58,15 @@ func TestBuildPlayerDetailPer90GuardsZeroMinutes(t *testing.T) {
 }
 
 // TestBuildPlayerDetailCleanSheetsAreGatedByPosition pins the omission both ways: present
-// (even at zero) for a defender or keeper, absent entirely for a midfielder or forward.
+// even at zero for everyone a clean sheet pays, absent entirely for a forward.
+//
+// ⚠️ The line is the SCORING RULE, not a feeling about whose stat it is. A clean sheet pays
+// a keeper or a defender 4, a midfielder 1, and a forward nothing. This test used to expect
+// nil for MID, which hid a figure that genuinely pays them.
+//
+// The zero case is the one worth keeping: a defender who kept none all season must still
+// carry the number, because the client omits the whole clause when the field is absent and
+// would otherwise say nothing rather than "0".
 func TestBuildPlayerDetailCleanSheetsAreGatedByPosition(t *testing.T) {
 	es := &fpl.ElementSummary{
 		HistoryPast: []fpl.PastSeason{{SeasonName: "2024/25", CleanSheets: 0}},
@@ -67,7 +75,7 @@ func TestBuildPlayerDetailCleanSheetsAreGatedByPosition(t *testing.T) {
 		pos     string
 		wantNil bool
 	}{
-		{"GKP", false}, {"DEF", false}, {"MID", true}, {"FWD", true},
+		{"GKP", false}, {"DEF", false}, {"MID", false}, {"FWD", true},
 	} {
 		d := BuildPlayerDetail(es, tc.pos, nil)
 		gotNil := d.LastSeason.CleanSheets == nil

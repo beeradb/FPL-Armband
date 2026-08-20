@@ -53,8 +53,10 @@
       fetch(GATE, {
         method: 'POST',
         /* same-origin, so the public copy of this page sends and receives the gate
-           cookie and the local copy sends nothing. The local copy does not need it:
-           /app is reachable directly, which is what the "I have access" link does. */
+           cookie. It is load-bearing now: the public /app redirects a reader without
+           that cookie back here, so a fetch that dropped it would bounce someone who
+           had just signed up. The local copy sends nothing and needs nothing --
+           `armband serve` has no signup store, so it does not gate at all. */
         credentials: 'same-origin',
         /* Form encoding keeps this a CORS "simple request", so the local cross-origin
            post needs no preflight -- and the server needs no OPTIONS route to answer

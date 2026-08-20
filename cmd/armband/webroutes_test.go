@@ -465,8 +465,9 @@ func TestTheStateEndpointAnswersTheContract(t *testing.T) {
 // each produce a REPORTED row, and only the minutes row may carry an
 // Effect, since a lock or an exclude changes which squad is built rather
 // than this player's own score. It also pins that ReadChecked and at least
-// one player's ModelledMinutes are non-empty, since the fixture's overrides
+// one player's modelled minutes are non-zero, since the fixture's overrides
 // carry SetOn dates and every player has a modelled-minutes figure.
+// Minutes is a NUMBER: see TestMinutesReachTheClientAsANumber for why that matters.
 func TestTheNewsTabCarriesBothSourcesAndAnEffectOnlyForTheMinutesOverride(t *testing.T) {
 	s := fixtureServer(t)
 	w := get(t, s, "/api/state")
@@ -519,13 +520,13 @@ func TestTheNewsTabCarriesBothSourcesAndAnEffectOnlyForTheMinutesOverride(t *tes
 
 	found := false
 	for _, p := range st.Squad.Players {
-		if p.ModelledMinutes != "" {
+		if p.Minutes > 0 {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("no player in the squad carries ModelledMinutes")
+		t.Error("no player in the squad carries a modelled-minutes figure")
 	}
 }
 
@@ -764,5 +765,79 @@ func TestThePolicyPermitsTheGateItShips(t *testing.T) {
 		t.Errorf("the application's policy names %s. That page renders FPL's prose "+
 			"by innerHTML, and connect-src 'self' is what stops an injected string "+
 			"sending the squad anywhere. Policy: %s", signupOrigin, app)
+	}
+}
+
+// TestTheGateHasNoWayAround pins the two redirects that make the preview gate a gate,
+// and the one condition under which it is not enforced at all.
+//
+// # What broke without it
+//
+// The landing page carried an "I have access →" link straight to /app, and the cookie
+// gated nothing, so the form was decorative: anyone could skip it and the page said so.
+// Both halves are gone. The two documents now answer each other.
+//
+// # Why the local case is in the same test
+//
+// A local `armband serve` has no signup store, so its gate answers 503 and the cookie can
+// never be obtained. Enforcing there would lock an operator out of their own tool behind a
+// form that cannot succeed — a failure nobody would see until they were offline. It is
+// pinned beside the enforced cases because the two are one decision.
+func TestTheGateHasNoWayAround(t *testing.T) {
+	withCookie := func(r *http.Request) *http.Request {
+		r.AddCookie(&http.Cookie{Name: gateCookieName, Value: "1"})
+		return r
+	}
+
+	for _, tc := range []struct {
+		name     string
+		gated    bool
+		path     string
+		cookie   bool
+		wantCode int
+		wantLoc  string
+	}{
+		{"a stranger is sent to the form", true, routeApp, false, http.StatusSeeOther, routeLanding},
+		{"a reader who signed up gets the app", true, routeApp, true, http.StatusOK, ""},
+		{"and is not shown the form again", true, routeLanding, true, http.StatusSeeOther, routeApp},
+		{"a stranger sees the form", true, routeLanding, false, http.StatusOK, ""},
+		{"locally the app is open", false, routeApp, false, http.StatusOK, ""},
+		{"locally the form is not forced", false, routeLanding, false, http.StatusOK, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := fixtureServer(t)
+			if tc.gated {
+				s.signups = &recordingStore{}
+			}
+			req := httptest.NewRequest("GET", tc.path, nil)
+			req.Host = "localhost"
+			if tc.cookie {
+				req = withCookie(req)
+			}
+			w := httptest.NewRecorder()
+			s.ServeHTTP(w, req)
+
+			if w.Code != tc.wantCode {
+				t.Fatalf("GET %s answered %d, want %d", tc.path, w.Code, tc.wantCode)
+			}
+			if got := w.Header().Get("Location"); got != tc.wantLoc {
+				t.Errorf("GET %s redirected to %q, want %q", tc.path, got, tc.wantLoc)
+			}
+		})
+	}
+}
+
+// TestTheLandingPageOffersNoWayPastTheForm pins the absence of the bypass link.
+//
+// Deleting a link is the kind of change that gets undone by a later edit restoring "a way
+// in for people who already signed up" — which is what the cookie is for. The redirect
+// above already does that job, invisibly and without a second entry point.
+func TestTheLandingPageOffersNoWayPastTheForm(t *testing.T) {
+	s := &squadServer{signups: &recordingStore{}}
+	body := get(t, s, routeLanding).Body.String()
+	for _, banned := range []string{"I have access", `href="/app"`} {
+		if strings.Contains(body, banned) {
+			t.Errorf("the landing page still contains %q, which skips the gate", banned)
+		}
 	}
 }

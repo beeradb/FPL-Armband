@@ -1647,9 +1647,11 @@ body.saving{cursor:progress;}
 /* the machine's own state, stated. Not decoration: a news product that cannot say when it
    last looked is asking to be trusted on nothing. */
 .nfresh{display:flex;align-items:center;gap:7px;}
-.nfresh .dot{width:7px;height:7px;border-radius:50%;background:var(--acc);
-  box-shadow:0 0 0 3px rgba(0,232,138,.18);flex:0 0 auto;}
-.nfresh .dot.stale{background:var(--warn);box-shadow:0 0 0 3px rgba(255,176,32,.18);}
+/* ⚠️ The green liveness dot that sat before each freshness line is REMOVED, and not for
+   taste. Green is one of three semantic channels here and it means "a number the model
+   produced" -- never "success", never "fresh". A liveness dot spent that meaning on
+   something the model had nothing to do with, and with two freshness lines on this tab it
+   spent it twice. The timestamp says the same thing in words that cannot be misread. */
 /* A group with its own read cadence carries its own last-read line, on the head's second
    row. ⚠️ LAST-READ ONLY -- no "next read at": there is no scheduler behind the news read,
    so a predicted next time would be false (NOTES.md §3). */
