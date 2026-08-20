@@ -12,14 +12,14 @@ import (
 	"time"
 )
 
-// The staleness guards ask a CONTENT question and used to key on a HISTORY pointer.
+// The staleness guard asks a CONTENT question and used to key on a HISTORY pointer.
 //
-// `TestReviewCoversTheCurrentCode` and `TestSnapshotCoversTheCurrentCode` both want
-// to know one thing: has the reviewed — or measured — content moved? Until
-// 2026-08-15 both answered it by storing a commit SHA in a directory name and
-// diffing `sha..HEAD`. A commit SHA identifies a position in history, and rebase
-// **preserves content while rewriting history**, so every rebase broke both keys
-// while changing nothing either guard cares about.
+// `TestSnapshotCoversTheCurrentCode` — and, until it retired 2026-08-20,
+// `TestReviewCoversTheCurrentCode` alongside it — wants to know one thing: has the
+// measured content moved? Until 2026-08-15 both answered it by storing a commit SHA
+// in a directory name and diffing `sha..HEAD`. A commit SHA identifies a position in
+// history, and rebase **preserves content while rewriting history**, so every rebase
+// broke both keys while changing nothing either guard cared about.
 //
 // The bill, measured on the history that produced this file: thirteen of the 807
 // commits on it were pure re-key churn — eleven with zero insertions and zero
@@ -41,51 +41,26 @@ import (
 // A digest over the watched blobs is invariant under rebase, amend and
 // cherry-pick, and moves exactly when the watched content moves. There is no
 // pointer left to dangle, which is why the `merge-base --is-ancestor` check that
-// both guards carried is gone rather than repaired: it existed to detect a broken
-// key, and the key can no longer break.
+// both guards once carried is gone rather than repaired: it existed to detect a
+// broken key, and the key can no longer break.
 //
-// # One helper, both guards, deliberately
+// # One helper, kept generic on purpose
 //
-// The guards' own comments record that they are "one quantity, two
+// The two guards' own comments recorded that they were "one quantity, two
 // implementations ... two guards, one rule, and only one of them repaired" — the
-// ancestor check was fixed in `staleness_test.go` first and in
-// `reviewgate_test.go` only after a rebase caught the review gate skipping and
-// reporting PASS. Fixing this in two places would re-commit exactly that. Both
-// guards call `WatchedDigest`, and the watch lists live here beside it.
+// ancestor check was fixed in `staleness_test.go` first and in the review gate's
+// test only after a rebase caught it skipping and reporting PASS. `WatchedDigest`
+// and the machinery around it (`Key`, `NewestKey`, `DigestDiff`) stay one shared
+// implementation rather than being folded into the single remaining caller, so a
+// second content guard — if one is ever added — inherits the fix instead of
+// repeating the miss.
 //
-// # Why these live in non-test code
+// # Why the watch list lives in non-test code
 //
-// The lists were `var` declarations inside the two `_test.go` files. They have to
-// be reachable from `cmd/armband` now, because writing a record means computing
-// the digest of what the record covers. Moving them here also means the watch
-// lists are shipped data rather than test fixtures, which is what they always
-// were in substance.
-
-// ReviewWatchedPaths are the trees whose changes owe a review.
-//
-// Broader than the snapshot's list, because a review is about correctness and
-// claims rather than about measured figures: the agent layer and the client can
-// ship a real defect without moving a single replayed number, and `stats/` carries
-// the inference that every verdict in the record is read through.
-//
-// `docs` is here because the first audit run found five of its findings there, and
-// `docs/model.md` is the file this project's instructions name as the authority to
-// read before changing the scoring — a retracted figure is arguably worse there
-// than in the research record, since a reader trusts a document called "the model"
-// to describe the model.
-//
-// ⚠️ `internal/config` and `internal/snapshot` were added 2026-08-14.
-// `config.Load` decides the effective value of every omitted field, so a semantics
-// change there is a change to the shipped constants that `config.json` does not
-// record — and `internal/snapshot` is the provenance machinery itself, where a
-// defect makes every other guard's output untrustworthy. A bug that silently
-// discarded the operator's `-note` on any model-only snapshot lived there and owed
-// no review.
-var ReviewWatchedPaths = []string{
-	"internal/analysis", "internal/backtest", "internal/agent", "internal/fpl",
-	"internal/config", "internal/snapshot",
-	"stats", "docs", "config.json", "AGENTS.md",
-}
+// It was a `var` declaration inside a `_test.go` file. It has to be reachable from
+// `cmd/armband`, because `armband snapshot` computes the digest of what a snapshot
+// record covers. Moving it here also means the watch list is shipped data rather
+// than a test fixture, which is what it always was in substance.
 
 // SnapshotWatchedPaths are the trees whose changes require a fresh accuracy
 // snapshot: the scoring model, the replay harness, and the shipped constants. A
@@ -109,12 +84,12 @@ var SnapshotWatchedPaths = []string{
 
 // IndexRev asks for the digest of the staged index rather than of a commit.
 //
-// This is what makes a review record a ONE-commit operation. The record lives under
-// `reviews/`, which is not itself watched, so once the change is staged the watched
-// content is final and its digest can be written into the record and staged beside
-// it. The old gate diffed committed history, so the record had to name a commit that
-// did not exist yet, which is the whole reason for the "record the changes first,
-// then commit the review record alone" two-step.
+// Built for the review gate's `reviewkey` command, retired 2026-08-20 along with
+// `TestReviewCoversTheCurrentCode` and `ReviewWatchedPaths` — see AGENTS.md's
+// retired-process note. `armband snapshot` always digests a committed `HEAD`
+// (measuring happens against a committed tree), so nothing in `cmd/armband` passes
+// this today; `TestTheIndexDigestSeesStagedWork` keeps `WatchedDigest` honest about
+// the staged-index case in case a future consumer needs it again.
 const IndexRev = ""
 
 // WatchedDigest returns a content digest over paths at rev, plus the same digest
@@ -124,9 +99,10 @@ const IndexRev = ""
 // exists so a failing guard can name WHICH tree moved: the composite alone can only
 // say that something did, and a guard that cannot say what it caught gets ignored.
 //
-// Test files are excluded, for the reason both guards already gave: adding a
-// diagnostic or a regression test is not a change to what the program computes, and
-// making tests owe a review would fire the gate on the very work that satisfies it.
+// Test files are excluded, for the reason both guards once gave, back when there
+// were two: adding a diagnostic or a regression test is not a change to what the
+// program computes, and making tests owe a review would fire the gate on the very
+// work that satisfies it.
 func WatchedDigest(dir, rev string, paths []string) (digest string, perPath map[string]string, err error) {
 	lines, err := watchedBlobs(dir, rev, paths)
 	if err != nil {
@@ -255,13 +231,16 @@ func digestOf(lines []string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// KeyFile is the machine-readable key a review record or an accuracy snapshot is
-// identified by. It sits in the record's own directory.
+// KeyFile is the machine-readable key an accuracy snapshot is identified by. It
+// sits in the record's own directory.
 //
-// The same file in both places on purpose. A review record and a snapshot answer
-// the same staleness question about different watch lists, and this record's
-// signature failure is one quantity with two implementations — the two guards had
-// already diverged once, on the ancestor check. One file, one writer, one reader.
+// Also written into every `reviews/<date>-.../key.csv` from 2026-08-15 until the
+// review gate retired 2026-08-20 — deliberately the same format for a review
+// record and a snapshot, both asking the same staleness question about different
+// watch lists, and this record's signature failure is one quantity with two
+// implementations: the two guards had already diverged once, on the ancestor
+// check. One file, one writer, one reader. The 171 existing `reviews/` directories
+// keep their `key.csv` as history; nothing reads it now.
 //
 // It is deliberately NOT `figures.csv`. Putting the key there would make a
 // snapshot's identity part of the figures it diffs against its predecessor, which

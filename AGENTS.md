@@ -29,51 +29,72 @@ rebuilding anything.
 ## Build and test
 
 ```bash
-go build ./... && go vet ./... && go test ./...
+go build ./... && go vet ./... && go test ./<package you touched>/...
 ```
 
-**Do not pass `-count=1` out of habit, and check `df -h /` before believing the suite is slow.**
-Go's test cache already re-runs exactly the packages a change can reach — the changed package,
-everything importing it, and anything whose tests *read* a changed file — and serves the rest
-from cache. One run each, 2026-08-19, one machine: **227s under `-count=1`**, **6.3s warm with
-nothing changed**, every package with tests cached. **`-count=1` belongs at the merge gate and nowhere else** — a
-sweep does not need it either, because `scripts/replay` compiles the test binary with
-`go test -c` and runs it directly, bypassing the cache.
+Build and vet run over the whole module — they are fast and catch a break anywhere. **Test locally
+scoped to the package or two you actually touched; the full suite is CI's job**, on every push and
+every pull request (`.github/workflows/ci.yml`).
 
-⚠️ **The merge gate is the exception: run it `-count=1` there.** The cache keys on files a test
-*opens*, and `internal/snapshot`'s guards read git through a subprocess — so a HEAD move they
-would fail on is invisible to the cache, and conditions 3 and 4 can come back green on a stale
-result. Measured: with five modified files and a new `reviews/` directory uncommitted, the
-package passed, because it digests the committed tree and `HEAD` had not moved.
+**Do not build a tool that derives test scope from the import graph.** That was built, measured
+and deleted on 2026-08-19: Go's own test cache already re-runs the packages a change reaches — the
+changed package, everything importing it, and anything whose tests *open* a changed file within
+the module, which is `go help test`'s own boundary — and that reaches cross-package source scans
+an import graph cannot see, which is exactly where the cross-cutting guards in `internal/snapshot`
+live. **This is a practice, not automation**: run the scoped command above while you work, and let
+CI be the full answer.
 
 ⚠️ **A suite that re-runs everything every time is the symptom of a FULL DISK, and so are browser
 tests that fail LOCALLY on a screenshot write.** Go declines to cache a result it cannot write,
-silently. Observed 2026-08-19:
-several sessions running the suite at once took `/` to **100%, 61 MB free of 58 GB** — 27 GB of it
-in `$(go env GOCACHE)` — and in that state a run died on `no space left on device` writing
-`testlog.txt`, `internal/webui` reported eleven `TestLayout` failures that were the browser unable
-to write a screenshot, and `internal/backtest` alternated cached and not with nothing changed. It
-drained to 26 GB free within the hour, so **it is contention, not a standing state**: check
-`df -h /` before believing a red run, and `go clean -cache` if it is not draining.
+silently. Observed 2026-08-19: several sessions running the suite at once took `/` to **100%, 61 MB
+free of 58 GB** — 27 GB of it in `$(go env GOCACHE)` — and in that state a run died on `no space
+left on device` writing `testlog.txt`, `internal/webui` reported eleven `TestLayout` failures that
+were the browser unable to write a screenshot, and `internal/backtest` alternated cached and not
+with nothing changed. It drained to 26 GB free within the hour, so **it is contention, not a
+standing state**: check `df -h /` before believing a red run, and `go clean -cache` if it is not
+draining.
 
-⚠️ **A red `TestLayout` in CI is a DIFFERENT and open defect** — machine-dependent goldens, `main`
-red since 2026-08-19 on channel deltas of 2. Checking `df -h /` for that one teaches you nothing;
-see merge-gate condition 1.
+⚠️ **CI's `TestLayout` redness on `main` (six subtests, machine-dependent goldens, worst channel
+delta 2 of 255, since 2026-08-19) is fixed as of `97c941c`** — it is skipped in CI now, not green
+by repair; `FPL_LAYOUT_GOLDENS=1` forces it back on for anyone who wants to look, and see the
+standing exception below for when you owe it a local run instead. **Do not read this paragraph as
+"CI is clean," and do not trust its own claim without checking `gh run list` first — this project's
+CI state has already gone stale under one written description of it inside a single day.** As of
+`97c941c` `main` is red on a different, narrower thing: `TestEnvSwitchListIsComplete` fails because
+the same change that fixed `TestLayout` added `FPL_LAYOUT_GOLDENS` without registering it in
+`envSwitches` — a one-line fix, already known, not yours to chase on an unrelated branch. If your
+own branch inherits exactly that failure and nothing else is red, that is expected; anything else
+red is worth investigating.
+
+⚠️ **Standing exception, until the goldens defect above is fixed: run the layout goldens locally
+yourself, because CI cannot see them.** A companion change skips `TestLayout` in CI (detecting
+`GITHUB_ACTIONS`) so the red check above stops being the default state a reviewer has to explain
+away on every PR; locally the goldens still render and compare, which is where they have actually
+caught regressions. `FPL_LAYOUT_GOLDENS=1` forces them back on in CI, for anyone who wants to look.
+So: **a change touching `internal/webui`, or anything that feeds what it renders —
+`internal/viewmodel` and `internal/present` both do — must be run locally with
+`go test ./internal/webui/ -count=1` before it ships**, because "test the package you touched"
+above is not sufficient on its own: the package that changed and the package that owns the goldens
+are not always the same one. **This exception expires with the CI skip that motivates it** — when
+the goldens defect is fixed and the skip is deleted from `internal/webui/visual_test.go`, delete
+this paragraph with it, not before.
 
 Tests hit the live FPL API and skip when it is unreachable. They assert invariants, not exact
 values — the underlying data changes weekly, so a test pinned to a specific player or score rots
 within days.
 
-**Before merging anything to `main`, invoke the `merge-gate` skill and satisfy every line of it.**
-Twelve conditions, all mechanical, each of which has caught something real. `review-gate`
-establishes that a review happened; `merge-gate` establishes that everything else did. **This
-binds on every agent that can merge**, the default one included. The three most often skipped:
-**`0 behind` `origin/main` re-checked immediately before merging** (many sessions run
-concurrently and `main` has moved five times in an afternoon); the leak scan across **three**
-channels, the branch name included; and **merging the paired research-store branch in the same
-sitting**, because they are one unit of work. ⚠️ A green gate is not a correct change — every
-condition in it is a process fact. **Current practice: measurement work lands on `development`,
-not `main`**; merge-gate binds whenever it is `main`.
+**Changes land through a pull request against `main`, checked by CI.** This retired, 2026-08-20,
+the twelve-condition `merge-gate` skill, its review-record counterpart `review-gate`, the
+`armband reviewkey` command and `TestReviewCoversTheCurrentCode` — `armband` is a product an end
+user runs, and a command that existed only to serve this project's own review ritual did not
+belong in it. Some of what `merge-gate` condition 1 did by hand — a green run of the whole suite,
+keyed to the commit, that a reader who was not there can pull by id rather than take on trust — a
+pull request now gives mechanically: CI runs on every push to a branch and every pull request, and
+the check is attached to the PR itself. Reviewers are still dispatched (self-review is forbidden
+on this project) and their findings still belong in the PR description; there is no longer a
+required `reviews/` record — the 171 records already committed stay as history. **Current
+practice: measurement work lands on `development`; other changes go through a pull request to
+`main`.**
 
 ### Replay sweeps run through `scripts/replay`, and they run in parallel
 

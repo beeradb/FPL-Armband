@@ -70,18 +70,20 @@ func TestNoLivePointerCitesTheRecordByPath(t *testing.T) {
 	}
 
 	// The same surface as `TestRetractedFiguresAreNotQuotedAsCurrent`, plus this
-	// guard's own `stats/*.R`. The two ask different questions of one population, and
-	// scoping them separately is how the sibling came to read `.claude/` while this
-	// one did not — `reviewgate_test.go` already records what fixing two guards
-	// separately costs. `README.md` and `.claude/` were added 2026-08-15 and are green
-	// on arrival; the case for them is the next dangling pointer, not a live one.
-	// Discovered rather than asserted, for the reason the sibling's copy of this
-	// block gives at length: a one-element slice literal has length 1 whether or not
-	// the file exists, so the floor cannot fire on it.
+	// guard's own `stats/*.R`. The two ask different questions of one population.
+	// `README.md` was added 2026-08-15 and is green on arrival; the case for it is
+	// the next dangling pointer, not a live one. Discovered rather than asserted,
+	// for the reason the sibling's copy of this block gives at length: a
+	// one-element slice literal has length 1 whether or not the file exists, so the
+	// floor cannot fire on it.
+	//
+	// ⚠️ `.claude/*.md` was on this surface, and on the sibling's, from 2026-08-15
+	// until 2026-08-20 — removed both places the same commit, for the same reason
+	// the sibling's comment gives: its only tracked content was two skills, and both
+	// retired.
 	surfaces := map[string][]string{
 		"AGENTS.md":    trackedFiles(root, ".md", "AGENTS.md"),
 		"README.md":    trackedFiles(root, ".md", "README.md"),
-		".claude/*.md": agentAndSkillDocs(root),
 		"internal+cmd": goSources(root),
 	}
 	for _, pat := range []string{
@@ -943,7 +945,20 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// above the current size with room for the next honest sentence, and if a
 	// future edit finds it tight the answer is still to raise it and name the
 	// claim, never to drop a qualifier.
-	const budget = 48 * 1024
+	//
+	// # 52 KB, same day — retiring the review ritual needed more room than it saved
+	//
+	// Removing the "invoke merge-gate" instruction did not shrink this file: the
+	// replacement needed to say what changed, why, and what a reader does now that
+	// the old instruction is gone — a pull-request landing process, the CI-red
+	// state as of `97c941c` (`TestLayout` now skipped rather than failing,
+	// `TestEnvSwitchListIsComplete` red instead, for a reason named so it is not
+	// mistaken for a verdict on an unrelated branch), and a standing exception for
+	// `internal/webui`'s goldens now that CI cannot see them. Cutting any one of
+	// those to fit is the qualifier-dropping failure this comment already warns
+	// against twice above. Left about 3 KB free rather than repeating the 14-byte
+	// and 74-byte near-misses.
+	const budget = 52 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

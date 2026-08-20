@@ -12,10 +12,9 @@
 #
 # ⚠️ This job is the ONLY place the whole suite runs on a machine that is not the
 # author's, and that is the point of it rather than a detail: a local run is
-# uncheckable after the fact, and merge-gate condition 1 now cites this run by id
-# as the witness a reader who was not present can pull. A partial job here would
-# not be a smaller version of that check — it would leave a hole with nothing
-# behind it.
+# uncheckable after the fact, and this run is the witness a reader who was not
+# present can pull by id. A partial job here would not be a smaller version of
+# that check — it would leave a hole with nothing behind it.
 #
 # ⚠️ Expect `TestSnapshotCoversTheCurrentCode` to fail on any pull request that
 # touches internal/analysis, internal/backtest, internal/config or config.json —
@@ -48,19 +47,20 @@ on:
     # Every branch, not just main, mirroring image.yml. Until this changed, CI ran
     # only AFTER a merge had landed on `main` — a detector, not a gate, and one
     # nobody was reading: `main` merged four times over a red CI on 2026-08-19.
-    # A run keyed to a pushed commit is something merge-gate condition 1 can cite
-    # by id and a reader who was not there can pull. Branches are pushed before
-    # merging anyway (condition 8), so this costs a trigger, not a habit.
+    # A run keyed to a pushed commit is something a reader who was not there can
+    # cite by id and pull. Branches are pushed before merging anyway, so this
+    # costs a trigger, not a habit.
     #
     # A same-repo branch with an open pull request therefore builds twice, once
     # per event. That is accepted rather than deduplicated. Folding both into one
     # concurrency group is the WRONG way to dedup — it would let a push cancel the
-    # very run condition 1 is quoting. The right way is a job-level
+    # very run a reader might be quoting. The right way is a job-level
     # `if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name
     # != github.repository`, which skips only the redundant pull_request run. It is
-    # not worth the conditional today because no pull request has ever been opened
-    # here, but dedup is available and safe — do not read this block as saying
-    # otherwise.
+    # not worth the conditional as of 2026-08-19, when no pull request had ever been
+    # opened here — that changed the next day. Still not added: dedup is available
+    # and safe, but nothing has yet shown the redundant run costly enough to bother.
+    # Do not read this block as saying it can't be added.
     branches: ["**"]
   pull_request:
 
@@ -180,10 +180,11 @@ jobs:
       # attacker-controlled has a path into a shell here.
       #
       # ⚠️ It runs on BOTH events, and it was `pull_request`-only until
-      # 2026-08-19. In that state it had NEVER EXECUTED ONCE: this repository has
-      # no pull request in its history — `git log --grep='Merge pull request'`
-      # is empty and every merge is a local merge commit pushed straight to
-      # `main` — so the condition was never true. The fallback the comment above
+      # 2026-08-19. In that state it had NEVER EXECUTED ONCE: as of that date this
+      # repository had no pull request in its history — `git log --grep='Merge pull
+      # request'` was empty and every merge was a local merge commit pushed straight
+      # to `main` — so the condition was never true. (This repository's first pull
+      # request opened the next day.) The fallback the comment above
       # names is not on the path either: there is one remote, it is the public
       # GitHub repository, and no hosted remote runs a `pre-receive` hook. The
       # only automated guard on this channel was therefore a step that could not
