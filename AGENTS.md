@@ -36,8 +36,9 @@ go build ./... && go vet ./... && go test ./...
 Go's test cache already re-runs exactly the packages a change can reach — the changed package,
 everything importing it, and anything whose tests *read* a changed file — and serves the rest
 from cache. One run each, 2026-08-19, one machine: **227s under `-count=1`**, **6.3s warm with
-nothing changed**, every package with tests cached. `-count=1` belongs in a sweep, where
-`scripts/replay` sets it.
+nothing changed**, every package with tests cached. **`-count=1` belongs at the merge gate and nowhere else** — a
+sweep does not need it either, because `scripts/replay` compiles the test binary with
+`go test -c` and runs it directly, bypassing the cache.
 
 ⚠️ **The merge gate is the exception: run it `-count=1` there.** The cache keys on files a test
 *opens*, and `internal/snapshot`'s guards read git through a subprocess — so a HEAD move they
@@ -46,13 +47,18 @@ result. Measured: with five modified files and a new `reviews/` directory uncomm
 package passed, because it digests the committed tree and `HEAD` had not moved.
 
 ⚠️ **A suite that re-runs everything every time is the symptom of a FULL DISK, and so are browser
-tests that fail.** Go declines to cache a result it cannot write, silently. Observed 2026-08-19:
+tests that fail LOCALLY on a screenshot write.** Go declines to cache a result it cannot write,
+silently. Observed 2026-08-19:
 several sessions running the suite at once took `/` to **100%, 61 MB free of 58 GB** — 27 GB of it
 in `$(go env GOCACHE)` — and in that state a run died on `no space left on device` writing
 `testlog.txt`, `internal/webui` reported eleven `TestLayout` failures that were the browser unable
 to write a screenshot, and `internal/backtest` alternated cached and not with nothing changed. It
 drained to 26 GB free within the hour, so **it is contention, not a standing state**: check
 `df -h /` before believing a red run, and `go clean -cache` if it is not draining.
+
+⚠️ **A red `TestLayout` in CI is a DIFFERENT and open defect** — machine-dependent goldens, `main`
+red since 2026-08-19 on channel deltas of 2. Checking `df -h /` for that one teaches you nothing;
+see merge-gate condition 1.
 
 Tests hit the live FPL API and skip when it is unreachable. They assert invariants, not exact
 values — the underlying data changes weekly, so a test pinned to a specific player or score rots
@@ -453,7 +459,7 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **Do not build a state trigger for the wildcard, and do not read a wildcard replay as a
   valuation.** → **chips**
 - **Do not add a lock.** → **optimiser-and-squad**
-- **Do not scope the local test run to the packages a change touches.** Built and measured 2026-08-19: the Go test cache already does it, and better — it tracks the cross-package source scans an import graph cannot see, so a hand-derived scope skips exactly the guards this record pins its shipped bugs with. → **work/ruled-out/scope-the-test-run-and-move-the-suite-to-ci**
+- **Do not scope the local test run to the packages a change touches.** Built and measured 2026-08-19: the Go test cache already does it, and better — it tracks the cross-package source scans an import graph cannot see, so a hand-derived scope skips exactly the guards this record pins its shipped bugs with. → **scope-the-test-run-and-move-the-suite-to-ci**
 - **Do not memoise `blankRate`.** Answer-exact and measured no faster —
   `playsAtAll` is cheaper than the cache lookup that would replace it. →
   **optimiser-and-squad**

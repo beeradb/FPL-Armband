@@ -934,7 +934,16 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// current size" section above warns against — the first honest edit after it
 	// broke the build, which is what that section predicts. 46 KB is set above the
 	// current size deliberately.
-	const budget = 46 * 1024
+	// ⚠️ RAISED AGAIN, 2026-08-20, and the previous raise's own claim was false.
+	// It said "46 KB is set above the current size deliberately" -- it left
+	// FOURTEEN bytes, tighter than the 74 that raise was made to escape, in the
+	// very commit that named 74 as the ratchet. Three one-clause corrections
+	// found by review then did not fit, which is the failure this comment keeps
+	// predicting and keeps suffering. 48 KB is headroom, not a fit: it is set
+	// above the current size with room for the next honest sentence, and if a
+	// future edit finds it tight the answer is still to raise it and name the
+	// claim, never to drop a qualifier.
+	const budget = 48 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

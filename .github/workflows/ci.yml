@@ -203,6 +203,11 @@ jobs:
           # over-scans rather than under-scans.
           BEFORE_SHA: ${{ github.event.before }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          # Lets the script tell "a fork cannot read secrets" (expected) from
+          # "the secret is missing" (the guard is not configured). Empty on a
+          # push, which the script also treats as same-repository.
+          LEAKSCAN_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ -n "$BASE_SHA" ]; then
             range="$BASE_SHA..$HEAD_SHA"
