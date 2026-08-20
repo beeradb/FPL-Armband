@@ -4,172 +4,362 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>FPL Armband — your man on the pitch</title>
-<meta name="description" content="Every Fantasy Premier League player scored on FPL’s own points, with the evidence behind each number — so the call stays yours. Free while it’s in preview.">
+<meta name="description" content="Every Fantasy Premier League player marked from Nailed down to Fringe before you pick him, with FPL's own team news read into his score — and the working shown, so the call stays yours. Free while it's in preview.">
 <link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/assets/armband.css">
 <style>
 /* ---- landing-only ---- */
 .lbg{position:fixed;inset:0;z-index:-1;overflow:hidden;}
-.lbg::before{
-  content:'';position:absolute;top:-30%;left:50%;transform:translateX(-50%);
+.lbg::before{content:'';position:absolute;top:-30%;left:50%;transform:translateX(-50%);
   width:1100px;height:900px;border-radius:50%;
-  background:radial-gradient(circle,rgba(47,83,240,.22),transparent 62%);
-}
-.lbg::after{
-  content:'';position:absolute;bottom:-40%;right:-10%;
-  width:900px;height:900px;border-radius:50%;
-  background:radial-gradient(circle,rgba(0,232,138,.10),transparent 62%);
-}
-.lbg .grid{
-  position:absolute;inset:0;opacity:.5;
-  background:
-    linear-gradient(rgba(120,160,190,.045) 1px,transparent 1px) 0 0/100% 46px,
-    linear-gradient(90deg,rgba(120,160,190,.045) 1px,transparent 1px) 0 0/46px 100%;
-  mask-image:linear-gradient(180deg,#000,transparent 78%);
-}
+  background:radial-gradient(circle,rgba(47,83,240,.22),transparent 62%);}
+.lbg::after{content:'';position:absolute;bottom:-40%;right:-10%;width:900px;height:900px;
+  border-radius:50%;background:radial-gradient(circle,rgba(0,232,138,.10),transparent 62%);}
+.lbg .grid{position:absolute;inset:0;opacity:.5;
+  background:linear-gradient(rgba(120,160,190,.045) 1px,transparent 1px) 0 0/100% 46px,
+             linear-gradient(90deg,rgba(120,160,190,.045) 1px,transparent 1px) 0 0/46px 100%;
+  mask-image:linear-gradient(180deg,#000,transparent 78%);}
 
 .lnav{display:flex;align-items:center;gap:12px;padding:16px 0;}
 .lnav .spacer{flex:1;}
-
-/* the tagline. Sits with the mark, never with the H1 — they do different jobs. */
-.tagline{
-  font-family:var(--display);font-weight:500;font-size:13.5px;letter-spacing:-.01em;
-  color:var(--ink2);white-space:nowrap;
-}
-.lnav .tagline{
-  padding-left:12px;border-left:1px solid var(--line2);
-}
+/* the tagline sits with the mark, never with the H1 */
+.tagline{font-family:var(--display);font-weight:500;font-size:13.5px;letter-spacing:-.01em;
+  color:var(--ink2);white-space:nowrap;}
+.lnav .tagline{padding-left:12px;border-left:1px solid var(--line2);}
 .lockup{display:flex;flex-direction:column;align-items:center;gap:9px;margin-bottom:6px;}
-.lockup .tagline{font-size:15px;color:var(--ink2);}
+.lockup .tagline{font-size:15px;}
 .lockup .logo .wordmark{font-size:20px;}
 
-.hero{padding:38px 0 46px;display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center;}
-.hero h1{
-  font-family:var(--display);font-weight:800;letter-spacing:-.045em;line-height:1.02;
-  font-size:clamp(38px,5.4vw,62px);margin:14px 0 16px;text-wrap:balance;
-}
-.hero h1 .u{
-  background:linear-gradient(180deg,transparent 62%,rgba(47,83,240,.55) 62%);
-  padding:0 2px;
-}
-.hero .lede{font-size:17px;color:var(--ink2);max-width:52ch;margin:0 0 24px;line-height:1.55;}
-.hero .lede b{color:var(--ink);font-weight:600;}
+/* The hero is two beats and a turn, then the form, then the split — and it
+   is given room the tool would never spend. Density is what makes the tool
+   credible; on a page whose job is to be liked, the same density reads as a
+   spreadsheet wearing a joke. */
+.hero{padding:34px 0 22px;}
+.herotop{display:grid;grid-template-columns:1.12fr .88fr;gap:44px;align-items:center;}
+.herocopy{display:flex;flex-direction:column;align-items:flex-start;gap:16px;min-width:0;}
+.herocopy .lede{max-width:30ch;}
+.herocopy h1{margin:0;}
+.herocopy h1 .u{background:linear-gradient(180deg,transparent 62%,rgba(47,83,240,.55) 62%);padding:0 3px;}
+.herocopy .practical{max-width:46ch;}
+.herocopy .gatecard{margin-top:4px;}
 
-.gatecard{
-  display:block;width:100%;max-width:520px;
-  padding:16px;background:var(--panel);border:1px solid var(--line2);border-radius:var(--r-lg);
-  box-shadow:var(--shadow);
+/* ---- built / not built, inside the hero, at equal weight -----
+   The scenario the page opens on resolves through two capabilities and
+   only one of them exists. The honest hero says both, and the unbuilt one
+   is a DESIGNED STATE rather than a hedge: same card, same size, same
+   internal structure, its own ground and its own dashed edge, a SOON pill
+   where the other has a NOW pill, and every control inside it disabled.
+   Grey small print under a big promise is what put the last version of
+   this pitch at the bottom of the page. */
+/* align-items:start, not stretch. The two cards carry the same marker at the
+   same place and the same weight — that is what "equal weight" has to mean —
+   but the coming-soon card is allowed to END where its content ends rather
+   than stretching 150px of empty ground under the mock to match the shipped
+   one. Stretching it would pull the mock away from its badge, which is the
+   one failure mode this label exists to prevent, and a shorter unbuilt column
+   beside a taller built one is anyway the true shape of the roadmap. */
+.split{display:grid;grid-template-columns:1.22fr 1fr;gap:14px;margin-top:34px;align-items:start;}
+.splitcard{
+  border-radius:var(--r-lg);padding:18px 18px 16px;display:flex;flex-direction:column;gap:10px;
 }
-.gatecard .lbl{margin-bottom:9px;}
+.splitcard .sh{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.splitcard.now{background:var(--panel);border:1px solid var(--line2);}
+.splitcard.later{
+  background:linear-gradient(180deg,rgba(22,32,74,.62),rgba(22,32,74,.22));
+  border:1px dashed #2A3C8C;
+}
+/* ⚠️ ADJACENCY IS THE WHOLE POINT OF THE BADGE. The one Coming soon pill
+   lives in this card's header; the mock must therefore stay within a glance
+   of it at BOTH widths, or a reader landing mid-card sees a working feature.
+   So the later card's demo does NOT bottom-align — it hugs the copy directly
+   under the badge, and the card is allowed to end shorter than the shipped
+   one rather than stretching the mock away from its label. The shipped card
+   keeps margin-top:auto, because its label is the group head inside it. */
+.splitcard .demo{margin-top:12px;background:var(--bg2);border:1px solid var(--line);
+  border-radius:var(--r-sm);padding:12px;display:flex;flex-direction:column;gap:8px;}
+/* the shipped half shows the real component, not a sketch of it */
+.splitcard.now .shipped{margin-top:auto;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:var(--panel);overflow:hidden;}
+.splitcard.now .shipped .ngrouphead{padding:8px 12px;background:var(--bg2);}
+.splitcard.now .shipped .nrow{grid-template-columns:78px minmax(0,1fr);padding:9px 12px;}
+.splitcard.now .shipped .nsrc .chip{font-size:9px;letter-spacing:.06em;}
+.splitcard.later .demo{background:rgba(7,11,16,.55);border-style:dashed;border-color:#2A3C8C;}
+/* The pair. Both halves are marked, at the same place, at the same weight, so
+   the two cards read as a roadmap. Label only the unbuilt half and the page
+   reads as one working product with a caveat bolted to it. */
+.pill.now{background:var(--acc-lo);border-color:var(--acc);color:var(--acc);font-weight:700;}
+
+.gatecard{display:block;width:100%;max-width:520px;padding:16px;background:var(--panel);
+  border:1px solid var(--line2);border-radius:var(--r-lg);box-shadow:var(--shadow);}
+.gatecard .lbl{display:block;margin-bottom:9px;}
 .gateform{display:flex;gap:8px;}
-.gateform input{
-  flex:1;min-width:0;height:46px;padding:0 14px;border-radius:var(--r-sm);
-  background:var(--bg2);border:1px solid var(--line2);color:var(--ink);font-size:15px;
-}
+.gateform input{flex:1;min-width:0;height:46px;padding:0 14px;border-radius:var(--r-sm);
+  background:var(--bg2);border:1px solid var(--line2);color:var(--ink);
+  font-family:var(--ui);font-size:15px;}
 .gateform input::placeholder{color:var(--ink3);}
 .gateform input:focus{outline:2px solid var(--band);outline-offset:-1px;border-color:var(--band);}
 .gateform .btn{height:46px;padding:0 20px;font-size:14px;flex:0 0 auto;}
-.gatefoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px;font-size:12px;color:var(--ink3);}
-.gatefoot .dotsep{color:var(--line2);}
-.counter{font-family:var(--mono);color:var(--acc);font-weight:700;}
+.gatefoot{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-top:11px;}
+/* the notifications promise is a second line under the footnote, not a second
+   paragraph: same role, same ink, one line-height of air between them. */
+.gatefoot.gatepromise{margin-top:3px;}
 
-/* the preview card on the right */
-.peek{
-  border:1px solid var(--line2);border-radius:var(--r-lg);overflow:hidden;
-  background:var(--panel);box-shadow:var(--shadow);transform:perspective(1400px) rotateY(-7deg) rotateX(3deg);
-}
-.peek .bar{
-  display:flex;align-items:center;gap:7px;padding:8px 11px;background:var(--bg2);
-  border-bottom:1px solid var(--line);
-}
+/* the hero preview */
+.peek{border:1px solid var(--line2);border-radius:var(--r-lg);overflow:hidden;
+  background:var(--panel);box-shadow:var(--shadow);
+  transform:perspective(1400px) rotateY(-7deg) rotateX(3deg);}
+.peek .bar{display:flex;align-items:center;gap:7px;padding:8px 11px;background:var(--bg2);
+  border-bottom:1px solid var(--line);}
 .peek .bar i{width:8px;height:8px;border-radius:50%;background:var(--line2);display:block;}
-.peek .bar .t{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:5px;}
+.peek .bar .t{margin-left:5px;}
+.peek .turf{background:repeating-linear-gradient(180deg,#0A1F19 0 40px,#0D261E 40px 80px);
+  padding:14px 10px 10px;}
+.peek .foot{padding:10px 12px;background:var(--bg2);border-top:1px solid var(--line);
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
 .miniline{display:flex;justify-content:center;gap:5px;margin-bottom:7px;}
-.mini{
-  width:74px;border-radius:7px;padding:5px;background:linear-gradient(180deg,rgba(16,23,31,.94),rgba(10,15,21,.97));
-  border:1px solid rgba(120,150,175,.22);position:relative;
-}
+.mini{width:74px;border-radius:7px;padding:5px;position:relative;
+  background:linear-gradient(180deg,rgba(16,23,31,.94),rgba(10,15,21,.97));
+  border:1px solid rgba(120,150,175,.22);}
 .mini .sh{height:4px;border-radius:2px 2px 0 0;margin:-5px -5px 5px;}
-.mini .n{font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.mini .p{font-family:var(--display);font-weight:800;font-size:12px;color:var(--acc);letter-spacing:-.03em;margin-top:1px;}
+.mini .n{font-family:var(--ui);font-size:10px;font-weight:700;color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mini .p{font-family:var(--display);font-weight:800;font-size:12px;color:var(--acc);
+  letter-spacing:-.03em;margin-top:1px;}
 .mini.cap{border-color:var(--band-hi);box-shadow:0 0 14px rgba(47,83,240,.4);}
-/* #4361F5, not #4A6BFF: the white "C" on this 9px bar sits in the lightest part of the
-   gradient and was 4.34:1 against it. Matches the card's armband in armband.css. */
 .mini.cap .sh{height:9px;background:linear-gradient(180deg,#4361F5,#2F53F0)!important;
   display:flex;align-items:center;padding:0 4px;}
 .mini .arm{font-family:var(--display);font-weight:800;font-size:7px;color:#fff;line-height:1;}
+/* the news flag on the preview — the pitch card's own .newsflag, on a mini */
+.mini .flg{position:absolute;top:-5px;right:-4px;z-index:3;min-width:14px;height:14px;
+  border-radius:4px;display:grid;place-items:center;background:var(--warn);color:#241800;
+  border:1.5px solid #0A1F19;font-family:var(--display);font-weight:800;font-size:9px;line-height:1;}
+.mini.flagged{border-color:rgba(255,176,32,.5);}
+.mini.flagged .p{color:var(--warn);}
 
-/* proof strip */
-.proof{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
-  border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin:10px 0 54px;
-}
-.proof > div{background:var(--panel);padding:14px 16px;}
-.proof .v{font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:-.035em;margin-top:3px;}
-.proof .d{font-size:12px;color:var(--ink3);margin-top:4px;line-height:1.4;}
+/* ---- the three beats: a fast opening, not the page ----------
+   Three true stories, escalating. They are the HOOK, not the pitch, so
+   they are three small marks in a rhythm across one compact band, not
+   three illustrated panels down the page. The weight of the argument
+   sits after them, in the hinge's two halves.
 
-/* features */
-.sechead{max-width:60ch;margin:0 0 22px;}
-.sechead h2{
-  font-family:var(--display);font-weight:800;letter-spacing:-.035em;
-  font-size:clamp(25px,3.4vw,34px);margin:8px 0 10px;
-}
-.sechead p{color:var(--ink2);font-size:15px;margin:0;}
-.feats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:56px;}
-.feat{
-  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);
-  padding:18px;display:flex;flex-direction:column;
-}
-.feat h3{font-family:var(--display);font-weight:800;font-size:17px;letter-spacing:-.02em;margin:10px 0 7px;}
-.feat p{font-size:13px;color:var(--ink2);margin:0 0 14px;line-height:1.55;}
-.feat .demo{margin-top:auto;background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px;}
-.ico{
-  width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
-  background:var(--band-lo);border:1px solid #2A3C8C;color:#8AA0FF;
-}
-.ico svg{width:17px;height:17px;}
+   ⚠️ THE OLD REASON FOR COMPRESSING THEM IS DEAD AND THE COMPRESSION
+   STANDS ANYWAY. It used to be that all three were things we would not
+   have caught, so giving them the top of the page would sell a tool for
+   once-a-year absurdities. They were all PUBLIC — three worked examples
+   of the case we handle. They are still compact, for the plainer reason
+   that the hook is not the argument: attention at the top, argument in
+   the body, and the two halves below must have at least as much room.
 
-.cta{
-  text-align:center;padding:44px 20px;border:1px solid var(--line2);border-radius:var(--r-lg);
-  background:linear-gradient(180deg,var(--panel),var(--bg2));margin-bottom:38px;
-}
-.cta h2{font-family:var(--display);font-weight:800;font-size:clamp(24px,3.4vw,34px);letter-spacing:-.035em;margin:12px 0 8px;}
-.cta p{color:var(--ink2);margin:0 auto 20px;max-width:46ch;font-size:14.5px;}
-.cta .gatecard{margin:0 auto;}
-/* The SMS pitch: one named, clearly future-tense promise, full width in the CTA card --
-   not a features section of its own, and not a hint buried in small print. It sits
-   between the CTA's own pitch and its form, because the reason to hand over an email
-   belongs next to the thing that asks for one. */
-.soon{max-width:46ch;margin:0 auto 22px;}
-.soon .soonhead{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.015em;color:var(--ink);margin:0 0 6px;line-height:1.4;}
-.soon .soonsub{font-size:13px;color:var(--ink3);margin:0;line-height:1.5;}
+   Each beat still carries the news feed's own fields — a source and a
+   line — so the shape stays the shape a live item would take. There is
+   no separate timestamp field: every beat's copy dates itself in its
+   own first words, and printing the date twice is not a row grammar.
 
-footer{border-top:1px solid var(--line);padding:22px 0 40px;font-size:12.5px;color:var(--ink3);}
+   ORIGINAL ARTWORK. The three marks are drawn here, in this file, in
+   the stroked-icon idiom the rest of the system already uses. They are
+   NOT photographs and must never be replaced by one: every person in
+   these stories is real and identifiable, and a press photo of a real
+   footballer on a commercial page is a letter waiting to happen. The
+   silhouette carries the joke; likeness is not required, not attempted,
+   and not wanted. */
+.leaks{
+  margin-top:26px;border:1px solid var(--line);border-radius:var(--r-lg);
+  background:linear-gradient(180deg,var(--panel),rgba(12,18,25,.72));overflow:hidden;
+}
+.leakhead{display:flex;align-items:center;gap:9px;padding:9px 16px;
+  border-bottom:1px solid var(--line);background:var(--bg2);flex-wrap:wrap;}
+.leakhead .dot{width:7px;height:7px;border-radius:50%;background:var(--warn);
+  box-shadow:0 0 0 3px rgba(255,176,32,.18);flex:0 0 auto;}
+/* the grievance, inside the band it heads. It names the asymmetry and stops
+   short of the answer — the answer is the hinge's job. */
+.leakheading{padding:16px 16px 4px;max-width:26ch;}
+.leakbeats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);
+  border-top:1px solid var(--line);margin-top:14px;}
+/* the set-level claim, under the set. Verified and exact: no "most of these",
+   no "often before the deadline" — one word on one story's timing failed to
+   verify and the honest fix was to not say that word. */
+.leakfoot{padding:9px 16px;border-top:1px solid var(--line);background:var(--bg2);}
+.leakrow{
+  display:grid;grid-template-columns:34px minmax(0,1fr);grid-template-areas:"art src" "art said";
+  gap:3px 11px;padding:13px 15px;background:var(--panel);align-items:start;
+  animation:leakin .5s both;
+}
+.leakbeats .leakrow:nth-child(1){animation-delay:.15s;}
+.leakbeats .leakrow:nth-child(2){animation-delay:.7s;}
+.leakbeats .leakrow:nth-child(3){animation-delay:1.25s;}
+@keyframes leakin{from{opacity:0;transform:translateY(7px);}to{opacity:1;transform:none;}}
+.leakart{grid-area:art;color:var(--ink-idle);align-self:start;}
+.leakart svg{display:block;width:32px;height:32px;}
+.leakrow:hover .leakart{color:var(--ink2);}
+.leakrow .src{grid-area:src;justify-self:start;padding:3px 7px;border-radius:5px;
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;white-space:nowrap;
+  background:var(--warn-lo);border:1px solid #5A4210;color:var(--warn);}
+.leakrow .said{grid-area:said;min-width:0;display:flex;flex-direction:column;gap:3px;}
+
+/* ---- the hinge: the change of gear -------------------------
+   Above it the page is loose and funny. Below it the page means what it
+   says, and the tool it is selling is exact. The join has to be visible
+   or the seriousness underneath reads as more of the joke — so it is a
+   full-bleed rule, then the claim at section size.
+
+   ⚠️ THIS SHAPE REPLACES A CONCESSION AND MUST NOT DRIFT BACK.
+   What was here: two admissions at lede size in --ink2 (.admit), then a
+   turn, then one long paragraph. It descended — quiet type, then a
+   smaller consolation — because the page used to argue that all three
+   stories were things we would have missed. They were public. The
+   admission was false, and the visual grammar of a caveat was saying
+   the wrong thing about the half of the product that matters most.
+
+   What is here: ONE CLAIM at t-sec (the barber gag IS the capability
+   claim, so it takes heading weight and full ink, not the muted lede a
+   concession could have taken), and then TWO HALVES.
+
+   ⚠️ The halves are AND ALSO, never BUT AT LEAST. Half one is the news
+   we read; half two is the rotation nobody reports, which is the half
+   that applies most weeks and is the actual product pitch. So they are
+   two IDENTICAL columns — equal width, equal ground, the same three
+   type roles in the same order, one hairline between them, and the grid
+   stretches them to the same height. Neither may acquire a smaller
+   type, a dimmer ink, a narrower column or less air than the other; any
+   of those puts the page back to arguing what was struck. .admit and
+   .turn are deleted rather than left unused, so there is nothing here
+   to fall back into. */
+.hinge{padding:40px 0 24px;display:flex;flex-direction:column;gap:22px;}
+.hinge .rule{width:100%;height:1px;background:linear-gradient(90deg,var(--line2),transparent 82%);}
+.hingeline{max-width:44ch;}
+/* One outline around both, one hairline between them, and the grid stretches
+   them to the same height: the pair is a single object, not a claim with a
+   footnote beside it. The hairline is the 1px grid gap showing the container
+   through, so it cannot be given to one column and not the other. */
+.halves{display:grid;grid-template-columns:1fr 1fr;gap:1px;align-items:stretch;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;}
+.half{display:flex;flex-direction:column;gap:11px;min-width:0;
+  background:var(--panel);padding:20px 22px 22px;}
+/* the opening line of each half, and half two's closer. t-lede at full --ink:
+   these are claims. The one size variant rule still holds — no new size is
+   introduced here, only the role's own. */
+.half .close{margin-top:auto;padding-top:2px;}
+
+/* ---- the serious half --------------------------------------
+   Its own ground, so the change of register is a change of material.
+   The gate form lives HERE, directly under the two promise cards,
+   because the reason to hand over an address belongs next to the thing
+   that asks for one — the argument the old bottom-of-page .soon block
+   made and won. The pitch moved to the top of the page; the adjacency
+   moved with it rather than being abandoned. */
+.serious .split{margin-top:0;}
+.serious{
+  border:1px solid var(--line2);border-radius:var(--r-lg);padding:26px;margin-bottom:72px;
+  background:linear-gradient(180deg,var(--panel),var(--bg2));
+}
+.seriousfoot{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:16px;
+  padding-top:18px;border-top:1px solid var(--line);}
+.seriousfoot .gatecard{box-shadow:none;}
+
+/* a picture of something that does not exist: dashed, dimmed, inert */
+.pushmock{
+  border:1px dashed #2A3C8C;border-radius:var(--r-sm);padding:11px;background:rgba(7,11,16,.55);
+  display:flex;gap:11px;align-items:flex-start;
+}
+.pushmock .ic{flex:0 0 auto;display:grid;place-items:center;width:30px;height:30px;
+  border-radius:8px;background:var(--band-lo);border:1px solid #2A3C8C;color:var(--band-hi);}
+.pushmock .ic svg{width:15px;height:15px;}
+.pushmock .pm{display:flex;flex-direction:column;gap:3px;min-width:0;}
+
+/* ============ THE CLOSE ============
+   ⚠️ v2.1 DELETED THE FEATURES SECTION — the "The rest of it" eyebrow,
+   its headline, and all three .feat cards with their demos, plus .ico
+   and .riskline, which nothing else used. "The rest" was the tell: a
+   section whose own name concedes it is leftovers, made of three claims
+   the page already makes better elsewhere (the pitch is the product,
+   the derivation is the player card's hover, and the third card sold an
+   override feature that does not exist in v1). .nbpoint went with them;
+   it had already lost its last caller.
+
+   That takes a large block of mid-page rhythm out, and the page cannot
+   simply end 52px earlier: the proof strip used to be a divider between
+   two sections and is now the last thing before the ask. So the strip
+   and the closing CTA are JOINED INTO ONE OBJECT — four facts, then the
+   question, sharing one outline and reading top to bottom as evidence
+   and then ask. The proof cells are recessed onto --bg2 with the CTA on
+   the panel gradient below them, so the join is a change of material
+   rather than a seam, and both are centred so the whole thing is a
+   single lockup on the page's axis. No copy is added and nothing new is
+   claimed; the strip stops being furniture between two slabs and
+   becomes the footing under the last one. */
+.proof{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line2);border-radius:var(--r-lg) var(--r-lg) 0 0;
+  overflow:hidden;margin:0;}
+.proof > div{background:var(--bg2);padding:18px 16px;display:flex;flex-direction:column;
+  gap:5px;align-items:center;text-align:center;}
+
+.cta{text-align:center;padding:38px 20px 40px;border:1px solid var(--line2);border-top:0;
+  border-radius:0 0 var(--r-lg) var(--r-lg);
+  background:linear-gradient(180deg,var(--panel),var(--bg2));margin-bottom:36px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;}
+.cta .gatecard{margin:14px auto 0;text-align:left;}
+/* what stays next to the form: one true line about why the address is worth
+   handing over. The PITCH is at the top of the page now; this is the receipt. */
+.ctareason{display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap;
+  margin-top:2px;}
+
+footer{border-top:1px solid var(--line);padding:22px 0 40px;}
 footer .r{display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
 footer .spacer{flex:1;}
+footer a{color:var(--ink3);}
 
 @media (max-width:900px){
-  .hero{grid-template-columns:1fr;gap:30px;padding:26px 0 34px;}
+  .herotop{grid-template-columns:1fr;gap:28px;}
+  .hero{padding:22px 0 20px;}
+  .split{grid-template-columns:1fr;margin-top:26px;}
   .peek{transform:none;}
   .proof{grid-template-columns:repeat(2,1fr);}
-  .feats{grid-template-columns:1fr;}
+  .leaks{margin-top:22px;}
+  .leakbeats{grid-template-columns:1fr;}
+  .hinge{padding:30px 0 20px;gap:18px;}
+  /* stacked, the two halves keep the hairline between them — turned through
+     90° — and keep equal air above and below it. The pair must still read as
+     a pair when one is above the other rather than beside it. */
+  /* stacked, the 1px gap simply turns through 90° and stays the same hairline,
+     so the pair still reads as a pair when one is above the other. */
+  .halves{grid-template-columns:1fr;}
+  .half{padding:18px;}
 }
 @media (max-width:720px){
-  body{padding-bottom:0;}
-  .hero h1{font-size:clamp(32px,9vw,42px);}
-  .hero .lede{font-size:15.5px;}
   .gateform{flex-direction:column;}
   .gateform .btn{width:100%;}
-  /* The input keeps flex:1 from the row layout, and in a COLUMN container that grows it
-     on the vertical axis -- so it stretched against its own height and rendered as an
-     odd tall box. On one axis it is a filler; on the other it is a field. */
-  .gateform input{flex:0 0 auto;width:100%;
-    /* 16px, not 15. Mobile browsers zoom the whole page when a focused input is under
-       16px, which yanks the layout sideways the moment someone taps the field. */
-    font-size:16px;}
+  /* On one axis the input is a filler, on the other it is a field: flex:1 in a
+     column container stretches its HEIGHT. 16px so a focused field does not
+     make a mobile browser zoom the page sideways. */
+  .gateform input{flex:0 0 auto;width:100%;font-size:16px;}
   .lnav .hideSm{display:none;}
-  .lockup .tagline{font-size:14px;}
   .lnav .btn{padding:0 12px;}
+  .leakrow{padding:12px 13px;}
+  .leakart svg{width:30px;height:30px;}
+  .leakhead{padding:9px 13px;}
+  .leakheading{padding:14px 13px 2px;}
+  .leakfoot{padding:9px 13px;}
+  .serious{padding:16px;}
+  .splitcard{padding:16px;}
+  /* ⚠️ THE ONE BADGE MUST BE ON SCREEN WHENEVER THE MOCK IS.
+     At 1440 the later card is short enough that its head and its mock are
+     always in the same glance. At 390 the headline and the body push them
+     ~180px apart, which opens a scroll position where the mock is visible
+     and the Coming soon badge has just gone off the top — a reader landing
+     there sees what looks like a live feature. So on the phone the mock
+     moves up to sit directly under the headline, and the body becomes its
+     caption. Badge → headline → mock is about 100px, inside any phone
+     viewport that can show the mock at all.
+     The reading order changes with the width and that is deliberate; the
+     desktop card keeps the same head/head/body/demo structure as the
+     shipped card beside it, which is what makes the two read as a pair. */
+  .splitcard.later{display:flex;flex-direction:column;}
+  .splitcard.later .sh{order:1;}
+  .splitcard.later h3{order:2;}
+  .splitcard.later .demo{order:3;margin-top:2px;}
+  .splitcard.later > p{order:4;}
+  .proof > div{padding:12px 13px;}
 }
 </style>
 </head>
@@ -185,131 +375,340 @@ footer .spacer{flex:1;}
         <path d="M110 16 L192 60 V148 c0 50-34 82-82 100 -48-18-82-50-82-100 V60 Z" fill="#131C26" stroke="#2C3B49" stroke-width="2"/>
         <g stroke="#4C6072" stroke-width="3" fill="none" stroke-linecap="round">
           <path d="M110 40 V220"/><path d="M110 62 H82 V96"/><path d="M110 62 H138 V96"/>
-          <path d="M110 198 H82 V166"/><path d="M110 198 H138 V166"/>
-        </g>
+          <path d="M110 198 H82 V166"/><path d="M110 198 H138 V166"/></g>
         <g fill="#4C6072"><circle cx="110" cy="38" r="6"/><circle cx="82" cy="100" r="6"/><circle cx="138" cy="100" r="6"/><circle cx="110" cy="222" r="6"/><circle cx="82" cy="162" r="6"/><circle cx="138" cy="162" r="6"/></g>
         <path d="M28 112 H192 V158 H28 Z" fill="#2F53F0"/>
         <text x="110" y="149" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-size="46" font-weight="800" fill="#fff">C</text>
       </svg>
       <span class="wordmark">FPL <em>Armband</em></span>
     </a>
-    <span class="tagline hideSm">Your man on the pitch.</span>
+    <span class="tagline hideSm" data-copy="ln.tagline">Your man on the pitch.</span>
     <span class="spacer"></span>
-    <span class="pill on">Open preview</span>
-    <a class="btn sm ghost" href="/app"><span class="hideSm">I have access</span> →</a>
+    <span class="pill on" data-copy="ln.previewpill">Open preview</span>
+    <a class="btn sm ghost" href="/app" data-copy="ln.haveaccess"><span class="hideSm">I have access</span> →</a>
   </nav>
 
-  <!-- ============ HERO ============ -->
+  <!-- ============ HERO — the scene ============ -->
   <section class="hero">
-    <div>
-      <div class="k">2026/27 · Gameweek 1 locks Fri 21 Aug 17:30</div>
-      <h1>We’ll make the case.<br>You make the <span class="u">call.</span></h1>
-      <p class="lede">
-        Every player in the game, scored on <b>FPL’s own points</b> — minutes, fixtures, clean sheets, the lot.
-        Armband shows you what went into each number, so you can overrule it when you know something
-        it doesn’t. Drag your eleven, order your bench, plan your chips weeks ahead.
-      </p>
+    <div class="herotop">
+      <div class="herocopy">
+        <span class="t-label" data-copy="hero.eyebrow">2026/27 · Gameweek 1 locks Fri 21 Aug 17:30</span>
+        <h1 class="t-hero" data-copy="hero.h1">Pick eleven who’ll <span class="u">play.</span><br>Not eleven who might.</h1>
+        <!-- THE CANONICAL LINE. Same sentence, same role, at the head of the
+             News tab. Second-largest thing in the hero and nothing else here
+             competes with it — a hero cannot carry two ledes. The old lede's
+             one surviving claim, "scored on FPL's own points", is in the
+             proof strip, which is where a credibility claim belongs. -->
+        <p class="t-lede lede" data-copy="hero.lede">Most weeks nobody you own is injured, and someone still isn’t playing.</p>
+        <!-- The support line under the canonical one: the mechanism, then the
+             page’s first joke at our own expense. Set at t-body, a clear step
+             under the lede — the two at the same size would be two ledes, which
+             is the mistake the old single hero paragraph made. -->
+        <p class="t-body practical" data-copy="hero.practical">Armband marks every player from <b>Nailed</b> down to
+          <b>Fringe</b> before you pick him, and reads FPL’s own team news straight into his score. We’re the sort of
+          people who have strong opinions about expected minutes. Now you don’t have to be.</p>
+      </div>
 
-      <form class="gatecard">
-        <div class="k lbl">Get preview access</div>
-        <div class="gateform">
-          <input type="email" placeholder="you@email.com" required aria-label="Email address">
-          <button class="btn primary" type="submit">Claim my armband</button>
+      <!-- The preview is the real card design. One card carries the FPL news flag,
+           because reading FPL's status feed is a thing that works today. -->
+      <div class="peek" aria-hidden="true">
+        <div class="bar"><i></i><i></i><i></i><span class="t t-meta">gameweek 1 · 3-5-2 · 51.9 points</span></div>
+        <div class="turf">
+          <div class="miniline"><div class="mini"><div class="sh" style="background:#132257"></div><div class="n">Kinsky</div><div class="p">3.48</div></div></div>
+          <div class="miniline">
+            <div class="mini"><div class="sh" style="background:#C8102E"></div><div class="n">Virgil</div><div class="p">4.32</div></div>
+            <div class="mini"><div class="sh" style="background:#DA291C"></div><div class="n">Senesi</div><div class="p">4.14</div></div>
+            <div class="mini"><div class="sh" style="background:#241F20"></div><div class="n">Thiaw</div><div class="p">3.47</div></div>
+          </div>
+          <div class="miniline">
+            <div class="mini cap"><div class="sh" style="background:#DA291C"><span class="arm">C</span></div><div class="n">B.Fernandes</div><div class="p">5.40</div></div>
+            <div class="mini flagged"><span class="flg">!</span><div class="sh" style="background:#034694"></div><div class="n">Palmer</div><div class="p">3.15</div></div>
+            <div class="mini"><div class="sh" style="background:#003399"></div><div class="n">Ndiaye</div><div class="p">4.15</div></div>
+          </div>
+          <div class="miniline">
+            <div class="mini"><div class="sh" style="background:#EF0107"></div><div class="n">Saka</div><div class="p">3.82</div></div>
+            <div class="mini"><div class="sh" style="background:#6CABDD"></div><div class="n">Haaland</div><div class="p">5.28</div></div>
+          </div>
         </div>
-        <div class="gatefoot">
-          <span>No card. No FPL login. Straight in — and we’ll email you when the alerts land.</span>
-        </div>
-        <div class="done" hidden style="margin-top:11px"></div>
-      </form>
-    </div>
-
-    <!-- peek -->
-    <div class="peek" aria-hidden="true">
-      <div class="bar"><i></i><i></i><i></i><span class="t">gameweek 1 · 3-5-2 · 51.9 xPts</span></div>
-      <div style="background:repeating-linear-gradient(180deg,#0A1F19 0 40px,#0D261E 40px 80px);padding:14px 10px 10px;">
-        <div class="miniline"><div class="mini"><div class="sh" style="background:#132257"></div><div class="n">Kinsky</div><div class="p">3.48</div></div></div>
-        <div class="miniline">
-          <div class="mini"><div class="sh" style="background:#C8102E"></div><div class="n">Virgil</div><div class="p">4.32</div></div>
-          <div class="mini"><div class="sh" style="background:#132257"></div><div class="n">Senesi</div><div class="p">4.14</div></div>
-          <div class="mini"><div class="sh" style="background:#241F20"></div><div class="n">Thiaw</div><div class="p">3.47</div></div>
-        </div>
-        <div class="miniline">
-          <div class="mini cap"><div class="sh" style="background:#DA291C"><span class="arm">C</span></div><div class="n">B.Fernandes</div><div class="p">5.40</div></div>
-          <div class="mini"><div class="sh" style="background:#6CABDD"></div><div class="n">Anderson</div><div class="p">4.17</div></div>
-          <div class="mini"><div class="sh" style="background:#003399"></div><div class="n">Ndiaye</div><div class="p">4.15</div></div>
-        </div>
-        <div class="miniline">
-          <div class="mini"><div class="sh" style="background:#034694"></div><div class="n">Palmer</div><div class="p">3.86</div></div>
-          <div class="mini"><div class="sh" style="background:#EF0107"></div><div class="n">Saka</div><div class="p">3.82</div></div>
-        </div>
-        <div class="miniline">
-          <div class="mini"><div class="sh" style="background:#6CABDD"></div><div class="n">Haaland</div><div class="p">5.28</div></div>
-          <div class="mini"><div class="sh" style="background:#E30613"></div><div class="n">Thiago</div><div class="p">4.41</div></div>
+        <div class="foot">
+          <span class="pill acc">▲ 46.5 · the eleven</span>
+          <span class="pill warn">1 flagged</span>
+          <!-- was "9 of your calls applied" on the violet channel. Nothing on
+               this page is the reader's call in v1: those nine are news items
+               we read and passed to the model. Neutral pill, because a source
+               count is not a semantic channel. -->
+          <span class="pill">9 news items read</span>
         </div>
       </div>
-      <div style="padding:10px 12px;background:var(--bg2);border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <span class="pill acc">▲ 46.5 xPts XI</span>
-        <span class="pill ov">9 of your calls applied</span>
-        <span class="pill">£0.0m ITB</span>
+    </div>
+
+    <!-- ============ THE THREE BEATS ============
+         Real stories, escalating. Drawn in the news feed's own row
+         grammar — a source and a line — so this is not just a joke with a
+         layout: it is the component the live feed later fills.
+         Three original line illustrations, no photographs.
+
+         ⚠️ These are NOT a catalogue of what we would miss. All three were
+         public — posted, reported, circulating — which is why the band
+         closes on "All three were public" and the hinge below claims them
+         rather than conceding them. -->
+    <div class="leaks">
+      <div class="leakhead">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="t-label" data-copy="leaks.head">What you’re up against</span>
+      </div>
+      <h2 class="t-sec leakheading" data-copy="leaks.heading">Somebody reads team news for a living. It isn’t you.</h2>
+      <div class="leakbeats">
+
+      <!-- 1 · the benched striker. A dugout bench, one figure on it. -->
+      <div class="leakrow">
+        <span class="leakart" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 42V31M42 42V31M5 31h38M5 24h38"/>
+            <circle cx="17" cy="13" r="4.5"/>
+            <path d="M17 17.5v10M17 27.5h8M25 27.5V38"/>
+            <path d="M31 13h9M31 17h6"/>
+          </svg>
+        </span>
+        <span class="src" data-copy="leaks.1.src">The telly</span>
+        <span class="said">
+          <span class="t-body" data-copy="leaks.1.text"><b>We’ve all been there.</b> Saturday, three o’clock, telly on:
+            your captain is on the bench. Again. Everyone in your mini-league knew. Nobody’s job was to tell you.</span>
+        </span>
+      </div>
+
+      <!-- 2 · the dad. A phone with a transfer arrow, and two figures. -->
+      <div class="leakrow">
+        <span class="leakart" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="7" width="17" height="30" rx="3"/>
+            <path d="M8 22h8M13.5 18.5L17 22l-3.5 3.5"/>
+            <circle cx="32" cy="13" r="5"/><path d="M32 18v13M27 42v-8M37 42v-8"/>
+            <circle cx="42" cy="21" r="3.5"/><path d="M42 24.5v7"/>
+          </svg>
+        </span>
+        <span class="src" data-copy="leaks.2.src">His dad</span>
+        <span class="said">
+          <span class="t-body" data-copy="leaks.2.text">December 2023: the real update on Erling Haaland’s foot was
+            his own father selling him on FPL. He could have just benched him.</span>
+        </span>
+      </div>
+
+      <!-- 3 · the barber. The back of a head with a very memorable cut,
+           and a pair of clippers. ORIGINAL LINE ART — no likeness beyond
+           the hair, and never to be swapped for a photograph. -->
+      <div class="leakrow">
+        <span class="leakart" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 43c1.5-7 6.5-10 12-10s10.5 3 12 10"/>
+            <path d="M9.5 22a9.5 11 0 0 1 19 0v4a9.5 9 0 0 1-19 0z"/>
+            <path d="M12.5 25.5l3 3 3.5-3.5 3.5 3.5 3-3M12.5 17.5l3 3 3.5-3.5 3.5 3.5 3-3"/>
+            <circle cx="38" cy="9" r="2.6"/><circle cx="38" cy="17" r="2.6"/>
+            <path d="M36 11.4l-1 8M36 14.6l-1-8"/><path d="M40.3 10.2L46 5M40.3 15.8L46 21"/>
+          </svg>
+        </span>
+        <span class="src" data-copy="leaks.3.src">His barber</span>
+        <span class="said">
+          <span class="t-body" data-copy="leaks.3.text">April 2026: Chelsea’s team news appeared to come out of a
+            barbershop — an account said to be Cucurella’s barber, a photo mid-trim, Palmer and João Pedro both out.
+            He tagged the FPL accounts so nobody would miss it. Community-minded.</span>
+        </span>
+      </div>
+      </div>
+      <div class="leakfoot">
+        <span class="t-meta" data-copy="leaks.sub">All three really happened. All three were public.</span>
       </div>
     </div>
   </section>
 
-  <!-- ============ PROOF ============ -->
-  <div class="proof">
-    <div><div class="k">Players scored</div><div class="v">All of them</div><div class="d">every player in the game, re-scored each time FPL updates</div></div>
-    <div><div class="k">Seasons replayed</div><div class="v">6</div><div class="d">six seasons of real football, played out in full. Not vibes.</div></div>
-    <div><div class="k">Weeks ahead</div><div class="v">Next 4</div><div class="d">your eleven and your chips, planned past this Saturday</div></div>
-    <div><div class="k">Costs you</div><div class="v acc">£0</div><div class="d">free while it’s in open preview — no card, no FPL login</div></div>
-  </div>
+  <!-- ============ THE HINGE ============
+       Above this line the page is loose. Below it the page means what it
+       says, and the join is drawn — seriousness arriving straight after a
+       joke has to look deliberate or it reads as more joke.
 
-  <!-- ============ FEATURES ============ -->
-  <div class="sechead">
-    <div class="k">What you get</div>
-    <h2>A number on its own is not an answer. You get the number and what went into it.</h2>
-    <p>Most tools give you a ranking. This one gives you the ranking, what’s underneath it, and a switch to overrule it when you know something the data doesn’t.</p>
-  </div>
+       ⚠️ THE ARGUMENT WAS INVERTED AND THIS LAYOUT CARRIES THE NEW ONE.
+       The old hinge was an admission ("we are never going to beat a
+       barber", "all three of them we would have missed") followed by a
+       consolation, and it was drawn as one: quiet ink at lede size, then
+       a smaller point underneath. That premise was false — all three
+       stories were PUBLIC — and the layout was conceding the product.
 
-  <div class="feats">
-    <div class="feat">
-      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg></div>
-      <h3>Drag the pitch, keep it legal</h3>
-      <p>You can’t build an illegal eleven by accident. Try a fourth forward and it won’t take — and it’ll tell you why. Bench order is drag-to-rank, not a dropdown.</p>
-      <div class="demo">
-        <div style="display:flex;align-items:center;gap:9px;">
-          <span style="font-family:var(--display);font-weight:800;font-size:19px;">3-5-2</span>
-          <span class="pill acc">✓ legal</span>
-          <span class="pill" style="margin-left:auto">4-4-2 → −0.50</span>
+       What stands here now is ONE CLAIM at heading weight, then TWO
+       HALVES that between them cover every week: news we read, and
+       rotation nobody reports. ⚠️ The relationship between the halves is
+       AND ALSO, never BUT AT LEAST. So they are two identical columns —
+       same width, same ground, same type roles, one hairline between them
+       — and neither may be given the quieter treatment. The second half
+       is the one that applies most weeks; it is the pitch, not a
+       fallback. If a later pass shrinks either column, the page is back
+       to arguing the thing that was struck. -->
+  <section class="hinge">
+    <span class="rule" aria-hidden="true"></span>
+    <!-- A CLAIM, not a concession, so it is set at t-sec and not at the
+         muted lede the old admission used. The gag and the capability are
+         the same sentence: we have no contacts, we have attention. Two
+         beats, one per line, the same cadence as the H1. -->
+    <h2 class="t-sec hingeline" data-copy="hinge.line">We don’t know the barber.<br>We do follow his Twitter.</h2>
+    <div class="halves">
+
+      <div class="half">
+        <span class="t-label" data-copy="hinge.a.label">When it is news, we read it</span>
+        <p class="t-lede open" data-copy="hinge.a.open">None of that was a secret.</p>
+        <p class="t-body" data-copy="hinge.a.1">It was posted, reported, passed round mini-leagues — out there, for
+          anyone who happened to be looking. You weren’t looking, because looking isn’t your job.</p>
+        <p class="t-body" data-copy="hinge.a.2">When something moves — a doubt in a press conference, a lineup out
+          early, a transfer that won’t be registered in time — we tell the model, with the source and the date. Your
+          numbers change before the deadline, not after it. We won’t catch everything; what we do catch, you’ll see,
+          and you’ll see where it came from.</p>
+      </div>
+
+      <div class="half">
+        <span class="t-label" data-copy="hinge.b.label">When it is not even news, we model it</span>
+        <p class="t-lede open" data-copy="hinge.b.open">And plenty of weeks there is no story to catch at all.</p>
+        <p class="t-body" data-copy="hinge.b.1"><b>Nobody leaks that one.</b> He’s fourth choice at a club with a
+          Thursday night in Europe. He’s the one who gets rested when it’s 3-0 on the hour. Nothing gets announced,
+          there’s no flag next to his name, and he costs you the week just the same.</p>
+        <p class="t-body" data-copy="hinge.b.2">That’s the half we model. Every player in your fifteen marked from
+          <b>Nailed</b> down to <b>Fringe</b>, on his card and on the pitch, before you have to decide.</p>
+        <p class="t-lede close" data-copy="hinge.b.3">Not dramatic. Weekly.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ WHAT IS BUILT, AND WHAT IS NOT ============
+       Two cards, same size, same structure. One works today; one does
+       not, and says so at full confidence rather than in grey small
+       print. The form sits directly underneath both, because the reason
+       to hand over an address belongs next to the thing asking for one. -->
+  <section class="serious">
+    <div class="split">
+
+      <div class="splitcard now">
+        <!-- One pill per head, same place, same weight, so the pair reads as a
+             roadmap. The t-label that used to sit beside each pill is gone: the
+             shipped card's said what its pill said, and the unbuilt card's read
+             "The next thing we're building" — a status report on our backlog,
+             which is the exact class of writing the badge replaces. -->
+        <div class="sh">
+          <span class="pill now" data-copy="split.now.pill">Working now</span>
+        </div>
+        <h3 class="t-sec" data-copy="split.now.head">See the risk before you pick.</h3>
+        <!-- The five band words are struck from this paragraph, not reworded: the
+             hinge's second half names them and so does the proof strip, and three
+             times on one page is padding. -->
+        <p class="t-body" data-copy="split.now.body">Every player in your fifteen marked from Nailed down to Fringe.
+          Team news read and fed into his score, with the source and the date. Your eleven picked again the moment
+          either one moves.</p>
+        <!-- Not a sketch of the tool: this is the News tab's own group and
+             its own row component, at the size it renders in the product. -->
+        <div class="shipped">
+          <div class="ngrouphead">
+            <span class="t-label" data-copy="split.now.demolabel">Who may not start</span>
+            <span class="sp"></span>
+            <span class="pill warn">3</span>
+            <span class="t-meta" data-copy="split.now.demosub">GW1 · every week</span>
+          </div>
+          <div class="nrow">
+            <div class="nsrc"><span class="chip model">Model</span></div>
+            <div class="nbody"><div class="nwho"><span class="t-row">Rayan Aït-Nouri</span>
+              <span class="t-meta">MCI</span><span class="role r3">Rotation</span></div>
+              <span class="neffect"><span class="t-label">minutes</span><span class="t-meta">90</span>
+                <span class="arw" aria-hidden="true">→</span><span class="t-stat">54 modelled</span></span></div>
+          </div>
+          <div class="nrow">
+            <div class="nsrc"><span class="chip model">Model</span></div>
+            <div class="nbody"><div class="nwho"><span class="t-row">Danny Welbeck</span>
+              <span class="t-meta">BHA</span><span class="role r3">Rotation</span></div>
+              <span class="neffect"><span class="t-label">minutes</span><span class="t-meta">90</span>
+                <span class="arw" aria-hidden="true">→</span><span class="t-stat">48 modelled</span></span></div>
+          </div>
+          <div class="nrow">
+            <div class="nsrc"><span class="chip model">Model</span></div>
+            <div class="nbody"><div class="nwho"><span class="t-row">Tyrick Mitchell</span>
+              <span class="t-meta">CRY</span><span class="role r4">Squad</span></div>
+              <span class="neffect"><span class="t-label">minutes</span><span class="t-meta">90</span>
+                <span class="arw" aria-hidden="true">→</span><span class="t-stat">21 modelled</span></span></div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="feat">
-      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v5h-5"/></svg></div>
-      <h3>Every number, opened up</h3>
-      <p>Tap any player and see what went into his number: his points per 90 after fixtures, who he’s playing, how reliably he starts, whether he’s fit — and anything you’ve changed by hand.</p>
-      <div class="demo deriv" style="font-size:11.5px">
-        <div class="step"><span class="dim">points per 90, after fixtures</span><b>3.65</b></div>
-        <div class="step"><span class="dim">next up</span><b>vs BOU (H)</b></div>
-        <div class="step"><span class="dim">minutes reliability</span><b>0.92</b></div>
-        <div class="step total"><span>xPts / gw</span><b>3.48</b></div>
-      </div>
-    </div>
-
-    <div class="feat">
-      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div>
-      <h3>Overrule it, on the record</h3>
-      <p>Lock a player in so every rebuild keeps him, or block one out so it never picks him — and watch the squad re-pick itself around your call.</p>
-      <div class="demo">
-        <div style="display:flex;gap:9px;align-items:flex-start;">
-          <span class="pill ov">NAILED</span>
-          <div style="font-size:11.5px;color:var(--ink2);line-height:1.45;">
-            <b style="color:var(--ink)">Kinsky</b> <span class="dim">TOT</span><br>
-            Named first choice for 26/27. His record is backup minutes; the role isn’t.
+      <div class="splitcard later">
+        <div class="sh">
+          <span class="pill soon" data-copy="split.soon.pill">Coming soon</span>
+        </div>
+        <h3 class="t-sec" data-copy="split.soon.head">And a message when it breaks.</h3>
+        <!-- Badge plus one line, and nothing else. The line names a Friday
+             afternoon rather than a feature, and it must not be converted to
+             the present tense: the badge carries the tense, the sentence
+             carries the picture. -->
+        <p class="t-body" data-copy="split.soon.body">We’ll text you when your striker is named on the bench.</p>
+        <!-- No caption over the mock and no disclaimer under it. The single
+             Coming soon badge at the head of this card is the whole label,
+             and the mock sits directly under the copy so the two are never
+             more than a glance apart at either width. -->
+        <div class="demo">
+          <div class="pushmock">
+            <span class="ic" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.3 21a2 2 0 003.4 0"/></svg>
+            </span>
+            <span class="pm">
+              <span class="t-row" data-copy="split.soon.mock.head">FPL Armband</span>
+              <!-- A present-tense example names the ROLE the reader owns, never a
+                   player: a live name rots and nothing here would notice. -->
+              <span class="t-body" data-copy="split.soon.mock.body">Your striker is not in the eighteen. Your projection
+                dropped 4.2. Your captain is unaffected.</span>
+              <span class="t-meta" data-copy="split.soon.mock.when">Saturday, 11:07</span>
+            </span>
           </div>
         </div>
       </div>
     </div>
+
+    <div class="seriousfoot">
+      <form class="gatecard">
+        <span class="t-label lbl" data-copy="gate.label">Get preview access</span>
+        <div class="gateform">
+          <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
+          <button class="btn primary" type="submit" data-copy="gate.cta">Claim my armband</button>
+        </div>
+        <!-- Two lines, not one. The promise about notifications had been living
+             in four words at the tail of the footnote; it gets its own line, and
+             the footnote takes a shot at us for running an email gate at all.
+             ⚠️ The promise takes no qualifier — we have the addresses, the
+             database and the means. It carries no badge either: the one badge on
+             this page is in the card above. -->
+        <div class="gatefoot">
+          <span class="t-meta" data-copy="gate.foot">No card. No FPL login. Just an email address, like it’s 2009.</span>
+        </div>
+        <div class="gatefoot gatepromise">
+          <span class="t-meta" data-copy="gate.promise">We’ll email you when notifications go live.</span>
+        </div>
+        <div class="done t-body" hidden></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ THE CLOSE: proof strip + CTA, one object ============
+       The features section that used to sit between them is deleted —
+       "the rest of it" was the tell. With it gone the proof strip is the
+       last thing before the ask, so the two are joined into a single
+       lockup: four facts on a recessed ground, then the question on the
+       panel above them, sharing one outline and one axis. See v2.css. -->
+  <div class="proof">
+    <div><span class="t-label" data-copy="proof.1.k">Players scored</span><span class="t-title" data-copy="proof.1.v">All of them</span>
+      <span class="t-meta" data-copy="proof.1.d">every player in the game, scored on FPL’s own points and re-scored
+        each time FPL updates</span></div>
+    <div><span class="t-label" data-copy="proof.2.k">Seasons replayed</span><span class="t-title" data-copy="proof.2.v">6</span>
+      <span class="t-meta" data-copy="proof.2.d">six seasons of real football, played out in full. Not vibes.</span></div>
+    <!-- Replaces "Weeks ahead · Next 4", which broke the voice rule against
+         naming a fixed planning window. What stands here instead is the
+         differentiator itself: the five role bands, shipped today. The news
+         claim is not in the strip — it is the whole of the hinge's first half,
+         which is more room than a proof cell could give it. -->
+    <div><span class="t-label" data-copy="proof.3.k">Rotation risk</span><span class="t-title" data-copy="proof.3.v">Five bands</span>
+      <span class="t-meta" data-copy="proof.3.d">every player marked Nailed down to Fringe, before you pick</span></div>
+    <div><span class="t-label" data-copy="proof.4.k">Costs you</span><span class="t-title acc" data-copy="proof.4.v">£0</span>
+      <span class="t-meta" data-copy="proof.4.d">free while it’s in open preview — no card, no FPL login</span></div>
   </div>
 
   <!-- ============ CTA ============ -->
@@ -328,33 +727,40 @@ footer .spacer{flex:1;}
         </svg>
         <span class="wordmark">FPL <em>Armband</em></span>
       </a>
-      <span class="tagline">Your man on the pitch.</span>
+      <span class="tagline" data-copy="cta.tagline">Your man on the pitch.</span>
     </div>
-    <span class="pill on">Open preview · 2026/27</span>
-    <h2>Gameweek 1 locks Friday.</h2>
-    <p>Get in now and set your eleven with the reasons in front of you.</p>
-    <div class="soon">
-      <p class="soonhead"><b>Soon:</b> we’ll text you when your striker is named on the bench.</p>
-      <p class="soonsub">Not yet — it’s the next thing we’re building, for people who signed up in the preview. This page will say “soon” until it’s true.</p>
-    </div>
+    <span class="pill on" data-copy="cta.pill">Open preview · 2026/27</span>
+    <h2 class="t-sec" data-copy="cta.head">Gameweek 1 locks Friday.</h2>
+    <!-- The inversion of beat 1, which ends "Everyone in your mini-league knew.
+         Nobody's job was to tell you." The page opens on that grievance and
+         hands it back solved at the moment it asks for an address. Anchored to
+         beat 1 on purpose: beat 1 is the reader's own Saturday and never ages. -->
+    <p class="t-body" data-copy="cta.body">Be the one in your mini-league who already knew — and first to hear when
+      notifications land.</p>
     <form class="gatecard">
       <div class="gateform">
-        <input type="email" placeholder="you@email.com" required aria-label="Email address">
-        <button class="btn primary" type="submit">Claim my armband</button>
+        <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
+        <button class="btn primary" type="submit" data-copy="cta.gate.cta">Claim my armband</button>
       </div>
-      <div class="gatefoot" style="justify-content:center"><span>No card. No FPL login. Straight in — and we’ll email you when the alerts land.</span></div>
-      <div class="done" hidden style="margin-top:11px"></div>
+      <div class="gatefoot ctareason">
+        <span class="t-meta" data-copy="cta.gate.foot">No card. No FPL login. Straight in.</span>
+      </div>
+      <div class="done t-body" hidden></div>
     </form>
   </div>
 
   <footer>
     <div class="r">
-      <span><b style="color:var(--ink2)">Your team stays yours.</b> Plan it here, argue with it, get it how you want it — then make the changes on FPL when you’re happy.</span>
+      <span class="t-meta" data-copy="footer.ownership"><b>Your team stays yours.</b> Plan it here, argue with it, get it
+        how you want it — then make the changes on FPL when you’re happy.</span>
       <span class="spacer"></span>
-      <a href="#">Privacy</a><a href="#">GitHub</a><a href="#">Method</a>
+      <a class="t-meta" href="#" data-copy="footer.privacy">Privacy</a>
+      <a class="t-meta" href="#" data-copy="footer.github">GitHub</a>
+      <a class="t-meta" href="#" data-copy="footer.method">Method</a>
     </div>
   </footer>
 </div>
+
 <script src="/assets/landing.js" defer></script>
 </body>
 </html>
