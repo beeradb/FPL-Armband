@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"net/http/httptest"
 	"os"
 	"regexp"
 	"strconv"
@@ -148,6 +149,55 @@ func TestEveryRenderLockGoesThroughLockRender(t *testing.T) {
 					name, pos.Line, fd.Name.Name)
 				return true
 			})
+		}
+	}
+}
+
+// TestARequestMethodIsClampedBeforeBecomingALabel is the regression test for
+// a security review finding: r.Method is whatever the caller sent (net/http
+// accepts any RFC 7230 token, unbounded and client-controlled), so using it
+// as a Prometheus label verbatim let anyone who can reach this port mint an
+// unbounded number of permanent time series in armband_http_requests_total —
+// a memory-exhaustion vector CounterVec never recovers from. metricsMethod
+// must collapse anything outside {GET, POST, PUT} to "other".
+func TestARequestMethodIsClampedBeforeBecomingALabel(t *testing.T) {
+	for _, m := range []string{"GET", "POST", "PUT"} {
+		if got := metricsMethod(m); got != m {
+			t.Errorf("metricsMethod(%q) = %q, want it unchanged", m, got)
+		}
+	}
+	for _, m := range []string{"DELETE", "TRACE", "A0", "A1", "made-up-verb", ""} {
+		if got := metricsMethod(m); got != "other" {
+			t.Errorf("metricsMethod(%q) = %q, want %q", m, got, "other")
+		}
+	}
+
+	// End-to-end: hammering ServeHTTP with distinct bogus methods must not
+	// grow the series count past the fixed label set. appMetrics is a
+	// package-level registry shared by the whole test binary, so other
+	// tests' legitimate POST/PUT requests land in it too — check against
+	// the full allowed set, not just what this test itself sent.
+	s := &squadServer{}
+	for i := range 50 {
+		req := httptest.NewRequest(strconv.Itoa(i)+"-bogus-verb", "/", nil)
+		req.Host = "127.0.0.1"
+		s.ServeHTTP(httptest.NewRecorder(), req)
+	}
+	mfs, err := appMetrics.registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := map[string]bool{"GET": true, "POST": true, "PUT": true, "other": true}
+	for _, mf := range mfs {
+		if mf.GetName() != "armband_http_requests_total" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "method" && !allowed[l.GetValue()] {
+					t.Errorf("armband_http_requests_total carries an unclamped method label %q", l.GetValue())
+				}
+			}
 		}
 	}
 }

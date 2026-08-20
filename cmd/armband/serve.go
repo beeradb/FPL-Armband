@@ -385,7 +385,22 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	handler.ServeHTTP(rec, r)
 	appMetrics.httpRequestDuration.WithLabelValues(label).Observe(time.Since(start).Seconds())
-	appMetrics.httpRequests.WithLabelValues(label, r.Method, strconv.Itoa(rec.status)).Inc()
+	appMetrics.httpRequests.WithLabelValues(label, metricsMethod(r.Method), strconv.Itoa(rec.status)).Inc()
+}
+
+// metricsMethod collapses r.Method to the fixed set this server actually
+// handles (GET, POST, PUT) before it becomes a label value. r.Method is
+// whatever the caller sent — net/http accepts any RFC 7230 token, unbounded
+// and client-controlled — so using it as a label verbatim would let anyone
+// who can reach this port mint an unbounded number of Prometheus series by
+// sending a distinct method string each time.
+func metricsMethod(m string) string {
+	switch m {
+	case http.MethodGet, http.MethodPost, http.MethodPut:
+		return m
+	default:
+		return "other"
+	}
 }
 
 // action applies one lock or boot and answers with a redirect.
