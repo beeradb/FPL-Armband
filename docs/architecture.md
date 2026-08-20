@@ -228,6 +228,13 @@ blank page in front of a reader.
 everything they reference, under `/assets/`. The split is what stops the application having
 two front doors.
 
+The two documents also carry two different Content-Security-Policy directives, on purpose:
+`/app` renders FPL's prose and player names by innerHTML, so its `connect-src` stays
+`'self'` under any configuration, while the landing page's may widen. `ARMBAND_GA4_ID`, if
+set, widens the landing page's policy alone — never `/app`'s — to load GA4 from
+`analytics.js`; `cmd/armband/webroutes.go`'s `connectSrcFor`/`scriptSrcFor`/`imgSrcFor`
+enforce the split, each refusing to widen for any page but "landing".
+
 ### The supporting packages
 
 Eight more packages sit outside the model. Seven fill gaps in what the FPL API publishes;

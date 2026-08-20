@@ -87,15 +87,66 @@ const signupOrigin = "https://fplarmband.com"
 //
 // Two documents, two policies, and the difference is one entry on one directive. If a third
 // document ever appears, this stops being a switch and starts being a table.
-func connectSrcFor(page string) string {
-	if page == "landing" {
-		// Named rather than wildcarded, and one host. It buys an injected string on
-		// this page exactly one destination, under the same ownership as this binary.
-		// Adding a second needs a reason of the same kind — 'self' plus a named peer
-		// is a policy; a list of convenient hosts is not.
-		return "connect-src 'self' " + signupOrigin
+//
+// ga4 adds a second, independent exception to the same directive, and it is ALWAYS false
+// for page != "landing" -- checked inside this function, not only by the caller, so a
+// mistake in servePage's call cannot widen the application's policy. See scriptSrcFor and
+// imgSrcFor for the two directives GA4 needs alongside this one; they travel together
+// because a script that ships but cannot POST its events is a widened policy spent on
+// tracking nobody.
+func connectSrcFor(page string, ga4 bool) string {
+	if page != "landing" {
+		return "connect-src 'self'"
 	}
-	return "connect-src 'self'"
+	// Named rather than wildcarded, and one host. It buys an injected string on
+	// this page exactly one destination, under the same ownership as this binary.
+	// Adding a second needs a reason of the same kind — 'self' plus a named peer
+	// is a policy; a list of convenient hosts is not.
+	src := "connect-src 'self' " + signupOrigin
+	if ga4 {
+		// GA4 posts measurement events to a subdomain of google-analytics.com, and
+		// the gtag script loaded from googletagmanager.com makes its own further
+		// fetches back to itself -- both wildcarded because Google serves this
+		// traffic from a rotating subdomain, unlike signupOrigin's one fixed host.
+		src += " https://*.google-analytics.com https://*.googletagmanager.com"
+	}
+	return src
+}
+
+// scriptSrcFor gains exactly one host, and only on the landing page with GA4 configured:
+// googletagmanager.com, where the GA4 loader analytics.js asks the browser to run is
+// served from. /app never widens this directive under any config; see connectSrcFor's
+// doc comment for why that split is load-bearing.
+func scriptSrcFor(page string, ga4 bool) string {
+	if page == "landing" && ga4 {
+		return "script-src 'self' https://www.googletagmanager.com"
+	}
+	return "script-src 'self'"
+}
+
+// imgSrcFor gains GA4's own hosts on the landing page alone, for the no-JS beacon
+// fallback it falls back to when a measurement cannot go out as a fetch. img-src already
+// permits data: for the page's own inline assets, so this is one more named exception
+// layered on that, and again only ever on "landing" -- checked here, not just by the
+// caller.
+func imgSrcFor(page string, ga4 bool) string {
+	if page == "landing" && ga4 {
+		return "img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com"
+	}
+	return "img-src 'self' data:"
+}
+
+// ga4EnvVar is spelled once and read from both the CSP decision (servePage, through
+// ga4Configured) and the meta-tag fill (withGA4) -- one quantity, named once, so a rename
+// cannot desync the widened policy from the id that policy exists to permit.
+const ga4EnvVar = "ARMBAND_GA4_ID"
+
+// ga4Configured reports whether this process should widen the landing page's policy and
+// load the GA4 script. Read fresh per request rather than cached at startup: env is the
+// one channel this binary takes config from that nothing here watches for a change, and a
+// per-request Getenv costs nothing next to the rest of this handler.
+func ga4Configured() bool {
+	return os.Getenv(ga4EnvVar) != ""
 }
 
 // authCookieName marks a browser that has presented the printed token.
@@ -175,13 +226,19 @@ func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name str
 	//
 	// frame-ancestors 'none' says what X-Frame-Options above says, in the header that
 	// superseded it; both are set because the older one is what some tooling still reads.
+	//
+	// ga4 is computed once here and threaded through the three *For functions below,
+	// rather than each of them calling ga4Configured itself: it is deliberately forced to
+	// false by `name == "landing" &&`, so a landing-only widening cannot leak onto /app
+	// even if ga4Configured somehow answered true while name was "app".
+	ga4 := name == "landing" && ga4Configured()
 	w.Header().Set("Content-Security-Policy", strings.Join([]string{
 		"default-src 'self'",
-		"script-src 'self'",
+		scriptSrcFor(name, ga4),
 		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data:",
+		imgSrcFor(name, ga4),
 		"font-src 'self'",
-		connectSrcFor(name),
+		connectSrcFor(name, ga4),
 		"frame-ancestors 'none'",
 		"base-uri 'none'",
 		"form-action 'self'",
@@ -190,6 +247,15 @@ func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name str
 	// be re-interpreted as another type on a sniffing browser.
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// The GA4 meta tag is filled BEFORE the auth branch, deliberately -- unlike the
+	// token, which only ever fills on the authed write below. The landing page's real
+	// audience is an anonymous first-time visitor, who takes the !authed branch a few
+	// lines down and would never reach withToken; gating this fill the same way would
+	// mean GA4 silently never fires for the traffic it exists to measure. Applying it
+	// here, once, covers both branches without duplicating the fill.
+	if name == "landing" {
+		body = withGA4(body)
+	}
 	s.grantAuth(w, r)
 	if !s.authed(r) {
 		// The shell, with no capability in it. The page's own boot will read an empty
@@ -217,6 +283,26 @@ func (s *squadServer) withToken(body []byte) []byte {
 	}
 	filled := `<meta name="armband-token" content="` + html.EscapeString(s.token) + `">`
 	return bytes.Replace(body, []byte(tokenMeta), []byte(filled), 1)
+}
+
+// ga4Meta is the landing page's twin of tokenMeta, filled the same way -- but see
+// servePage's call site for why it is NOT gated on s.authed the way withToken is. This
+// tag exists only in landing.html; app.html carries no placeholder for it.
+//
+// The embedded file ships with the placeholder EMPTY, so a copy of the document taken
+// off disk, or a local `armband serve` with ARMBAND_GA4_ID unset, carries no id at all.
+const ga4Meta = `<meta name="armband-ga4" content="">`
+
+// withGA4 fills the landing page's GA4 meta tag from ga4EnvVar. Unlike withToken this is
+// a package function rather than a method: the id comes from the process environment,
+// not from anything held on squadServer.
+func withGA4(body []byte) []byte {
+	id := os.Getenv(ga4EnvVar)
+	if id == "" {
+		return body
+	}
+	filled := `<meta name="armband-ga4" content="` + html.EscapeString(id) + `">`
+	return bytes.Replace(body, []byte(ga4Meta), []byte(filled), 1)
 }
 
 // gate accepts the landing page's email form and records the address.

@@ -841,3 +841,62 @@ func TestTheLandingPageOffersNoWayPastTheForm(t *testing.T) {
 		}
 	}
 }
+
+// TestGA4MetaTagFillsForBothAuthedAndAnonymousLandingRequests pins the one thing about
+// the GA4 wiring that is easy to get subtly wrong: withToken only ever fills its meta tag
+// on the authed branch of servePage, because the token is a write capability that must
+// never reach a requester who never had it. GA4 is not that — the landing page's real
+// audience is an ANONYMOUS first-time visitor, who takes the !authed branch and never
+// reaches withToken. A fill gated the same way as the token would produce a binary that
+// builds, serves, and silently never tracks the traffic this feature exists to measure.
+func TestGA4MetaTagFillsForBothAuthedAndAnonymousLandingRequests(t *testing.T) {
+	s := &squadServer{token: "tok"}
+	t.Setenv("ARMBAND_GA4_ID", "G-TESTID123")
+
+	want := `<meta name="armband-ga4" content="G-TESTID123">`
+
+	// Anonymous: no ?t= and no cookie, so servePage takes the !authed branch — the
+	// case that matters most here.
+	anon := get(t, s, routeLanding)
+	if !strings.Contains(anon.Body.String(), want) {
+		t.Errorf("an UNAUTHENTICATED landing-page response does not carry the filled "+
+			"GA4 meta tag %q", want)
+	}
+
+	// Authed: the token in the query string, the way a reader following the printed
+	// URL arrives. This must ALSO carry the tag, since withToken runs on top of the
+	// already-filled body rather than instead of it.
+	req := httptest.NewRequest("GET", routeLanding+"?t=tok", nil)
+	req.Host = "127.0.0.1:8080"
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	if !strings.Contains(w.Body.String(), want) {
+		t.Errorf("an authenticated landing-page response does not carry the filled GA4 "+
+			"meta tag %q", want)
+	}
+}
+
+// TestGA4MetaTagStaysEmptyWithoutTheEnvVar pins the common case — every test process and
+// every local `armband serve` that never sets ARMBAND_GA4_ID — where the embedded
+// placeholder must ship untouched.
+func TestGA4MetaTagStaysEmptyWithoutTheEnvVar(t *testing.T) {
+	s := &squadServer{}
+	body := get(t, s, routeLanding).Body.String()
+	if !strings.Contains(body, `<meta name="armband-ga4" content="">`) {
+		t.Error("the landing page's GA4 meta tag is not the empty placeholder with " +
+			"ARMBAND_GA4_ID unset")
+	}
+}
+
+// TestGA4MetaTagNeverAppearsOnTheApplicationPage. app.html carries no placeholder for
+// this tag at all, and withGA4 is only ever invoked for name == "landing" — this pins
+// both facts against the served bytes rather than trusting the source.
+func TestGA4MetaTagNeverAppearsOnTheApplicationPage(t *testing.T) {
+	s := &squadServer{}
+	t.Setenv("ARMBAND_GA4_ID", "G-TESTID123")
+	body := get(t, s, routeApp).Body.String()
+	if strings.Contains(body, "armband-ga4") {
+		t.Error("/app's body mentions armband-ga4; that tag is landing-only and must " +
+			"never appear on the page that renders FPL's prose by innerHTML")
+	}
+}

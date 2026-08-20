@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>FPL Armband — your man on the pitch</title>
 <meta name="description" content="Every Fantasy Premier League player marked from Nailed down to Fringe before you pick him, with FPL's own team news read into his score — and the working shown, so the call stays yours. Free while it's in preview.">
+<!-- The GA4 measurement id, filled in by the server per request when ARMBAND_GA4_ID is
+     set. Empty in the embedded file and on every local `armband serve`, so a copy of
+     this document taken off disk — or a local run with the env var unset — loads no
+     analytics at all. Landing-page only: this tag does not exist in app.html. -->
+<meta name="armband-ga4" content="">
 <link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/assets/armband.css">
 <style>
@@ -770,6 +775,7 @@ footer a{color:var(--ink3);}
   </footer>
 </div>
 
+<script src="/assets/analytics.js" defer></script>
 <script src="/assets/landing.js" defer></script>
 </body>
 </html>

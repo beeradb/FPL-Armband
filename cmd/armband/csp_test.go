@@ -106,3 +106,70 @@ func TestTheAssetRouteIsNotAFileBrowser(t *testing.T) {
 		}
 	}
 }
+
+// TestGA4WidensOnlyTheLandingPagesCSPWhenConfigured is the test a reviewer checks first,
+// per the plan this implements: /app's CSP must be provably unchanged by ARMBAND_GA4_ID,
+// in every case, configured or not. /app is the page that renders FPL's prose and player
+// names by innerHTML, and connect-src 'self' is what stops an injected string from
+// exfiltrating the reader's squad if escaping ever fails somewhere — GA4 must never be
+// able to move that boundary.
+func TestGA4WidensOnlyTheLandingPagesCSPWhenConfigured(t *testing.T) {
+	s := &squadServer{}
+
+	baselineLanding := get(t, s, "/").Header().Get("Content-Security-Policy")
+	baselineApp := get(t, s, "/app").Header().Get("Content-Security-Policy")
+
+	t.Setenv("ARMBAND_GA4_ID", "G-TESTID123")
+
+	widenedLanding := get(t, s, "/").Header().Get("Content-Security-Policy")
+	widenedApp := get(t, s, "/app").Header().Get("Content-Security-Policy")
+
+	// The one assertion that matters most: /app is BYTE-IDENTICAL, configured or not.
+	if widenedApp != baselineApp {
+		t.Fatalf("/app's CSP changed when ARMBAND_GA4_ID was set.\nbefore: %s\nafter:  %s",
+			baselineApp, widenedApp)
+	}
+
+	if widenedLanding == baselineLanding {
+		t.Fatal("the landing page's CSP did not change when ARMBAND_GA4_ID was set")
+	}
+	for _, want := range []string{
+		"https://www.googletagmanager.com", // script-src: the GA4 loader itself
+		"https://*.google-analytics.com",   // connect-src: measurement events
+		"https://*.googletagmanager.com",   // connect-src: the loader's own fetches
+		"https://www.google-analytics.com", // img-src: the no-JS beacon fallback
+	} {
+		if !strings.Contains(widenedLanding, want) {
+			t.Errorf("landing CSP with ARMBAND_GA4_ID set does not contain %q: %s",
+				want, widenedLanding)
+		}
+	}
+	// script-src alone must gain exactly the one named host, never 'unsafe-inline' or
+	// 'unsafe-eval' — scoped to that one directive, because style-src legitimately
+	// carries 'unsafe-inline' already (the landing page's inline <style> block, unrelated
+	// to GA4) and a whole-header substring check would false-positive on it.
+	var scriptSrc string
+	for _, d := range strings.Split(widenedLanding, ";") {
+		d = strings.TrimSpace(d)
+		if strings.HasPrefix(d, "script-src ") {
+			scriptSrc = d
+			break
+		}
+	}
+	if scriptSrc == "" {
+		t.Fatalf("landing CSP with GA4 configured names no script-src: %s", widenedLanding)
+	}
+	if strings.Contains(scriptSrc, "unsafe-inline") || strings.Contains(scriptSrc, "unsafe-eval") {
+		t.Errorf("landing script-src with GA4 configured is %q, which permits inline/eval "+
+			"script", scriptSrc)
+	}
+
+	// Unset again — a leftover widening after the env var is cleared would mean the
+	// policy is not actually reading it live.
+	t.Setenv("ARMBAND_GA4_ID", "")
+	restoredLanding := get(t, s, "/").Header().Get("Content-Security-Policy")
+	if restoredLanding != baselineLanding {
+		t.Errorf("landing CSP with ARMBAND_GA4_ID unset again is %q, want the original %q",
+			restoredLanding, baselineLanding)
+	}
+}
