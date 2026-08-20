@@ -203,3 +203,40 @@ opens and these guards read git through a subprocess, so a `HEAD` move is invisi
 
 Recorded rather than quietly re-run, because "the suite was green" is exactly the kind of process
 fact this gate exists to make checkable, and it was wrong here in the direction that flatters.
+
+## The CI witness, named as condition 1 requires
+
+**Run `32330324281`**, keyed to `41e90b1f210a1f9c257f61983d4903938e1c17fe`, the commit merged.
+**Conclusion: `failure`.**
+
+⚠️ **This merge uses condition 1's narrow exception, and the exception exists to be recorded
+rather than relied on quietly.** The run is red on `TestLayout` and nothing else. The six failing
+subtests:
+
+    TestLayout/landing-desktop
+    TestLayout/landing-mobile
+    TestLayout/pitch-desktop
+    TestLayout/pitch-mobile
+    TestLayout/edges-pitch-desktop
+    TestLayout/edges-pitch-mobile
+
+The only other `FAIL` lines in the log are the `armband/internal/webui` package rollup those six
+produce. No independent failure.
+
+**The cause is not this branch.** These goldens are machine-dependent: every worst-channel delta is
+**2 of 255**, four of the six are on pitch pages this branch does not touch, and the same content
+passes locally. `main` has been red on them since 2026-08-19; it is a separate open defect with a
+separate owner. ⚠️ **"It was already red" is not a check** — that is why the run id and the subtest
+list are written here rather than gestured at.
+
+**An earlier witness, run `32329895102`, was keyed to `0b6653a` and is NOT the one cited.** HEAD
+moved after it for a documentation pointer and a re-key. The delta is documentation only, which
+made it tempting to reuse — but an exception plus a stale witness is two compromises stacked, and
+condition 1 asks for a run keyed to the commit being merged.
+
+⚠️ **What the leak-scan channel was worth on this run: nothing.** The step reports `success` and
+scanned nothing, because `LEAKSCAN_PATTERN` resolves empty. **The user has since retired the
+boundary it defended** — *"that was for vault and we don't care anymore"* — so the secret is
+deliberately unset and the item is retiered off security. The hand scan across all three channels
+was run and is clean; it remains weaker than the configured scanner would be, and now always will
+be.
