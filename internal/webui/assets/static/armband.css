@@ -17,7 +17,7 @@
   --panel:     #10171F;   /* card */
   --panel2:    #16202A;   /* card inner / row stripe */
   --panel3:    #1D2A36;   /* hover / control */
-  --line:      #223039;   /* 1.31 vs --panel; see the gap rule at 720px */
+  --line:      #223039;   /* 1.33 vs --panel; see the gap rule at 720px */
   --line2:     #2C3B49;
   --scrim:     rgba(4,7,10,.72);
 
@@ -54,6 +54,19 @@
   --band2:     #1C34A8;   /* armband shadow side */
   --band-lo:   #16204A;   /* tinted fill */
   --onband:    #FFFFFF;
+  /*
+   * The lit side of the band, for anything drawn IN the blue on a dark surface rather than
+   * filled with it. --band itself is a fill and a border colour everywhere else in this file
+   * and clears nothing as text: on the tab bar's own surface it is 3.40:1, so the phone's
+   * primary navigation had its SELECTED label — the one word saying where the reader is —
+   * as the hardest thing on the bar to read. This value was already the file's answer for
+   * the band on a dark ground; it is named here rather than repeated as a literal.
+   *
+   * ⚠️ It clears 4.5:1 on the page and the card and does NOT clear it on --panel3 (4.46).
+   * So it is a page-and-panel ink, not a control-surface one; text in this blue on a hover
+   * or control ground needs a lighter value than this, not this one moved.
+   */
+  --band-hi:   #6A85FF;   /*  5.51 /  6.02 /  4.46  the band as text or an edge, on dark */
 
   /* --- data --------------------------------------------------- */
   --acc:       #00E88A;   /* positive / the model's number */
@@ -282,7 +295,10 @@ button{font-family:inherit;color:inherit;}
 }
 .scorebug .gwlz small{
   display:block;font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:.14em;
-  opacity:.8;text-align:center;margin-top:1px;
+  /* .9, not .8. At .8 this 9px label composites to #D5DDFC on --band, which is 4.31:1 and
+     under the floor; .9 gives #EAEEFE at 5.02:1 and is still visibly softer than the number
+     above it, which is all the opacity was ever for. */
+  opacity:.9;text-align:center;margin-top:1px;
 }
 .scorebug .sb-main{
   display:flex;align-items:center;gap:12px;padding:0 20px;flex:0 0 auto;
@@ -447,7 +463,7 @@ button{font-family:inherit;color:inherit;}
 .card .armchip{display:none;}
 .card .arm{                                   /* captain armband — in the head row */
   display:grid;place-items:center;min-width:17px;height:14px;padding:0 3px;border-radius:3px;
-  background:var(--band);border:1px solid #6A85FF;
+  background:var(--band);border:1px solid var(--band-hi);
   font-family:var(--display);font-weight:800;font-size:9px;color:#fff;
   box-shadow:0 1px 4px rgba(0,0,0,.5);
 }
@@ -465,14 +481,19 @@ button{font-family:inherit;color:inherit;}
 
 /* --- the namesake: the captain's card WEARS the armband --------------- */
 .card.iscap{
-  border-color:#6A85FF;z-index:3;
+  border-color:var(--band-hi);z-index:3;
   box-shadow:0 0 26px rgba(47,83,240,.38),0 4px 14px rgba(0,0,0,.55);
   transform:scale(1.04);
 }
 .card.iscap:hover{transform:scale(1.04) translateY(-2px);}
 .card.iscap .shirt{
   height:16px;margin:-6px -6px 5px;border-radius:8px 8px 0 0;
-  background:linear-gradient(180deg,#4A6BFF,var(--band) 42%,#2440C4);
+  /* The lit top of the band. #4A6BFF was 4.34:1 against the white "C" that sits on it, so
+     the armband's own letter was the one below the floor; #4361F5 is 4.92:1 and is seven
+     units per channel away from it. The same value lights the landing page's preview card
+     (landing.html), where the bar is 9px rather than 16 and the glyph really does sit in the
+     lightest part of it. */
+  background:linear-gradient(180deg,#4361F5,var(--band) 42%,#2440C4);
   box-shadow:inset 0 1px 0 #8CA0FF;
   display:flex;align-items:center;padding:0 5px;
 }
@@ -538,7 +559,7 @@ button{font-family:inherit;color:inherit;}
 .armpill:hover{border-color:var(--band);}
 
 .iconbtn.arm-btn{font-family:var(--display);font-weight:800;font-size:9.5px;line-height:1;}
-.iconbtn.arm-btn.isc{background:var(--band);border-color:#6A85FF;color:#fff;}
+.iconbtn.arm-btn.isc{background:var(--band);border-color:var(--band-hi);color:#fff;}
 .iconbtn.arm-btn.isv{background:var(--panel3);border-color:var(--line2);color:var(--ink);}
 .card .acts .iconbtn.arm-btn svg{width:12px;height:12px;}
 
@@ -849,7 +870,10 @@ button{font-family:inherit;color:inherit;}
     font-size:10px;font-weight:600;color:var(--ink3);
   }
   .tabbar button svg{width:19px;height:19px;}
-  .tabbar button[aria-selected="true"]{color:var(--band);}
+  /* --band is 3.40:1 on this bar; the lit side of it is 6.02:1. The selected tab is the one
+     word on a phone that says where the reader is, so it may not be the least legible thing
+     on the screen. */
+  .tabbar button[aria-selected="true"]{color:var(--band-hi);}
 
   .topbar .row{padding:8px 12px;gap:10px;}
   .deadline .t{font-size:13px;}

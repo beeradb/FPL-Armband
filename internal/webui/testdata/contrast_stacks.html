@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>painting stacks with known answers</title>
+<!--
+  Six stacks whose composited answer is arithmetic rather than judgement, for the one test
+  that has power over the RESOLUTION rather than over the tokens.
+
+  Every alpha here is chosen to land on a whole channel value — .6 of 255 is 153 exactly — so
+  the expected colour is a literal and not a rounding. Nothing loads armband.css: a fixture
+  that inherited the design system would be measuring the design system.
+
+  ⚠️ Do not "tidy" these into something prettier. Each one exists to separate a specific pair
+  of implementations that a real page cannot tell apart, and the cases that look redundant are
+  the ones doing that work. See TestTheProbeResolvesTheBackgroundThatIsActuallyPainted.
+-->
+<style>
+  html,body{margin:0;padding:0;background:#000000;}
+  div{padding:8px;}
+</style>
+</head>
+<body>
+
+<!-- 1. An opaque panel over the page. The canvas is BLACK and the panel is WHITE, so an
+        implementation that resolves to the page instead of the panel reports the opposite
+        end of the scale rather than something slightly off. -->
+<div style="background:#ffffff"><span id="s-opaque" style="color:#808080">opaque panel</span></div>
+
+<!-- 2. The same, two levels up: the painting ancestor is the grandparent and the parent
+        paints nothing. This is the walk, not the parent lookup. -->
+<div style="background:#ffffff"><div><span id="s-inherited" style="color:#808080">inherited</span></div></div>
+
+<!-- 3. A translucent layer. #ffffff at .6 over #000000 is 153 on every channel. -->
+<div style="background:rgba(255,255,255,.6)"><span id="s-alpha" style="color:#000000">alpha</span></div>
+
+<!-- 4. An opacity GROUP, which is the case a per-layer multiplier gets wrong. The page is
+        white and the group is black at .6, so the background lands on #666666 either way —
+        but the TEXT is white and opaque inside the group, so it lands on #ffffff, where
+        fading it against the already-faded background would give #c2c2c2. -->
+<div style="background:#ffffff;padding:0">
+  <div style="background:#000000;opacity:.6"><span id="s-group" style="color:#ffffff">opacity group</span></div>
+</div>
+
+<!-- 5. A gradient. Worst case over the stops means the WHITE end for mid-grey text, so an
+        implementation that took the declared background-color, or the first stop, or the
+        average, reports something else. -->
+<div style="background:linear-gradient(180deg,#000000,#ffffff)">
+  <span id="s-gradient" style="color:#808080">gradient</span>
+</div>
+
+<!-- 6. A pseudo-element with its OWN background, inside a host with a different one. The
+        host is black and the pseudo is white; scoring the pseudo against the host is the
+        1.11:1-for-a-6.55:1-badge failure. -->
+<style>#s-pseudo::after{content:'V';background:#ffffff;color:#808080;}</style>
+<div style="background:#000000"><span id="s-pseudo">host </span></div>
+
+</body>
+</html>
