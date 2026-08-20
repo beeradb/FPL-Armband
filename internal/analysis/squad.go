@@ -416,7 +416,23 @@ type Squad struct {
 // only reaches what is uphill from where it starts, and restructuring a squad —
 // dropping a £6.0m goalkeeper to fund a £15.5m striker — is downhill at every
 // individual step. TestOptimizerIsNeverWorseThanAnExactSeed holds the line.
+//
+// ObserveOptimize, if set, is handed this call's wall-clock duration when it
+// returns. Nil by default and left that way by every caller except cmd/armband's
+// serve, which is the one process this is expensive enough to page on — see
+// cmd/armband/instruments.go. A package-level var rather than a field on Engine:
+// internal/analysis stays free of a metrics dependency (this package computes,
+// it does not observe itself), and weekview.go's engineAtHorizon builds fresh
+// Engines by hand-copying named fields, so a per-Engine hook field would
+// silently fail to reach them while a package-level var needs no propagation
+// at all.
+var ObserveOptimize func(time.Duration)
+
 func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
+	if ObserveOptimize != nil {
+		start := time.Now()
+		defer func() { ObserveOptimize(time.Since(start)) }()
+	}
 	budget := req.Budget
 	if budget <= 0 {
 		budget = DefaultBudget

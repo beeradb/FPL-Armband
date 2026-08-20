@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"armband/internal/analysis"
 	"armband/internal/config"
 	"armband/internal/fpl"
@@ -128,6 +130,15 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 		signups = store
 	}
 
+	// Wired here and only here: cmdServe is the one path this call is expensive
+	// enough to page on. Every other subcommand — squad, transfers, replay, a
+	// backtest sweep — leaves analysis.ObserveOptimize nil, which Optimize
+	// checks before doing anything, so this line is the entire cost of the hook
+	// existing at all when nothing is listening.
+	analysis.ObserveOptimize = func(d time.Duration) {
+		appMetrics.optimizeDuration.Observe(d.Seconds())
+	}
+
 	s := &squadServer{
 		token:   token,
 		cfg:     &cfg,
@@ -220,6 +231,14 @@ type squadServer struct {
 	// a test for /api/player needs a fixed history with no live client and no network call.
 	// Nil means client.ElementSummary. See playerdetail.go.
 	fetchSummary func(ctx context.Context, id int) (*fpl.ElementSummary, error)
+
+	// metricsOnce and metricsReg are this server's lazily-built Prometheus
+	// registry — the three staleness series, which close over client above.
+	// See metricsRegistry in instruments.go for why lazy: there is no
+	// constructor, so first-scrape init is the only place guaranteed to run
+	// regardless of how the struct was built.
+	metricsOnce sync.Once
+	metricsReg  *prometheus.Registry
 }
 
 // nextSeed is the variety seed for a session that has none.
@@ -240,56 +259,133 @@ func (s *squadServer) now() time.Time {
 	return s.clock()
 }
 
+// lockRender is s.mu.Lock(), instrumented — a drop-in replacement for
+// `s.mu.Lock(); defer s.mu.Unlock()`, used as `defer s.lockRender("state")()`.
+// It is the only place in this file (or webroutes.go) that may call
+// s.mu.Lock() directly; TestEveryRenderLockGoesThroughLockRender greps for
+// the alternative and fails if one turns up. It exists at exactly the three
+// sites that render under this mutex — action here, state and saveSession in
+// webroutes.go — and is deliberately a straight substitution: nothing that
+// ran before or after the lock at any of those sites moves. saveSession in
+// particular relies on this — its token and origin checks run BEFORE the
+// lock is even requested, so a flood of 403s never reaches this call at all.
+func (s *squadServer) lockRender(route string) func() {
+	start := time.Now()
+	s.mu.Lock()
+	appMetrics.renderMutexWait.WithLabelValues(route).Observe(time.Since(start).Seconds())
+	return s.mu.Unlock
+}
+
+// routeFor resolves a request path to its handler and the label every other
+// instrument on this server keys on — one table, stated once, so routing and
+// the metrics label cannot disagree. The rejected alternative was having each
+// handler label itself: eight call sites to keep in sync, and the fallback
+// 404 branch has no handler of its own to annotate.
+func (s *squadServer) routeFor(path string) (http.Handler, string) {
+	// The asset tree is the one prefix route; everything else below is an
+	// exact path, so a typo answers 404 rather than falling into a handler
+	// that half-matches.
+	if strings.HasPrefix(path, prefixAssets) {
+		return webui.StaticHandler(prefixAssets), "assets"
+	}
+	if strings.HasPrefix(path, prefixPlayer) {
+		return http.HandlerFunc(s.playerDetail), "player"
+	}
+	switch path {
+	case routeLanding:
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// A reader who has been through the form does not need to see it again.
+			if s.gated() && s.hasGatePass(r) {
+				http.Redirect(w, r, routeApp, http.StatusSeeOther)
+				return
+			}
+			s.servePage(w, r, "landing")
+		}), "landing"
+	case routeApp:
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// ...and one who has not does not get past it. There is no third way
+			// in: the "I have access" link that used to offer one is deleted.
+			if s.gated() && !s.hasGatePass(r) {
+				http.Redirect(w, r, routeLanding, http.StatusSeeOther)
+				return
+			}
+			s.servePage(w, r, "app")
+		}), "app"
+	case routeGate:
+		return http.HandlerFunc(s.gate), "gate"
+	case routeState:
+		return http.HandlerFunc(s.state), "state"
+	case routeSession:
+		return http.HandlerFunc(s.saveSession), "session"
+	case routeMetrics:
+		return http.HandlerFunc(s.metrics), "metrics"
+	case "/action":
+		return http.HandlerFunc(s.action), "action"
+	default:
+		return http.HandlerFunc(http.NotFound), "notfound"
+	}
+}
+
+// statusRecorder captures the status code a handler answered with, so
+// ServeHTTP can label a request's duration and count by the code it actually
+// sent rather than assuming 200.
+//
+// No http.Flusher/http.Hijacker/io.ReaderFrom passthrough. Nothing on this
+// server streams, hijacks a connection, or serves from an *os.File — assets
+// come from an embed.FS via http.FileServer, which does its own io.Copy —
+// so there is nothing here that would ever need one; do not add passthrough
+// on the assumption something does.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+	wrote  bool
+}
+
+func (rec *statusRecorder) WriteHeader(code int) {
+	rec.status = code
+	rec.wrote = true
+	rec.ResponseWriter.WriteHeader(code)
+}
+
+func (rec *statusRecorder) Write(b []byte) (int, error) {
+	// net/http's own ResponseWriter defaults an unannounced status to 200 the
+	// same way, the moment Write is first called without a prior WriteHeader.
+	if !rec.wrote {
+		rec.status = http.StatusOK
+		rec.wrote = true
+	}
+	return rec.ResponseWriter.Write(b)
+}
+
 func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// The Host check is the other half of the loopback bind. A browser that
-	// has been DNS-rebound arrives at this socket with a foreign Host header,
-	// and from that browser's point of view the ORIGIN is the foreign name —
-	// so same-origin policy hands the answer to the page the attacker
-	// controls, token and all. Rejecting the Host is what keeps the token
-	// readable only by pages whose origin really is this listener.
+	// The Host check is the other half of the loopback bind, and it runs
+	// before routeFor, unconditionally: a browser that has been DNS-rebound
+	// arrives at this socket with a foreign Host header, and from that
+	// browser's point of view the ORIGIN is the foreign name — so
+	// same-origin policy hands the answer to the page the attacker controls,
+	// token and all. Rejecting the Host is what keeps the token readable
+	// only by pages whose origin really is this listener. A rejected Host is
+	// not attributed to any route label; it never reaches one.
 	if !loopbackHost(r.Host) {
 		http.Error(w, "unrecognised host", http.StatusForbidden)
 		return
 	}
-	// The asset tree is the one prefix route; everything else is an exact path, so a
-	// typo answers 404 rather than falling into a handler that half-matches.
-	if strings.HasPrefix(r.URL.Path, prefixAssets) {
-		webui.StaticHandler(prefixAssets).ServeHTTP(w, r)
+
+	handler, label := s.routeFor(r.URL.Path)
+	if label == "metrics" {
+		// Never wrapped, never measured: a scrape must be answerable even
+		// mid-render — or wedged — under s.mu, and observing it would let a
+		// scrape hitting every replica on its own interval pollute the very
+		// counters it exposes. See metrics.go's doc comment.
+		handler.ServeHTTP(w, r)
 		return
 	}
-	if strings.HasPrefix(r.URL.Path, prefixPlayer) {
-		s.playerDetail(w, r)
-		return
-	}
-	switch r.URL.Path {
-	case routeLanding:
-		// A reader who has been through the form does not need to see it again.
-		if s.gated() && s.hasGatePass(r) {
-			http.Redirect(w, r, routeApp, http.StatusSeeOther)
-			return
-		}
-		s.servePage(w, r, "landing")
-	case routeApp:
-		// ...and one who has not does not get past it. There is no third way in:
-		// the "I have access" link that used to offer one is deleted.
-		if s.gated() && !s.hasGatePass(r) {
-			http.Redirect(w, r, routeLanding, http.StatusSeeOther)
-			return
-		}
-		s.servePage(w, r, "app")
-	case routeGate:
-		s.gate(w, r)
-	case routeState:
-		s.state(w, r)
-	case routeSession:
-		s.saveSession(w, r)
-	case routeMetrics:
-		s.metrics(w, r)
-	case "/action":
-		s.action(w, r)
-	default:
-		http.NotFound(w, r)
-	}
+
+	rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+	start := time.Now()
+	handler.ServeHTTP(rec, r)
+	appMetrics.httpRequestDuration.WithLabelValues(label).Observe(time.Since(start).Seconds())
+	appMetrics.httpRequests.WithLabelValues(label, r.Method, strconv.Itoa(rec.status)).Inc()
 }
 
 // action applies one lock or boot and answers with a redirect.
@@ -311,8 +407,7 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 	// form carries four small fields. Anything bigger is refused rather than
 	// parsed.
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.lockRender("action")()
 
 	if !s.tokenOK(r.PostFormValue("t")) {
 		http.Error(w, "missing or wrong token", http.StatusForbidden)
