@@ -136,6 +136,67 @@ func TestRawIsAlwaysFresh(t *testing.T) {
 	}
 }
 
+// TestZeroTTLRefetchesEvenAFreshFile pins the mechanism the `-refresh` flag depends
+// on, and by extension the mechanism the snapshot generator (the `warm` job) needs so
+// that raising the SERVING ttl (cache_minutes) does not also freeze the generator.
+//
+// The generator and the server run the same binary against the same on-disk cache and
+// the same config. If the server's cache_minutes is raised above the generator's
+// refresh interval — the fix this test exists to guard — a generator that reused that
+// same TTL would find its own just-written file "fresh" on its next run and stop
+// fetching forever. `-refresh` (cacheTTL: 0 on the Client) is how the generator opts
+// out of whatever TTL the shared config carries: a zero TTL must treat every file as
+// stale regardless of how recently it was written, not merely regardless of how old it
+// looks under an unrelated TTL.
+//
+// The three-client shape is deliberate: the SAME on-disk file is read by a normal-TTL
+// client first, to prove the file really is fresh (a stale-file test would not
+// distinguish "always refetches" from "TTL happened to have elapsed").
+func TestZeroTTLRefetchesEvenAFreshFile(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		_, _ = w.Write([]byte(`{"events": [], "elements": []}`))
+	}))
+	defer srv.Close()
+	httpClient := &http.Client{Transport: rewrite{to: srv.URL}}
+	dir := t.TempDir()
+
+	seed := &Client{http: httpClient, cacheDir: dir, cacheTTL: time.Hour}
+	var out map[string]any
+	if err := seed.get(context.Background(), "/bootstrap-static/", &out); err != nil {
+		t.Fatalf("seeding the cache: %v", err)
+	}
+	if hits != 1 {
+		t.Fatalf("seeding the cache took %d network hits, want 1", hits)
+	}
+
+	// Control: an ordinary client with a generous TTL must serve the file we just
+	// wrote from cache, without a second network round trip. This is what confirms
+	// the file is genuinely "fresh" — the case that must NOT fool a zero-TTL client.
+	fresh := &Client{http: httpClient, cacheDir: dir, cacheTTL: time.Hour}
+	if err := fresh.get(context.Background(), "/bootstrap-static/", &out); err != nil {
+		t.Fatalf("fresh-TTL client: %v", err)
+	}
+	if hits != 1 {
+		t.Fatalf("fresh-TTL client hit the network (%d total hits, want 1) reading a file it "+
+			"just wrote; the test setup is broken, not the client under test", hits)
+	}
+
+	// The generator's client: same directory, same file, zero TTL. It must refetch
+	// regardless of the file's age.
+	refresh := &Client{http: httpClient, cacheDir: dir, cacheTTL: 0}
+	if err := refresh.get(context.Background(), "/bootstrap-static/", &out); err != nil {
+		t.Fatalf("zero-TTL client: %v", err)
+	}
+	if hits != 2 {
+		t.Errorf("zero-TTL client served a fresh file from cache (%d total network hits, want "+
+			"2); a generator run with -refresh would freeze the shared archive exactly like "+
+			"an ordinary reader once the serving cache_minutes is raised above its own "+
+			"refresh interval", hits)
+	}
+}
+
 // TestTheClientHasNoAuthenticatedSurface pins a deletion rather than a feature.
 //
 // The FPL session cookie, the my-team endpoint and the `armband auth` command
