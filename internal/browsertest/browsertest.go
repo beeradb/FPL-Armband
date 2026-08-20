@@ -30,6 +30,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -47,34 +49,67 @@ const deadline = 300 * time.Second
 // the committed fixtures — fails, because a skip that fires for the wrong reason turns
 // every assertion behind it into a silent pass.
 //
-// ⚠️ EXPERIMENT — this order is the whole content of this branch, and it is a probe, not
-// a pin. See the pull request.
+// ⚠️ EXPERIMENT — this order and the log line below are the whole content of this branch.
+// A probe, not a pin. See the pull request.
 //
 // The layout goldens have never passed in CI, from the commit that introduced them onward.
-// The renderer is an unpinned input to a pixel-exact comparison: this function takes the
-// first browser on PATH, and the two machines do not agree on what that is. The GitHub
-// runner carries Chromium 151.0.7922.0 AND Google Chrome 151.0.7922.108; the development
-// machine carries snap Chromium 151.0.7922.108, which is what rendered the goldens. Under
-// the old order CI picked its Chromium — build .0 — and every golden came back differing
-// by a worst channel delta of 2 of 255, which is text rasterisation, not layout.
+// The renderer is an unpinned input to a pixel-exact comparison, and TWO things differ
+// between the machine that generates the goldens and the machine that checks them:
 //
-// Putting google-chrome first makes CI render with the build the goldens were made on,
-// while the development machine, which has no google-chrome, still resolves to the same
-// snap Chromium as before. So a green CI here says the BUILD was the whole story; a red one
-// says the difference lives below the browser, in fontconfig or freetype, and no choice
-// among the runner's browsers can fix it.
+//	development machine   arm64,  snap Chromium 151.0.7922.108   ← rendered the goldens
+//	GitHub ubuntu-latest  amd64,  Chromium 151.0.7922.0          ← what CI was picking
+//	                      amd64,  Google Chrome 151.0.7922.108   ← also present, never reached
 //
-// Either answer decides the real fix, and the real fix is a pin rather than an order —
-// nothing here stops the next runner image moving these versions again.
+// Every golden comes back differing by a worst channel delta of 2 of 255 over thousands of
+// pixels, on shots no commit has touched. That is text rasterisation, not layout.
+//
+// ⚠️ THE ARCHITECTURE DIFFERENCE CANNOT BE REMOVED BY CHOOSING A BROWSER. Both of the
+// runner's browsers are amd64, and the arm64 runner image carries no Chromium or Chrome at
+// all — only Firefox — so moving the job there would make Find SKIP, which is a vacuous
+// pass and worse than a red build. Reordering therefore holds the browser VERSION constant
+// and leaves the instruction set as the only remaining difference.
+//
+// So this branch narrows the question rather than answering it outright:
+//
+//	green  →  version was the whole story; arm64 vs amd64 does not move these pixels, and
+//	          a version pin plus an assertion on it is the fix.
+//	red    →  the difference survives an identical version, so it is the architecture, the
+//	          packaging (snap vs deb) or the font stack underneath. A pixel-exact golden is
+//	          then not portable between these two machines at all, and the fix is a pinned
+//	          renderer both machines can run, or an instrument that is not pixel-exact.
+//
+// Neither answer is available from the development machine: it cannot execute an amd64
+// browser (no qemu, no binfmt) and no container runtime is installed. CI is the only place
+// this can be measured, which is why it is asked as a branch.
+//
+// The log line below is what makes either answer readable. Without it the run reports a
+// pixel delta and not what rendered it, which is how this went undiagnosed from 4691fae
+// onward.
 func Find(t *testing.T) string {
 	t.Helper()
 	for _, name := range []string{"google-chrome", "chromium", "chromium-browser"} {
 		if p, err := exec.LookPath(name); err == nil {
+			t.Logf("renderer: %s | %s | GOARCH=%s", p, browserVersion(p), runtime.GOARCH)
 			return p
 		}
 	}
 	t.Skip("no chromium on PATH; this suite needs a browser")
 	return ""
+}
+
+// browserVersion reports the browser's own version string, for the log line in Find.
+//
+// Best-effort by design: this is diagnostic output, and a browser that will not answer
+// --version is not a reason to fail a suite that is about to drive it successfully. The
+// error text is returned in place of the version so the log still says something true.
+func browserVersion(path string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, path, "--version").Output()
+	if err != nil {
+		return "version unavailable: " + err.Error()
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // Scratch is a directory the BROWSER can write into, under the package directory.
