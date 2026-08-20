@@ -80,7 +80,7 @@ additionally memoised per process.
 
 `Client.get()`'s read order is overlay (a per-process writable cache) → an optional
 read-only `snapshot_dir` → a live fetch → and, only if that live fetch fails, whatever is
-on disk however old — the overlay first, then the snapshot. That last step is a
+on disk however old — the snapshot first, then the overlay. That last step is a
 deliberate, narrow exception to this project's "no fallbacks" rule: `armband serve` calls
 `Bootstrap`/`Fixtures` once at startup, so an unrecoverable error there is not "this read
 degrades", it is the pod failing to start. Serving stale data is paged on rather than

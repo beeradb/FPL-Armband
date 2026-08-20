@@ -3,6 +3,7 @@ package fpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -99,8 +100,16 @@ func (c *Client) StaleServing() bool { return c.staleness.serving.Load() }
 // served — 0 if none has been served yet this process's lifetime.
 func (c *Client) StaleAgeSeconds() int64 { return c.staleness.ageSeconds.Load() }
 
-// LiveFetchFailures is the number of live fetches to FPL that have failed
-// since this process started.
+// LiveFetchFailures is the number of live fetches to FPL that have failed to
+// produce a usable answer since this process started — a transport error, a
+// non-200 status, AND a 200 whose body didn't decode (an HTML login page, or
+// anything else that isn't the JSON expected). Not transport failures alone:
+// an on-call human correlating this against FPL's own status page should read
+// it as "FPL did not answer usefully", not "the network was down". It does
+// NOT count the caller's own context ending mid-fetch (a browser tab
+// navigating away from a player card) — that says nothing about FPL, and
+// counting it would let ordinary page-request cancellation page on-call. See
+// get()'s context.Canceled/DeadlineExceeded check.
 func (c *Client) LiveFetchFailures() uint64 { return c.staleness.liveFetchFailures.Load() }
 
 // NewWithSnapshot is New with an optional read-only base checked before
@@ -200,6 +209,15 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	}
 
 	body, fetchErr := c.fetch(ctx, path)
+	if fetchErr != nil && (errors.Is(fetchErr, context.Canceled) || errors.Is(fetchErr, context.DeadlineExceeded)) {
+		// The caller's own context ended, not FPL's fetch — e.g. a browser tab
+		// navigating away mid-request cancels r.Context() on the player-card
+		// route. That is routine and says nothing about FPL's health, so it
+		// must not touch the staleness counters this deliberately-alertable
+		// fallback exists to keep trustworthy, and there is no live body to
+		// fall back from anyway.
+		return fetchErr
+	}
 	if fetchErr == nil {
 		if unmarshalErr := json.Unmarshal(body, out); unmarshalErr == nil {
 			// Writes always go to the overlay (cacheDir), never to snapshotDir. The

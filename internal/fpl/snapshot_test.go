@@ -473,6 +473,59 @@ func TestNoFallbackAvailableAnywhereStillReturnsTheLiveFetchError(t *testing.T) 
 	}
 }
 
+// respectsContextTransport returns the request's own context error
+// immediately, mirroring how Go's real http.Transport reacts to an
+// already-canceled or expired context — used so the test below doesn't
+// depend on the real network stack's timing to exercise get()'s carve-out.
+type respectsContextTransport struct{}
+
+func (respectsContextTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, req.Context().Err()
+}
+
+// TestARequestContextEndingIsNotCountedAsALiveFetchFailure is the regression
+// test for a security review finding on the stale-fallback change: playerdetail.go
+// passes the inbound HTTP request's own context straight through to
+// ElementSummary -> get(), and that context is canceled whenever a browser
+// tab navigates away mid-request — a routine, frequent event on the
+// player-card route, not an FPL outage. Counting it would let ordinary page
+// navigation page on-call.
+func TestARequestContextEndingIsNotCountedAsALiveFetchFailure(t *testing.T) {
+	overlayDir, snapDir := t.TempDir(), t.TempDir()
+	// A stale copy IS on disk, to prove get() doesn't fall back to it either —
+	// a canceled request should return the cancellation error outright, not
+	// silently serve stale data as if FPL were down.
+	mustWrite(t, snapshotKeyFile(snapDir), `{"from":"stale-snapshot"}`)
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(snapshotKeyFile(snapDir), old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		http:        &http.Client{Transport: respectsContextTransport{}},
+		cacheDir:    overlayDir,
+		snapshotDir: snapDir,
+		cacheTTL:    time.Minute,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var out struct {
+		From string `json:"from"`
+	}
+	err := c.get(ctx, snapshotTestPath, &out)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("get() error = %v, want it to wrap context.Canceled", err)
+	}
+	if c.LiveFetchFailures() != 0 {
+		t.Errorf("LiveFetchFailures() = %d, want 0 — a canceled request context is not an FPL failure", c.LiveFetchFailures())
+	}
+	if c.StaleServing() {
+		t.Error("StaleServing() should stay false — nothing was actually served")
+	}
+}
+
 // TestAFreshReadClearsTheStaleGaugeAfterFPLRecovers checks that the "most
 // recent call" gauge is not sticky: once a later call succeeds via a live
 // fetch, StaleServing must go back to false.
