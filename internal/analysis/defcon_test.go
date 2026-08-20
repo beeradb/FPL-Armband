@@ -82,6 +82,70 @@ func TestDefConIsNotALinearRamp(t *testing.T) {
 	}
 }
 
+// TestTheDefconChanceIsTheOneTheScoreUsed guards against defconChance and
+// defconPerGameweek drifting into two implementations of the same
+// probability — the metricsIgnoring call site stores *m.DefConChance at the
+// same probability perGW is built from, so a client reading the field back
+// must recover exactly what the score used, and must see nil precisely where
+// the term was not priced (no minutes, or no defensive-contribution rate).
+func TestTheDefconChanceIsTheOneTheScoreUsed(t *testing.T) {
+	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	cases := []struct {
+		name             string
+		pos              int
+		defCon90         float64
+		expectedMinutes  float64
+		startShare       float64
+		wantPricedAtZero bool // priced (non-nil), but the chance itself may be 0 or not
+	}{
+		{"defender priced", 2, 11.5, 75, 0.9, true},
+		{"midfielder priced", 3, 9.0, 60, 0.6, true},
+		{"forward, low exposure", 4, 6.0, 20, 0.2, true},
+		{"defender, no rate", 2, 0, 75, 0.9, false},
+		{"defender, no expected minutes", 2, 11.5, 0, 0.9, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := PlayerMetrics{
+				DefCon90:        c.defCon90,
+				ExpectedMinutes: c.expectedMinutes,
+				StartShare:      c.startShare,
+			}
+			chance := e.defconChance(c.pos, m)
+			perGW := e.defconPerGameweek(c.pos, m)
+			if got, want := perGW, chance*defConPoints; math.Abs(got-want) > 1e-12 {
+				t.Errorf("defconPerGameweek(%d, m) = %v, want defconChance(%d, m) * defConPoints = %v",
+					c.pos, got, c.pos, want)
+			}
+			if !c.wantPricedAtZero && chance != 0 {
+				t.Errorf("defconChance(%d, m) = %v, want 0 for an unpriced player", c.pos, chance)
+			}
+		})
+	}
+
+	// The field the JSON view carries must agree with the exposure the score
+	// actually used, and be nil exactly where the term isn't priced — a nil
+	// pointer reads as "not priced", a zero value would read as "priced at
+	// zero chance", which is a different claim.
+	for i := range e.Boot.Elements {
+		el := &e.Boot.Elements[i]
+		m := e.Metrics(el)
+		if el.Minutes <= 0 {
+			if m.DefConChance != nil {
+				t.Fatalf("%s: DefConChance set with zero minutes", el.WebName)
+			}
+			continue
+		}
+		if m.DefConChance == nil {
+			t.Fatalf("%s: DefConChance nil despite minutes > 0", el.WebName)
+		}
+		want := e.defconChance(el.ElementType, m)
+		if got := *m.DefConChance; math.Abs(got-want) > 1e-9 {
+			t.Errorf("%s: DefConChance = %v, want %v (what the score used)", el.WebName, got, want)
+		}
+	}
+}
+
 // TestDefConCreditStaysWithinTheAward checks no player can be credited more
 // than the award is worth, across the whole live pool.
 func TestDefConCreditStaysWithinTheAward(t *testing.T) {

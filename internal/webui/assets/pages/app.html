@@ -89,6 +89,10 @@
       <span class="form" id="formation">3-5-2</span>
       <span class="formerr" id="formErr" hidden></span>
       <span class="pill" id="clubcap" hidden>max 3/club ✓</span>
+      <!-- The squad is where an over-budget state actually lives -- the same treatment
+           lands on the Players tab's #bank, via bankHtml(), so it is not something you
+           can only see on one tab. -->
+      <span class="pill bad" id="budgetPill" hidden></span>
       <button class="pill armpill" id="capPick"><b>C</b> <span id="capName">—</span><span class="cmath" id="capMath"></span></button>
       <button class="pill armpill v" id="vcPick"><b>V</b> <span id="vcName">—</span></button>
       <!-- The chip control: silent by default, one ghost pill, escalating as its window
@@ -192,7 +196,7 @@
       <span class="gate"></span> Affordable only
     </button>
     <!-- The phone equivalent of the sortable headers below: <thead> does not exist under
-         720px, so a header click cannot be the control there. Same eight columns, a
+         720px, so a header click cannot be the control there. Same eleven columns, a
          native select so the phone gets its own picker UI for free. -->
     <label class="sortpill"><span class="k">Sort</span>
       <select id="sortPill" aria-label="Sort players by">
@@ -204,11 +208,25 @@
         <option value="minutes:desc">Role</option>
         <option value="ownership:desc">Ownership</option>
         <option value="price:desc">Price</option>
+        <option value="xg90:desc">xG90</option>
+        <option value="xa90:desc">xA90</option>
+        <option value="defcon:desc">DefCon</option>
       </select>
     </label>
   </div>
 
   <div class="marketnote" id="marketnote"></div>
+
+  <!-- The role legend, shown at every width on this tab because the table never spells
+       the band out -- Role is a bare dot here (see .role.bare, armband.css), not just a
+       narrow-width fallback. `.rolekey` already exists and is mobile-only; `always` keeps
+       it visible at every width. -->
+  <div class="rolekey always">
+    <span class="k">Role</span>
+    <span class="role r1">Nailed</span><span class="role r2">Likely</span>
+    <span class="role r3">Rotation</span><span class="role r4">Squad</span>
+    <span class="role r5">Fringe</span>
+  </div>
 
   <!-- desktop table. Every sort key is a number the server already sent -- sorting is
        arranging, and a key the client worked out (like `afford`) is the governing-rule
@@ -216,16 +234,19 @@
   <div class="panel marketpanel">
     <table class="ptable" id="ptable">
       <thead><tr>
-        <th></th>
-        <th><button data-sort="name">Player</button></th>
-        <th><button data-sort="pos">Pos</button></th>
-        <th><button data-sort="avg_fdr" title="ordered by the average difficulty over the horizon">Next 5</button></th>
-        <th><button data-sort="minutes" title="ordered by expected minutes">Role</button></th>
-        <th class="n"><button data-sort="ownership">Own</button></th>
-        <th class="n"><button data-sort="price">£</button></th>
-        <th class="n"><button data-sort="xp">Projected</button></th>
-        <th class="n"><button data-sort="delta">Better by</button></th>
-        <th>Replaces</th>
+        <th class="c-gate"></th>
+        <th class="c-name"><button data-sort="name">Player</button></th>
+        <th class="c-pos"><button data-sort="pos">Pos</button></th>
+        <th class="c-fdr"><button data-sort="avg_fdr" title="ordered by the average difficulty over the horizon">Next 5</button></th>
+        <th class="c-role"><button data-sort="minutes" title="How nailed on he is, ordered by expected minutes. Colour only — the words are in the legend above.">Role</button></th>
+        <th class="n c-own"><button data-sort="ownership">Own</button></th>
+        <th class="n c-xg"><button data-sort="xg90" title="Expected goals per 90, FPL's own figure, blended across seasons">xG90</button></th>
+        <th class="n c-xa"><button data-sort="xa90" title="Expected assists per 90, FPL's own figure, blended across seasons">xA90</button></th>
+        <th class="n c-dc"><button data-sort="defcon" title="Chance of the defensive-contribution award in a gameweek">DefCon</button></th>
+        <th class="n c-price"><button data-sort="price">£</button></th>
+        <th class="n c-xp"><button data-sort="xp">Projected</button></th>
+        <th class="n c-delta"><button data-sort="delta">Better by</button></th>
+        <th class="c-acts"></th>
       </tr></thead>
       <tbody id="ptbody"></tbody>
     </table>
@@ -234,6 +255,11 @@
     <div id="emptyState"></div>
   </div>
   <div class="moreline" id="moreline"></div>
+
+  <!-- Where a left-out player goes: Market.Excluded, already sent and until now thrown
+       away. Violet, because an exclusion is a human overruling the model -- the same
+       colour the rest of the app already reserves for that. Filled by hydrate(). -->
+  <div class="why instr" id="leftout" style="margin-top:14px"></div>
 </section>
 
 <!-- ============================================================

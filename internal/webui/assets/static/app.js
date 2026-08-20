@@ -63,6 +63,11 @@ let FIX={};        /* club -> [[opponent, 'H'|'A', fdr], ...] */
 let P=[];          /* the fifteen */
 let POOL=[];       /* the market */
 let OV=[];         /* standing overrides live in THIS document */
+/* EXCL is Market.Excluded -- players a standing override keeps out of the market entirely,
+   already sent alongside POOL and until now thrown away. Same Override shape as OV, mapped
+   the same way, so the left-out strip and "Your instructions" never disagree about what a
+   field means. */
+let EXCL=[];
 /* OV_CACHE remembers every config-sourced override this page has ever seen, by code, across
    reloads. It exists for exactly one reason: a dismissed override is removed from
    cfg.Roster BEFORE the server builds Reasoning, so it is not merely filtered out of the
@@ -129,10 +134,13 @@ const CHIPKEY={
 function player(p){
   return {
     id:p.id, code:p.code, n:p.name, club:p.club, pos:p.pos, pr:p.price,
-    /* mn is Player.ModelledMinutes -- the "54" in "minutes 90 → 54 modelled" on the News
-       tab's standing band and the player card's Will he start? cell. Falls back to the
-       older `minutes` name so a build straddling the rename does not go blank. */
-    xp:p.xp, p90:p.per90, mn:p.modelled_minutes!==undefined?p.modelled_minutes:p.minutes,
+    /* mn is Player.Minutes -- the numeric expected-minutes figure every arithmetic
+       consumer (sort keys, Math.round in the sheet, renderNews's effect line) needs.
+       It used to read modelled_minutes, Player.ModelledMinutes's PRE-FORMATTED STRING
+       ("90 → 54 modelled") -- p.mn silently became a string and every arithmetic use
+       of it produced NaN. mnLine carries that formatted sentence for the one call site
+       that wants the sentence, not the number. */
+    xp:p.xp, p90:p.per90, mn:p.minutes, mnLine:p.modelled_minutes,
     rel:p.reliability, own:p.ownership,
     role:p.role, status:p.status, news:p.news, fixtures:p.fixtures||[],
     /* XP per million, from analysis.PlayerMetrics.ValueScore. Used to be xpFor(p)/p.pr in
@@ -146,6 +154,11 @@ function player(p){
     /* Sort keys must be numbers the server already sent -- see the sortable-tables
        comment near renderPlayers. avgFdr is Player.AvgDifficulty, already decided. */
     avgFdr:p.avg_fdr,
+    /* xg90/xa90 are FPL's own expected figures, not the points scoring makes of them.
+       dc is Player.DefConChance, 0-1 or undefined -- undefined means the model does not
+       price the term for this player (goalkeepers), which is a different fact from zero
+       and must render as "—", never "0%". */
+    xg90:p.xg_per_90, xa90:p.xa_per_90, dc:p.defensive_contribution_chance,
     /* ov is what v1 draws as news, not as a hand-set override -- see the News tab and the
        player card's .pcnews band. `eff` is NewsItem.effect, {label,was,now,direction},
        pre-formatted by the server; undefined until the field ships, and undefined means
@@ -206,6 +219,11 @@ function hydrate(st){
      of. See OV_CACHE_KEY's own comment for why persistence is not optional here. */
   for(const o of OV) if(!o.session) OV_CACHE[o.code]=o;
   saveOvCache();
+
+  EXCL=(st.market.excluded||[]).map((o,i)=>({
+    id:'x'+i, code:o.code, t:o.label, kind:o.kind, who:o.player, club:o.club,
+    set:o.set_on, why:o.reason, session:o.session
+  }));
 
   BLIND=st.blind||[];
 
@@ -337,6 +355,11 @@ let S={
      popover the reader just picked it from. moveConfirm names the chip whose "move it
      here?" strip is open, or null. */
   chipOpen:false, moveConfirm:null,
+  /* armLock names the market row currently armed for a Lock in confirm, or null. Locking a
+     player you do not own rebuilds your whole fifteen around him -- too large a consequence
+     for one click on a small button -- so the row arms first, the same two-step pattern
+     moveConfirm already uses for a planned chip. Any other click disarms it. */
+  armLock:null,
   posFilter:'ALL', q:'', affordOnly:false, showAll:false,
   modelXi:[],
   /* Sort and filter are independent axes and sort survives a filter change -- one state
@@ -351,7 +374,7 @@ let S={
    not offered as a column. avg_fdr is the one exception worth naming: it looks derived but
    Player.AvgDifficulty is already decided in Go and merely carried across.
    ============================================================ */
-const SORT_DEFAULT_DIR={name:'asc',pos:'asc',avg_fdr:'asc',minutes:'desc',ownership:'desc',price:'desc',xp:'desc',delta:'desc'};
+const SORT_DEFAULT_DIR={name:'asc',pos:'asc',avg_fdr:'asc',minutes:'desc',ownership:'desc',price:'desc',xp:'desc',delta:'desc',xg90:'desc',xa90:'desc',defcon:'desc'};
 function sortVal(p,col){
   switch(col){
     case 'name': return (p.n||'').toLowerCase();
@@ -362,6 +385,11 @@ function sortVal(p,col){
     case 'price': return p.pr||0;
     case 'xp': return p.xp||0;
     case 'delta': return p.d||0;
+    case 'xg90': return p.xg90||0;
+    case 'xa90': return p.xa90||0;
+    /* dc is undefined for a goalkeeper (the model does not price the term for him) --
+       sorted to the bottom on a descending sort, which is where "not priced" belongs. */
+    case 'defcon': return p.dc===undefined||p.dc===null?-1:p.dc;
     default: return 0;
   }
 }
@@ -479,7 +507,17 @@ function notify(text){
  * Nothing is applied locally. A block changes which fifteen the optimiser returns, and
  * guessing at that on the client would draw a squad the model has not agreed to. */
 function toggleCorrection(id, kind){
-  const code=codeOf(id);
+  return toggleCorrectionByCode(codeOf(id), kind);
+}
+
+/* toggleCorrectionByCode is the code-keyed core toggleCorrection wraps. A caller that
+   already holds the permanent code -- the Left-out panel and Your-instructions undo
+   buttons, both rendering from server-sent Override records -- calls this directly rather
+   than routing through codeOf(codeToId(code)). That round trip depends on the player still
+   being findable in P or POOL, and a session-excluded market player is in neither: the
+   market row strips him out (see cmd/armband/page.go's watchlistFor) the moment the
+   exclusion takes effect, which is exactly when Undo needs to reach him. */
+function toggleCorrectionByCode(code, kind){
   if(!code){ notify('That player has no code, so we can’t save that.'); return; }
   return save(pending=>{
     const had=((kind==='lock'?pending.lock:pending.excl)||[]).includes(code);
@@ -528,8 +566,15 @@ function role(band){
   return r ? {l:band.charAt(0).toUpperCase()+band.slice(1), s:r.s, c:r.c}
            : {l:band||'unknown', s:band||'?', c:'r5'};
 }
-const roleChip=(band,sm)=>{const r=role(band);
-  return `<span class="role ${r.c}${sm?' sm':''}">${esc(sm?r.s:r.l)}</span>`;};
+/* variant: undefined/false for the full word, true (legacy) or 'sm' for the short word, or
+   'dot' for a bare colour dot with no label -- the market table's Role column, which sheds
+   the word entirely and leans on the `.rolekey.always` legend above it instead. `.role.bare`
+   (armband.css) is the same declaration the pitch card's own narrow-width rule uses. */
+const roleChip=(band,variant)=>{const r=role(band);
+  const sm=variant===true||variant==='sm', dot=variant==='dot';
+  const cls=`role ${r.c}${sm?' sm':''}${dot?' bare':''}`;
+  const attrs=dot?` title="${esc(r.l)}" aria-label="Role: ${esc(band||'unknown')}"`:'';
+  return `<span class="${cls}"${attrs}>${esc(sm?r.s:r.l)}</span>`;};
 
 /* The same band, as a number -- 1 (nailed) through 5 (fringe) -- for riskRows() below,
    which has to filter and sort the fifteen rather than just colour a chip. Reads the same
@@ -548,6 +593,20 @@ function fdrHtml(club,n=5,from=S.gw){
     f.map(x=>`<i class="f${x.fdr}" title="${esc(x.opp)} (${esc(x.ha)}) difficulty ${x.fdr}">${x.fdr}</i>`).join('')+
     pad.map(()=>'<i class="blank" title="no fixture scheduled this far out">·</i>').join('')+
     '</span>';
+}
+
+/* One figure, one formatting, two consumers: the market table's cell (the column header
+   already states the label, and `.ptable .stat` hides the inline one -- armband.css) and
+   the mobile card's meta line (no header, so the label stays inline). v===undefined/null
+   means the model does not price the term for this player -- rendered as "—", not a
+   fabricated zero, which is a different claim (see PlayerMetrics.DefConChance). */
+function statHtml(label,v,dp=2){
+  const val=(v===undefined||v===null)?'—':(+v).toFixed(dp);
+  return `<span class="stat"><i class="k">${esc(label)}</i><b>${val}</b></span>`;
+}
+function pctHtml(label,v){
+  const val=(v===undefined||v===null)?'—':Math.round(v*100)+'%';
+  return `<span class="stat"><i class="k">${esc(label)}</i><b>${val}</b></span>`;
 }
 /* The fixture ribbon for the player sheet's header -- "Coming up", drawn once, replacing
    both the old .fdr chip strip AND the mono line that repeated the same five fixtures
@@ -639,6 +698,17 @@ const bankOf=()=>(STATE&&STATE.squad&&typeof STATE.squad.bank==='number')?STATE.
 const squadCost=()=>(STATE&&STATE.squad&&typeof STATE.squad.cost==='number')?STATE.squad.cost:spend();
 /* The bar a swap has to clear, from review_policy.min_gain_for_free_transfer. */
 const gateOf=()=>(STATE&&STATE.market&&typeof STATE.market.gate==='number')?STATE.market.gate:0;
+
+/* One bank figure, one over-budget rule, every place the committed total renders -- the
+   Players tab readout, the Pitch tab's score bug, and the pitch HUD's pill. The server
+   never refuses an over-budget fifteen (validateSession, webroutes.go, deliberately does
+   not check budget), so a negative bank is a real, legitimate state and not a bug to hide;
+   this is the one place that decides how it reads rather than three copies agreeing by
+   accident. */
+function bankHtml(){
+  const b=bankOf(), bad=b<0;
+  return {bad, text:(bad?'−':'')+'£'+Math.abs(b).toFixed(1)+'m'};
+}
 function clubCounts(){const m={};P.forEach(p=>m[p.club]=(m[p.club]||0)+1);return m;}
 
 /* ============================================================
@@ -849,8 +919,8 @@ function renderReadout(){
      <div class="sub">${chip==='bboost'?'counting':'not counting'}</div></div>
    <div class="sb-div"></div>
    <div class="sb-cell"><span class="k">In the bank</span>
-     <div class="v">£${bankOf().toFixed(1)}m</div>
-     <div class="sub">squad £${spend().toFixed(1)}m</div></div>
+     <div class="v${bankHtml().bad?' badc':''}">${bankHtml().text}</div>
+     <div class="sub${bankHtml().bad?' badc':''}">${bankHtml().bad?'over budget':'squad £'+spend().toFixed(1)+'m'}</div></div>
    <div class="sb-div"></div>
    <div class="sb-cell"><span class="k">Chip</span>
      <div class="v">${c?c.n:'None'}</div>
@@ -956,6 +1026,11 @@ function renderPitch(){
   const cap=document.getElementById('clubcap');
   cap.hidden=over.length===0;
   if(over.length){ cap.className='pill bad'; cap.textContent=`${over[0][0]} ${over[0][1]}/3 — over the club limit`; }
+  // The squad is where an over-budget state actually lives, so the pill sits here beside
+  // the club-limit one -- not refused (the server never refuses this), just marked.
+  const bh=bankHtml(), budgetPill=document.getElementById('budgetPill');
+  budgetPill.hidden=!bh.bad;
+  if(bh.bad) budgetPill.textContent=`over budget by £${Math.abs(bankOf()).toFixed(1)}m`;
   document.getElementById('benchval').innerHTML=benchPts().toFixed(1)+' <span class="unit">pts</span>';
   document.querySelector('.bench').classList.toggle('boosted',gwState().chip==='bboost');
   wirePitch();
@@ -1110,7 +1185,40 @@ function renderInstructions(){
     const code=+b.dataset.code;
     if(!code){ notify('That player has no code, so we can’t save that.'); return; }
     const o=mine.find(x=>x.code===code);
-    if(o) toggleCorrection(codeToId(code), o.kind==='exclude'?'block':'lock');
+    if(o) toggleCorrectionByCode(code, o.kind==='exclude'?'block':'lock');
+  });
+}
+
+/* Where a left-out player goes. He vanishes from the market row list entirely (the server
+   drops him rather than the client filtering him), so this strip -- directly under the
+   table he left -- is the only place he is still visible. EXCL is Market.Excluded, sent
+   alongside POOL and thrown away until now.
+
+   Session entries (this reader's own Leave out) get Undo; config-sourced ones (the
+   standing exclude list) show their reason and date instead, because this session did not
+   set them and cannot clear them -- the same split renderInstructions makes above. */
+function renderLeftOut(){
+  const el=document.getElementById('leftout');
+  if(!el) return;
+  if(!EXCL.length){ el.innerHTML=''; return; }
+  el.innerHTML=`
+    <h3>Left out of this market <span class="dim">${EXCL.length}</span></h3>
+    ${EXCL.map(o=>o.session ? `
+      <div class="instrrow">
+        <span class="v ovc">Left out</span>
+        <span class="who">${esc(o.who)}<span class="club">${esc(o.club)}</span></span>
+        <button class="btn sm ghost" data-excl="undo" data-code="${o.code||0}">Undo</button>
+      </div>` : `
+      <div class="instrrow cfg">
+        <span class="v ovc">${esc(o.t||'EXCL')}</span>
+        <span class="who">${esc(o.who)}<span class="club">${esc(o.club)}</span>
+          ${o.why?`<span class="rz">${esc(o.why)}</span>`:''}</span>
+        <span class="k dim">${o.set?`set ${esc(o.set)}`:''}</span>
+      </div>`).join('')}`;
+  el.querySelectorAll('[data-excl]').forEach(b=>b.onclick=()=>{
+    const code=+b.dataset.code;
+    if(!code){ notify('That player has no code, so we can’t save that.'); return; }
+    toggleCorrectionByCode(code, 'block');
   });
 }
 
@@ -1353,6 +1461,11 @@ function openSheet(id){
   const onPitch=S.xi.includes(id);
   const isCap=S.cap===id, mult=chip==='3xc'?3:2;
   const locked=S.locks.has(id), leftOut=S.blocks.has(id);
+  // Opening a DIFFERENT player's sheet disarms a pending Lock in confirm; re-opening the
+  // same one (which the arm/cancel handlers below do, to redraw the confirm strip in
+  // place) must not lose it.
+  if(S.armLock!==null && S.armLock!==id) S.armLock=null;
+  const armed=S.armLock===id;
   const news=playerNewsRows(p);
   const sheet=document.getElementById('sheet');
   sheet.innerHTML=`
@@ -1414,7 +1527,16 @@ function openSheet(id){
         <button class="btn own" type="button" aria-pressed="${locked}" data-sact="lock">${locked?'Locked in':'Lock in'}</button>
         <button class="btn own" type="button" aria-pressed="${leftOut}" data-sact="block">${leftOut?'Left out':'Leave out'}</button>`
       :`<button class="btn primary" data-sact="buy">Transfer in — £${p.pr.toFixed(1)}m</button>
-        <button class="btn own" type="button" aria-pressed="${leftOut}" data-sact="block">${leftOut?'Left out':'Leave out'}</button>`}
+        <button class="btn own" type="button" aria-pressed="${locked}" data-sact="lock">${locked?'Locked in':'Lock in'}</button>
+        <button class="btn own" type="button" aria-pressed="${leftOut}" data-sact="block">${leftOut?'Left out':'Leave out'}</button>
+        ${armed?`
+        <div class="marketnote rule" style="margin-top:2px;flex-basis:100%">
+          <b>Rebuild around ${esc(p.n)}?</b> We'll replace your fifteen with the best squad the model
+          can build that contains him. Your current line-up and bench order are lost.
+          <span class="spacer"></span>
+          <button class="btn sm ghost warn" data-sact="armgo">Yes, rebuild</button>
+          <button class="btn sm ghost" data-sact="armcancel">Cancel</button>
+        </div>`:''}`}
     </div>
   </div>
 </div>`;
@@ -1433,22 +1555,32 @@ function openSheet(id){
     /* Locking and leaving out are STANDING corrections -- they bind every build, not just
        this page -- so they go to the server and the answer is the squad the model picks
        under them. Applying them locally would show a fifteen the model has not agreed to. */
-    if(a==='lock'||a==='block'){
-      closeSheet();
-      toggleCorrection(id, a);
-      return;
+    if(a==='lock'){
+      if(inSquad){
+        // Already yours: locking him in pins the arrangement, it does not rebuild it.
+        closeSheet(); toggleCorrection(id,'lock'); return;
+      }
+      // Not yours: the model would rebuild your whole fifteen around him, so this needs
+      // the same arm-then-confirm step the market row's own Lock in uses (see armgo below
+      // and .ptable tr.arming/.armnote). Re-opening the same sheet redraws it armed.
+      if(armed) return;
+      S.armLock=id; openSheet(id); return;
+    }
+    if(a==='armgo'){ S.armLock=null; closeSheet(); toggleCorrection(id,'lock'); return; }
+    if(a==='armcancel'){ S.armLock=null; openSheet(id); return; }
+    if(a==='block'){
+      S.armLock=null; closeSheet(); toggleCorrection(id,'block'); return;
     }
     if(a==='swap'){S.swapFrom=id;closeSheet();setSwapbar();return;}
     if(a==='replace'){openPicker(id);return;}
     if(a==='buy'){
-      // He is not in the fifteen, so there is no single player this sheet already
-      // knows he would replace -- unlike the market table's own "Replaces" column,
-      // which starts from an owned player. Defaulting to the weakest starter in his
-      // position is the same suggestion the market table makes for every other
-      // candidate; the picker lets the reader change it before anything is bought.
-      const w=P.filter(x=>x.pos===p.pos).sort((x,y)=>x.xp-y.xp)[0];
+      // He is not in the fifteen, so there is no single player this sheet already knows
+      // he would replace -- openBuyPicker defaults the outgoing slot to the weakest
+      // starter in his position, the same suggestion the market table makes for every
+      // other candidate, and the tray lets the reader pick a different one of their own
+      // fifteen before anything is bought.
       closeSheet();
-      if(w){ openPicker(w.id); R.sel=id; renderPicker(); }
+      openBuyPicker(id);
       return;
     }
     closeSheet();renderAll();
@@ -1510,6 +1642,7 @@ function closeSheet(){
      who was just closed paints nothing if it resolves afterwards -- belt to the id lookups
      already failing gracefully once the sheet's markup is replaced by whatever opens next. */
   document.getElementById('sheet').dataset.pdcode='';
+  S.armLock=null;
 }
 document.getElementById('scrim').onclick=e=>{if(e.target.id==='scrim')closeSheet();};
 
@@ -1517,13 +1650,17 @@ document.getElementById('scrim').onclick=e=>{if(e.target.id==='scrim')closeSheet
    RENDER — players market
    ============================================================ */
 function renderPlayers(){
-  const bank=bankOf(), gate=gateOf();
-  document.getElementById('bank').textContent='£'+bank.toFixed(1)+'m';
+  const bank=bankOf(), gate=gateOf(), bh=bankHtml();
+  const bankEl=document.getElementById('bank');
+  bankEl.textContent=bh.text;
+  bankEl.className='v'+(bh.bad?' badc':'');
   /* The rest of this panel's header. Every one of these was a literal in the markup,
      which is how the squad came to be worth £99.5m on the pitch and £100.0m here. */
   const st=STATE||{squad:{},market:{}};
   const cost=st.squad.cost||0;
-  document.getElementById('bankSub').textContent=`of £${(cost+bank).toFixed(1)}m budget`;
+  const bankSubEl=document.getElementById('bankSub');
+  bankSubEl.textContent=bh.bad?'over budget — sell someone to fund it':`of £${(cost+bank).toFixed(1)}m budget`;
+  bankSubEl.className='sub'+(bh.bad?' badc':'');
   document.getElementById('squadValue').textContent='£'+cost.toFixed(1)+'m';
   document.getElementById('squadValueSub').textContent=`${(st.squad.players||[]).length} players`;
   document.getElementById('gateValue').innerHTML=
@@ -1534,14 +1671,17 @@ function renderPlayers(){
     BENCHMARKS.map(b=>`${b.pos} vs ${b.name} ${b.score.toFixed(2)}`).join(' · ');
   let list=POOL.filter(p=>S.posFilter==='ALL'||p.pos===S.posFilter)
     .filter(p=>!S.q||((p.n+' '+p.club).toLowerCase().includes(S.q.toLowerCase())));
-  // affordable = you can sell your weakest in that position and still cover him
+  /* affordable = you can sell your weakest in that position and still cover him. This is
+     no longer "who it would replace" -- the tray (openBuyPicker) lets the reader choose
+     that -- so only the weakest player's PRICE survives here, for the row's quiet "needs
+     +£X" marking; the weakest player himself is not carried on the row. */
   const weakest=pos=>P.filter(p=>p.pos===pos).sort((a,b)=>a.xp-b.xp)[0];
   list=list.map(p=>{
     const w=weakest(p.pos);
     /* d and clears come from the server: MarketRow.Delta and MarketRow.ClearsGate.
        Colouring the gap against a hardcoded bar was the page recommending in colour what
        the policy refuses in prose -- the same defect this once had against zero. */
-    return {...p,d:p.delta,clears:p.clears,afford:bank+w.pr-p.pr, out:w};
+    return {...p,d:p.delta,clears:p.clears,afford:bank+w.pr-p.pr};
   });
   const reachable=list.filter(p=>p.afford>=0).length, clears=list.filter(p=>p.clears).length;
   if(S.affordOnly) list=list.filter(p=>p.afford>=0);
@@ -1553,7 +1693,7 @@ function renderPlayers(){
   });
   const pillVal=`${S.sort.col}:${S.sort.dir}`;
   if(sortPill && sortPill.value!==pillVal){
-    // The pill only carries the eight canonical combinations; an off-menu sort (reached
+    // The pill only carries the eleven canonical combinations; an off-menu sort (reached
     // from a desktop header, e.g. Player ascending vs the pill's descending list) leaves
     // it on its nearest option rather than silently failing to match anything.
     if([...sortPill.options].some(o=>o.value===pillVal)) sortPill.value=pillVal;
@@ -1562,7 +1702,7 @@ function renderPlayers(){
     <span class="gate pass"></span><b>${clears}</b> of ${POOL.length} clear the +${gate.toFixed(2)} gate
     <span class="sep">·</span>
     <b>${reachable}</b> are reachable with £${bank.toFixed(1)}m in the bank
-    ${bank<0.5?`<span class="sep">·</span><span class="warnc">every other move needs you to sell first</span>`:''}`;
+    <span class="sep">·</span><span class="dim">anything short of the money is marked, not withheld</span>`;
   document.getElementById('poolCount').textContent=POOL.length;
 
   const MOB_CAP=40, shown=list.slice(0,S.showAll?list.length:MOB_CAP);
@@ -1578,32 +1718,40 @@ function renderPlayers(){
       ? `Showing ${shown.length} of ${list.length} · <button class="btn sm" id="showMore">Load the rest</button>`
       : list.length ? `<span>All ${list.length} shown</span>` : '';
 
-  document.getElementById('ptbody').innerHTML=list.map(p=>`
-   <tr data-id="${p.id}">
-     <td><span class="gate${p.clears?' pass':''}" title="${p.clears?`clears the +${gate.toFixed(2)} gate`:'below the gate'}"></span></td>
-     <td><span class="who">${esc(p.n)}</span><span class="club">${esc(p.club)}</span></td>
-     <td class="k">${esc(p.pos)}</td>
-     <td>${fdrHtml(p.club,5,S.gw)}</td>
-     <td>${roleChip(p.role)}</td><td class="n">${p.own.toFixed(1)}%</td>
-     <td class="n">£${p.pr.toFixed(1)}${p.afford<0?`<span class="short">needs +£${Math.abs(p.afford).toFixed(1)}m</span>`:''}</td>
-     <td class="n" style="font-weight:700">${p.xp.toFixed(2)}</td>
-     <td class="n ${p.clears?'dpos':'dneg'}">${p.d>0?'+':''}${p.d.toFixed(2)}</td>
-     <td class="n"><button class="btn sm" data-buy="${p.id}" data-out="${p.out.id}" title="Transfer in ${esc(p.n)}, sell ${esc(p.out.n)}">${esc(p.out.n.length>10?p.out.n.slice(0,10)+'…':p.out.n)}</button></td>
-   </tr>`).join('');
+  document.getElementById('ptbody').innerHTML=shown.map(p=>{
+    const armed=S.armLock===p.id;
+    return `
+   <tr data-id="${p.id}"${armed?' class="arming"':''}>
+     <td class="c-gate"><span class="gate${p.clears?' pass':''}" title="${p.clears?`clears the +${gate.toFixed(2)} gate`:'below the gate'}"></span></td>
+     <td class="c-name"><span class="who">${esc(p.n)}</span><span class="club">${esc(p.club)}</span></td>
+     <td class="k c-pos">${esc(p.pos)}</td>
+     <td class="c-fdr">${fdrHtml(p.club,5,S.gw)}</td>
+     <td class="c-role">${roleChip(p.role,'dot')}</td>
+     <td class="n c-own">${p.own.toFixed(1)}%</td>
+     <td class="n c-xg">${statHtml('xG',p.xg90)}</td>
+     <td class="n c-xa">${statHtml('xA',p.xa90)}</td>
+     <td class="n c-dc">${pctHtml('DC',p.dc)}</td>
+     <td class="n c-price">£${p.pr.toFixed(1)}${p.afford<0?`<span class="short">needs +£${Math.abs(p.afford).toFixed(1)}m</span>`:''}</td>
+     <td class="n c-xp">${p.xp.toFixed(2)}</td>
+     <td class="n c-delta ${p.clears?'dpos':'dneg'}">${p.d>0?'+':''}${p.d.toFixed(2)}</td>
+     <td class="c-acts">${rowActsHtml(p)}</td>
+   </tr>${armed?armNoteRowHtml(p):''}`;}).join('');
 
   document.getElementById('plist').innerHTML=shown.map(p=>`
    <div class="prow" data-id="${p.id}">
      <div>
        <div class="l1"><span class="gate${p.clears?' pass':''}"></span>
          <span class="nm">${esc(p.n)}</span><span class="k">${esc(p.pos)}</span>
-         <span class="club" style="font-family:var(--mono);font-size:10px;color:var(--ink3)">${esc(p.club)}</span></div>
-       <div class="l2">£${p.pr.toFixed(1)}m ${roleChip(p.role,true)} ${p.own.toFixed(1)}% ${fdrHtml(p.club,3,S.gw)}
+         <span class="club" style="font-family:var(--mono);font-size:10px;color:var(--ink3)">${esc(p.club)}</span>
+         ${roleChip(p.role,'dot')}</div>
+       <div class="l2">£${p.pr.toFixed(1)}m
+         ${statHtml('xG',p.xg90)} ${statHtml('xA',p.xa90)} ${pctHtml('DC',p.dc)}
+         ${fdrHtml(p.club,3,S.gw)}
          ${p.afford<0?`<span class="short">needs +£${Math.abs(p.afford).toFixed(1)}m</span>`:''}</div>
      </div>
      <div class="r">
        <div class="xp">${p.xp.toFixed(2)}</div>
        <div class="dd ${p.clears?'dpos':'dneg'}">${p.d>0?'+':''}${p.d.toFixed(2)}</div>
-       <span class="vs">vs ${esc(p.out.n)}</span>
      </div>
    </div>`).join('');
 
@@ -1617,13 +1765,62 @@ function renderPlayers(){
   const sm=document.getElementById('showMore');
   if(sm) sm.onclick=()=>{S.showAll=true;renderPlayers();};
 
-  document.querySelectorAll('#ptbody tr,.prow').forEach(r=>r.onclick=e=>{
-    // The "Replaces" column already knows which of your fifteen it would sell, so a
-    // click there jumps straight into the picker with this candidate pre-staged,
-    // rather than opening this row's own sheet -- which used to be exactly what the
-    // click on it silently ignored.
-    const buy=e.target.closest('[data-buy]');
-    if(buy){ openPicker(+buy.dataset.out); R.sel=+buy.dataset.buy; renderPicker(); return; }
+  wireMarketRows();
+}
+
+/* Own (a colour dot with no label -- .role.bare) plus Leave out (immediate, harmless: an
+   unowned player leaving the market pool touches nothing stored) and the neutral Transfer
+   action that opens the buy-mode tray. Desktop only -- mobile puts these into the row's
+   detail sheet instead, the same "controls move into the sheet below 720px" rule the pitch
+   card already follows (armband.css, .card .acts under @media(max-width:720px)). */
+function rowActsHtml(p){
+  const locked=S.locks.has(p.id), leftOut=S.blocks.has(p.id);
+  return `<div class="rowacts">
+    <button class="btn sm own" type="button" aria-pressed="${locked}" data-act="lock" data-id="${p.id}">${locked?'Locked in':'Lock in'}</button>
+    <button class="btn sm own" type="button" aria-pressed="${leftOut}" data-act="block" data-id="${p.id}">${leftOut?'Left out':'Leave out'}</button>
+    <button class="btn sm xfer" type="button" data-act="buy" data-id="${p.id}" title="Choose who goes for ${esc(p.n)}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>Transfer
+    </button>
+  </div>`;
+}
+
+/* The arm-then-confirm strip a Lock in click opens under the row it belongs to. Locking an
+   unowned player rebuilds the whole fifteen around him -- too large a consequence for one
+   click on a small button -- so the row arms first (S.armLock) and this second row is what
+   the second click actually confirms. Any other click disarms it (wireMarketRows). */
+function armNoteRowHtml(p){
+  return `<tr class="armnote"><td colspan="13">
+    <div class="marketnote rule">
+      <b>Rebuild around ${esc(p.n)}?</b> We'll replace your fifteen with the best squad the model
+      can build that contains him. Your current line-up and bench order are lost.
+      <span class="spacer"></span>
+      <button class="btn sm ghost warn" data-armgo="${p.id}">Yes, rebuild</button>
+      <button class="btn sm ghost" data-armcancel="1">Cancel</button>
+    </div>
+  </td></tr>`;
+}
+
+function wireMarketRows(){
+  document.querySelectorAll('#ptbody [data-act]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();
+    const id=+b.dataset.id, act=b.dataset.act;
+    if(act==='lock'){
+      if(S.armLock===id) return; // already armed -- the strip below is what confirms it
+      S.armLock=id; renderPlayers(); return;
+    }
+    if(act==='block'){ S.armLock=null; toggleCorrection(id,'block'); return; }
+    if(act==='buy'){ S.armLock=null; openBuyPicker(id); return; }
+  });
+  document.querySelectorAll('[data-armgo]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();
+    const id=+b.dataset.armgo; S.armLock=null; toggleCorrection(id,'lock');
+  });
+  document.querySelectorAll('[data-armcancel]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation(); S.armLock=null; renderPlayers();
+  });
+  document.querySelectorAll('#ptbody tr:not(.armnote),.prow').forEach(r=>r.onclick=e=>{
+    if(e.target.closest('[data-act]')) return;
+    if(S.armLock!==null){ S.armLock=null; renderPlayers(); return; }
     openSheet(+r.dataset.id);
   });
 }
@@ -1777,7 +1974,10 @@ function renderNews(){
       : `<span class="t-meta">Fit, but not certain to be picked</span>`,
     risk.map(p=>({
       chip:'Model', chipClass:'model', when:'this gameweek', who:p.n, club:p.club, roleBand:p.role,
-      effect:{label:'minutes', was:'90', now:`${Math.round(p.mn||0)} modelled`}
+      /* was/now split out of mnLine (Player.ModelledMinutes, e.g. "90 → 54 modelled")
+         rather than reformatted from p.mn -- the server already decided the wording. */
+      effect:{label:'minutes', was:(p.mnLine||'').split(' → ')[0]||'90',
+              now:(p.mnLine||'').split(' → ')[1]||`${Math.round(p.mn||0)} modelled`}
     })),
     allGoodHtml);
 
@@ -1834,7 +2034,7 @@ function renderSquadSource(){
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderInstructions();renderBlind();renderPlayers();renderNews();}
+function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderInstructions();renderBlind();renderPlayers();renderLeftOut();renderNews();}
 
 /* boot fetches the state and draws once.
 
@@ -1858,7 +2058,9 @@ function boot(){
       /* Honour a panel named in the URL, so a reload lands where the reader was. */
       const hash=location.hash.slice(1);
       const replace=/^replace-(\d+)$/.exec(hash);
+      const buy=/^buy-(\d+)$/.exec(hash);
       if(replace){ setView('pitch', false); openPicker(+replace[1]); }
+      else if(buy){ setView('pitch', false); openBuyPicker(+buy[1]); }
       else if(hash){ setView(hash, false); }
     })
     .catch(err=>{
@@ -1934,7 +2136,13 @@ boot();
    Everything interpolated below goes through esc(). The design prototype had no escaping,
    because its data was invented; this reads real names and FPL's own injury prose. */
 
-let R={out:null,pos:null,within:true,sel:null};
+/* mode is 'sell' (the original picker: outgoing man fixed, browse the market for who comes
+   in) or 'buy' (the market row's own tray: incoming man fixed, browse your own fifteen for
+   who goes). Everything below R.mode's own branches -- pickerBudget, affordGap, overClub,
+   pickerStage, and the confirm/save handler in wirePicker -- reads R.out and R.sel by role
+   (outgoing / incoming) and does not care which one the reader actually clicked, so it is
+   unchanged by the mode that set them. */
+let R={mode:'sell', out:null,pos:null,within:true,sel:null};
 
 /* The money. The sale funds the purchase, so the budget is what he raises plus the bank.
  *
@@ -1980,6 +2188,14 @@ function clearsGate(d){ const g=gateOf(); if(g<=0) return false;
   return Math.round(d*100)/100 >= Math.round(g*100)/100; }
 
 function pickerCandidates(){
+  if(R.mode==='buy'){
+    /* The candidates are the reader's OWN fifteen in the target's position -- who could
+       go, not who could come in. A player already marked Leave out is excluded: he is
+       already leaving the squad on the next rebuild, so offering him as today's specific
+       swap partner would be a second, conflicting instruction. buyHiddenCount() below
+       counts what this filter removes, for the note. */
+    return P.filter(p=>p.pos===R.pos && !S.blocks.has(p.id));
+  }
   const o=byId(R.out);
   if(!o) return [];
   const own=new Set(P.map(p=>p.id));
@@ -1987,6 +2203,12 @@ function pickerCandidates(){
      POOL never carries one. Filtering again would read as the panel accounting for blocks
      when it is the server that does. */
   return POOL.filter(c=>c.pos===R.pos && !own.has(c.id));
+}
+/* How many of the reader's owned players in this position are hidden from the buy-mode
+   candidate list because they are already marked Leave out -- named in the count line so
+   nothing is dropped silently (NOTES.md's count-line convention). */
+function buyHiddenCount(pos){
+  return P.filter(p=>p.pos===pos && S.blocks.has(p.id)).length;
 }
 
 /* The picker is addressable: /app#replace-<id>.
@@ -1998,13 +2220,38 @@ function pickerCandidates(){
 function openPicker(id){
   const o=byId(id);
   if(!o) return;
-  R={out:id,pos:o.pos,within:true,sel:null};
+  R={mode:'sell', out:id,pos:o.pos,within:true,sel:null};
   renderPicker();
   document.getElementById('scrim').classList.add('open');
   if(location.hash!=='#replace-'+id) history.replaceState(null,'','#replace-'+id);
 }
 
+/* The transfer tray: the reverse of openPicker. Opened from a market row (or the sheet's
+   own Transfer in button), it fixes the INCOMING man and lets the reader choose which of
+   their fifteen goes -- the mirror of openPicker's fixed outgoing man and browsable market.
+   Defaults the outgoing slot to the weakest starter in the target's position, the same
+   suggestion the market table's own gate note makes for every candidate; the reader can
+   still pick a different one of their five before confirming. */
+function openBuyPicker(targetId){
+  const t=byId(targetId);
+  if(!t) return;
+  // Same population pickerCandidates() offers as rows -- a player already marked Leave
+  // out is not a sensible default outgoing man either.
+  const w=P.filter(p=>p.pos===t.pos && !S.blocks.has(p.id)).sort((a,b)=>a.xp-b.xp)[0];
+  R={mode:'buy', out:w?w.id:null, pos:t.pos, within:false, sel:targetId};
+  renderPicker();
+  document.getElementById('scrim').classList.add('open');
+  if(location.hash!=='#buy-'+targetId) history.replaceState(null,'','#buy-'+targetId);
+}
+
+/* Dispatcher: R.mode decides which half of the tray this is. Everything past the fixed
+   pair (pickerBudget, affordGap, overClub, pickerStage, wirePicker's confirm handler)
+   reads R.out/R.sel by ROLE and does not know or care which render function set them. */
 function renderPicker(){
+  if(R.mode==='buy') renderBuyPicker(); else renderSellPicker();
+}
+
+function renderSellPicker(){
   const o=byId(R.out);
   if(!o) return;
   const browse=R.pos!==o.pos;
@@ -2064,6 +2311,74 @@ function renderPicker(){
   wirePicker();
 }
 
+/* The plural position word for the buy-mode count line -- "2 of your 5 midfielders", not
+   "2 of your 5 mid". */
+const POS_PLURAL={GKP:'goalkeepers',DEF:'defenders',MID:'midfielders',FWD:'forwards'};
+
+function renderBuyPicker(){
+  const t=byId(R.sel);
+  if(!t) return;
+  const list=pickerCandidates().slice().sort((a,b)=>b.xp-a.xp);
+  const hidden=buyHiddenCount(R.pos);
+  const beats=list.filter(p=>clearsGate(t.xp-p.xp)).length;
+  const overBudget=list.filter(p=>sellPriceOf(p)+bankOf()<t.pr).length;
+
+  const note=`<div class="marketnote"><span class="gate pass"></span>
+    <b>${beats}</b> of your ${list.length} ${POS_PLURAL[R.pos]||R.pos} he beats by the +${gateOf().toFixed(2)} gate
+    <span class="sep">·</span> <b>${overBudget}</b> leave you over budget
+    ${hidden?`<span class="sep">·</span> <span class="ovc">${hidden} hidden by your Leave out</span>`:''}</div>`;
+
+  const rows=list.map(p=>pickerRowBuy(p,t)).join('');
+  const out=R.out?byId(R.out):null;
+
+  document.getElementById('sheet').innerHTML=`
+   <header>
+     <div class="who"><b>Bring in ${esc(t.n)}</b>
+       <span class="dim">${esc(t.pos)} · ${esc(t.club)} · £${t.pr.toFixed(1)}m · ${t.xp.toFixed(2)} pts a week</span>
+     </div>
+     <button class="btn icon ghost" id="pkclose" aria-label="Close">✕</button>
+   </header>
+   <div class="body">
+     <div class="repmath">
+       ${out?`bank <b>£${bankOf().toFixed(1)}m</b> <span class="op">+</span> ${esc(out.n)} sells <b>£${sellPriceOf(out).toFixed(1)}m</b>
+       <span class="op">=</span> <b>£${pickerBudget().toFixed(1)}m</b> to spend
+       <span class="sep">·</span> `:''}${esc(t.n)} costs <b>£${t.pr.toFixed(1)}m</b>
+       <span class="sep">·</span> gate +${gateOf().toFixed(2)} pts a week
+       <span class="sep">·</span> Gain vs the man you pick, per gameweek
+     </div>
+     ${note}
+     ${rows}
+     <div class="moreline" style="border-top:0;padding:8px">All ${list.length} shown</div>
+     ${out?pickerStage(t,out):''}
+   </div>`;
+  wirePicker();
+}
+
+/* One row per owned candidate to sell, mirroring pickerRow but keyed the other way:
+   affordability and gain are both against the FIXED target `t`, not against R.out (which
+   is what THIS row would set if clicked, not what it is priced against). */
+function pickerRowBuy(p,t){
+  const d=+(t.xp-p.xp).toFixed(2), clears=clearsGate(d);
+  const gap=+(sellPriceOf(p)+bankOf()-t.pr).toFixed(1);
+  const av=(p.availability===undefined?1:p.availability);
+  /* "in your XI" vs "on your bench" is a fact about the squad, not a channel colour --
+     both wear .pill.xi's plain ink. Bench players are listed and offerable here too, just
+     labelled as such. */
+  const xiTag=S.xi.includes(p.id)?'in your XI':'on your bench';
+  return `<button class="reprow${R.out===p.id?' on':''}" data-id="${p.id}">
+    <span class="g"><span class="gate${clears?' pass':''}"
+      title="${clears?'clears':'below'} the +${gateOf().toFixed(2)} gate"></span></span>
+    <span class="n"><b>${esc(p.n)}</b><span class="club">${esc(p.club)}</span>
+      <span class="pill xi">${xiTag}</span>
+      ${av===0?`<span class="pill bad">ruled out</span>`:av<1?`<span class="pill warn">${Math.round(av*100)}% fit</span>`:''}</span>
+    <span class="m">sells £${sellPriceOf(p).toFixed(1)}m ${roleChip(p.role,true)}
+      ${gap<0?`<span class="short">needs +£${Math.abs(gap).toFixed(1)}m</span>`:''}</span>
+    <span class="x"><b class="xp">${p.xp.toFixed(2)}</b>
+      <span class="dd ${clears?'dpos':'dneg'}">${d>0?'+':''}${d.toFixed(2)}</span></span>
+    ${p.news?`<span class="news">${esc(p.news)}</span>`:''}
+  </button>`;
+}
+
 function pickerRow(c,o,browse){
   const d=+(c.xp-o.xp).toFixed(2), clears=clearsGate(d), gap=affordGap(c), oc=overClub(c);
   const av=(c.availability===undefined?1:c.availability);
@@ -2093,6 +2408,14 @@ function pickerEmpty(o){
   </div>`;
 }
 
+/* Shared by both modes: c is always the man coming IN, o the man going OUT, regardless of
+   which one the reader actually clicked to get here -- see the R.mode comment above.
+
+   Confirm disables ONLY on the club limit. Budget is deliberately not a gate here, same as
+   the server: `cmd/armband/webroutes.go`'s validateSession leaves budget unchecked on
+   purpose, because an over-budget fifteen is a state the optimiser can legitimately be
+   asked about. Marking, not blocking -- the short/needs-money line stays, in the same quiet
+   ink price cells already use, it just no longer disables the button beneath it. */
 function pickerStage(c,o){
   if(!c) return '';
   const d=+(c.xp-o.xp).toFixed(2), clears=clearsGate(d), gap=affordGap(c);
@@ -2100,11 +2423,11 @@ function pickerStage(c,o){
     <div class="move"><span class="out">${esc(o.n)} £${sellPriceOf(o).toFixed(1)}m</span> <span class="op">→</span>
       <span class="in"><b>${esc(c.n)}</b> £${c.pr.toFixed(1)}m</span>
       <span class="sep">·</span> ${gap>=0?`leaves <b>£${gap.toFixed(1)}m</b> in the bank`
-        :`<span class="short" style="display:inline;margin:0">needs +£${Math.abs(gap).toFixed(1)}m — raise it by selling elsewhere first</span>`}</div>
+        :`<span class="short" style="display:inline;margin:0">needs +£${Math.abs(gap).toFixed(1)}m — you will be £${Math.abs(gap).toFixed(1)}m over budget until you sell elsewhere</span>`}</div>
     <div class="verdict ${clears?'pass':'miss'}">Gain ${d>0?'+':''}${d.toFixed(2)} pts a week —
       ${clears?`clears the +${gateOf().toFixed(2)} gate`:`below the +${gateOf().toFixed(2)} gate`}</div>
     <div class="acts">
-      <button class="btn primary" id="pkgo" ${gap<0||overClub(c)?'disabled':''}>Make this transfer</button>
+      <button class="btn primary" id="pkgo" ${overClub(c)?'disabled':''}>Make this transfer</button>
       <button class="btn ghost" id="pkcancel">Cancel</button>
     </div>
   </div>`;
@@ -2113,11 +2436,12 @@ function pickerStage(c,o){
 function wirePicker(){
   const close=()=>{
     document.getElementById('scrim').classList.remove('open');
-    if(location.hash.startsWith('#replace-')) history.replaceState(null,'','#pitch');
+    if(location.hash.startsWith('#replace-')||location.hash.startsWith('#buy-')) history.replaceState(null,'','#pitch');
   };
   document.getElementById('pkclose').onclick=close;
 
-  document.getElementById('pkpos').onclick=e=>{
+  const pos=document.getElementById('pkpos');
+  if(pos) pos.onclick=e=>{
     const b=e.target.closest('button'); if(!b) return;
     R.pos=b.dataset.pos; R.sel=null; renderPicker();
   };
@@ -2132,11 +2456,18 @@ function wirePicker(){
       flashInvalid();
       return;
     }
-    R.sel=+b.dataset.id; renderPicker();
+    /* Which end of R this click sets is the whole difference between the two modes: sell
+       mode is browsing for who comes IN (R.sel varies), buy mode is browsing for who goes
+       OUT (R.out varies) -- the target stays fixed in R.sel throughout. */
+    if(R.mode==='buy') R.out=+b.dataset.id; else R.sel=+b.dataset.id;
+    renderPicker();
   });
 
   const cancel=document.getElementById('pkcancel');
-  if(cancel) cancel.onclick=()=>{ R.sel=null; renderPicker(); };
+  if(cancel) cancel.onclick=()=>{
+    if(R.mode==='buy') R.out=null; else R.sel=null;
+    renderPicker();
+  };
 
   const go=document.getElementById('pkgo');
   if(go) go.onclick=()=>{

@@ -178,6 +178,9 @@ func buildPlayer(m analysis.PlayerMetrics, p present.Page) Player {
 		// computed — 90 is safe to state directly, unlike the modelled figure
 		// beside it.
 		ModelledMinutes: fmt.Sprintf("90 → %.0f modelled", m.ExpectedMinutes),
+		XG90:            m.XG90,
+		XA90:            m.XA90,
+		DefConChance:    m.DefConChance,
 	}
 	for _, f := range m.Fixtures {
 		pl.Fixtures = append(pl.Fixtures, Fixture{
