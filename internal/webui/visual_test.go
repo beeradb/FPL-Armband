@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"armband/internal/browsertest"
@@ -51,6 +53,48 @@ func serve(t *testing.T, fixture string) *httptest.Server {
 
 	mux := http.NewServeMux()
 	mux.Handle("/assets/", webui.StaticHandler("/assets/"))
+	mux.HandleFunc("/probe.js", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, filepath.Join("testdata", "contrast_probe.js"))
+	})
+	// The stacks whose composited answer is known by construction. Not part of the
+	// application: it is what gives the contrast suite power over its own resolution.
+	mux.HandleFunc("/stacks", func(w http.ResponseWriter, r *http.Request) {
+		page, err := os.ReadFile(filepath.Join("testdata", "contrast_stacks.html"))
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		withProbe, err := probed(page)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(withProbe)
+	})
+	// The frame that gives a probed page an exact viewport. See browsertest.FrameHTML for
+	// why a phone cannot simply be asked for with --window-size.
+	mux.HandleFunc("/probe-frame", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		width, _ := strconv.Atoi(q.Get("w"))
+		height, _ := strconv.Atoi(q.Get("h"))
+		src := q.Get("src")
+		if width <= 0 || height <= 0 || src == "" {
+			http.Error(w, "the frame needs src, w and h", 400)
+			return
+		}
+		// A frame source is a page on this server and nothing else. `javascript:` and
+		// `data:` are the two schemes that would turn a query parameter into code; there is
+		// nothing here to steal and the listener lives for one test, so this is not a
+		// vulnerability being closed — it is the handler refusing input it has no use for.
+		if !strings.HasPrefix(src, "http://") && !strings.HasPrefix(src, "https://") {
+			http.Error(w, "the frame renders http(s) pages only", 400)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(browsertest.FrameHTML(src,
+			browsertest.Viewport{Width: width, Height: height}))
+	})
 	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_, _ = w.Write(body)
@@ -67,6 +111,26 @@ func serve(t *testing.T, fixture string) *httptest.Server {
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
+		}
+		// ?probe=1 adds the contrast probe, and ONLY then: the goldens above must be shot
+		// off the same document the application serves, so the probe is opt-in per request
+		// rather than a second server that would drift from this one. See contrast_test.go.
+		//
+		// These report through http.Error rather than t.Fatalf. A Fatalf here would run
+		// runtime.Goexit on the HANDLER's goroutine, so the request would never complete and
+		// the browser would hang — surfacing as "published no probe result", which names
+		// neither the cause nor the file.
+		if r.URL.Query().Get("probe") != "" {
+			if page, err = probed(page); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+		}
+		if tok := r.URL.Query().Get("regress"); tok != "" {
+			if page, err = brokenToken(page, tok); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write(page)

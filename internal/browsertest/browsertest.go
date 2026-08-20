@@ -17,6 +17,12 @@
 // toLocaleDateString otherwise renders differently in every timezone, which makes a golden
 // reproducible only where it was generated.
 //
+// The window is not the viewport either, and the two ways out of this browser disagree about
+// which. --dump-dom will not give a page a window narrower than 500px whatever --window-size
+// says, while --screenshot goes through a device-metrics override and honours 390 exactly. A
+// phone measured through the wrong one is still narrow enough to keep every mobile rule, so
+// it looks right and nothing says otherwise. See minDumpDOMWidth and FrameHTML.
+//
 // And the browser needs a deadline of its own. `go test ./...` runs packages in parallel,
 // so a browser here competes with the replay suite for the same cores; without a deadline a
 // wedged one hangs until the test binary's ten-minute limit and takes the package's output
@@ -25,8 +31,11 @@
 package browsertest
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
+	"html"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -165,4 +174,109 @@ func DumpDOM(t *testing.T, browser, url string) string {
 			len(body), url)
 	}
 	return string(body)
+}
+
+// ProbeID is the id of the element a page publishes its answer in. See Probe.
+const ProbeID = "browsertest-probe"
+
+// FrameID is the id of the iframe FrameHTML builds.
+const FrameID = "browsertest-frame"
+
+// minDumpDOMWidth is the narrowest window --dump-dom will give a page, whatever
+// --window-size says.
+//
+// MEASURED, 2026-08-19, Chromium 151: asking for 390x844 and reporting window.innerWidth
+// from inside the page gives 500x757. --screenshot does NOT have this floor — it drives the
+// capture through a device-metrics override, which is why the committed phone goldens really
+// are 390 wide and really do show a 390 layout. So the two paths out of this browser
+// disagree about the viewport, and only one of them says so.
+//
+// That matters more here than anywhere else in this package: a phone check run at 500px is
+// not a phone check. It is wide enough to keep every `max-width:720px` rule, so the page
+// still LOOKS mobile and nothing announces the difference — the same shape as the wrong
+// finding the layout goldens produced by rendering a phone at a height no phone has.
+// FrameHTML is the way round it.
+const minDumpDOMWidth = 500
+
+// FrameHTML is a wrapper document that renders src at EXACTLY v.Width x v.Height.
+//
+// An iframe has its own layout viewport, so media queries, `vh` lengths and `position:fixed`
+// inside it resolve against the iframe's box rather than the browser window — which is the
+// only way to get a true 390x844 out of --dump-dom, whose window has a 500px floor. It works
+// even where the frame is larger than the window that holds it, because an iframe's layout
+// does not depend on how much of it happens to be visible.
+//
+// The framed page is expected to publish its own result; a probe running inside a frame must
+// write into the PARENT document, because --dump-dom serialises the main frame only.
+func FrameHTML(src string, v Viewport) []byte {
+	return []byte(fmt.Sprintf(`<!doctype html>
+<meta charset="utf-8">
+<title>browsertest frame</title>
+<style>html,body{margin:0;padding:0;background:#000;overflow:hidden}
+iframe{display:block;border:0;width:%dpx;height:%dpx}</style>
+<iframe id="%s" src="%s"></iframe>
+`, v.Width, v.Height, FrameID, html.EscapeString(src)))
+}
+
+// OuterFor is the window size to give the browser when rendering FrameHTML at v.
+//
+// The frame decides the layout, so this only has to be big enough not to be silly — but it
+// must respect the floor above, or the request is quietly rewritten and a reader comparing
+// flags with reality finds them disagreeing.
+func OuterFor(v Viewport) Viewport {
+	out := v
+	if out.Width < minDumpDOMWidth {
+		out.Width = minDumpDOMWidth
+	}
+	return out
+}
+
+// Probe renders url at v and returns the JSON the page published for the test.
+//
+// Screenshot and DumpDOM ask what a page LOOKS like and what its parser BUILT. Probe asks
+// the third question — what the rendered page computes about itself — which is the only one
+// that can reach layout, inheritance and compositing. The page does the computing, because
+// there is nowhere else those answers exist; the test decides what to do with them.
+//
+// The transport is deliberately dull. --dump-dom is the only channel out of this browser, so
+// the page publishes into
+//
+//	<script type="application/json" id="browsertest-probe">BASE64</script>
+//
+// and Probe decodes it. Base64 rather than raw JSON because an HTML serialisation escapes
+// text and a script element ends at the first literal "</script", so any payload carrying a
+// quote, an angle bracket or a non-ASCII character would need a quoting rule that the page
+// and this function would then have to agree on forever. Base64 needs no such agreement.
+//
+// A page that publishes nothing is a FAILURE, not an empty result: the usual cause is that
+// the page threw before it got there, and returning "no findings" would turn every assertion
+// downstream into a silent pass.
+func Probe(t *testing.T, browser, url string, v Viewport) []byte {
+	t.Helper()
+	work := Scratch(t)
+
+	args := append(base(work), v.args()...)
+	args = append(args, "--dump-dom", url)
+	body, err := run(t, browser, work, args)
+	if err != nil {
+		t.Fatalf("rendering %s: %v", url, err)
+	}
+
+	open := `id="` + ProbeID + `">`
+	i := bytes.Index(body, []byte(open))
+	if i < 0 {
+		t.Fatalf("%s published no probe result (%d bytes of DOM). The page did not reach "+
+			"the point where it publishes: run the same URL in a browser and read the console.",
+			url, len(body))
+	}
+	rest := body[i+len(open):]
+	j := bytes.Index(rest, []byte("</script>"))
+	if j < 0 {
+		t.Fatalf("%s published an unterminated probe result", url)
+	}
+	out, err := base64.StdEncoding.DecodeString(string(bytes.TrimSpace(rest[:j])))
+	if err != nil {
+		t.Fatalf("%s published a probe result that is not base64: %v", url, err)
+	}
+	return out
 }
