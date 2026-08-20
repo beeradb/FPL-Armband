@@ -385,7 +385,6 @@ footer a{color:var(--ink3);}
     <span class="tagline hideSm" data-copy="ln.tagline">Your man on the pitch.</span>
     <span class="spacer"></span>
     <span class="pill on" data-copy="ln.previewpill">Open preview</span>
-    <a class="btn sm ghost" href="/app" data-copy="ln.haveaccess"><span class="hideSm">I have access</span> →</a>
   </nav>
 
   <!-- ============ HERO — the scene ============ -->
@@ -407,6 +406,31 @@ footer a{color:var(--ink3);}
         <p class="t-body practical" data-copy="hero.practical">Armband marks every player from <b>Nailed</b> down to
           <b>Fringe</b> before you pick him, and reads FPL’s own team news straight into his score. We’re the sort of
           people who have strong opinions about expected minutes. Now you don’t have to be.</p>
+
+        <!-- ⚠️ The gate lives IN the hero, and it has to. It used to sit under the
+             built/not-built pair further down, on the argument that the reason to hand
+             over an address belongs beside the thing that asks for one. That argument is
+             sound and it lost to a plainer fact: at every width the pair pushed the form
+             below the fold, so the page's only ask was invisible on load. A reason nobody
+             scrolls to persuades nobody.
+
+             The reason still travels with it -- the two footnote lines below carry it in
+             two lines instead of a whole section -- and the closing CTA still repeats the
+             ask for a reader who went the distance. -->
+        <form class="gatecard">
+          <span class="t-label lbl" data-copy="gate.label">Get preview access</span>
+          <div class="gateform">
+            <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
+            <button class="btn primary" type="submit" data-copy="gate.cta">Claim my armband</button>
+          </div>
+          <div class="gatefoot">
+            <span class="t-meta" data-copy="gate.foot">No card. No FPL login. Just an email address, like it’s 2009.</span>
+          </div>
+          <div class="gatefoot gatepromise">
+            <span class="t-meta" data-copy="gate.promise">We’ll email you when notifications go live.</span>
+          </div>
+          <div class="done t-body" hidden></div>
+        </form>
       </div>
 
       <!-- The preview is the real card design. One card carries the FPL news flag,
@@ -414,6 +438,11 @@ footer a{color:var(--ink3);}
       <div class="peek" aria-hidden="true">
         <div class="bar"><i></i><i></i><i></i><span class="t t-meta">gameweek 1 · 3-5-2 · 51.9 points</span></div>
         <div class="turf">
+          <!-- The rows ARE the formation in the bar: 1 / 3 / 5 / 2 is the 3-5-2 it
+               claims, so a player added or removed here without changing that string
+               makes the card lie. Saka is a midfielder and sits in the five. The `.p`
+               values sum to the 46.5 in the foot pill, and 46.5 plus the captain's
+               5.40 again is the 51.9 in the bar. Three numbers, one source. -->
           <div class="miniline"><div class="mini"><div class="sh" style="background:#132257"></div><div class="n">Kinsky</div><div class="p">3.48</div></div></div>
           <div class="miniline">
             <div class="mini"><div class="sh" style="background:#C8102E"></div><div class="n">Virgil</div><div class="p">4.32</div></div>
@@ -424,10 +453,12 @@ footer a{color:var(--ink3);}
             <div class="mini cap"><div class="sh" style="background:#DA291C"><span class="arm">C</span></div><div class="n">B.Fernandes</div><div class="p">5.40</div></div>
             <div class="mini flagged"><span class="flg">!</span><div class="sh" style="background:#034694"></div><div class="n">Palmer</div><div class="p">3.15</div></div>
             <div class="mini"><div class="sh" style="background:#003399"></div><div class="n">Ndiaye</div><div class="p">4.15</div></div>
+            <div class="mini"><div class="sh" style="background:#EF0107"></div><div class="n">Saka</div><div class="p">3.82</div></div>
+            <div class="mini"><div class="sh" style="background:#1B458F"></div><div class="n">Sarr</div><div class="p">4.41</div></div>
           </div>
           <div class="miniline">
-            <div class="mini"><div class="sh" style="background:#EF0107"></div><div class="n">Saka</div><div class="p">3.82</div></div>
             <div class="mini"><div class="sh" style="background:#6CABDD"></div><div class="n">Haaland</div><div class="p">5.28</div></div>
+            <div class="mini"><div class="sh" style="background:#670E36"></div><div class="n">Watkins</div><div class="p">4.88</div></div>
           </div>
         </div>
         <div class="foot">
@@ -664,28 +695,6 @@ footer a{color:var(--ink3);}
       </div>
     </div>
 
-    <div class="seriousfoot">
-      <form class="gatecard">
-        <span class="t-label lbl" data-copy="gate.label">Get preview access</span>
-        <div class="gateform">
-          <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
-          <button class="btn primary" type="submit" data-copy="gate.cta">Claim my armband</button>
-        </div>
-        <!-- Two lines, not one. The promise about notifications had been living
-             in four words at the tail of the footnote; it gets its own line, and
-             the footnote takes a shot at us for running an email gate at all.
-             ⚠️ The promise takes no qualifier — we have the addresses, the
-             database and the means. It carries no badge either: the one badge on
-             this page is in the card above. -->
-        <div class="gatefoot">
-          <span class="t-meta" data-copy="gate.foot">No card. No FPL login. Just an email address, like it’s 2009.</span>
-        </div>
-        <div class="gatefoot gatepromise">
-          <span class="t-meta" data-copy="gate.promise">We’ll email you when notifications go live.</span>
-        </div>
-        <div class="done t-body" hidden></div>
-      </form>
-    </div>
   </section>
 
   <!-- ============ THE CLOSE: proof strip + CTA, one object ============

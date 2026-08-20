@@ -50,8 +50,15 @@ type SeasonSummary struct {
 
 	Goals   int `json:"goals"`
 	Assists int `json:"assists"`
-	// CleanSheets is nil for MID and FWD: a clean sheet is not their stat, and a bare 0 would
-	// read as a claim about a quantity that does not apply to the position he plays now.
+	// CleanSheets is nil for FWD only, and the line is drawn by the SCORING RULE rather than
+	// by a feeling about whose stat it is: a clean sheet pays a keeper or a defender 4, a
+	// midfielder 1, and a forward nothing. It used to be nil for MID as well, which hid a
+	// figure that genuinely pays them.
+	//
+	// It stays a pointer because "not his stat" and "none all season" must not collapse into
+	// one value. A bare 0 would read as a claim about a forward rather than as an absence of
+	// one — and the client did exactly that for a while, defaulting an absent count to zero
+	// and printing "0 clean sheets" on players the figure does not describe.
 	CleanSheets *int `json:"clean_sheets,omitempty"`
 	Bonus       int  `json:"bonus"`
 
@@ -125,7 +132,9 @@ func BuildPlayerDetail(es *fpl.ElementSummary, pos string, teams map[int]string)
 			PriceStart:  fpl.TenthsToMillions(s.StartCost),
 			PriceEnd:    fpl.TenthsToMillions(s.EndCost),
 		}
-		if pos == "DEF" || pos == "GKP" {
+		// Everyone a clean sheet pays. Forwards score nothing for one, so they get no
+		// figure at all rather than a zero.
+		if pos == "GKP" || pos == "DEF" || pos == "MID" {
 			cs := s.CleanSheets
 			ls.CleanSheets = &cs
 		}

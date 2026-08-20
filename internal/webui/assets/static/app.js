@@ -138,9 +138,16 @@ function player(p){
        consumer (sort keys, Math.round in the sheet, renderNews's effect line) needs.
        It used to read modelled_minutes, Player.ModelledMinutes's PRE-FORMATTED STRING
        ("90 → 54 modelled") -- p.mn silently became a string and every arithmetic use
-       of it produced NaN. mnLine carries that formatted sentence for the one call site
-       that wants the sentence, not the number. */
-    xp:p.xp, p90:p.per90, mn:p.minutes, mnLine:p.modelled_minutes,
+       of it produced NaN.
+
+       ⚠️ Fixed independently on two branches at once, against the same ambiguous line
+       in the brief -- the server was told a formatted string was acceptable, the client
+       was told the field was the number. Neither half was wrong alone. The branch this
+       was merged with went further and deleted ModelledMinutes server-side entirely
+       ("one quantity in two shapes" -- the client's own row template already draws the
+       arrow), so there is no formatted string to carry any more; every consumer reads
+       p.mn and formats its own sentence. */
+    xp:p.xp, p90:p.per90, mn:p.minutes,
     rel:p.reliability, own:p.ownership,
     role:p.role, status:p.status, news:p.news, fixtures:p.fixtures||[],
     /* XP per million, from analysis.PlayerMetrics.ValueScore. Used to be xpFor(p)/p.pr in
@@ -1233,18 +1240,14 @@ function renderLeftOut(){
    the client that stopped writing to it, so restoring the capability is a UI change and not
    a protocol one. Do not remove it from the contract on the strength of this deletion. */
 
-/* ============================================================
-   RENDER — the model's blind spots (Brief tab)
-   ============================================================ */
-function renderBlind(){
-  /* The engine states its own blind spots as prose, one line each. The prototype split
-     them into a headline, a count and a detail; the real source is a single sentence,
-     and this package does not get to summarise the engine's explanation of itself. */
-  document.getElementById('blindrows').innerHTML=BLIND.map(b=>`
-    <div class="whyrow"><div class="swap"><span class="pill warn">blind</span></div>
-    <div><b>${esc(b)}</b></div>
-    <div class="d dim">→</div></div>`).join('');
-}
+/* ⚠️ renderBlind() and the Brief tab are DELETED, on the product owner's instruction.
+   The tab held two panels: a verdict that was never wired through -- it said so, and
+   pointed at the CLI -- and the engine's own list of where it cannot see. A tab whose
+   headline feature announces its own absence is not a tab.
+
+   State.blind is still sent and is still read into BLIND here; the contract is untouched,
+   so a surface that wants the model's blind spots can render them without a server change.
+   Nothing draws them today. */
 
 /* ============================================================
    The player card's depth — /api/player/{code}
@@ -1270,7 +1273,15 @@ function renderBlind(){
 function lastSeasonHtml(ls){
   if(!ls) return `<p class="pcnil"><span class="g" aria-hidden="true">–</span>
     <span class="t-meta">He didn’t play in the Premier League last season.</span></p>`;
-  const cs = ls.clean_sheets===undefined||ls.clean_sheets===null ? 0 : ls.clean_sheets;
+  /* ⚠️ ABSENT is not zero, and the difference is the whole reason the server sends nothing
+     here for a midfielder or a forward. SeasonSummary.CleanSheets is a *int precisely so
+     that "not his stat" and "none all season" cannot collapse into one value -- and this
+     line collapsed them anyway, defaulting an absent count to 0 and printing "0 clean
+     sheets" against players the figure does not describe. It shipped, and it read as a
+     claim about a player rather than as an absence of one.
+
+     Omit the clause entirely when the server omitted the number. */
+  const cs = ls.clean_sheets===undefined||ls.clean_sheets===null ? null : ls.clean_sheets;
   return `
     <div class="msgrid">
       <div><span class="t-label">points</span><span class="t-stat">${ls.points}</span></div>
@@ -1283,7 +1294,7 @@ function lastSeasonHtml(ls){
       <div class="und"><span class="t-label">xA</span><span class="t-stat">${ls.xa.toFixed(1)}</span></div>
     </div>
     <p class="t-meta msfoot"><span>${esc(ls.season)}</span><span>·</span>
-      <span>${cs} clean sheet${cs===1?'':'s'}</span><span>·</span><span>${ls.bonus} bonus</span><span>·</span>
+      ${cs===null?'':`<span>${cs} clean sheet${cs===1?'':'s'}</span><span>·</span>`}<span>${ls.bonus} bonus</span><span>·</span>
       <span>£${ls.price_start.toFixed(1)}m → £${ls.price_end.toFixed(1)}m</span></p>`;
 }
 
@@ -1964,7 +1975,7 @@ function renderNews(){
       effect:o.eff
     })),
     nilRow('Nothing reported on your fifteen this week.'),
-    `<span class="nfresh gfresh"><span class="dot" aria-hidden="true"></span>
+    `<span class="nfresh gfresh">
      <span class="t-meta">${esc(NEWS.readChecked)}</span></span>`);
 
   const riskEl=document.getElementById('news-risk');
@@ -1974,10 +1985,12 @@ function renderNews(){
       : `<span class="t-meta">Fit, but not certain to be picked</span>`,
     risk.map(p=>({
       chip:'Model', chipClass:'model', when:'this gameweek', who:p.n, club:p.club, roleBand:p.role,
-      /* was/now split out of mnLine (Player.ModelledMinutes, e.g. "90 → 54 modelled")
-         rather than reformatted from p.mn -- the server already decided the wording. */
-      effect:{label:'minutes', was:(p.mnLine||'').split(' → ')[0]||'90',
-              now:(p.mnLine||'').split(' → ')[1]||`${Math.round(p.mn||0)} modelled`}
+      /* was is a fixed fact of football (a full match), not anything modelled -- 90 is
+         safe to state directly, unlike the modelled figure beside it. Player.ModelledMinutes
+         (a pre-formatted "90 → 54 modelled" string) used to carry this pair as one field;
+         it was removed as one quantity in two shapes -- the row template already draws the
+         arrow, so p.mn is the only number this needs. */
+      effect:{label:'minutes', was:'90', now:`${Math.round(p.mn||0)} modelled`}
     })),
     allGoodHtml);
 
@@ -1998,7 +2011,7 @@ function renderNews(){
 /* ============================================================
    VIEW SWITCHING
    ============================================================ */
-const VIEWS=['pitch','players','news','brief'];
+const VIEWS=['pitch','players','news'];
 
 function setView(v, push){
   if(!VIEWS.includes(v)) v='pitch';
@@ -2034,7 +2047,7 @@ function renderSquadSource(){
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderInstructions();renderBlind();renderPlayers();renderLeftOut();renderNews();}
+function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderInstructions();renderPlayers();renderLeftOut();renderNews();}
 
 /* boot fetches the state and draws once.
 

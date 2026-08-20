@@ -263,8 +263,19 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.URL.Path {
 	case routeLanding:
+		// A reader who has been through the form does not need to see it again.
+		if s.gated() && s.hasGatePass(r) {
+			http.Redirect(w, r, routeApp, http.StatusSeeOther)
+			return
+		}
 		s.servePage(w, r, "landing")
 	case routeApp:
+		// ...and one who has not does not get past it. There is no third way in:
+		// the "I have access" link that used to offer one is deleted.
+		if s.gated() && !s.hasGatePass(r) {
+			http.Redirect(w, r, routeLanding, http.StatusSeeOther)
+			return
+		}
 		s.servePage(w, r, "app")
 	case routeGate:
 		s.gate(w, r)
@@ -272,6 +283,8 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.state(w, r)
 	case routeSession:
 		s.saveSession(w, r)
+	case routeMetrics:
+		s.metrics(w, r)
 	case "/action":
 		s.action(w, r)
 	default:
