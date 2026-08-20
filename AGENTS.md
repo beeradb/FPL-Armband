@@ -459,7 +459,7 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **Do not build a state trigger for the wildcard, and do not read a wildcard replay as a
   valuation.** → **chips**
 - **Do not add a lock.** → **optimiser-and-squad**
-- **Do not scope the local test run to the packages a change touches.** Built and measured 2026-08-19: the Go test cache already does it, and better — it tracks the cross-package source scans an import graph cannot see, so a hand-derived scope skips exactly the guards this record pins its shipped bugs with. → **scope-the-test-run-and-move-the-suite-to-ci**
+- **Do not scope the local test run to the packages a change touches.** Built and measured 2026-08-19: the Go test cache already does it, and better — it tracks the cross-package source scans an import graph cannot see, so a hand-derived scope skips exactly the guards this record pins its shipped bugs with. → **work/ruled-out/scope-the-test-run-and-move-the-suite-to-ci**
 - **Do not memoise `blankRate`.** Answer-exact and measured no faster —
   `playsAtAll` is cheaper than the cache lookup that would replace it. →
   **optimiser-and-squad**
