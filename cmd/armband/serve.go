@@ -216,6 +216,10 @@ type squadServer struct {
 	// browser was comparing two DIFFERENT squads and failing on the difference. Nil means
 	// a real random seed.
 	seed func() int64
+	// fetchSummary is the seam over Client.ElementSummary, injectable for the same reason:
+	// a test for /api/player needs a fixed history with no live client and no network call.
+	// Nil means client.ElementSummary. See playerdetail.go.
+	fetchSummary func(ctx context.Context, id int) (*fpl.ElementSummary, error)
 }
 
 // nextSeed is the variety seed for a session that has none.
@@ -251,6 +255,10 @@ func (s *squadServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// typo answers 404 rather than falling into a handler that half-matches.
 	if strings.HasPrefix(r.URL.Path, prefixAssets) {
 		webui.StaticHandler(prefixAssets).ServeHTTP(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, prefixPlayer) {
+		s.playerDetail(w, r)
 		return
 	}
 	switch r.URL.Path {

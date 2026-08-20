@@ -352,7 +352,13 @@ func (e *Element) StatusLabel() string {
 	}
 }
 
-func (e *Element) PriceM() float64 { return float64(e.NowCost) / 10.0 }
+// TenthsToMillions converts one of FPL's price fields -- always tenths of a million -- to
+// the unit every surface in this codebase actually displays. Element.NowCost,
+// PastSeason.StartCost/EndCost and HistoryEntry.Value are all in the same unit; this is the
+// one implementation of that conversion, so a caller must not repeat "/ 10.0" itself.
+func TenthsToMillions(tenths int) float64 { return float64(tenths) / 10.0 }
+
+func (e *Element) PriceM() float64 { return TenthsToMillions(e.NowCost) }
 
 // History returns a manager's gameweek-by-gameweek record and chips played.
 func (c *Client) History(ctx context.Context, entryID int) (*EntryHistory, error) {
