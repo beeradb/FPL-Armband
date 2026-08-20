@@ -438,6 +438,11 @@ footer a{color:var(--ink3);}
       <div class="peek" aria-hidden="true">
         <div class="bar"><i></i><i></i><i></i><span class="t t-meta">gameweek 1 · 3-5-2 · 51.9 points</span></div>
         <div class="turf">
+          <!-- The rows ARE the formation in the bar: 1 / 3 / 5 / 2 is the 3-5-2 it
+               claims, so a player added or removed here without changing that string
+               makes the card lie. Saka is a midfielder and sits in the five. The `.p`
+               values sum to the 46.5 in the foot pill, and 46.5 plus the captain's
+               5.40 again is the 51.9 in the bar. Three numbers, one source. -->
           <div class="miniline"><div class="mini"><div class="sh" style="background:#132257"></div><div class="n">Kinsky</div><div class="p">3.48</div></div></div>
           <div class="miniline">
             <div class="mini"><div class="sh" style="background:#C8102E"></div><div class="n">Virgil</div><div class="p">4.32</div></div>
@@ -448,10 +453,12 @@ footer a{color:var(--ink3);}
             <div class="mini cap"><div class="sh" style="background:#DA291C"><span class="arm">C</span></div><div class="n">B.Fernandes</div><div class="p">5.40</div></div>
             <div class="mini flagged"><span class="flg">!</span><div class="sh" style="background:#034694"></div><div class="n">Palmer</div><div class="p">3.15</div></div>
             <div class="mini"><div class="sh" style="background:#003399"></div><div class="n">Ndiaye</div><div class="p">4.15</div></div>
+            <div class="mini"><div class="sh" style="background:#EF0107"></div><div class="n">Saka</div><div class="p">3.82</div></div>
+            <div class="mini"><div class="sh" style="background:#1B458F"></div><div class="n">Sarr</div><div class="p">4.41</div></div>
           </div>
           <div class="miniline">
-            <div class="mini"><div class="sh" style="background:#EF0107"></div><div class="n">Saka</div><div class="p">3.82</div></div>
             <div class="mini"><div class="sh" style="background:#6CABDD"></div><div class="n">Haaland</div><div class="p">5.28</div></div>
+            <div class="mini"><div class="sh" style="background:#670E36"></div><div class="n">Watkins</div><div class="p">4.88</div></div>
           </div>
         </div>
         <div class="foot">
