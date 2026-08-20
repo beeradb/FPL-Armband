@@ -49,10 +49,10 @@ function esc(v){
    DATA — every figure arrives from /api/state, already decided
    ============================================================
 
-   The prototype carried twelve hardcoded collections. They are all server-side
-   now except two, which stay because they are design data rather than model
-   output: CLUBC (club colours) and LIB (the suggested-override library, which is
-   copy).
+   The prototype carried twelve hardcoded collections. They are all server-side now
+   except one, which stays because it is design data rather than model output: CLUBC (club
+   colours). The suggested-override library that used to live here went with authoring —
+   "no custom overrides at this point".
 
    Nothing here recomputes a model quantity. The role band, the delta against the
    weakest starter, whether a candidate clears the transfer gate and whether an
@@ -62,12 +62,37 @@ function esc(v){
 let FIX={};        /* club -> [[opponent, 'H'|'A', fdr], ...] */
 let P=[];          /* the fifteen */
 let POOL=[];       /* the market */
-let OV=[];         /* standing overrides */
+let OV=[];         /* standing overrides live in THIS document */
+/* OV_CACHE remembers every config-sourced override this page has ever seen, by code, across
+   reloads. It exists for exactly one reason: a dismissed override is removed from
+   cfg.Roster BEFORE the server builds Reasoning, so it is not merely filtered out of the
+   next document -- it is entirely ABSENT from it. News has to show that row greyed out
+   with "Use it again", and the only place left holding what it said is this cache. Session
+   locks and blocks are never cached here; they are the reader's own and "removing" one is a
+   real deletion, not a suppression.
+
+   ⚠️ It MUST be backed by localStorage, not just a module-level variable. The dismissal
+   itself lives in the fpl_session cookie and survives a reload; a plain JS object does not
+   -- it re-initialises to {} on every page load, which is before hydrate() has a chance to
+   see the code again (the server already stopped sending it). A first version of this cache
+   was in-memory only, which meant the row this comment promises stays visible actually
+   vanished on the very first F5 after an Ignore, silently. Wrapped in try/catch: a reader
+   with storage disabled or in a locked-down private-browsing mode gets the old in-memory-only
+   behaviour rather than a thrown error breaking the page. */
+const OV_CACHE_KEY='fpl_ov_cache';
+function loadOvCache(){
+  try{ return JSON.parse(localStorage.getItem(OV_CACHE_KEY)||'{}')||{}; }
+  catch(e){ return {}; }
+}
+function saveOvCache(){
+  try{ localStorage.setItem(OV_CACHE_KEY, JSON.stringify(OV_CACHE)); }
+  catch(e){ /* storage unavailable -- degrade to in-memory only, silently */ }
+}
+let OV_CACHE=loadOvCache();
 let BLIND=[];      /* where the model says it is blind */
 let GWS=[];        /* the rail: current + upcoming, length is data-driven */
 let WEAKEST={};    /* position -> the weakest starter's score */
 let BENCHMARKS=[]; /* the same, with the name and price the legend prints */
-let WHY=[];        /* the marginal calls behind this eleven */
 let TODAY=new Date();
 let STATE=null;    /* the raw document, for anything not mapped below */
 
@@ -90,11 +115,17 @@ function player(p){
     id:p.id, code:p.code, n:p.name, club:p.club, pos:p.pos, pr:p.price,
     xp:p.xp, p90:p.per90, mn:p.minutes, rel:p.reliability, own:p.ownership,
     role:p.role, status:p.status, news:p.news, fixtures:p.fixtures||[],
+    /* XP per million, from analysis.PlayerMetrics.ValueScore. Used to be xpFor(p)/p.pr in
+       the sheet -- one of three client surfaces computing a model quantity; this closes it. */
+    value:p.value_score,
     /* The multiplier FPL's availability flag produces, carried rather than inferred from
        status: re-deriving it would be a second copy of a table that already exists, and
        its most important value is 0 -- a ruled-out player, whose score is zero for that
        reason and no other. */
     availability:p.availability,
+    /* Sort keys must be numbers the server already sent -- see the sortable-tables
+       comment near renderPlayers. avgFdr is Player.AvgDifficulty, already decided. */
+    avgFdr:p.avg_fdr,
     ov:p.override ? {
       t:p.override.label, why:p.override.reason, set:p.override.set_on,
       lapse:p.override.until, chk:p.override.checked,
@@ -135,9 +166,19 @@ function hydrate(st){
     why:o.reason, needsCheck:o.needs_check, age:o.check_age, flag:o.flag,
     session:o.session, eff:''
   }));
+  /* Upsert into the cache -- never clear it here. A code that has dropped out of `live`
+     this time might be one the reader just ignored, and the cache is what lets News keep
+     drawing that row. Only a config-sourced (non-session) entry is worth remembering: a
+     session lock or block that disappears is genuinely gone.
+
+     Persisted to localStorage on every hydrate, not only when something changes -- writing
+     unconditionally is simpler than tracking whether the loop actually touched anything, and
+     the payload is a handful of override records, not something worth optimising a write out
+     of. See OV_CACHE_KEY's own comment for why persistence is not optional here. */
+  for(const o of OV) if(!o.session) OV_CACHE[o.code]=o;
+  saveOvCache();
 
   BLIND=st.blind||[];
-  WHY=st.why||[];
 
   BENCHMARKS=st.market.benchmarks||[];
   WEAKEST={};
@@ -230,16 +271,6 @@ function countdown(to){
   return d>0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m`;
 }
 
-const LIB=[
- {t:'Promoted-club starter',d:'Zero PL minutes but a nailed starter in the Championship. Tells the optimiser he plays, so it can see him at all.',badge:'NAILED'},
- {t:'Long-term injury',d:'Excluded until a named return window. Carries an expiry so it lapses rather than rotting.',badge:'EXCL'},
- {t:'New No.1 keeper',d:'Keeper whose record is backup minutes but who has been confirmed as first choice.',badge:'NAILED'},
- {t:'Defence without its anchor',d:'Team-level goals-conceded multiplier when a defence loses the centre-back its numbers were earned with.',badge:'TEAM ×1.15'},
- {t:'Rotation risk',d:'Caps minutes for a player in a congested side who the model still treats as nailed.',badge:'ROTATION RISK'},
- {t:'Set-piece taker, unscored',d:'Bumps a player who has taken over corners or penalties that last season’s data attributes elsewhere.',badge:'MULT 1.20'}
-];
-
-
 /* ============================================================
    STATE
    ============================================================ */
@@ -267,7 +298,56 @@ let S={
   locks:new Set(), blocks:new Set(), ovKind:'ALL',
   swapFrom:null,
   posFilter:'ALL', q:'', affordOnly:false, showAll:false,
-  modelXi:[]
+  modelXi:[],
+  /* Sort and filter are independent axes and sort survives a filter change -- one state
+     field for both the desktop headers and the phone's sort pill. */
+  sort:{col:'delta',dir:'desc'}
+};
+
+/* ============================================================
+   SORTABLE TABLES — every key here is a number the server already sent.
+   Sorting is arranging. A key the client works out (e.g. "afford", assembled from bank and
+   a weakest starter) is the governing-rule violation arriving through a new door, so it is
+   not offered as a column. avg_fdr is the one exception worth naming: it looks derived but
+   Player.AvgDifficulty is already decided in Go and merely carried across.
+   ============================================================ */
+const SORT_DEFAULT_DIR={name:'asc',pos:'asc',avg_fdr:'asc',minutes:'desc',ownership:'desc',price:'desc',xp:'desc',delta:'desc'};
+function sortVal(p,col){
+  switch(col){
+    case 'name': return (p.n||'').toLowerCase();
+    case 'pos': return p.pos||'';
+    case 'avg_fdr': return p.avgFdr===undefined?99:p.avgFdr;
+    case 'minutes': return p.mn||0;
+    case 'ownership': return p.own||0;
+    case 'price': return p.pr||0;
+    case 'xp': return p.xp||0;
+    case 'delta': return p.d||0;
+    default: return 0;
+  }
+}
+function applySort(list){
+  const {col,dir}=S.sort, mult=dir==='asc'?1:-1;
+  return list.slice().sort((a,b)=>{
+    const av=sortVal(a,col), bv=sortVal(b,col);
+    if(av<bv) return -1*mult; if(av>bv) return 1*mult; return 0;
+  });
+}
+/* Click → sort by that column in its own first direction. Click again → reverse. A third
+   click does not return to unsorted -- one way to do things; a hidden third state is how a
+   table starts feeling arbitrary. */
+function setSort(col){
+  if(S.sort.col===col) S.sort.dir = S.sort.dir==='asc'?'desc':'asc';
+  else S.sort={col, dir:SORT_DEFAULT_DIR[col]||'desc'};
+  renderPlayers();
+}
+document.querySelectorAll('#ptable [data-sort]').forEach(b=>{
+  b.onclick=()=>setSort(b.dataset.sort);
+});
+const sortPill=document.getElementById('sortPill');
+if(sortPill) sortPill.onchange=()=>{
+  const [col,dir]=sortPill.value.split(':');
+  S.sort={col,dir};
+  renderPlayers();
 };
 
 /* TOKEN gates every write. It is put on the page by the server and read once here.
@@ -518,8 +598,10 @@ function renderReadout(){
   const mine=xiPts();
   const vsm=+(mine-model).toFixed(2);
   const total=totalPts();
-  const capX=xpFor(byId(S.cap)), mult=chip==='3xc'?3:2;
 
+  // Captain is off the score bug now -- his arithmetic lives on the pitch HUD's armband
+  // pill (renderPitch), which renders at every width, so nothing is lost on a phone: the
+  // bug used to hide the pre-doubled figure under 720px and show only the total.
   document.getElementById('scorebug').innerHTML=`
    <div class="gwlz">GW${S.gw}<small>${gwState().live?'NOW':'PLANNED'}</small></div>
    <div class="sb-main">
@@ -529,10 +611,6 @@ function renderReadout(){
          XI ${xiPts().toFixed(1)} + armband${chip==='bboost'?' + bench':''}</span></span>
      <span class="sb-delta" id="sbDelta"></span>
    </div>
-   <div class="sb-div"></div>
-   <div class="sb-cell"><span class="k">Captain</span>
-     <div class="v">${esc(byId(S.cap).n)}</div>
-     <div class="sub">${capX.toFixed(2)} → ${(capX*mult).toFixed(2)}${chip==='3xc'?' ×3':''}</div></div>
    <div class="sb-div"></div>
    <div class="sb-cell"><span class="k">Bench</span>
      <div class="v">${benchPts().toFixed(1)}<small>pts</small></div>
@@ -559,8 +637,8 @@ function renderReadout(){
 
   const vs=document.getElementById('vsmodel');
   vs.innerHTML = vsm===0
-    ? `<span class="dim">matches the model's XI</span>`
-    : `<span class="${vsm>0?'acc':'badc'}">${vsm>0?'+':''}${vsm.toFixed(2)}</span> <span class="dim">vs the model's XI</span>`;
+    ? `<span class="dim">matches our pick</span>`
+    : `<span class="${vsm>0?'acc':'badc'}">${vsm>0?'+':''}${vsm.toFixed(2)}</span> <span class="dim">vs our pick</span>`;
 
   // the deadline follows the gameweek you are planning, and only shouts when it should
   const t=document.getElementById('ddl'), g=gwState()||{};
@@ -619,18 +697,20 @@ function cardHtml(p,opts={}){
   const isC=S.cap===p.id, isV=S.vc===p.id;
   const chip=gwState().chip;
   const x=xpFor(p), mult=chip==='3xc'?3:2;
+  /* The FPL-news glyph: an injured or suspended player looks identical to a healthy one
+     everywhere else on the pitch. availability's most important value is 0 -- a ruled-out
+     player, whose score is zero for that reason and no other -- so a card below 1 gets a
+     corner marker rather than just a smaller number and no reason. */
+  const av=p.availability===undefined?1:p.availability;
   return `<div class="card${lock?' haslock':''}${block?' hasblock':''}${S.swapFrom===p.id?' sel':''}${isC?' iscap':''}${isC&&chip==='3xc'?' tcap':''}${isV?' isvc':''}"
      draggable="true" data-id="${p.id}" style="--clubc:${CLUBC[p.club]||'#39506A'}">
     <div class="shirt">${isC?`<span class="bandc">${chip==='3xc'?'3×':'C'}</span>`:''}</div>
     ${isC?`<span class="armchip${chip==='3xc'?' tc':''}">${chip==='3xc'?'3×':'C'}</span>`:''}
     ${isV?`<span class="armchip v">V</span>`:''}
+    ${av<1?`<span class="newsflag${av===0?' bad':''}" title="${av===0?'Ruled out':Math.round(av*100)+'% fit'} — see News">!</span>`:''}
     <div class="chead">
       <span class="lhs"><span class="cl">${esc(p.club)}</span></span>
       <div class="acts">
-        <button class="iconbtn arm-btn${isC?' isc':''}${isV?' isv':''}" data-act="arm" data-id="${p.id}"
-          title="${isC?'Captain — click to make vice':isV?'Vice-captain — click to clear':'Give him the armband'}">
-          ${isC?(chip==='3xc'?'3×':'C'):isV?'V':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 9h16v6H4z"/><path d="M9 3l-2 6M15 3l2 6"/></svg>'}
-        </button>
         <button class="iconbtn${lock?' on':''}" data-act="lock" data-id="${p.id}" title="Lock into the squad — auto-rebuilds keep him">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></button>
         <button class="iconbtn block${block?' on':''}" data-act="block" data-id="${p.id}" title="Block — never picked, even on a rebuild">
@@ -640,8 +720,8 @@ function cardHtml(p,opts={}){
     <div class="nm">${esc(p.n)}</div>
     <div class="meta"><span>£${p.pr.toFixed(1)}</span>${roleChip(p.role,true)}</div>
     <div class="xp">${isC
-      ?`<span class="pre">${x.toFixed(2)}</span><span class="arw">→</span><b>${(x*mult).toFixed(2)}</b><span class="u">xPts</span>`
-      :`<b>${x.toFixed(2)}</b><span class="u">xPts</span>`}</div>
+      ?`<span class="pre">${x.toFixed(2)}</span><span class="arw">→</span><b>${(x*mult).toFixed(2)}</b><span class="u">pts</span>`
+      :`<b>${x.toFixed(2)}</b><span class="u">pts</span>`}</div>
     ${fdrHtml(p.club,opts.fdr||3,S.gw)}
     ${p.ov?`<div class="ovtag">set: ${esc(p.ov.t.toLowerCase())}</div>`:''}
   </div>`;
@@ -658,19 +738,26 @@ function renderPitch(){
     S.bench.map((id,i)=>`<div class="benchslot"><span class="ord">${i+1}</span>${cardHtml(byId(id),{fdr:2})}</div>`).join('');
 
   document.getElementById('formation').textContent=formationStr();
-  const ok=legal();
-  const v=document.getElementById('validity');
-  v.className='valid'+(ok?'':' no');
-  v.innerHTML=ok
-    ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l6 6L20 6"/></svg> legal`
-    : `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 7v7M12 17.5v.5"/><circle cx="12" cy="12" r="9"/></svg> ${illegalReason()}`;
+  // The "legal / no" badge is gone. Validity is a REFUSAL, not a status: a bad drag is
+  // flashed by flashInvalid(), stating the rule; the readout only carries an error state
+  // when the eleven is PERSISTENTLY illegal (a stored arrangement can round-trip into that
+  // state with no drag involved — see bench-slots-ignore-formation-legality).
+  const ok=legal(), fe=document.getElementById('formErr');
+  fe.hidden=ok;
+  if(!ok) fe.textContent='· '+illegalReason();
+  document.getElementById('pitchhud').classList.toggle('illegal',!ok);
   document.getElementById('capName').textContent=byId(S.cap).n;
+  const chip=gwState().chip, mult=chip==='3xc'?3:2;
+  const capX=xpFor(byId(S.cap));
+  document.getElementById('capMath').textContent=`${capX.toFixed(2)} → ${(capX*mult).toFixed(2)}${chip==='3xc'?' ×3':''}`;
   document.getElementById('vcName').textContent=S.vc?byId(S.vc).n:'none set';
+  // Rendered only when violated -- like the formation error above, this pill can only ever
+  // say ✓, because the picker refuses a fourth from one club at the point of action.
   const cc=clubCounts(), over=Object.entries(cc).filter(([,n])=>n>3);
   const cap=document.getElementById('clubcap');
-  cap.className='pill'+(over.length?' bad':'');
-  cap.textContent=over.length?`${over[0][0]} ${over[0][1]}/3 — over the club limit`:'max 3/club ✓';
-  document.getElementById('benchval').innerHTML=benchPts().toFixed(1)+' <span class="unit">xPts</span>';
+  cap.hidden=over.length===0;
+  if(over.length){ cap.className='pill bad'; cap.textContent=`${over[0][0]} ${over[0][1]}/3 — over the club limit`; }
+  document.getElementById('benchval').innerHTML=benchPts().toFixed(1)+' <span class="unit">pts</span>';
   document.querySelector('.bench').classList.toggle('boosted',gwState().chip==='bboost');
   wirePitch();
 }
@@ -727,10 +814,24 @@ function doSwap(a,b){
   renderAll();
   saveArrangement();
 }
+/* The refusal itself: never silently reorder the reader's team. Washes the HUD red AND
+   states the rule -- HANDOFF.md's own spec for this was half-implemented (the flash with
+   no words), which stranded illegalReason()'s good strings behind a badge that no longer
+   exists. Borrows the score bug's 1.4s rhythm so the page keeps one idiom for "something
+   just happened". */
+let invalidTimer=null;
 function flashInvalid(){
-  const hud=document.querySelector('.pitchhud');
-  hud.style.background='rgba(255,77,106,.18)';
-  setTimeout(()=>hud.style.background='',420);
+  const hud=document.getElementById('pitchhud'), fe=document.getElementById('formErr');
+  hud.classList.add('refused');
+  fe.hidden=false; fe.textContent='· refused — '+illegalReason();
+  clearTimeout(invalidTimer);
+  invalidTimer=setTimeout(()=>{
+    hud.classList.remove('refused');
+    // A persistently illegal arrangement keeps its own error state rather than the flash
+    // erasing it; a legal one clears entirely.
+    if(legal()) fe.hidden=true;
+    else fe.textContent='· '+illegalReason();
+  },1400);
 }
 function wirePitch(){
   document.querySelectorAll('.card').forEach(el=>{
@@ -743,7 +844,6 @@ function wirePitch(){
       const b=e.target.closest('.iconbtn');
       if(b){
         e.stopPropagation();
-        if(b.dataset.act==='arm'){ cycleArmband(id); return; }
         toggleCorrection(id, b.dataset.act); return;
       }
       if(S.swapFrom!==null){ doSwap(S.swapFrom,id); S.swapFrom=null; setSwapbar(); return; }
@@ -751,21 +851,11 @@ function wirePitch(){
     };
   });
 }
-/* armband cycle: nothing → captain → vice → nothing. Starters only. */
-function cycleArmband(id){
-  if(!S.xi.includes(id)){ flashInvalid(); return; }
-  const others=()=>S.xi.filter(x=>x!==id).sort((a,b)=>xpFor(byId(b))-xpFor(byId(a)));
-  if(S.cap===id){                       // captain → vice
-    S.cap = S.vc && S.vc!==id ? S.vc : others()[0];
-    S.vc  = id;
-  } else if(S.vc===id){                 // vice → nothing
-    S.vc = null;
-  } else {                              // nothing → captain, old captain drops to vice
-    const prev=S.cap; S.cap=id; S.vc = prev===id ? S.vc : prev;
-  }
-  renderAll();
-  saveArrangement();
-}
+/* There is no card-level armband cycling any more. `cycleArmband` and its `.arm-btn` used
+   `S.xi.filter(...).sort((a,b)=>xpFor(byId(b))-xpFor(byId(a)))[0]` to pick a fallback
+   captain -- the client RANKING PLAYERS BY PROJECTION, one of the surfaces this whole pass
+   exists to close. The armband picker (openArmbandPicker, below) is now the only route,
+   at every width, and it is server-priced. */
 function setSwapbar(){
   const bar=document.getElementById('swapbar');
   if(S.swapFrom===null){bar.classList.remove('on');}
@@ -776,67 +866,69 @@ function setSwapbar(){
 document.getElementById('swapcancel').onclick=()=>{S.swapFrom=null;setSwapbar();};
 
 /* ============================================================
-   RENDER — formation options
-   Every legal shape, priced from the fifteen you already own.
+   RENDER — Your instructions
+   Replaces the formations rail. Everything acting on the fifteen that a human decided,
+   removable in place. `renderShapes()` is deleted, not replaced by a client computation --
+   see docs at the head of this file and the design record: it was a second implementation
+   of internal/analysis's bestFormation, wrong in a specific checkable way (a plain sum,
+   ignoring locks and the three-per-club rule), and a server-computed replacement is filed
+   as deferred rather than rebuilt here under a new name.
    ============================================================ */
-function bestFor(d,m,f){
-  const pick=(pos,n)=>P.filter(p=>p.pos===pos&&!S.blocks.has(p.id))
-    .sort((a,b)=>xpFor(b)-xpFor(a)).slice(0,n);
-  const xi=[...pick('GKP',1),...pick('DEF',d),...pick('MID',m),...pick('FWD',f)];
-  if(xi.length<11) return null;
-  return {ids:xi.map(p=>p.id), pts:xi.reduce((s,p)=>s+xpFor(p),0), swing:xi};
-}
-function renderShapes(){
-  const cur=formationStr(), mine=xiPts(), out=[];
-  for(let d=3;d<=5;d++) for(let m=2;m<=5;m++){
-    const f=11-1-d-m; if(f<1||f>3) continue;
-    const b=bestFor(d,m,f); if(!b) continue;
-    out.push({k:`${d}-${m}-${f}`,d,m,f,pts:b.pts,ids:b.ids});
+function renderInstructions(){
+  const mine=OV.filter(o=>o.session);                       // this session's own locks/blocks
+  const cfgd=OV.filter(o=>!o.session && o.inSquad);          // the settings file, for a player you own
+  const el=document.getElementById('instrbody');
+  const count=document.getElementById('instrCount');
+  const n=mine.length+cfgd.length;
+  count.textContent=n?`${n} active`:'';
+  if(!n){
+    el.innerHTML=`<div class="empty" style="padding:22px 16px">
+      <div class="big">You haven't told it anything yet</div>
+      <p>This eleven is our own pick. Open a player and choose <b>always pick him</b> to keep
+      him through a rebuild.</p>
+    </div>`;
+    return;
   }
-  out.sort((a,b)=>b.pts-a.pts);
-  document.getElementById('shapes').innerHTML=out.map(o=>{
-    const diff=+(o.pts-mine).toFixed(2), is=o.k===cur;
-    const missing=o.ids.filter(id=>!S.xi.includes(id)).map(id=>byId(id).n);
-    return `<button class="shape-row" data-shape="${o.d}-${o.m}-${o.f}" aria-current="${is}">
-      <span class="f">${o.k}</span>
-      <span class="who">${is?'your shape now':missing.length?'brings in '+missing.map(esc).join(', '):'same eleven'}</span>
-      <span class="dd ${is?'':diff>0?'pos':'neg'}">${is?o.pts.toFixed(1):(diff>0?'+':'')+diff.toFixed(2)}</span>
-    </button>`;}).join('');
-  document.querySelectorAll('[data-shape]').forEach(b=>b.onclick=()=>{
-    const [d,m,f]=b.dataset.shape.split('-').map(Number);
-    const best=bestFor(d,m,f); if(!best) return;
-    S.xi=best.ids;
-    if(!S.xi.includes(S.cap)) S.cap=S.xi.slice().sort((x,y)=>xpFor(byId(y))-xpFor(byId(x)))[0];
-    if(S.vc&&!S.xi.includes(S.vc)) S.vc=null;
-    S.bench=P.filter(p=>!S.xi.includes(p.id)&&p.pos!=='GKP').map(p=>p.id);
-    S.benchGk=P.find(p=>p.pos==='GKP'&&!S.xi.includes(p.id)).id;
-    renderAll();
-    saveArrangement();
+  const verb=o=>o.kind==='exclude'?'Never pick':'Always pick';
+  const rows=(list,cfg)=>list.map(o=>`
+    <div class="instrrow${cfg?' cfg':''}">
+      <span class="v">${esc(cfg?(o.t):verb(o))}</span>
+      <span class="who">${esc(o.who)}<span class="club">${esc(o.club)}</span></span>
+      <button class="btn sm ghost" data-instr="${cfg?'ignore':'remove'}" data-code="${o.code||0}">${cfg?'Ignore':'Remove'}</button>
+    </div>`).join('');
+  el.innerHTML =
+    (mine.length?rows(mine,false):'')+
+    (mine.length&&cfgd.length?`<div class="hr" style="margin:8px 13px"></div>
+      <div class="k" style="padding:0 13px 6px">Set in your settings file</div>`:'')+
+    (cfgd.length?rows(cfgd,true):'');
+  el.querySelectorAll('[data-instr]').forEach(b=>b.onclick=()=>{
+    const code=+b.dataset.code;
+    if(!code){ notify('That entry has no player to act on.'); return; }
+    if(b.dataset.instr==='remove'){
+      const o=mine.find(x=>x.code===code);
+      if(o) toggleCorrection(codeToId(code), o.kind==='exclude'?'block':'lock');
+    } else {
+      ignoreOverride(code);
+    }
   });
 }
 
-/* ============================================================
-   RENDER — why rows
-   ============================================================ */
-function renderWhy(){
-  /* The marginal calls -- "Ndiaye over Kadioglu, +0.94, and here is why" -- are the
-     best thing on this panel and the model does not currently produce them. Naming the
-     next-best alternative for each slot means re-running the optimiser with that slot
-     forced, which belongs with the other optimiser-backed work.
+/* Both News and Your instructions Ignore the same way: the code goes on the dismissal
+   list, the row STAYS drawn (from OV_CACHE) but greyed, and the settings file is
+   untouched. See OV_CACHE's own comment for why the row would otherwise vanish. */
+function ignoreOverride(code){
+  return save(pending=>{
+    pending.dis=(pending.dis||[]).concat([code]).filter((c,i,a)=>a.indexOf(c)===i);
+  });
+}
+function useAgain(code){
+  return save(pending=>{ pending.dis=(pending.dis||[]).filter(c=>c!==code); });
+}
 
-     So the panel says it has nothing rather than showing the five worked examples the
-     prototype shipped. Those were written by hand against one GW1 build; kept here they
-     would read as this week's reasoning about this week's squad, and be neither. */
-  document.getElementById('whyrows').innerHTML = WHY.length ? WHY.map(r=>`
-    <div class="whyrow">
-      <div class="swap"><span class="in">${esc(r.in)}</span> <span class="dim">over</span> <span class="out">${esc(r.out)}</span></div>
-      <div class="rz">${esc(r.why)}</div>
-      <div class="d ${r.delta>=0?'pos':'neg'}">${r.delta>0?'+':''}${r.delta.toFixed(2)}</div>
-    </div>`).join('') : `
-    <div class="whyrow"><div class="swap dim">—</div>
-    <div class="rz dim">The marginal calls behind this eleven are not computed yet. The
-    overrides below are what a human has changed; everything else is the model's own
-    ordering.</div><div class="d dim"></div></div>`;
+/* ============================================================
+   RENDER — the model's blind spots (Brief tab)
+   ============================================================ */
+function renderBlind(){
   /* The engine states its own blind spots as prose, one line each. The prototype split
      them into a headline, a count and a detail; the real source is a single sentence,
      and this package does not get to summarise the engine's explanation of itself. */
@@ -865,9 +957,22 @@ function openSheet(id){
      <button class="btn icon ghost" id="sheetclose" aria-label="Close">✕</button>
    </header>
    <div class="body">
+     <!-- FPL's own news, if any. First -- above the projection, not the derivation -- because
+          a reduced availability is the largest single fact about the number below it, and
+          today it is invisible everywhere except the replacement picker. Existing contract
+          fields (Player.News/Status); no new endpoint needed for this. -->
+     ${p.news?`<div class="newsbanner${p.availability===0?' bad':''}">
+       <div class="h">${p.availability===0?'Ruled out':'FPL news'}</div>
+       ${esc(p.news)}
+     </div>`:''}
      <div class="statgrid">
-       <div><div class="k">xPts per gameweek</div><div class="v acc">${xpFor(p).toFixed(2)}</div></div>
-       <div><div class="k">Per £m</div><div class="v">${(xpFor(p)/p.pr).toFixed(2)}</div></div>
+       <div><div class="k">pts a week</div><div class="v acc">${xpFor(p).toFixed(2)}</div></div>
+       <!-- p.value is analysis.PlayerMetrics.ValueScore, sent by the server on every Player
+            (viewmodel.Player.ValueScore carries no omitempty tag, so it is always a number,
+            never undefined) -- this used to be xpFor(p)/p.pr, one of three client surfaces
+            computing a model quantity. No fallback: a fallback that can never run is not
+            protecting anything, it only reads as though it is. -->
+       <div><div class="k">Per £m</div><div class="v">${p.value.toFixed(2)}</div></div>
        <div><div class="k">Role</div><div class="v" style="font-size:12px;padding-top:3px">${roleChip(p.role)}</div>
             <div class="dim" style="font-family:var(--mono);font-size:10px;margin-top:3px">${p.mn.toFixed(0)} min/gw modelled</div></div>
        <div><div class="k">Reliability</div><div class="v">${p.rel.toFixed(2)}</div>
@@ -916,8 +1021,6 @@ function openSheet(id){
        ${inSquad?`
          <button class="btn primary" data-sact="swap">${onPitch?'Swap out of the XI':'Swap into the XI'}</button>
          <button class="btn" data-sact="replace">Replace him…</button>
-         <button class="btn" data-sact="cap">Make captain</button>
-         <button class="btn" data-sact="vc">Make vice</button>
          <button class="btn ghost" data-sact="lock">${S.locks.has(id)?'Unlock':'Lock in'}</button>
          <button class="btn ghost" data-sact="block">${S.blocks.has(id)?'Unblock':'Block'}</button>`
        :`<button class="btn primary" data-sact="buy">Transfer in — £${p.pr.toFixed(1)}m</button>
@@ -926,10 +1029,10 @@ function openSheet(id){
    </div>`;
   document.getElementById('scrim').classList.add('open');
   sheet.querySelector('#sheetclose').onclick=closeSheet;
+  /* No "Make captain" / "Make vice" here any more -- the armband picker
+     (openArmbandPicker) is the one route, priced and ranked, at every width. */
   sheet.querySelectorAll('[data-sact]').forEach(b=>b.onclick=()=>{
     const a=b.dataset.sact;
-    if(a==='cap'){S.cap=id; if(S.vc===id)S.vc=S.xi.find(x=>x!==id);}
-    if(a==='vc') S.vc=id;
     /* Locking and blocking are STANDING corrections -- they bind every build, not just
        this page -- so they go to the server and the answer is the squad the model picks
        under them. Applying them locally would show a fifteen the model has not agreed to. */
@@ -967,7 +1070,7 @@ function openArmbandPicker(which){
            <span style="display:block;margin-top:3px">${roleChip(p.role,true)}
              <span class="dim" style="font-family:var(--mono);font-size:10px">${f?`vs ${esc(f.opp)} (${esc(f.ha)})`:'blank gameweek'}</span>
              <i style="font-style:normal">${fdrHtml(p.club,1,S.gw)}</i></span></span>
-         <span class="cx"><b>${x.toFixed(2)}</b><span class="dim">xPts</span>
+         <span class="cx"><b>${x.toFixed(2)}</b><span class="dim">pts</span>
            <span class="gain">${which==='cap'?`+${gain.toFixed(2)} from the armband`:'backup'}</span></span>
          <span class="mb"><span class="mbar"><span style="width:${Math.max(3,Math.round((x-floor)/span*100))}%"></span></span></span>
        </button>`;}).join('')}
@@ -1004,7 +1107,7 @@ function renderPlayers(){
   document.getElementById('squadValue').textContent='£'+cost.toFixed(1)+'m';
   document.getElementById('squadValueSub').textContent=`${(st.squad.players||[]).length} players`;
   document.getElementById('gateValue').innerHTML=
-    `+${gate.toFixed(2)}<small>xPts/gw</small>`;
+    `+${gate.toFixed(2)}<small>pts a week</small>`;
   const upTo=document.getElementById('bankUpTo');
   if(upTo) upTo.textContent=(STATE&&STATE.policy&&STATE.policy.bank_up_to)||'—';
   document.getElementById('benchLegend').textContent=
@@ -1022,7 +1125,19 @@ function renderPlayers(){
   });
   const reachable=list.filter(p=>p.afford>=0).length, clears=list.filter(p=>p.clears).length;
   if(S.affordOnly) list=list.filter(p=>p.afford>=0);
-  list.sort((a,b)=>b.d-a.d);
+  list=applySort(list);
+  document.querySelectorAll('#ptable [data-sort]').forEach(b=>{
+    const th=b.closest('th'), active=b.dataset.sort===S.sort.col;
+    th.setAttribute('aria-sort',active?(S.sort.dir==='asc'?'ascending':'descending'):'none');
+    b.classList.toggle('active',active);
+  });
+  const pillVal=`${S.sort.col}:${S.sort.dir}`;
+  if(sortPill && sortPill.value!==pillVal){
+    // The pill only carries the eight canonical combinations; an off-menu sort (reached
+    // from a desktop header, e.g. Player ascending vs the pill's descending list) leaves
+    // it on its nearest option rather than silently failing to match anything.
+    if([...sortPill.options].some(o=>o.value===pillVal)) sortPill.value=pillVal;
+  }
   document.getElementById('marketnote').innerHTML=`
     <span class="gate pass"></span><b>${clears}</b> of ${POOL.length} clear the +${gate.toFixed(2)} transfer gate
     <span class="sep">·</span>
@@ -1102,8 +1217,20 @@ document.getElementById('affordToggle').onclick=e=>{
 };
 
 /* ============================================================
-   RENDER — overrides
-   ============================================================ */
+   RENDER — News (was "overrides")
+   ============================================================
+   No authoring here: "no custom overrides at this point" was unambiguous, and the deleted
+   "+ New override" form displayed a HARDCODED projected effect for whoever you picked --
+   fabricated arithmetic on a page whose whole pitch is showing its working. Gone with it:
+   the suggested library (its "+ Add" button never had a handler) and "Reset to defaults"
+   (which never re-imported anything). Two controls that did nothing, closed by deletion.
+
+   Three sources, and only one is adjudicable: FPL's own ruling never gets a reject button
+   (Availability's most important value is 0 -- a squad built around a ruled-out player is
+   the one failure mode worth guarding against here); the configuration gets Ignore / Use
+   it again, which never touches the file; the reader's own locks and blocks are not shown
+   here at all -- they live on the pitch page's Your instructions panel (renderInstructions),
+   because News is about adjudicating what the MODEL was told, not about what you decided. */
 /* ⚠️ There is no daysSince() here, and there must not be one.
 
    The prototype computed staleness as `daysSince(o.chk) > 14`. The rule actually in
@@ -1112,27 +1239,57 @@ document.getElementById('affordToggle').onclick=e=>{
    model considered overdue rendered as fine for another week.
 
    The server decides it and sends `needsCheck`, the age in days, and the badge text. */
-function renderOv(){
-  const list=OV.filter(o=>S.ovKind==='ALL'||o.kind===S.ovKind);
-  const stale=OV.filter(o=>o.needsCheck);
-  document.getElementById('ovAll').textContent=OV.length;
-  /* The two nav badges and the "binding" pill all count the same thing, so they are set
-     from one place. The prototype hard-coded 9 into the markup, which stayed 9. */
-  const ovCount=document.getElementById('ovCount');
-  if(ovCount) ovCount.textContent=OV.length;
-  const binding=document.getElementById('ovBinding');
-  if(binding) binding.textContent=OV.length
-    ? `${OV.length} override${OV.length===1?'':'s'} binding`
-    : 'no overrides binding';
+const SELECTION_KINDS=new Set(['lock','lockXI','exclude']);
+function newsKindMatch(kind,filter){
+  if(filter==='ALL') return true;
+  if(filter==='selection') return SELECTION_KINDS.has(kind);
+  return kind===filter;
+}
+function renderNews(){
+  // Config-sourced only. A session lock or block is the reader's own and is drawn on the
+  // pitch page's Your instructions panel instead — see the comment above.
+  const cfgAll=OV.filter(o=>!o.session);
+  const list=cfgAll.filter(o=>newsKindMatch(o.kind,S.ovKind))
+    .sort((a,b)=>(b.needsCheck-a.needsCheck)||(b.age-a.age));
+  const stale=cfgAll.filter(o=>o.needsCheck);
+  document.getElementById('ovAll').textContent=cfgAll.length;
   const sc=document.getElementById('staleCount');
   sc.style.display=stale.length?'':'none';
   sc.textContent=stale.length?`${stale.length} due a re-check`:'';
-  document.getElementById('ovlist').innerHTML=list.length?list.map(o=>`
-   <div class="ovcard${o.needsCheck?' stale':''}">
+
+  // Owned players FPL itself has news on. Scoped to the fifteen you own -- the market's
+  // news stays where it is, on picker rows.
+  const fplRows=P.filter(p=>(p.availability!==undefined&&p.availability<1)||p.news);
+  document.getElementById('fplnews').innerHTML=fplRows.length?fplRows.map(p=>{
+    const av=p.availability===undefined?1:p.availability;
+    const badge=av===0?'RULED OUT':`${Math.round(av*100)}% FIT`;
+    return `<div class="ovcard fpl">
+      <span class="badge ${av===0?'excl':'team'}">${esc(badge)}</span>
+      <div>
+        <div class="who">${esc(p.n)}<span class="club">${esc(p.club)}</span></div>
+        <div class="txt">${p.news?esc(p.news):'No further detail from FPL.'}</div>
+        <div class="dates">availability ×${av.toFixed(2)}${av===0?' — he scores nothing':''}</div>
+        <div class="dim" style="font-size:11px;margin-top:5px">FPL's own ruling — not adjudicable here</div>
+      </div>
+    </div>`;}).join('') : `<div class="empty panel"><div class="big">No news</div>
+      <p>FPL has nothing to report on the fifteen you own.</p></div>`;
+
+  // Config-sourced. The row for a code the reader has ignored is drawn from OV_CACHE, not
+  // from `list` -- an ignored override is not in `overrides.live` at all any more (it was
+  // stripped from cfg.Roster before the server built Reasoning), so the live list alone
+  // cannot show it. See OV_CACHE's own comment.
+  const dis=new Set(PENDING.dis||[]);
+  const ignored=[...dis].map(c=>OV_CACHE[c]).filter(o=>o&&!o.session&&newsKindMatch(o.kind,S.ovKind));
+  document.getElementById('useAgainAll').disabled=!ignored.length;
+  document.getElementById('useAgainAll').textContent=`Use these again (${ignored.length})`;
+
+  const row=(o,ignoredRow)=>`
+   <div class="ovcard${o.needsCheck?' stale':''}${ignoredRow?' ignored':''}">
      <span class="badge ${o.kind==='exclude'?'excl':o.kind==='club'?'team':''}">${esc(o.t)}</span>
      <div>
        <div class="who">${esc(o.who)}<span class="club">${esc(o.club)}</span>
          ${o.inSquad?'<span class="pill acc" style="margin-left:8px">in the fifteen</span>':''}</div>
+       ${ignoredRow?`<div class="pill warn" style="margin-top:6px">IGNORED FOR THIS VISIT</div>`:`
        <!-- The three dates are printed exactly as the server phrased them. Until is
             already a clause ("lapses after GW10", or "indefinite — review"), and Checked
             already carries its age ("2026-07-10 (40d)"). Adding a "lapses after" prefix
@@ -1141,84 +1298,54 @@ function renderOv(){
             server had already decided. -->
        <div class="dates">set ${esc(o.set)}${o.lapse?` · ${esc(o.lapse)}`:''} · checked ${esc(o.chk||'never')}
          ${o.needsCheck?`<span class="pill warn" style="margin-left:6px">${esc(o.flag||'recheck')}</span>`:''}</div>
-       <div class="txt clamp">${esc(o.why)}</div>
-       ${o.eff?`<div class="effect">→ ${esc(o.eff)}</div>`:''}
+       <div class="txt clamp">${esc(o.why)}</div>`}
      </div>
-     <button class="btn sm ghost rm" data-del="${esc(o.id)}" data-code="${o.code||0}"
-       title="Clear this correction for your session">✕</button>
-   </div>`).join(''):`<div class="empty panel"><div class="big">No overrides of this kind</div>
-     <p>The model is running unaided here — every number in this category is measured, not hand-set.</p></div>`;
-  /* Dismissing an override is a change to what the MODEL is running under, so it goes to
-     the server and the page redraws from the squad that comes back.
-     It used to filter a JavaScript array and re-render: the row vanished, the model went on
-     applying the correction, and the squad did not move -- which is what "nothing gets
-     updated" looked like from the outside. The row disappearing was the only thing that had
-     happened.
-     The config file is untouched. A dismissal is this session's, and `serve -persist` is
+     <button class="btn sm ghost" data-${ignoredRow?'again':'ignore'}="${o.code||0}">${ignoredRow?'Use it again':'Ignore'}</button>
+   </div>`;
+  document.getElementById('ovlist').innerHTML =
+    (list.length?list.map(o=>row(o,false)).join(''):'')+
+    (ignored.length?ignored.map(o=>row(o,true)).join(''):'')||
+    `<div class="empty panel"><div class="big">Nothing here</div>
+     <p>The model is running unaided in this group — every number is measured, not hand-set.</p></div>`;
+
+  /* Ignoring is a change to what the MODEL is running under, so it goes to the server and
+     the page redraws from the squad that comes back. The row stays drawn, greyed -- see
+     ignoreOverride's comment. The configuration file is never touched; `serve -persist` is
      the deliberate way a correction leaves the standing record. */
-  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
-    const code=+b.dataset.code;
-    if(!code){ notify('That override has no player to clear.'); return; }
-    save(pending=>{
-      pending.dis=(pending.dis||[]).concat([code]).filter((c,i,a)=>a.indexOf(c)===i);
-    });
+  document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>{
+    const code=+b.dataset.ignore;
+    if(!code){ notify('That entry has no player to ignore.'); return; }
+    ignoreOverride(code);
   });
+  document.querySelectorAll('[data-again]').forEach(b=>b.onclick=()=>{
+    const code=+b.dataset.again;
+    if(!code){ notify('That entry has no player to restore.'); return; }
+    useAgain(code);
+  });
+  document.getElementById('useAgainAll').onclick=()=>{
+    const codes=new Set(ignored.map(o=>o.code));
+    save(pending=>{ pending.dis=(pending.dis||[]).filter(c=>!codes.has(c)); });
+  };
   document.querySelectorAll('.txt.clamp').forEach(t=>t.onclick=()=>t.classList.toggle('clamp'));
-  document.getElementById('liblist').innerHTML=LIB.map(l=>`
-   <div class="libcard">
-     <span class="pill ov">${esc(l.badge)}</span>
-     <div class="t" style="margin-top:7px">${esc(l.t)}</div>
-     <div class="d">${esc(l.d)}</div>
-     <button class="btn sm">+ Add</button>
-   </div>`).join('');
+
+  // The nav badge counts what needs attention, not everything: overdue re-checks plus
+  // owned players FPL has ruled below full fitness. A count that is on for every visit is
+  // a badge the eye learns to skip.
+  const need=stale.length+fplRows.filter(p=>(p.availability===undefined?1:p.availability)<1).length;
+  const newsCount=document.getElementById('newsCount');
+  if(newsCount){ newsCount.hidden=need===0; newsCount.textContent=need; }
 }
 document.getElementById('ovfilter').onclick=e=>{
   const b=e.target.closest('button'); if(!b)return;
   S.ovKind=b.dataset.kind;
   document.querySelectorAll('#ovfilter button').forEach(x=>x.setAttribute('aria-pressed',x===b));
-  renderOv();
+  renderNews();
 };
-document.getElementById('addOv').onclick=()=>{
-  const sheet=document.getElementById('sheet');
-  sheet.innerHTML=`
-   <header><div style="flex:1"><div class="nm">New override</div>
-     <div class="sub">binds every build until it lapses</div></div>
-     <button class="btn icon ghost" id="sheetclose">✕</button></header>
-   <div class="body">
-     <div class="frow">
-       <div class="field"><label class="k">Kind</label>
-         <select><option>Set his role</option><option>Exclude player</option>
-         <option>Score multiplier</option><option>Team-level adjustment</option></select></div>
-       <div class="field"><label class="k">Role</label>
-         <select><option>Nailed</option><option selected>Likely starter</option>
-         <option>Rotation risk</option><option>Fringe player</option></select></div>
-     </div>
-     <div class="field"><label class="k">Player or club</label><input placeholder="Start typing a name…"></div>
-     <div class="frow">
-       <div class="field"><label class="k">Lapses after</label>
-         <select><option>GW6</option><option>GW8</option><option selected>GW10</option><option>GW12</option><option>never</option></select></div>
-       <div class="field"><label class="k">Set on</label><input value="2026-08-19" readonly></div>
-     </div>
-     <div class="field"><label class="k">Reasoning — what does the model not see?</label>
-       <textarea placeholder="Name the source and the condition that would clear it. This is what you'll read in six weeks when you've forgotten why."></textarea>
-       <div class="hint">Required. An override without a stated condition to clear it is the one that rots.</div></div>
-     <div class="panel" style="padding:10px 12px;font-size:12.5px;color:var(--ink2)">
-       <span class="k">Projected effect</span><div style="margin-top:5px"><b class="acc">no PL data → likely starter · 0.00 → 3.24 xPts/gw</b>
-       <span class="dim">· would enter the XI at DEF, pushing out F.Kadıoğlu (−0.03)</span></div>
-     </div>
-     <div class="sheetacts"><button class="btn primary" id="sheetclose2">Save override</button>
-       <button class="btn ghost" id="sheetclose3">Cancel</button></div>
-   </div>`;
-  document.getElementById('scrim').classList.add('open');
-  ['sheetclose','sheetclose2','sheetclose3'].forEach(i=>{const e=document.getElementById(i);if(e)e.onclick=closeSheet;});
-};
-document.getElementById('showLib').onclick=()=>
-  document.getElementById('libpanel').scrollIntoView({behavior:'smooth',block:'start'});
 
 /* ============================================================
    VIEW SWITCHING
    ============================================================ */
-const VIEWS=['pitch','players','overrides','brief'];
+const VIEWS=['pitch','players','news','brief'];
 
 function setView(v, push){
   if(!VIEWS.includes(v)) v='pitch';
@@ -1256,13 +1383,13 @@ function renderSquadSource(){
   const el=document.getElementById('squadsource');
   if(!el) return;
   el.textContent = S.saved ? 'your saved team'
-    : S.optimised ? "the model's best fifteen"
+    : S.optimised ? "our best fifteen"
     : 'a strong opening fifteen — press Optimize for the model’s best';
   const opt=document.getElementById('optimise');
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderChipSummary();renderSquadSource();renderPitch();renderShapes();renderWhy();renderPlayers();renderOv();}
+function renderAll(){renderRail();renderReadout();renderChips();renderChipSummary();renderSquadSource();renderPitch();renderInstructions();renderBlind();renderPlayers();renderNews();}
 
 /* boot fetches the state and draws once.
 
@@ -1299,7 +1426,8 @@ function boot(){
       console.error(err);
     });
 }
-/* Optimize discards the arrangement and asks the model for its best fifteen.
+/* Optimize discards the arrangement and asks the model for its best fifteen, WITHIN your
+ * standing locks and blocks -- it respects them, same as every other build on this page.
  *
  * It CLEARS the squad rather than sending one: the server is what knows what best means,
  * and a client that sent its own answer would be a second optimiser. */
@@ -1312,6 +1440,31 @@ if(optimiseBtn) optimiseBtn.onclick=()=>save(pending=>{
   pending.cap=undefined;
   pending.vc=undefined;
 });
+
+/* Reset is Optimize's destructive sibling: the model's honest best with NONE of your
+ * locks or blocks in force, and it DISCARDS them rather than merely ignoring them for one
+ * build -- pending.lock and pending.excl go to empty, so Your instructions empties too.
+ * That is the whole distinction the ask names ("optimize respects locks, reset does not"),
+ * and it needs no server change: effectiveCfgFrom already builds every squad from
+ * whatever the session's own lock/excl lists say, so an empty pair of lists is a build
+ * under no session corrections at all. A confirm guards it because there is no undo once
+ * the save round-trips -- but only when there is something to lose. */
+const resetBtn=document.getElementById('resetBtn');
+if(resetBtn) resetBtn.onclick=()=>{
+  const n=(PENDING.lock||[]).length+(PENDING.excl||[]).length;
+  if(n && !confirm(`Reset asks the model for its honest best and forgets what you told it: `+
+    `${n} instruction${n===1?'':'s'} will be discarded. Optimize keeps them; Reset does not. Continue?`)) return;
+  save(pending=>{
+    pending.opt=true;
+    pending.squad=undefined;
+    pending.xi=undefined;
+    pending.bench=undefined;
+    pending.cap=undefined;
+    pending.vc=undefined;
+    pending.lock=[];
+    pending.excl=[];
+  });
+};
 
 boot();
 
@@ -1439,7 +1592,7 @@ function renderPicker(){
   document.getElementById('sheet').innerHTML=`
    <header>
      <div class="who"><b>Replace ${esc(o.n)}</b>
-       <span class="dim">${esc(o.pos)} · ${esc(o.club)} · ${o.xp.toFixed(2)} xPts/gw · sells for £${sellPriceOf(o).toFixed(1)}m</span>
+       <span class="dim">${esc(o.pos)} · ${esc(o.club)} · ${o.xp.toFixed(2)} pts a week · sells for £${sellPriceOf(o).toFixed(1)}m</span>
      </div>
      <button class="btn icon ghost" id="pkclose" aria-label="Close">✕</button>
    </header>
@@ -1447,7 +1600,7 @@ function renderPicker(){
      <div class="repmath">
        sells <b>£${sellPriceOf(o).toFixed(1)}m</b> <span class="op">+</span> bank <b>£${bankOf().toFixed(1)}m</b>
        <span class="op">=</span> <b>£${B.toFixed(1)}m</b> to spend
-       <span class="sep">·</span> gate +${gateOf().toFixed(2)} xPts/gw
+       <span class="sep">·</span> gate +${gateOf().toFixed(2)} pts a week
        <span class="sep">·</span> Δ vs ${esc(o.n)}, per gameweek
      </div>
      <div class="toolbar" style="margin:10px 0 8px">
@@ -1503,7 +1656,7 @@ function pickerStage(c,o){
       <span class="in"><b>${esc(c.n)}</b> £${c.pr.toFixed(1)}m</span>
       <span class="sep">·</span> ${gap>=0?`leaves <b>£${gap.toFixed(1)}m</b> in the bank`
         :`<span class="short" style="display:inline;margin:0">needs +£${Math.abs(gap).toFixed(1)}m — raise it by selling elsewhere first</span>`}</div>
-    <div class="verdict ${clears?'pass':'miss'}">Δ ${d>0?'+':''}${d.toFixed(2)} xPts/gw —
+    <div class="verdict ${clears?'pass':'miss'}">Δ ${d>0?'+':''}${d.toFixed(2)} pts a week —
       ${clears?`clears the +${gateOf().toFixed(2)} gate`:`below the +${gateOf().toFixed(2)} gate`}</div>
     <div class="acts">
       <button class="btn primary" id="pkgo" ${gap<0||overClub(c)?'disabled':''}>Make this transfer</button>

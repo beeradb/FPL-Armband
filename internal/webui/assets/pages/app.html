@@ -52,7 +52,7 @@
   <div class="inner" role="tablist">
     <button data-view="pitch"    aria-selected="true">Pitch</button>
     <button data-view="players"  aria-selected="false">Players <span class="c" id="poolCount">—</span></button>
-    <button data-view="overrides" aria-selected="false">Overrides <span class="c" id="ovCount">—</span></button>
+    <button data-view="news"     aria-selected="false">News <span class="c" id="newsCount" hidden></span></button>
     <button data-view="brief"    aria-selected="false">Brief</button>
   </div>
 </nav>
@@ -76,19 +76,28 @@
 
   <div class="pitchgrid">
   <div class="pitchwrap">
-    <div class="pitchhud">
+    <div class="pitchhud" id="pitchhud">
       <span class="k">Formation</span>
+      <!-- The old "legal / no" badge is gone. A permanent green tick that only sometimes
+           turns red is a STATUS; the rule that formation actually obeys is a REFUSAL, so
+           the error state lives on the readout itself and a bad drag flashes the rule in
+           place -- borrowing the score bug's 1.4s rhythm, below. -->
       <span class="form" id="formation">3-5-2</span>
-      <span class="valid" id="validity">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l6 6L20 6"/></svg> legal
-      </span>
-      <span class="pill" id="clubcap">max 3/club ✓</span>
-      <button class="pill armpill" id="capPick"><b>C</b> <span id="capName">—</span></button>
+      <span class="formerr" id="formErr" hidden></span>
+      <span class="pill" id="clubcap" hidden>max 3/club ✓</span>
+      <button class="pill armpill" id="capPick"><b>C</b> <span id="capName">—</span><span class="cmath" id="capMath"></span></button>
       <button class="pill armpill v" id="vcPick"><b>V</b> <span id="vcName">—</span></button>
       <span class="delta" id="vsmodel"></span>
-      <!-- Puts the model's best fifteen back. The opening squad is deliberately varied,
-           so this is how a reader asks for the unvaried answer. -->
-      <button class="btn sm" id="optimise" style="margin-left:auto">Optimize</button>
+      <span class="pitchactions">
+        <!-- Reset asks the model for its true best with none of your locks or blocks in
+             force -- it discards them, which Optimize never does. Ghost + warn so the two
+             adjacent buttons do not read as the same weight of action. -->
+        <button class="btn sm ghost warn" id="resetBtn" title="The model's honest best — ignores every lock and block you have set">Reset</button>
+        <!-- Puts the model's best fifteen back, respecting your locks and blocks. The
+             opening squad is deliberately varied, so this is how a reader asks for the
+             unvaried answer. -->
+        <button class="btn sm" id="optimise">Optimize</button>
+      </span>
     </div>
     <div class="squadsource dim" id="squadsource"></div>
 
@@ -113,7 +122,7 @@
     <div class="bench">
       <div class="benchhead">
         <span class="k">Bench — substitution order</span>
-        <span class="pill" id="benchval">2.5 <span class="unit">xPts</span></span>
+        <span class="pill" id="benchval">2.5 <span class="unit">pts</span></span>
         <span class="hint">Drag to reorder · 1 comes on first</span>
       </div>
       <div class="benchrow" id="benchrow"></div>
@@ -121,18 +130,13 @@
   </div>
 
   <div class="pitchside">
-  <!-- WHY: the marginal calls -->
-  <div class="why" style="margin-top:0">
-    <h3>
-      Why this eleven
-      <span class="pill ov" style="margin-left:auto" id="ovBinding"></span>
-    </h3>
-    <div id="whyrows"></div>
-  </div>
-
-  <div class="why" style="margin-top:0">
-    <h3>Every shape this fifteen can make</h3>
-    <div class="shapes" id="shapes"></div>
+  <!-- YOUR INSTRUCTIONS: replaces the formations rail. Everything acting on the fifteen
+       that a human decided, in the reader's own voice and removable in place. Split into
+       what THIS session set (Remove is a real deletion) and what the settings file already
+       carries for a player in the squad (Ignore only suppresses it — see News, view-news). -->
+  <div class="why instr" style="margin-top:0">
+    <h3>Your instructions <span class="dim" id="instrCount"></span></h3>
+    <div id="instrbody"></div>
   </div>
 
   <div class="storenote">
@@ -190,17 +194,41 @@
     <button class="btn sm" id="affordToggle" aria-pressed="false">
       <span class="gate"></span> Affordable only
     </button>
+    <!-- The phone equivalent of the sortable headers below: <thead> does not exist under
+         720px, so a header click cannot be the control there. Same eight columns, a
+         native select so the phone gets its own picker UI for free. -->
+    <label class="sortpill"><span class="k">Sort</span>
+      <select id="sortPill" aria-label="Sort players by">
+        <option value="delta:desc">Better by</option>
+        <option value="xp:desc">Projected</option>
+        <option value="name:asc">Player</option>
+        <option value="pos:asc">Position</option>
+        <option value="avg_fdr:asc">Next 5 — easiest first</option>
+        <option value="minutes:desc">Role</option>
+        <option value="ownership:desc">Ownership</option>
+        <option value="price:desc">Price</option>
+      </select>
+    </label>
   </div>
 
   <div class="marketnote" id="marketnote"></div>
 
-  <!-- desktop table -->
+  <!-- desktop table. Every sort key is a number the server already sent -- sorting is
+       arranging, and a key the client worked out (like `afford`) is the governing-rule
+       violation arriving through a new door, so it is not offered here. -->
   <div class="panel marketpanel">
     <table class="ptable" id="ptable">
       <thead><tr>
-        <th></th><th>Player</th><th>Pos</th><th>Next 5</th>
-        <th>Role</th><th class="n">Own</th><th class="n">£</th>
-        <th class="n">xPts</th><th class="n">Δ vs yours</th><th>Replaces</th>
+        <th></th>
+        <th><button data-sort="name">Player</button></th>
+        <th><button data-sort="pos">Pos</button></th>
+        <th><button data-sort="avg_fdr" title="ordered by the average difficulty over the horizon">Next 5</button></th>
+        <th><button data-sort="minutes" title="ordered by expected minutes">Role</button></th>
+        <th class="n"><button data-sort="ownership">Own</button></th>
+        <th class="n"><button data-sort="price">£</button></th>
+        <th class="n"><button data-sort="xp">Projected</button></th>
+        <th class="n"><button data-sort="delta">Better by</button></th>
+        <th>Replaces</th>
       </tr></thead>
       <tbody id="ptbody"></tbody>
     </table>
@@ -212,53 +240,54 @@
 </section>
 
 <!-- ============================================================
-     VIEW: OVERRIDES
-     ============================================================ -->
-<section id="view-overrides" hidden>
+     VIEW: NEWS  (was "Overrides")
+     ============================================================
+     No authoring here — "no custom overrides at this point". This tab adjudicates three
+     kinds of adjustment, grouped by who decided it, because that decides what you may do
+     about it: FPL's own ruling (not adjudicable), the settings file (Ignore / Use it
+     again — suppresses for this visit only, never touches the file), and this session's
+     own locks and blocks (which live on the pitch page's Your instructions panel). -->
+<section id="view-news" hidden>
   <div class="ovhead">
     <div style="flex:1;min-width:220px">
-      <div class="k">Standing overrides</div>
+      <div class="k">News</div>
       <p style="margin-top:6px">
-        Hand-set corrections that bind every squad build and transfer search. An expiry is a guess
-        made when the injury happened, and it is wrong in both directions — so each one carries the
-        date it was set, the date it lapses, and when you last checked it.
+        What the model is running under that a human — you, or FPL itself — set rather than
+        measured. Ignoring one switches it off for this visit and picks your team again
+        without it; your settings file is never changed.
       </p>
-    </div>
-    <div class="acts">
-      <button class="btn sm primary" id="addOv">+ New override</button>
-      <button class="btn sm" id="showLib">Suggested library</button>
-      <button class="btn sm ghost" id="resetOv">Reset to defaults</button>
     </div>
   </div>
 
   <div class="toolbar">
     <div class="seg" id="ovfilter">
-      <!-- The kinds are config.Roster's own, not a second vocabulary. These read "min",
-           "excl" and "team" until review found that every one of them matched nothing:
-           the server sends "lock", "exclude", "minutes" and "club", so all three filters
-           rendered the empty state, which reads as a fact about the configuration rather
-           than a broken control. -->
+      <!-- Named by WHAT CHANGES, not by config.Roster's kind spellings. Selection covers
+           lock/lockXI/exclude; Scoring covers the team-level multiplier (the only
+           scoring-channel adjustment that exists — there is no xG-based override kind). -->
       <button aria-pressed="true" data-kind="ALL">All <span class="dim" id="ovAll"></span></button>
       <button aria-pressed="false" data-kind="minutes">Minutes</button>
-      <button aria-pressed="false" data-kind="lock">Locked</button>
-      <button aria-pressed="false" data-kind="exclude">Excluded</button>
-      <button aria-pressed="false" data-kind="club">Team-level</button>
+      <button aria-pressed="false" data-kind="club">Scoring</button>
+      <button aria-pressed="false" data-kind="selection">Selection</button>
     </div>
     <span class="pill warn" id="staleCount"></span>
   </div>
 
-  <div id="ovlist"></div>
+  <div class="why" style="margin-top:0">
+    <h3>Reported by FPL</h3>
+    <div id="fplnews"></div>
+  </div>
 
-  <div class="why" id="libpanel" style="margin-top:18px">
-    <h3>Suggested library <span class="dim" style="letter-spacing:0;text-transform:none;font-family:var(--ui)">— add any of these, then edit the reasoning</span></h3>
-    <div style="padding:12px 13px">
-      <div class="lib" id="liblist"></div>
+  <div class="why" style="margin-top:14px">
+    <h3>Running from the configuration</h3>
+    <div id="ovlist"></div>
+    <div style="padding:0 13px 13px">
+      <button class="btn sm ghost" id="useAgainAll" disabled>Use these again (0)</button>
     </div>
   </div>
 
   <div class="storenote">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/></svg>
-    These are the standing overrides the model is running under, read from the configuration this server was started with. Clearing one here suppresses it for your session and the squad is rebuilt without it; the configuration file is not touched.
+    These are read from the configuration this server was started with. Ignoring one suppresses it for your visit and the squad is rebuilt without it; the configuration file is not touched.
   </div>
 </section>
 
@@ -300,8 +329,8 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18M12 3v18"/><circle cx="12" cy="12" r="3"/></svg>Pitch</button>
   <button data-view="players" aria-selected="false">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 11h5M19.5 8.5v5"/></svg>Players</button>
-  <button data-view="overrides" aria-selected="false">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>Overrides</button>
+  <button data-view="news" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>News</button>
   <button data-view="brief" aria-selected="false">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l4 4v14H5z"/><path d="M8 11h8M8 15h8M8 7h4"/></svg>Brief</button>
 </nav>
