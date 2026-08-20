@@ -1240,3 +1240,304 @@ body.saving{cursor:progress;}
   .reprow .n{font-size:13.5px;}
   .reprow .x .xp{font-size:15px;}
 }
+
+
+/* ============================================================
+   V2 — SHARED LAYER (Phase 1 of design-assets/v2/, NOTES.md)
+   ============================================================
+   Phase 1 ships the landing page alone (player-card-and-news-page-handoff.md
+   §2). Everything below is v2.css's SHARED layer — the type scale and the
+   reserved violet channel are used across all four v2 surfaces and are
+   additive to this file, so they ship now rather than being extracted here
+   and un-extracted in Phase 2. Landing-page-only CSS stays in
+   pages/landing.html's own <style> block, per the pattern this file already
+   uses for page-specific styling.
+
+   Copied verbatim from design-assets/v2/v2.css §1 and §1.5 — do not edit the
+   two sections below independently of that file; when Phase 2 lands the News
+   tab, player card and chip control, resolve any drift there, not here.
+   ------------------------------------------------------------ */
+
+
+
+/* ============================================================
+   1. THE TYPE SCALE — a closed set of TEN roles
+   ============================================================
+
+   The sheet had thirteen distinct type treatments (nine class-driven,
+   fifteen inline font-size declarations). This is the whole vocabulary
+   that replaces them. Every band on every v2 surface is one of these
+   roles and nothing else. There is no inline font-size anywhere in the
+   v2 markup, and adding one is the bug.
+
+   Each role fixes FOUR things: family, size, weight, ink. A role is a
+   JOB, not a size — if a new piece of text does not have one of these
+   ten jobs, the answer is to find which job it actually has, not to
+   add a tenth role.
+
+   Sizes come from the system's own scale (10 · 11 · 12 · 13 · 15 · 17 ·
+   20 · 28). Nothing renders below 9px anywhere.
+
+   ROLE            JOB
+   t-title    the one name on the surface. There is exactly one per view.
+   t-figure   the number the product exists to produce. One per view.
+   t-stat     a measured value in a grid cell — the evidence layer.
+   t-label    every eyebrow, column head and group head. Identical to
+              armband.css's .k primitive; declared here as an alias so
+              the scale is readable in one place, NOT as a second value.
+   t-row      the name of a thing in a list, table or menu row.
+   t-body     running sentences a person reads.
+   t-meta     supporting data that is not the point: dates, prices,
+              sources, timestamps, sub-lines, units.
+   t-hero     LANDING ONLY. The H1.
+   t-lede     THE CANONICAL LINE. One sentence, and it is the same
+              sentence wherever it appears: "Most weeks nobody you own
+              is injured, and someone still isn't playing." It is the
+              second-largest thing in the landing hero — clearly under
+              the H1, clearly over everything else — and it repeats at
+              the head of the News tab, where it explains why that tab
+              exists to a reader who has never thought about rotation.
+              ⚠️ One documented size variant, and only one: .t-lede.tight
+              drops it to 15px for use INSIDE the tool, where the surface
+              title is 20px and the line must stay subordinate to it.
+              Same family, same weight, same ink; one step down the
+              system's own scale. It is not a second role and it may not
+              acquire a third size.
+   t-sec      LANDING ONLY. A section headline.
+
+   Seven of the ten are the tool's whole vocabulary: t-title, t-figure,
+   t-stat, t-label, t-row, t-body, t-meta. t-lede spans both surfaces —
+   it is the one sentence that says why the product exists, and it must
+   be the same sentence in both places. t-hero and t-sec are the landing
+   page's alone.
+
+   ⚠️ WHAT IS NOT IN THE SCALE, and why. Six components below set their
+   own type: .fxr i, .nsrc .chip, .leakrow .src, .chippill, .cmrow .ic
+   and .mini. Every one is a CHIP OR A MINIATURE — a coloured token in
+   which the type is part of the shape, or, in .mini's case, a scale
+   reproduction of armband.css's own .card. They are components, not
+   text, and armband.css already sets its own chips the same way (.pill,
+   .role, .fdr i, .badge). Text is the scale's jurisdiction; tokens are
+   the component's. If one of these ever holds a sentence, it is wrong.
+
+   REGISTER. The landing-only roles exist because the landing page
+   is deliberately a different register from the tool — warm and wry
+   there, exact and dense here. The split is in TYPE and AIR only. The
+   three colour channels, the contrast floor, the closed scale and the
+   honest labelling of what is not built are identical on both.
+
+   COLOUR is not a role. Ink is set by the role; a role may be recoloured
+   onto one of the three semantic channels with a modifier class, and the
+   modifiers are the ones armband.css already ships (.acc .warnc .badc
+   .dim .muted) plus two this file adds because armband.css had no text
+   class for them (.ovc .bandc). Recolouring is NOT a new treatment: same
+   family, same size, same weight.
+
+     .acc    --acc     the model's number
+     .ovc    --ov      a human overruled the model
+     .bandhi --band-hi you / interactive, on a page or panel ground
+     .warnc  --warn    risk or staleness
+     .badc   --bad     illegal, negative, ruled out
+     .muted  --ink2 · .dim --ink3   quieter, same meaning
+
+   CONTRAST. No new ink value is introduced by this file. Every value
+   below is an existing token, and every one of them clears 4.5:1 on
+   --panel / --bg / --panel3, the three grounds text sits on here:
+
+     --ink      15.94 / 17.43 / 12.91
+     --ink2      8.08 /  8.84 /  6.55
+     --ink3      6.69 /  7.32 /  5.42
+     --label     7.27 /  7.95 /  5.89
+     --acc      11.09 / 12.13 /  8.99
+     --ov        6.72 /  7.35 /  5.45
+     --warn      9.86 / 10.79 /  7.99
+     --bad       5.60 /  6.13 /  4.54
+     --band-hi   5.51 /  6.02 /  4.46   ⚠️ 4.46 on --panel3 — page and
+                 panel ink only, never on a control/hover ground. This
+                 file only ever puts it on --panel, --bg2 and --band-lo
+                 (4.79), never on --panel3.
+
+   Tinted grounds used below, for the same inks:
+     --band-lo  #16204A   --ink 13.85 · --band-hi 4.79 · --ink2 7.02
+     --ov-lo    #1E1733   --ink 15.14 · --ov 6.38     · --ink2 7.67
+     --warn-lo  #2C2008   --ink 14.09 · --warn 8.72   · --ink2 7.14
+     --bad-lo   #2E1017   --ink 15.43 · --bad 5.42    · --ink2 7.82
+     --acc-lo   #07281E   --ink 13.94 · --acc 9.70    · --ink2 7.06
+
+   v2.1 adds two pairs and no new value:
+     --warn on --bg2   10.37  the chip pill's "due" outline; --bg2 is the
+                              .pitchhud ground it sits on
+     --bg on --warn    10.37  the chip pill's "last call" fill, inverted.
+                              The .pill.on lockup — the channel's colour as
+                              the fill, the page ground as the ink — moved
+                              onto --warn.
+   ------------------------------------------------------------ */
+
+:root{
+  /* t-title — the one name on the surface */
+  --t-title-f:var(--display); --t-title-s:20px;  --t-title-w:800;
+  --t-title-i:var(--ink);     --t-title-tr:-.03em; --t-title-lh:1.15;
+
+  /* t-figure — the number the product exists to produce */
+  --t-figure-f:var(--display); --t-figure-s:28px; --t-figure-w:800;
+  --t-figure-i:var(--acc);     --t-figure-tr:-.035em; --t-figure-lh:1;
+
+  /* t-stat — a measured value in a grid cell */
+  --t-stat-f:var(--mono); --t-stat-s:15px; --t-stat-w:700;
+  --t-stat-i:var(--ink);  --t-stat-tr:0;   --t-stat-lh:1.2;
+
+  /* t-label — every eyebrow, column head and group head (= .k) */
+  --t-label-f:var(--mono); --t-label-s:10px; --t-label-w:500;
+  --t-label-i:var(--label); --t-label-tr:.1em; --t-label-lh:1.3;
+
+  /* t-row — the name of a thing in a list, table or menu row */
+  --t-row-f:var(--ui); --t-row-s:13px; --t-row-w:600;
+  --t-row-i:var(--ink); --t-row-tr:-.005em; --t-row-lh:1.35;
+
+  /* t-body — running sentences */
+  --t-body-f:var(--ui); --t-body-s:13px; --t-body-w:500;
+  --t-body-i:var(--ink2); --t-body-tr:0; --t-body-lh:1.55;
+
+  /* t-meta — supporting data that is not the point */
+  --t-meta-f:var(--mono); --t-meta-s:11px; --t-meta-w:500;
+  --t-meta-i:var(--ink3); --t-meta-tr:.02em; --t-meta-lh:1.45;
+
+  /* t-hero — LANDING ONLY, the H1 */
+  --t-hero-f:var(--display); --t-hero-s:clamp(32px,3.7vw,48px); --t-hero-w:800;
+  --t-hero-i:var(--ink); --t-hero-tr:-.045em; --t-hero-lh:1.02;
+
+  /* t-lede — LANDING ONLY, one line that breathes */
+  --t-lede-f:var(--ui); --t-lede-s:clamp(19px,2.1vw,24px); --t-lede-w:500;
+  --t-lede-i:var(--ink); --t-lede-tr:-.012em; --t-lede-lh:1.42;
+
+  /* t-sec — LANDING ONLY, a section headline */
+  --t-sec-f:var(--display); --t-sec-s:clamp(24px,3.2vw,32px); --t-sec-w:800;
+  --t-sec-i:var(--ink); --t-sec-tr:-.035em; --t-sec-lh:1.14;
+}
+
+.t-title,.t-figure,.t-stat,.t-label,.t-row,.t-body,.t-meta,.t-hero,.t-lede,.t-sec{
+  margin:0;
+}
+.t-title{font-family:var(--t-title-f);font-size:var(--t-title-s);font-weight:var(--t-title-w);
+  color:var(--t-title-i);letter-spacing:var(--t-title-tr);line-height:var(--t-title-lh);}
+.t-figure{font-family:var(--t-figure-f);font-size:var(--t-figure-s);font-weight:var(--t-figure-w);
+  color:var(--t-figure-i);letter-spacing:var(--t-figure-tr);line-height:var(--t-figure-lh);
+  font-variant-numeric:tabular-nums;}
+.t-stat{font-family:var(--t-stat-f);font-size:var(--t-stat-s);font-weight:var(--t-stat-w);
+  color:var(--t-stat-i);letter-spacing:var(--t-stat-tr);line-height:var(--t-stat-lh);
+  font-variant-numeric:tabular-nums;}
+.t-label{font-family:var(--t-label-f);font-size:var(--t-label-s);font-weight:var(--t-label-w);
+  color:var(--t-label-i);letter-spacing:var(--t-label-tr);line-height:var(--t-label-lh);
+  text-transform:uppercase;}
+.t-row{font-family:var(--t-row-f);font-size:var(--t-row-s);font-weight:var(--t-row-w);
+  color:var(--t-row-i);letter-spacing:var(--t-row-tr);line-height:var(--t-row-lh);}
+.t-body{font-family:var(--t-body-f);font-size:var(--t-body-s);font-weight:var(--t-body-w);
+  color:var(--t-body-i);letter-spacing:var(--t-body-tr);line-height:var(--t-body-lh);}
+.t-meta{font-family:var(--t-meta-f);font-size:var(--t-meta-s);font-weight:var(--t-meta-w);
+  color:var(--t-meta-i);letter-spacing:var(--t-meta-tr);line-height:var(--t-meta-lh);
+  font-variant-numeric:tabular-nums;}
+.t-hero{font-family:var(--t-hero-f);font-size:var(--t-hero-s);font-weight:var(--t-hero-w);
+  color:var(--t-hero-i);letter-spacing:var(--t-hero-tr);line-height:var(--t-hero-lh);text-wrap:balance;}
+.t-lede{font-family:var(--t-lede-f);font-size:var(--t-lede-s);font-weight:var(--t-lede-w);
+  color:var(--t-lede-i);letter-spacing:var(--t-lede-tr);line-height:var(--t-lede-lh);
+  text-wrap:pretty;}
+/* the one permitted size variant — inside the tool, under a 20px title */
+.t-lede.tight{font-size:15px;line-height:1.45;letter-spacing:-.006em;}
+.t-sec{font-family:var(--t-sec-f);font-size:var(--t-sec-s);font-weight:var(--t-sec-w);
+  color:var(--t-sec-i);letter-spacing:var(--t-sec-tr);line-height:var(--t-sec-lh);text-wrap:balance;}
+
+/* A t-body may carry one bolded phrase without leaving the role: same family,
+   same size, weight moves to 700 and the ink to --ink. This is the ONLY nesting
+   the scale allows, and it exists because refusing it is what produced the
+   inline 12.5px spans this file deletes. (700 rather than 600, so the emphasis
+   still reads as a step up now that the body role itself sits at 500 — see the
+   legibility pass in NOTES.md.) */
+.t-body b,.t-body strong{font-weight:700;color:var(--ink);}
+
+/* The colour modifier armband.css has no text class for.
+   .acc .warnc .badc .dim .muted already exist there and are reused as-is.
+   .ovc is the second one and it lives in §1.5 with the rest of the violet. */
+.bandhi{color:var(--band-hi);}
+
+
+/* ============================================================
+   1.5  RESERVED — THE VIOLET --ov CHANNEL, UNUSED IN v1
+   ============================================================
+   ⚠️ READ THIS BEFORE PRUNING ANYTHING BELOW. Every rule in this block
+   is deliberately unreferenced by v1 markup. It is not dead code that
+   somebody forgot; it is a reserved channel, kept intact on purpose.
+
+   The three channels are unchanged and there is still no fourth:
+
+       --band  #2F53F0   YOU        interactive, selected, the armband
+       --acc   #00E88A   THE MODEL  projections, deltas, points
+       --ov    #A98BFF   A HUMAN OVERRULING THE MODEL
+
+   What changed in v1 is that the third case does not occur. There is no
+   reader-set override in the product: everything that used to be drawn
+   as "the configuration" or "your settings" is NEWS, written by us and
+   provided by the system, and it is drawn as news. Reader-set overrides
+   are a later version, and when they arrive they arrive in this violet.
+
+   So the channel keeps its definition and loses its callers. Do not
+   re-point any of these rules at a system-provided item to "use them
+   up" — that would put a human-overruled colour on a machine-produced
+   number, which is the one thing the channel exists to prevent.
+
+   With --ov out of use, --band is now the ONLY reader-owned ink on
+   these surfaces, and Lock in / Leave out are the only things wearing
+   it. That is the point: on a page where everything else is the system
+   talking, the blue is the two things that are yours.
+   ------------------------------------------------------------ */
+
+/* .ovc — text on the violet channel — already exists above, added for the
+   replacement picker's "hidden by your exclusion" count; not redefined here. */
+/* the player-card figure when a reader has overruled it */
+.pcfig.isov .t-figure{color:var(--ov);}
+.pcfig.isov{box-shadow:inset 3px 0 0 var(--ov);}
+.pcovtag{align-self:flex-start;margin-top:2px;}
+/* the derivation row that names the override */
+.dstep.isov{background:var(--ov-lo);margin:0 -13px;padding-left:13px;padding-right:13px;
+  border-bottom:0;box-shadow:inset 3px 0 0 var(--ov);}
+.dstep.isov .dv{color:var(--ov);}
+/* the news row's source chip, for a row whose source is the reader */
+.nsrc .chip.you{background:var(--ov-lo);border-color:#3B2F63;color:var(--ov);}
+
+/* ---- news-row primitives the landing page's "Working now" demo needs ----
+   That card is not a sketch of the News tab — it renders the tab's own
+   .nrow / .nsrc / .neffect at product size (NOTES.md §5). Phase 2 brings
+   the rest of the News tab (.ngroup, .nallgood, .nempty, the other source
+   chips — fpl / out / read / press — .nact, staleness); only what the
+   landing page actually renders is pulled forward here. Copied verbatim
+   from design-assets/v2/v2.css §3. */
+.ngrouphead{display:flex;align-items:center;gap:9px;padding:10px 13px;
+  border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.ngrouphead .sp{flex:1;}
+.nrow{
+  display:grid;grid-template-columns:112px minmax(0,1fr) auto;gap:12px;
+  padding:11px 13px;border-bottom:1px solid var(--line);align-items:start;
+}
+.nrow:last-child{border-bottom:0;}
+.nsrc{display:flex;flex-direction:column;gap:4px;min-width:0;}
+.nsrc .chip{
+  display:block;text-align:center;padding:4px 6px;border-radius:5px;
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:var(--panel2);border:1px solid var(--line2);color:var(--ink2);
+}
+/* MODEL — the standing "who may not start" band's source chip, on the --acc
+   channel because that is who says so (NOTES.md §3). */
+.nsrc .chip.model{background:var(--acc-lo);border-color:#0F553A;color:var(--acc);}
+.nbody{min-width:0;display:flex;flex-direction:column;gap:5px;}
+.nbody .nwho{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;}
+.neffect{
+  display:inline-flex;align-items:center;gap:8px;align-self:flex-start;
+  padding:4px 9px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);
+}
+.neffect .arw{color:var(--ink3);}
+
+/* the one "Coming soon" badge, shared by the landing page's later card and
+   (in Phase 2) the News tab's press panel (NOTES.md §3, §5). --band-hi on
+   --band-lo is 4.79:1. */
+.pill.soon{background:var(--band-lo);border-color:var(--band-hi);color:var(--band-hi);
+  font-weight:700;}
