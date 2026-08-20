@@ -13,8 +13,17 @@ import (
 	"armband/internal/webui"
 )
 
+// ⚠️ -update rewrites EVERY golden, not only the ones that failed: the branch below
+// writes and returns before any comparison runs. So a shot your change cannot have
+// touched still comes back rewritten, and the render is only deterministic to within
+// browsertest.NoiseFloor — a rewrite can bank a difference the comparison would have
+// forgiven. Observed: phone-picker.png came back modified on a run that changed only
+// the landing page, and reverting it left the suite green. Check `git status` after
+// every -update and revert whatever your change cannot explain.
 var update = flag.Bool("update", false,
-	"rewrite the layout goldens from what the application currently renders")
+	"rewrite the layout goldens from what the application currently renders. "+
+		"⚠️ EVERY golden, not only the failing ones — check `git status` afterwards "+
+		"and revert what your change cannot explain")
 
 // The layout suite: the application rendered against fixed documents.
 //
