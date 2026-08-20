@@ -70,9 +70,6 @@ Usage:
   armband snapshot          Model-and-harness accuracy snapshot from a sweep's
                             per-cell CSVs (no AI, no API cost, no network).
                             Run with -h for its own flags.
-  armband reviewkey         Write a review record's key.csv from the staged index,
-                            so TestReviewCoversTheCurrentCode knows what the record
-                            covers. Stage your change first. Run with -h for flags.
 
 Flags:
   -config string   Path to config file (default "config.json")
@@ -109,8 +106,8 @@ Examples:
   armband squad -html squad.html    WRONG, and an error rather than a squad
                                      printed with the file never written
 
-  Five commands parse their own flags, which therefore go AFTER the command:
-  capture, backfill, snapshot, reviewkey and serve. Their flags still come
+  Four commands parse their own flags, which therefore go AFTER the command:
+  capture, backfill, snapshot and serve. Their flags still come
   before their own positional arguments, for the same reason — a FlagSet stops
   at the first non-flag argument too, so "backfill 2023-24 -coverage" reads
   -coverage as a second season name and crawls the archive it was meant to
@@ -132,7 +129,7 @@ func main() {
 }
 
 // globalFlags are the flags every command shares, as distinct from the ones
-// capture, backfill, snapshot and reviewkey register on their own FlagSet.
+// capture, backfill and snapshot register on their own FlagSet.
 type globalFlags struct {
 	cfgPath  *string
 	noReport *bool
@@ -197,11 +194,6 @@ func run() error {
 	// and would fail on a plane for no reason.
 	if cmd == "snapshot" {
 		return runSnapshot(cfg, flag.Args()[1:])
-	}
-	// Same argument, one step further: writing a review record's key reads the git
-	// index and nothing else.
-	if cmd == "reviewkey" {
-		return runReviewKey(flag.Args()[1:])
 	}
 	if *model != "" {
 		cfg.Model = *model
@@ -1384,11 +1376,10 @@ func priorSeasonName(e *analysis.Engine) string {
 // themselves. Everything after the command name belongs to them and must not be
 // second-guessed here.
 var commandsThatParseTheirOwnFlags = map[string]bool{
-	"snapshot":  true, // runSnapshot has its own FlagSet
-	"reviewkey": true, // runReviewKey takes -out and -rev
-	"capture":   true, // cmdCapture takes -list and friends
-	"backfill":  true, // cmdBackfill takes -coverage, -per-gameweek and friends
-	"serve":     true, // cmdServe takes -addr
+	"snapshot": true, // runSnapshot has its own FlagSet
+	"capture":  true, // cmdCapture takes -list and friends
+	"backfill": true, // cmdBackfill takes -coverage, -per-gameweek and friends
+	"serve":    true, // cmdServe takes -addr
 }
 
 // rejectFlagsAfterCommand turns a silent no-op into an error.

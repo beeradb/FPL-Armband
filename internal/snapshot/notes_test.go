@@ -70,18 +70,20 @@ func TestNoLivePointerCitesTheRecordByPath(t *testing.T) {
 	}
 
 	// The same surface as `TestRetractedFiguresAreNotQuotedAsCurrent`, plus this
-	// guard's own `stats/*.R`. The two ask different questions of one population, and
-	// scoping them separately is how the sibling came to read `.claude/` while this
-	// one did not — `reviewgate_test.go` already records what fixing two guards
-	// separately costs. `README.md` and `.claude/` were added 2026-08-15 and are green
-	// on arrival; the case for them is the next dangling pointer, not a live one.
-	// Discovered rather than asserted, for the reason the sibling's copy of this
-	// block gives at length: a one-element slice literal has length 1 whether or not
-	// the file exists, so the floor cannot fire on it.
+	// guard's own `stats/*.R`. The two ask different questions of one population.
+	// `README.md` was added 2026-08-15 and is green on arrival; the case for it is
+	// the next dangling pointer, not a live one. Discovered rather than asserted,
+	// for the reason the sibling's copy of this block gives at length: a
+	// one-element slice literal has length 1 whether or not the file exists, so the
+	// floor cannot fire on it.
+	//
+	// ⚠️ `.claude/*.md` was on this surface, and on the sibling's, from 2026-08-15
+	// until 2026-08-20 — removed both places the same commit, for the same reason
+	// the sibling's comment gives: its only tracked content was two skills, and both
+	// retired.
 	surfaces := map[string][]string{
 		"AGENTS.md":    trackedFiles(root, ".md", "AGENTS.md"),
 		"README.md":    trackedFiles(root, ".md", "README.md"),
-		".claude/*.md": agentAndSkillDocs(root),
 		"internal+cmd": goSources(root),
 	}
 	for _, pat := range []string{
@@ -938,7 +940,55 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// ⚠️ Raised rather than compressed, per this comment's own rule. This entry is NOT an
 	// instance of the deletion the failure message counts: nothing was cut to fit, which is
 	// why that count is left where it is.
-	const budget = 45 * 1024
+	//
+	// # 46 KB from 2026-08-19 — "the tests are slow" was a full disk, and the record has to say so
+	//
+	// The claim that needed the room, and it is a diagnosis rather than a verdict:
+	// this suite re-running everything on every invocation is the symptom of a disk
+	// with no room to write a test result, and Go declines to cache one it cannot
+	// write WITHOUT SAYING SO. Measured the day it was written: `/` at 100%, 61 MB
+	// free, 27 GB of a 58 GB volume inside GOCACHE, and a reviewer's run dying on
+	// `no space left on device` writing testlog.txt. Warm, with room, the whole
+	// suite is 6.3s against 227s under `-count=1` -- warm WITH NOTHING CHANGED, which
+	// is the qualifier that makes the pair mean anything.
+	//
+	// The bytes are the two qualifiers and the closed line, not the numbers. Drop
+	// "check `df -h /`" and the entry becomes advice about a flag; drop "Go
+	// declines silently" and the next reader has no reason to look at the disk at
+	// all, which is the whole finding. The closed line pays for itself once: a
+	// scoped local test run was built, measured against this, and refused — the Go
+	// test cache already implements it and tracks the cross-package source scans an
+	// import graph cannot see, so the hand-derived version skipped exactly the
+	// guards the record above pins its shipped bugs with.
+	//
+	// ⚠️ Raised rather than compressed, per this comment's own rule. And 44 KB left
+	// 74 bytes free, which is the ratchet the "why the number is not pinned to the
+	// current size" section above warns against — the first honest edit after it
+	// broke the build, which is what that section predicts. 46 KB is set above the
+	// current size deliberately.
+	// ⚠️ RAISED AGAIN, 2026-08-20, and the previous raise's own claim was false.
+	// It said "46 KB is set above the current size deliberately" -- it left
+	// FOURTEEN bytes, tighter than the 74 that raise was made to escape, in the
+	// very commit that named 74 as the ratchet. Three one-clause corrections
+	// found by review then did not fit, which is the failure this comment keeps
+	// predicting and keeps suffering. 48 KB is headroom, not a fit: it is set
+	// above the current size with room for the next honest sentence, and if a
+	// future edit finds it tight the answer is still to raise it and name the
+	// claim, never to drop a qualifier.
+	//
+	// # 52 KB, same day — retiring the review ritual needed more room than it saved
+	//
+	// Removing the "invoke merge-gate" instruction did not shrink this file: the
+	// replacement needed to say what changed, why, and what a reader does now that
+	// the old instruction is gone — a pull-request landing process, the CI-red
+	// state as of `97c941c` (`TestLayout` now skipped rather than failing,
+	// `TestEnvSwitchListIsComplete` red instead, for a reason named so it is not
+	// mistaken for a verdict on an unrelated branch), and a standing exception for
+	// `internal/webui`'s goldens now that CI cannot see them. Cutting any one of
+	// those to fit is the qualifier-dropping failure this comment already warns
+	// against twice above. Left about 3 KB free rather than repeating the 14-byte
+	// and 74-byte near-misses.
+	const budget = 52 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

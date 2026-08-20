@@ -135,6 +135,14 @@ func TestEnvSwitchListIsComplete(t *testing.T) {
 	skip := map[string]bool{
 		"FPL_SESSION": true, // a credential; a snapshot is committed
 		"FPL_CELLS":   true, // where to write, not what to compute
+		// Forces the layout goldens to compare in CI, where they are otherwise
+		// skipped because GitHub's runners render every shot 2/255 off the
+		// committed PNGs. It gates a TEST, not a model input: nothing on the
+		// scoring or replay path reads it, so a sweep run with it set computes
+		// exactly what the shipped defaults compute. ⚠️ Delete this entry when
+		// the goldens defect is fixed and the skip in visual_test.go goes with
+		// it — an exemption outliving its switch is how this map rots.
+		"FPL_LAYOUT_GOLDENS": true,
 		// Where the hit-verdict sidecar is written, for
 		// stats/hittune_verdicts.R. An output path: the package rows it carries
 		// are the same rows already aggregated into the cells file, so setting

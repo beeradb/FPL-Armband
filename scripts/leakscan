@@ -5,7 +5,14 @@
 #
 # # Why this exists
 #
-# There is a `pre-receive` hook on the private bare repository that does exactly
+# ⚠️ Corrected 2026-08-19: the paragraph below is the reason this script was
+# written, and its premise has since expired. There is one remote, the hosted
+# public GitHub repository, and it runs no `pre-receive` hook — so this script is
+# not a second copy of a guard that still exists elsewhere. It is the only
+# automated check on this channel, which is also why it now runs on `push` and
+# not on `pull_request` alone.
+#
+# There was a `pre-receive` hook on the private bare repository that did exactly
 # this, fail-closed and unbypassable. **It does not survive publication.** A hosted
 # remote runs no such hook, so the moment `origin` moves the guard is simply gone
 # — and a pull-request workflow is when it is most wanted, because that is when
@@ -45,8 +52,38 @@
 set -euo pipefail
 
 if [ -z "${LEAKSCAN_PATTERN:-}" ]; then
-	echo "leakscan: LEAKSCAN_PATTERN is unset — skipping."
-	echo "leakscan: this is expected for a fork's pull request, which cannot read secrets."
+	echo "leakscan: LEAKSCAN_PATTERN is unset — skipping. NOTHING WAS CHECKED."
+	# ⚠️ Two very different causes, and saying only the benign one is how this
+	# guard stayed invisible. A FORK's pull request cannot read secrets, and that
+	# is expected. A SAME-REPO push or pull request CAN — so an unset pattern
+	# there means the repository secret is missing, and the guard is not
+	# configured at all. Observed 2026-08-20 on a same-repo branch push: the step
+	# ran (2026-08-20 UTC), the range was right, the pattern was empty, and the old message
+	# blamed a fork. Distinguish them, or the second case reads as the first.
+	#
+	# ⚠️ "Absent" is NOT the only cause of an empty value on a same-repository
+	# event, and naming only that sends a reader to one settings page out of
+	# several. It may also be an ENVIRONMENT secret with no `environment:` on the
+	# job, an ORGANIZATION secret whose repository-access policy excludes this
+	# repo, a name that does not match, or a stored empty string.
+	#
+	# ⚠️ And the GITHUB_ACTIONS guard is load-bearing: without it, a local
+	# `scripts/leakscan origin/main..HEAD` -- which this script's own usage line
+	# invites -- compares an empty GITHUB_REPOSITORY against itself, matches, and
+	# announces that a disclosure guard is unconfigured. A false alarm in this
+	# voice is how a real one stops being read.
+	if [ -z "${GITHUB_ACTIONS:-}" ]; then
+		echo "leakscan: not a CI run — export LEAKSCAN_PATTERN to check a range locally."
+	elif [ "${GITHUB_EVENT_NAME:-}" = "push" ] ||
+		[ "${GITHUB_REPOSITORY:-}" = "${LEAKSCAN_HEAD_REPO:-}" ]; then
+		echo "leakscan: ⚠️ this event CAN read secrets — same-repository." >&2
+		echo "leakscan: ⚠️ so no value for LEAKSCAN_PATTERN reached this job: it is absent," >&2
+		echo "leakscan: ⚠️ out of scope for this job, or empty — NOT withheld." >&2
+		echo "leakscan: ⚠️ the disclosure guard is NOT configured. Check repository AND" >&2
+		echo "leakscan: ⚠️ organization secrets, and any environment scoping." >&2
+	else
+		echo "leakscan: this is expected for a fork's pull request, which cannot read secrets."
+	fi
 	echo "leakscan: it is NOT a pass. Nothing was checked."
 	exit 0
 fi

@@ -51,8 +51,7 @@ statistics that turn a replay into a verdict live in [`stats/README.md`](../stat
 ## The rule that keeps these honest
 
 A stale figure is worse here than anywhere else, because a reader trusts a document called
-"the model" to describe the model. Two tests guard against exactly that:
-`TestRetractedFiguresAreNotQuotedAsCurrent` scans these documents, the root `README.md` and
-the source code for withdrawn numbers quoted as current, and `TestReviewCoversTheCurrentCode`
-treats `docs` as reviewable code. Neither can tell whether a document is *good*; both catch a
-specific failure that has happened here more than once.
+"the model" to describe the model. `TestRetractedFiguresAreNotQuotedAsCurrent` guards against
+exactly that, scanning these documents, the root `README.md` and the source code for withdrawn
+numbers quoted as current. It cannot tell whether a document is *good*; it catches a specific
+failure that has happened here more than once.

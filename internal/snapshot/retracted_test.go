@@ -370,21 +370,26 @@ func TestRetractedFiguresAreNotQuotedAsCurrent(t *testing.T) {
 	// word naming that quantity shares its line.
 	//
 	// `README.md` and `.claude/` were added 2026-08-15, the guard's first WIDENING
-	// after two narrowings. Expect them green: the one live instance was fixed at
-	// `5a935cf` before the scan could reach it, so the case for reading them is the
-	// next withdrawn figure rather than this one. See `agentAndSkillDocs`.
+	// after two narrowings.
+	//
+	// ⚠️ `.claude/` was REMOVED again 2026-08-20, the third such reduction rather
+	// than the first two the paragraphs above describe. Its only tracked content —
+	// `.claude/skills/merge-gate/SKILL.md` and `.claude/skills/review-gate/SKILL.md`
+	// — was deleted when those two processes retired (see AGENTS.md), leaving the
+	// tree with no tracked Markdown at all: `git ls-tree -r --name-only HEAD --
+	// .claude` returns nothing. A surface with a floor of zero possible files is not
+	// a guard, it is a permanent failure, so the entry goes with its content rather
+	// than being kept red. Re-add it, keyed the same way, if `.claude/` ever tracks
+	// Markdown again.
+	//
 	// Every surface is DISCOVERED, including the two single-file ones. A literal
 	// {filepath.Join(root, "AGENTS.md")} has length 1 whether or not the file is
 	// there, so the floor below could never fire on it — and the failure that hides
-	// is not a quiet one. `.claude/*.md` sorts before `AGENTS.md`, so a renamed or
-	// absent AGENTS.md would scan the nine agent definitions, reach checkRetracted's
-	// `rel == "AGENTS.md"` branch, and Skipf the WHOLE test: README, docs, stats and
-	// all 329 Go files unscanned, `go test ./...` exiting 0, one SKIP line. Asking
-	// git makes an absent file an empty surface and a loud failure instead.
+	// is not a quiet one. Asking git makes an absent file an empty surface and a
+	// loud failure instead.
 	surfaces := map[string][]string{
 		"AGENTS.md":    trackedFiles(root, ".md", "AGENTS.md"),
 		"README.md":    trackedFiles(root, ".md", "README.md"),
-		".claude/*.md": agentAndSkillDocs(root),
 		"internal+cmd": goSources(root),
 	}
 	for _, tree := range []string{"docs", "stats"} {
@@ -409,28 +414,6 @@ func TestRetractedFiguresAreNotQuotedAsCurrent(t *testing.T) {
 // hide in a comment.
 func goSources(root string) []string {
 	return trackedFiles(root, ".go", "internal", "cmd")
-}
-
-// agentAndSkillDocs lists the tracked Markdown under `.claude/` — the eight reviewer
-// definitions and the review-gate skill.
-//
-// These are in scope for the same reason `docs/` is, and arguably a stronger one: they
-// are loaded VERBATIM into a subagent on every dispatch, which is "read without
-// choosing" in exactly the sense this guard's scope note uses. The instance that
-// motivated adding them was `.claude/agents/fpl-stats-review.md` carrying a withdrawn
-// buy-side figure as its own worked example — so the reviewer whose job is deciding
-// whether evidence supports a claim shipped a retracted number, including on the
-// dispatches that eventually found it.
-//
-// # Why this asks git rather than walking the directory
-//
-// `.claude/worktrees/` is gitignored and holds full checkouts of sibling branches. A
-// filesystem walk of `.claude` in the primary checkout returns ~2,000 Markdown files
-// belonging to twenty other branches, so the guard would scan content that is not at
-// HEAD and fail for reasons unrelated to this commit. Asking git for tracked files is
-// immune to that by construction, and to untracked local scratch as well.
-func agentAndSkillDocs(root string) []string {
-	return trackedFiles(root, ".md", ".claude")
 }
 
 // trackedFiles lists every tracked file under trees whose name ends in suffix, as an

@@ -331,7 +331,7 @@ func TestEverySelfParsingCommandIsDispatchedBeforeTheGuard(t *testing.T) {
 	// permanent exemption for a name nothing dispatches, which is how the guard
 	// would silently stop covering a real command that was renamed.
 	known := map[string]bool{
-		"snapshot": true, "reviewkey": true, "capture": true,
+		"snapshot": true, "capture": true,
 		"backfill": true, "serve": true,
 	}
 	for cmd := range commandsThatParseTheirOwnFlags {

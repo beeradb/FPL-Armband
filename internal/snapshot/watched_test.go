@@ -93,8 +93,8 @@ func TestTheDigestMovesWhenWatchedContentMoves(t *testing.T) {
 }
 
 // Test files are excluded, so adding a regression test does not fire the gate on the
-// very work that satisfies it. Both guards promised this before the change and both
-// must still keep it.
+// very work that satisfies it. The guard promised this before the change and must
+// still keep it.
 func TestTheDigestIgnoresTestFilesAndUnwatchedPaths(t *testing.T) {
 	repo := newGitRepo(t)
 	repo.seedWatched()
@@ -117,24 +117,12 @@ func TestTheDigestIgnoresTestFilesAndUnwatchedPaths(t *testing.T) {
 	if before != after {
 		t.Error("a _test.go file, an unwatched doc or an unwatched command moved the digest")
 	}
-
-	// docs IS on the review watch list, so the same tree must move that digest. This
-	// is the check that would catch the two lists being accidentally unified.
-	reviewDigest, _, err := WatchedDigest(repo.dir, "HEAD", ReviewWatchedPaths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reviewBefore, _, err := WatchedDigest(repo.dir, "HEAD~1", ReviewWatchedPaths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reviewDigest == reviewBefore {
-		t.Error("docs/model.md changed and the review digest did not move")
-	}
 }
 
-// The index digest is what makes a review record a one-commit operation: it must see
-// staged content that HEAD does not.
+// The index digest must see staged content that HEAD does not. See IndexRev: this
+// was what made a review record a one-commit operation, before the review gate
+// retired; the capability stays tested even though nothing in cmd/armband calls it
+// today.
 func TestTheIndexDigestSeesStagedWork(t *testing.T) {
 	repo := newGitRepo(t)
 	repo.seedWatched()
@@ -510,20 +498,20 @@ func newGitRepo(t *testing.T) *gitRepo {
 	return r
 }
 
-// seedWatched gives every entry on BOTH watch lists at least one file.
+// seedWatched gives every entry on the watch list at least one file.
 //
 // `WatchedDigest` errors on an entry that matches nothing, because in the real
 // repository that means a typo, a rename or the wrong working directory — all of
 // which otherwise read downstream as "this tree is clean". A fixture that seeds one
 // path out of four is that same condition, so it has to seed all of them.
 //
-// Driven off the lists themselves rather than a hand-written copy: adding a watch
-// entry would otherwise break every fixture here with an error about the fixture
-// instead of about the change, and someone would fix it by loosening the check.
+// Driven off the list itself rather than a hand-written copy: adding a watch entry
+// would otherwise break every fixture here with an error about the fixture instead
+// of about the change, and someone would fix it by loosening the check.
 func (r *gitRepo) seedWatched() {
 	r.t.Helper()
 	seen := map[string]bool{}
-	for _, list := range [][]string{ReviewWatchedPaths, SnapshotWatchedPaths} {
+	for _, list := range [][]string{SnapshotWatchedPaths} {
 		for _, p := range list {
 			if seen[p] {
 				continue

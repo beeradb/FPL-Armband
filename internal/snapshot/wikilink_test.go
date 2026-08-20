@@ -44,14 +44,15 @@ var wikilinkPattern = regexp.MustCompile(`(^|[^\w])(\[\[[^\]\n]{1,200}\]\])`)
 //
 // # Why it is a test rather than a review item
 //
-// Because a review missed it, twice, and this record's own conclusion is that
-// invariants beat reviewers decisively — see the note on
-// TestReviewCoversTheCurrentCode.
+// Because a review missed it, twice, and this record's own conclusion — recorded
+// against the review gate before it retired 2026-08-20 — is that invariants beat
+// reviewers decisively.
 //
-// The instance that motivated this: `.claude/skills/review-gate/SKILL.md` carried a
-// `[[…]]` reference that a docs review had already flagged and a later branch had
-// already written a guard for — on a branch that was never merged. The commit that
-// keyed the staleness guards on content then **edited that same file, 33 lines, and
+// The instance that motivated this: `.claude/skills/review-gate/SKILL.md` (since
+// retired) carried a `[[…]]` reference that a docs review had already flagged and a
+// later branch had already written a guard for — on a branch that was never merged.
+// The commit that keyed the staleness guards on content then **edited that same
+// file, 33 lines, and
 // shipped the reference to `main` untouched**, because nothing in the tree checked.
 // A guard that lives on an unmerged branch is not a guard.
 //

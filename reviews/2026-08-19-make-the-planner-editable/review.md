@@ -1,7 +1,12 @@
 # Review — making the planner editable, and the controls that did not change the model
 
-**Range reviewed:** `origin/main..HEAD` on `make-the-planner-editable` — six commits,
-`236c7c4` through the one this record rides in.
+**Range reviewed:** `origin/main..HEAD` on `make-the-planner-editable` — `236c7c4` through the
+commit this record rides in.
+
+⚠️ **CORRECTION, 2026-08-19.** This said "six commits". It was seven at the time of writing
+and nine as merged; the branch merged at `99ae9f2`, and `2d6caf1` is the last commit this
+record covers. A reader checking the range against `git log` would have found a different
+number, which is exactly the sort of small wrongness that makes a record stop being trusted.
 
 **What it is.** The planner shipped read-only in the previous branch. Four bugs came back
 from use — a remove button that did nothing, a swap panel that offered nobody, a stale
@@ -245,6 +250,13 @@ selection inflation in the fifteen, and the constrained squad is itself an argma
 there.** This paragraph is the retraction. It may carry the census numbers because
 `TestTheVarietyCostIsBounded` computes them.
 
+**It also called a projection "measured".** `3d97270`'s message reads "Measured rather than
+asserted: variety costs 0.88 pts/gw on average…". That word is the part most likely to be
+repeated, and it was wrong independently of the arithmetic: the figure is the model's own
+projected difference at one instant, on one capture, at one gameweek, under one horizon.
+Nothing was measured. A projected gap and a measured points cost are different quantities,
+and this record is the only place in the repository where that sentence is contradicted.
+
 ### 13. `PlayableChips` was thin-feed fragile, and offered chips it could not play — APPLIED
 
 A chip with a start and no stop was dropped from every gameweek (the symptom is a chip row
@@ -252,7 +264,18 @@ that is simply not there); a stop of zero now reads as an open window. And an un
 *offered*, then hit a `switch` with no matching case and did nothing — the branch's own defect
 class. Unknown chips are no longer offered.
 
-### 14. One `Dismissed` entry means two things — DECLINED, with the reason
+### 14. `tokenOK("")` was true when the server had no token — APPLIED
+
+Added 2026-08-19: the commit message listed this and the record did not, which is an omission
+rather than a policy — findings I found myself are recorded elsewhere here.
+`subtle.ConstantTimeCompare` on two zero-length slices returns 1, so an empty token opened
+every write route, while `authed` guarded the same case explicitly. The two disagreed about
+what an unconfigured server means. Unreachable today — `cmdServe` returns on a token error and
+never builds one — which is precisely why it is pinned rather than relied upon.
+`TestAServerWithNoTokenGrantsNothing` asserts both halves and that `authed` and `tokenOK` now
+agree.
+
+### 15. One `Dismissed` entry means two things — DECLINED, with the reason
 
 `Dismissed[C]` suppresses every config override on code C — exclude, lock and minutes — and
 also deletes the reader's own session lock or block on C. A reader with a config exclusion and
@@ -324,9 +347,20 @@ cells file was supplied, so the replay half is the previous series' and is uncha
 
 - `carry-the-selling-price-into-the-planner` — tier 1, filed in the research store at the
   user's request. The planner prices a sale at the LISTED price; FPL pays purchase price plus
-  half of any rise. The rule is already implemented in `analysis.SquadState.sellPrice` and the
-  planner simply does not reach it. The error is one-directional and only ever over-states the
-  budget.
+  half of any rise. The error is one-directional and only ever over-states the budget.
+
+  ⚠️ **CORRECTION, 2026-08-19, after this record was committed.** This paragraph originally
+  read "The rule is already implemented in `analysis.SquadState.sellPrice` and the planner
+  simply does not reach it." **That is false**, and it is corrected here rather than deleted
+  because it is the kind of claim a later reader would build on. `SquadState.sellPrice`
+  (`internal/analysis/swaps.go:287`) is a map lookup into `SquadState.Sell` with a fallback to
+  market price — not the rule. The rule is implemented **twice**, at
+  `internal/fpl/squadprices.go:118` and `internal/backtest/wallet.go:77`, both spelling
+  `paid + (market-paid)/2`, and nothing pins them to each other. `SquadState.Sell` is filled
+  from `fpl.SquadPrices` only when `entry_id` is set, so without one the CLI transfer search
+  has the same defect this item is filed about. The accurate framing is not "the planner fails
+  to reach a capability" but "the capability needs entry data the planner does not have".
+  Found by `fpl-docs-review`; I had asserted it from a name rather than from the body.
 - The transfer confirm flow is stubbed: no hit cost, no deadline check.
 - Three client surfaces still compute model quantities — the formations rail, the two captain
   fallbacks, and the per-pound ratio — named in `internal/webui`'s package comment.
