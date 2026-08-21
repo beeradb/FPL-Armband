@@ -10,7 +10,7 @@ import (
 
 func testEngine(t *testing.T) *Engine {
 	t.Helper()
-	c := fpl.New(t.TempDir(), 24*time.Hour)
+	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
 	ctx := context.Background()
 	boot, err := c.Bootstrap(ctx)
 	if err != nil {

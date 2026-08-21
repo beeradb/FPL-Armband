@@ -663,5 +663,6 @@
   ],
   "report_dir": "reports",
   "cache_dir": ".cache/fpl",
-  "cache_minutes": 60
+  "cache_minutes": 60,
+  "player_cache_minutes": 15
 }

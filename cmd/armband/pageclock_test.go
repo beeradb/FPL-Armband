@@ -116,7 +116,7 @@ func TestNewsCheckedReadsTheDiskCacheAndTheClock(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	c := fpl.New(dir, time.Hour)
+	c := fpl.New(dir, time.Hour, time.Hour)
 	if got := newsChecked(c, time.Now()); got != "" {
 		t.Errorf("newsChecked before anything is cached = %q, want empty", got)
 	}

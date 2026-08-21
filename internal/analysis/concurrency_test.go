@@ -15,7 +15,7 @@ import (
 // "concurrent map writes" fatal error — which is not recoverable, so it took the
 // whole process down mid-run. Run with -race to see the underlying data race.
 func TestEngineScoresConcurrently(t *testing.T) {
-	c := fpl.New(t.TempDir(), 24*time.Hour)
+	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
 	ctx := context.Background()
 	boot, err := c.Bootstrap(ctx)
 	if err != nil {
@@ -54,7 +54,7 @@ func TestEngineScoresConcurrently(t *testing.T) {
 // update_competition_status rewrites the congestion model mid-run while other
 // tools are still scoring players off it.
 func TestCompetitionUpdateIsSafeDuringScoring(t *testing.T) {
-	c := fpl.New(t.TempDir(), 24*time.Hour)
+	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
 	ctx := context.Background()
 	boot, err := c.Bootstrap(ctx)
 	if err != nil {

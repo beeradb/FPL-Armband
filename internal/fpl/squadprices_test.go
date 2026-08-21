@@ -32,7 +32,7 @@ func TestSquadPricesChecksAgainstReportedValue(t *testing.T) {
 // A season that has not started has nothing to reconstruct, and saying so beats
 // returning an empty map that reads as "everything sells at market".
 func TestSquadPricesRefusesBeforeAnyGameweek(t *testing.T) {
-	c := New(t.TempDir(), 0)
+	c := New(t.TempDir(), 0, 0)
 	if _, err := c.SquadPrices(t.Context(), 1, 0); err == nil {
 		t.Error("reconstructing prices before GW1 succeeded")
 	}

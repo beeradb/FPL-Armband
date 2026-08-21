@@ -16,7 +16,7 @@ import (
 // responsibility and is tested there — this only checks that cmd/armband
 // exposes what that package already tracks.
 func TestMetricsRouteServesAllThreeSeries(t *testing.T) {
-	s := &squadServer{client: fpl.New(t.TempDir(), time.Hour)}
+	s := &squadServer{client: fpl.New(t.TempDir(), time.Hour, time.Hour)}
 
 	req := httptest.NewRequest("GET", "/metrics", nil)
 	rec := httptest.NewRecorder()
@@ -44,7 +44,7 @@ func TestMetricsRouteServesAllThreeSeries(t *testing.T) {
 // TestMetricsRouteRejectsNonGET matches every other read route's courtesy
 // method check (see playerDetail in playerdetail.go).
 func TestMetricsRouteRejectsNonGET(t *testing.T) {
-	s := &squadServer{client: fpl.New(t.TempDir(), time.Hour)}
+	s := &squadServer{client: fpl.New(t.TempDir(), time.Hour, time.Hour)}
 
 	req := httptest.NewRequest("POST", "/metrics", nil)
 	rec := httptest.NewRecorder()
@@ -59,7 +59,7 @@ func TestMetricsRouteRejectsNonGET(t *testing.T) {
 // wired into the dispatcher, not just callable directly — the loopback Host
 // check in ServeHTTP is the one thing a direct call to s.metrics skips.
 func TestMetricsIsReachableThroughServeHTTP(t *testing.T) {
-	s := &squadServer{client: fpl.New(t.TempDir(), time.Hour)}
+	s := &squadServer{client: fpl.New(t.TempDir(), time.Hour, time.Hour)}
 
 	req := httptest.NewRequest("GET", "/metrics", nil)
 	req.Host = "127.0.0.1"

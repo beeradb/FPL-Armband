@@ -14,7 +14,7 @@ func one(p ChipPlan) ChipSchedule { return ChipSchedule{First: p} }
 
 func chipEngine(t *testing.T, plan ChipSchedule) *Engine {
 	t.Helper()
-	c := fpl.New(t.TempDir(), 24*time.Hour)
+	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
 	ctx := context.Background()
 	boot, err := c.Bootstrap(ctx)
 	if err != nil {

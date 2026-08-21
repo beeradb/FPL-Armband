@@ -16,7 +16,7 @@ import (
 
 func testToolbox(t *testing.T) *Toolbox {
 	t.Helper()
-	c := fpl.New(t.TempDir(), 24*time.Hour)
+	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
 	ctx := context.Background()
 	boot, err := c.Bootstrap(ctx)
 	if err != nil {

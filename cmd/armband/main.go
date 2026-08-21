@@ -226,10 +226,18 @@ func run() error {
 		ttl = 0
 	}
 
+	// elementTTL governs ElementSummary alone — see the Client comment on why
+	// it is much shorter than ttl. -refresh zeroes it too, for the same reason
+	// it zeroes ttl: the generator must never treat its own last run as fresh.
+	elementTTL := time.Duration(cfg.PlayerCacheMinutes) * time.Minute
+	if *refresh {
+		elementTTL = 0
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	client := fpl.NewWithSnapshot(cfg.CacheDir, cfg.SnapshotDir, ttl)
+	client := fpl.NewWithSnapshot(cfg.CacheDir, cfg.SnapshotDir, ttl, elementTTL)
 
 	// Capture is dispatched before the engine is built, and that is deliberate
 	// rather than an optimisation. It archives a *moment*, so it must not be
