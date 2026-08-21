@@ -99,10 +99,21 @@ func serve(t *testing.T, fixture string) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_, _ = w.Write(body)
 	})
+	// /armband-team is a separate document from /app on purpose (see
+	// cmd/armband/webroutes.go's routeArmbandTeam comment) -- its data happens to come
+	// from the same fixture file here only because HouseTeam already rides along in
+	// State for this test's convenience; the real server builds it from an entirely
+	// different, session-less path (armbandTeamState).
+	mux.HandleFunc("/api/armband-team", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(body)
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		name := "landing"
 		if r.URL.Path == "/app" {
 			name = "app"
+		} else if r.URL.Path == "/armband-team" {
+			name = "team"
 		} else if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
@@ -182,6 +193,8 @@ var shots = []shot{
 	{"news-desktop", "gameweek-one", "/app#news", desktop(1400)},
 	{"news-mobile", "gameweek-one", "/app#news", mobile(1600)},
 	{"brief-desktop", "gameweek-one", "/app#brief", desktop(1400)},
+	{"armband-team-desktop", "gameweek-one", "/armband-team", desktop(1400)},
+	{"armband-team-mobile", "gameweek-one", "/armband-team", mobile(2200)},
 
 	// The states live data will not hand you on demand, and which are therefore the most
 	// likely to be broken and the least likely to be looked at.

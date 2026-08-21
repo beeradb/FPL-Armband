@@ -22,6 +22,9 @@ func roleEngine(t *testing.T, w Weights, rr RoleRisk) *Engine {
 	if err != nil {
 		t.Skipf("FPL API unreachable: %v", err)
 	}
+	// No skipDuringLiveGW1Gap here on purpose — see testEngine's identical note;
+	// datawindow_test.go's own tests call this constructor and then immediately
+	// override the state with playGameweeks.
 	return NewEngineFull(boot, fx, w, DefaultCongestion(), rr)
 }
 

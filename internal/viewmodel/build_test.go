@@ -255,6 +255,227 @@ func TestTheCurrentGameweekComesFromTheBootstrap(t *testing.T) {
 	}
 }
 
+// TestClosedGameweeksDropFromTheRailUnlessImported pins the two rules the rail's "GW1 is
+// closed" behaviour depends on: Current moves to the next gameweek whose deadline has not
+// passed — never FPL's own IsCurrent/IsNext flags, which lag a real deadline (see
+// buildGameweeks's own comment for the observed 24-minute case) — and a closed gameweek
+// is dropped from the rail entirely unless the reader has imported real picks for it.
+func TestClosedGameweeksDropFromTheRailUnlessImported(t *testing.T) {
+	p := samplePage()
+	boot := &fpl.Bootstrap{Events: []fpl.Event{
+		// IsNext still true here on purpose: FPL had not yet flipped it 24 minutes past
+		// this exact deadline in production, and Now below is 30 minutes past it. If
+		// buildGameweeks used IsNext/IsCurrent instead of the deadline, this fixture
+		// would still say GW1, and the test would pass by accident.
+		{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsNext: true},
+		{ID: 2, DeadlineTime: time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC)},
+	}}
+	afterGW1Deadline := time.Date(2026, 8, 21, 18, 0, 0, 0, time.UTC)
+
+	notImported, err := Build(Input{Page: p, Boot: boot, Now: afterGW1Deadline})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	for _, gw := range notImported.Gameweeks {
+		if gw.Number == 1 {
+			t.Errorf("GW1 is still on the rail after its deadline with no import, want it dropped: %+v", gw)
+		}
+	}
+	if len(notImported.Gameweeks) == 0 || notImported.Gameweeks[0].Number != 2 || !notImported.Gameweeks[0].Current {
+		t.Errorf("Gameweeks = %+v, want GW2 first and marked Current", notImported.Gameweeks)
+	}
+
+	imported, err := Build(Input{Page: p, Boot: boot, Now: afterGW1Deadline, Import: Import{Entry: 12345}})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	var gw1 *Gameweek
+	for i := range imported.Gameweeks {
+		if imported.Gameweeks[i].Number == 1 {
+			gw1 = &imported.Gameweeks[i]
+		}
+	}
+	if gw1 == nil {
+		t.Fatal("GW1 is missing once the reader has imported; want it present and marked Closed")
+	}
+	if !gw1.Closed {
+		t.Error("GW1.Closed = false, want true — its deadline has passed")
+	}
+	if gw1.Current {
+		t.Error("GW1.Current = true, want false — it is no longer the gameweek to act on")
+	}
+}
+
+// TestHouseTeamIsAbsentWithoutAnEntry pins the honest-absence rule: no config.EntryID (or
+// a failed fetch, from the caller's point of view — build() supplies no HouseEntry either
+// way) means no house team to show, not a zeroed one a client might render as "GW0 · 0 pts".
+func TestHouseTeamIsAbsentWithoutAnEntry(t *testing.T) {
+	s := build(t, samplePage())
+	if s.HouseTeam != nil {
+		t.Errorf("HouseTeam = %+v, want nil — no HouseEntry was given", s.HouseTeam)
+	}
+}
+
+// TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails pins the bug an earlier version
+// of this function had: samplePage sets Squad.ExpectedPoints to 17.78 (the score bug, this
+// squad's actual arrangement) and Weeks[0].Expected to 52.3 (the rail's OWN best-XI pick
+// for GW1, computed independent of this squad — see WeekView.Expected's doc comment).
+// Those two numbers deliberately differ in this fixture, exactly as they do in production
+// the moment a squad's captain or XI is not the model's own choice. CurrentProjected must
+// be the FIRST number, or the footer contradicts the tab it sits under.
+func TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails(t *testing.T) {
+	rank := 412311
+	history := &fpl.EntryHistory{Current: []struct {
+		Event              int  `json:"event"`
+		Points             int  `json:"points"`
+		TotalPoints        int  `json:"total_points"`
+		Rank               *int `json:"rank"`
+		OverallRank        *int `json:"overall_rank"`
+		Bank               int  `json:"bank"`
+		Value              int  `json:"value"`
+		EventTransfers     int  `json:"event_transfers"`
+		EventTransfersCost int  `json:"event_transfers_cost"`
+		PointsOnBench      int  `json:"points_on_bench"`
+	}{
+		{Event: 1, Points: 62},
+	}}
+	s, err := Build(Input{
+		Page: samplePage(),
+		Boot: &fpl.Bootstrap{Events: []fpl.Event{
+			{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsNext: true},
+			{ID: 2, DeadlineTime: time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC)},
+		}},
+		Cfg: config.Config{},
+		Now: pinned,
+		HouseEntry: &fpl.Entry{
+			SummaryOverallPoints: 236,
+			SummaryOverallRank:   rank,
+		},
+		HouseHistory: history,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if s.HouseTeam == nil {
+		t.Fatal("HouseTeam is nil, want a value — HouseEntry was given")
+	}
+	if s.HouseTeam.CurrentEvent != 1 {
+		t.Errorf("CurrentEvent = %d, want 1", s.HouseTeam.CurrentEvent)
+	}
+	if s.HouseTeam.CurrentProjected != s.Squad.Expected {
+		t.Errorf("CurrentProjected = %v, want %v — the score bug's own Squad.Expected",
+			s.HouseTeam.CurrentProjected, s.Squad.Expected)
+	}
+	if s.HouseTeam.CurrentProjected == s.Gameweeks[0].Projected {
+		t.Fatalf("CurrentProjected (%v) equals the rail's Gameweek.Projected — this fixture "+
+			"sets them to different values on purpose so this test cannot pass by accident",
+			s.HouseTeam.CurrentProjected)
+	}
+	if s.HouseTeam.OverallPoints != 236 || s.HouseTeam.OverallRank != rank {
+		t.Errorf("OverallPoints/OverallRank = %d/%d, want 236/%d", s.HouseTeam.OverallPoints, s.HouseTeam.OverallRank, rank)
+	}
+	if len(s.HouseTeam.History) != 1 || s.HouseTeam.History[0].Event != 1 || s.HouseTeam.History[0].Points != 62 {
+		t.Errorf("History = %+v, want [{1 62}]", s.HouseTeam.History)
+	}
+}
+
+// TestHouseTeamLiveStatsGateOnMatchStatus pins the three rules buildHouseTeam's live-data
+// half enforces: a goalkeeper gets Saves and never DefCon; an outfielder whose match has
+// kicked off gets DefCon and DefConReached, computed against analysis.DefConThreshold for
+// his real element type; and a player whose match has NOT kicked off gets neither, even
+// though the live payload already has a (zero) stats row for him -- "the match has not
+// started" must render as "no verdict yet", not as a false "failed the bar".
+func TestHouseTeamLiveStatsGateOnMatchStatus(t *testing.T) {
+	s, err := Build(Input{
+		Page: samplePage(),
+		Boot: &fpl.Bootstrap{
+			Events: []fpl.Event{{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsCurrent: true}},
+			Elements: []fpl.Element{
+				{ID: 1, ElementType: 1}, // Kinsky, GKP
+				{ID: 2, ElementType: 2}, // Kadıoğlu, DEF
+				{ID: 3, ElementType: 4}, // Haaland, FWD
+			},
+		},
+		Cfg:        config.Config{},
+		Now:        pinned,
+		HouseEntry: &fpl.Entry{SummaryOverallPoints: 236},
+		HouseLive: &fpl.EventLive{Elements: []fpl.LiveElement{
+			{ID: 1, Stats: fpl.LiveStats{Minutes: 90, Saves: 4}},
+			{ID: 2, Stats: fpl.LiveStats{Minutes: 90, DefensiveContribution: 11}}, // clears the DEF bar (10)
+			{ID: 3, Stats: fpl.LiveStats{Minutes: 0}},                             // his match has not kicked off
+		}},
+		HouseMatchStatus: map[string]string{"TOT": "live", "BHA": "live", "MCI": "scheduled"},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	byID := map[int]TeamPlayer{}
+	for _, p := range s.HouseTeam.XI {
+		byID[p.ID] = p
+	}
+
+	gk := byID[1]
+	if gk.Saves == nil || *gk.Saves != 4 {
+		t.Errorf("Kinsky (GKP) Saves = %v, want a pointer to 4", gk.Saves)
+	}
+	if gk.DefCon != nil || gk.DefConReached != nil {
+		t.Errorf("Kinsky (GKP) DefCon/DefConReached = %v/%v, want nil/nil — keepers have no DC", gk.DefCon, gk.DefConReached)
+	}
+
+	def := byID[2]
+	if def.DefCon == nil || *def.DefCon != 11 {
+		t.Fatalf("Kadıoğlu DefCon = %v, want a pointer to 11", def.DefCon)
+	}
+	if def.DefConReached == nil || !*def.DefConReached {
+		t.Errorf("Kadıoğlu DefConReached = %v, want true — 11 clears the defender bar of 10", def.DefConReached)
+	}
+	if def.Saves != nil {
+		t.Errorf("Kadıoğlu (DEF) Saves = %v, want nil — outfielders have no saves", def.Saves)
+	}
+
+	fwd := byID[3]
+	if fwd.MatchStatus != "scheduled" {
+		t.Fatalf("Haaland MatchStatus = %q, want %q", fwd.MatchStatus, "scheduled")
+	}
+	if fwd.DefCon != nil || fwd.DefConReached != nil {
+		t.Errorf("Haaland DefCon/DefConReached = %v/%v, want nil/nil — his match has not started, "+
+			"so there is no verdict to render yet, not a failing one", fwd.DefCon, fwd.DefConReached)
+	}
+}
+
+// TestHouseTeamRosterIsTrimmedNotRebuilt pins that the spectator page's XI/Bench are the
+// SAME fifteen the interactive builder has -- read off Squad.Players by Squad.XI/Bench's
+// own ID order, never re-optimised -- and that a TeamPlayer carries an opponent (for the
+// glyph the interactive builder already draws) but none of the interactive vocabulary
+// (role, reliability, override) that a spectator page has no use for.
+func TestHouseTeamRosterIsTrimmedNotRebuilt(t *testing.T) {
+	s, err := Build(Input{
+		Page: samplePage(),
+		Boot: &fpl.Bootstrap{Events: []fpl.Event{
+			{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsNext: true},
+		}},
+		Cfg:        config.Config{},
+		Now:        pinned,
+		HouseEntry: &fpl.Entry{SummaryOverallPoints: 236},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if len(s.HouseTeam.XI) != len(s.Squad.XI) {
+		t.Fatalf("HouseTeam.XI has %d players, want %d — one per Squad.XI id", len(s.HouseTeam.XI), len(s.Squad.XI))
+	}
+	if len(s.HouseTeam.Bench) != len(s.Squad.Bench) {
+		t.Fatalf("HouseTeam.Bench has %d players, want %d", len(s.HouseTeam.Bench), len(s.Squad.Bench))
+	}
+	gk := s.HouseTeam.XI[0]
+	if gk.ID != s.Squad.XI[0] || gk.Name != "Kinsky" {
+		t.Errorf("HouseTeam.XI[0] = %+v, want Kinsky (id %d) — same order as Squad.XI", gk, s.Squad.XI[0])
+	}
+	if gk.Opponent == nil || gk.Opponent.Opponent != "BRE" || gk.Opponent.Home {
+		t.Errorf("Kinsky's Opponent = %+v, want the away BRE fixture samplePage gives him", gk.Opponent)
+	}
+}
+
 // TestTheOverrideCountsComeFromOneImplementation pins that the API's "how many need a
 // check" is asked of the same code the page asks, rather than recounted here. Two counts
 // of one quantity is the failure this codebase names most often.

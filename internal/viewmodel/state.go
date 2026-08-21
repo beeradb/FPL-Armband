@@ -75,6 +75,96 @@ type State struct {
 
 	// Import is the team-import affordance's whole state. See Import.
 	Import Import `json:"import"`
+
+	// HouseTeam is the site's own FPL squad — config.EntryID, run through the identical
+	// pipeline as any reader's team. Nil when EntryID is unset, since there is then no
+	// real team to show. See HouseTeam.
+	HouseTeam *HouseTeam `json:"house_team,omitempty"`
+}
+
+// HouseTeam is proof-of-use for the footer: what the site's own squad actually scored,
+// gameweek by gameweek, and what this week's eleven is projected to return.
+//
+// CurrentProjected is never a second computation — it is Squad.Expected, the same number
+// the score bug already shows, not the current week's Gameweek.Projected. The two are NOT
+// interchangeable: Gameweek.Projected is the rail's own best-XI-and-captain figure for that
+// week, computed independent of this squad's actual arrangement, and it diverges from the
+// score bug the moment a lock, a leave-out or a captain choice is not the model's own pick
+// — which the house account's real squad routinely is not. See buildHouseTeam.
+type HouseTeam struct {
+	OverallPoints int `json:"overall_points"`
+	OverallRank   int `json:"overall_rank,omitempty"`
+
+	// CurrentEvent is the gameweek the rail marks Current, zero before a build has one.
+	// CurrentProjected is Squad.Expected for that same build — see the type comment.
+	CurrentEvent     int     `json:"current_event,omitempty"`
+	CurrentProjected float64 `json:"current_projected,omitempty"`
+
+	// History is every gameweek FPL has scored so far, oldest first — the actual points
+	// the fielded eleven returned, not a projection.
+	History []HouseResult `json:"history,omitempty"`
+
+	// Formation, Captain and Vice describe the same fifteen XI/Bench name, by ID — the
+	// dedicated /armband-team page's own pitch, entirely separate from Squad above. It
+	// exists because that page is a spectator view, not the interactive builder: no
+	// locks, no leave-outs, no role band, no reliability meter. See TeamPlayer.
+	Formation string       `json:"formation,omitempty"`
+	Captain   int          `json:"captain,omitempty"`
+	Vice      int          `json:"vice,omitempty"`
+	XI        []TeamPlayer `json:"xi,omitempty"`
+	Bench     []TeamPlayer `json:"bench,omitempty"`
+}
+
+// HouseResult is one completed gameweek's actual score.
+type HouseResult struct {
+	Event  int `json:"event"`
+	Points int `json:"points"`
+}
+
+// TeamPlayer is one player on the house team's spectator pitch. Deliberately a smaller
+// vocabulary than Player: no Role, no Reliability, no Override, no Availability — those
+// describe a decision the interactive builder is helping a reader make, and a spectator
+// page reader is not making one. Opponent and this season's counting stats instead: what
+// he is up against, and what he has actually done.
+type TeamPlayer struct {
+	ID    int     `json:"id"`
+	Name  string  `json:"name"`
+	Club  string  `json:"club"`
+	Pos   string  `json:"pos"`
+	Price float64 `json:"price"`
+
+	// Opponent is the next upcoming fixture, nil when none is scheduled (a blank
+	// gameweek). The same Fixture shape the interactive builder uses, so the client's
+	// existing home/away-glyph and difficulty-colour logic needs no second copy.
+	Opponent *Fixture `json:"opponent,omitempty"`
+
+	// MatchStatus is his club's fixture in the gameweek this page is showing:
+	// "scheduled", "live" or "finished". Empty before a season has a current
+	// gameweek at all (see buildHouseTeam) — there is then nothing to report a
+	// status about.
+	MatchStatus string `json:"match_status,omitempty"`
+
+	// Goals, Assists and CleanSheets are THIS gameweek's counts — zero before
+	// kickoff, live during the match, final once FPL finishes scoring it. Never a
+	// season total: a card that said "9 goals" before a ball had been kicked this
+	// season was the bug an earlier version of this page shipped with.
+	Goals       int `json:"goals"`
+	Assists     int `json:"assists"`
+	CleanSheets int `json:"clean_sheets"`
+
+	// DefCon is this gameweek's defensive-action count and DefConReached is
+	// whether it has cleared analysis.DefConThreshold for his position — the
+	// same all-or-nothing bar the model prices (see that function's own
+	// comment), never a partial-credit read of a bar that has not been
+	// cleared. Both nil for a goalkeeper, who FPL does not score on defensive
+	// actions at all (see Saves), and both nil until his match has kicked off —
+	// zero DC before kickoff is a fact, not yet an answer to "did he clear it".
+	DefCon        *int  `json:"def_con,omitempty"`
+	DefConReached *bool `json:"def_con_reached,omitempty"`
+
+	// Saves is this gameweek's save count. Goalkeepers only — nil for an
+	// outfielder, the same way DefCon is nil for a goalkeeper.
+	Saves *int `json:"saves,omitempty"`
 }
 
 // Import is the team-import affordance's whole state — whether it may be offered right
@@ -188,9 +278,17 @@ type Effect struct {
 type Gameweek struct {
 	Number   int       `json:"gw"`
 	Deadline time.Time `json:"deadline"`
-	// Current marks the gameweek being played or next to be played — the rail's NOW
-	// dot. Exactly one gameweek carries it, or none once the season is over.
+	// Current marks the next gameweek a reader can still act on — the rail's NOW dot.
+	// Exactly one gameweek carries it, or none once the season is over. Found from each
+	// gameweek's own deadline against the server's clock, not FPL's IsCurrent/IsNext
+	// flags — see buildGameweeks's own comment for why those lag a real deadline.
 	Current bool `json:"current"`
+	// Closed reports that this gameweek's deadline has passed — selection is locked, so
+	// the interactive builder has nothing left to offer for it. A closed gameweek only
+	// appears in this list at all when the reader has imported their real picks (see
+	// State.Import); otherwise buildGameweeks drops it rather than showing a stale
+	// hypothetical plan for a squad that can no longer change.
+	Closed bool `json:"closed,omitempty"`
 	// Chip is the chip the plan puts in this week: "Wildcard", "Free Hit",
 	// "Bench Boost", "Triple Captain", or empty. Spelled as the engine spells it.
 	Chip string `json:"chip,omitempty"`

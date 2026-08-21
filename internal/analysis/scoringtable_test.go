@@ -131,7 +131,7 @@ func TestScoringConstantsMatchFPL(t *testing.T) {
 	}
 
 	// Defensive contribution: the award is worth 2, and goalkeepers are excluded.
-	// The model expresses the exclusion through defconThreshold rather than
+	// The model expresses the exclusion through DefConThreshold rather than
 	// through a per-position value, so both halves are checked.
 	for elementType, short := range pos {
 		want, _ := sc.DefensiveContribution.ForShortName(short)
@@ -146,7 +146,7 @@ func TestScoringConstantsMatchFPL(t *testing.T) {
 			t.Errorf("defensive contribution for %s: model has %g, FPL publishes %g",
 				short, defConPoints, want)
 		}
-		if defconThreshold(elementType) <= 0 {
+		if DefConThreshold(elementType) <= 0 {
 			t.Errorf("%s earns %g for defensive contribution but the model has no "+
 				"threshold for element_type %d", short, want, elementType)
 		}
@@ -390,7 +390,7 @@ func TestWhatTheScoringTableCannotVerify(t *testing.T) {
 		}
 	}
 	for _, pos := range []int{2, 3, 4} {
-		if defconThreshold(pos) <= 0 {
+		if DefConThreshold(pos) <= 0 {
 			t.Errorf("no defensive-contribution threshold for element_type %d, and "+
 				"FPL does not publish one", pos)
 		}

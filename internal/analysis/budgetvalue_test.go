@@ -47,6 +47,12 @@ func TestBudgetIsWorthlessOnceTheSeasonEnds(t *testing.T) {
 	for i := range e.Boot.Events {
 		e.Boot.Events[i].Finished = true
 		e.Boot.Events[i].IsNext = false
+		// IsCurrent too, or NextEvent()'s own IsCurrent fallback finds whichever
+		// gameweek the LIVE fetch this engine came from happens to be mid-way
+		// through — real as of 2026-08-21, when GW1 is both Finished (forced,
+		// above) and IsCurrent (genuinely true in the live data) at once, which
+		// GameweeksRemaining then reads as GW1 rather than "no season left".
+		e.Boot.Events[i].IsCurrent = false
 	}
 	if got := e.GameweeksRemaining(); got != 0 {
 		t.Errorf("%d gameweeks remain after the season ended", got)

@@ -207,7 +207,7 @@ function hydrate(st){
 
   OV=(st.overrides.live||[]).map((o,i)=>({
     id:'o'+i, code:o.code, t:o.label, kind:o.kind, who:o.player, club:o.club,
-    set:o.set_on, lapse:o.until, chk:o.checked, inSquad:o.in_squad,
+    set:o.set_on, lapse:o.until, inSquad:o.in_squad,
     why:o.reason, needsCheck:o.needs_check, age:o.check_age, flag:o.flag,
     session:o.session,
     /* NewsItem.effect -- {label,was,now,direction}, pre-formatted by the server. Absent
@@ -1992,8 +1992,8 @@ function renderNews(){
     read.map(o=>({
       chip:'Reported', chipClass:'read', stale:o.needsCheck, who:o.who, club:o.club,
       text:o.why, clamp:true,
-      meta:`Read ${o.set}${o.lapse?` · ${o.lapse}`:''} · last checked ${o.chk||'never'}`,
-      pill:o.needsCheck?'<span class="pill warn">Due a re-check</span>':'',
+      meta:`Read ${o.set}${o.lapse?` · ${o.lapse}`:''}`,
+      pill:o.needsCheck?'<span class="pill warn">Needs a look</span>':'',
       effect:o.eff
     })),
     nilRow('Nothing reported on your fifteen this week.'),
@@ -2080,7 +2080,28 @@ function renderSquadSource(){
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderInstructions();renderPlayers();renderLeftOut();renderNews();}
+/* renderHouseTeam draws the identity strip above the score bug from STATE.house_team, the
+   site's own FPL squad (config.EntryID) run through the identical pipeline as the
+   reader's -- context for whose pitch this is, nothing else. Absent means EntryID is unset
+   or the fetch failed this request -- the element is then left empty rather than shown
+   half-filled, the same honest-absence rule the rest of this file follows for a missing
+   Effect or a missing fixture. */
+function renderHouseTeam(){
+  const el=document.getElementById('houseteam');
+  if(!el) return;
+  const h=STATE.house_team;
+  if(!h){ el.innerHTML=''; return; }
+  const hist=h.history||[];
+  const last=hist.length ? hist[hist.length-1] : null;
+  el.innerHTML=`<div class="houseteamrow">
+    <span class="htbadge">FPL Armband</span>
+    ${last ? `<span class="htstat"><span class="v">${last.points}</span><span class="k">GW${last.event} actual</span></span>` : ''}
+    ${h.current_event ? `<span class="htstat"><span class="v acc">${(+h.current_projected).toFixed(1)}</span><span class="k">GW${h.current_event} projected</span></span>` : ''}
+    ${h.overall_rank ? `<span class="htstat"><span class="v">${(+h.overall_rank).toLocaleString()}</span><span class="k">Overall rank</span></span>` : ''}
+  </div>`;
+}
+
+function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderHouseTeam();}
 
 /* boot fetches the state and draws once.
 

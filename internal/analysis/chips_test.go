@@ -89,6 +89,7 @@ func TestChipPlanValidation(t *testing.T) {
 // that. Found by review.
 func TestAFullyPlannedCurrentSetIsClean(t *testing.T) {
 	e := chipEngine(t, one(ChipPlan{}))
+	skipDuringLiveGW1Gap(t, e)
 
 	// Placed inside each chip's own current window, whatever the season says
 	// those are, and in distinct gameweeks — the plan has to be legal for the
@@ -148,6 +149,7 @@ func TestASecondHalfChipInAFlatPlanIsNotCalledOutOfWindow(t *testing.T) {
 // A wildcard shortens the horizon the current squad must serve.
 func TestWildcardShortensHorizon(t *testing.T) {
 	e := chipEngine(t, one(ChipPlan{}))
+	skipDuringLiveGW1Gap(t, e)
 	full, why := e.EffectiveHorizon(one(ChipPlan{}))
 	if why != "" || full != e.Weights.Horizon {
 		t.Errorf("unplanned chips should leave the horizon alone, got %d (%s)", full, why)
@@ -174,6 +176,7 @@ func TestWildcardShortensHorizon(t *testing.T) {
 // counting it here as well both double-counted it and got its shape wrong.
 func TestAFreeHitDoesNotShortenTheHorizon(t *testing.T) {
 	e := chipEngine(t, one(ChipPlan{}))
+	skipDuringLiveGW1Gap(t, e)
 	full := e.Weights.Horizon
 
 	got, why := e.EffectiveHorizon(one(ChipPlan{FreeHit: 3}))

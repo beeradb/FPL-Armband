@@ -557,6 +557,46 @@ type EntryHistory struct {
 	} `json:"chips"`
 }
 
+// EventLive is /api/event/{id}/live/ — every player's stats for one gameweek, live
+// during play and final once FPL finishes scoring it.
+type EventLive struct {
+	Elements []LiveElement `json:"elements"`
+}
+
+type LiveElement struct {
+	ID    int       `json:"id"`
+	Stats LiveStats `json:"stats"`
+}
+
+// LiveStats is the subset of FPL's live payload this codebase reads. The real
+// response carries many more fields (BPS, ICT, expected goals...); only what the
+// spectator team page draws is parsed here, matching this package's practice
+// elsewhere of not carrying a field nothing reads.
+type LiveStats struct {
+	Minutes               int `json:"minutes"`
+	GoalsScored           int `json:"goals_scored"`
+	Assists               int `json:"assists"`
+	CleanSheets           int `json:"clean_sheets"`
+	Saves                 int `json:"saves"`
+	DefensiveContribution int `json:"defensive_contribution"`
+}
+
+// ByID looks up one player's live stats for this gameweek, nil if he is not in
+// the payload. A live event's elements list is keyed by the same permanent
+// element id Bootstrap uses, so a caller already holding one (from
+// Bootstrap.ElementByID, say) can chain straight through.
+func (el *EventLive) ByID(id int) *LiveStats {
+	if el == nil {
+		return nil
+	}
+	for i := range el.Elements {
+		if el.Elements[i].ID == id {
+			return &el.Elements[i].Stats
+		}
+	}
+	return nil
+}
+
 // HasExpected reports whether this past season's `expected_goals`,
 // `expected_assists` and `expected_goals_conceded` mean anything.
 //

@@ -49,6 +49,7 @@ func TestBenchBoostBuildsARealBench(t *testing.T) {
 		t.Skip("solves the squad twice")
 	}
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	skipDuringLiveGW1Gap(t, e)
 
 	ordinary, err := e.Optimize(OptimizeRequest{Budget: DefaultBudget})
 	if err != nil {

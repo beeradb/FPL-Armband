@@ -977,7 +977,7 @@
         "value_score": 0.006449789186350631,
         "xg_per_90": 0,
         "xa_per_90": 0.13,
-        "defensive_contribution_chance": 0.0000029097206412398468
+        "defensive_contribution_chance": 2.9097206412398468e-06
       }
     ],
     "xi": [
@@ -1076,7 +1076,7 @@
           "value_score": 0.34075163284888504,
           "xg_per_90": 0.78,
           "xa_per_90": 0.08,
-          "defensive_contribution_chance": 0.00009083922369943975
+          "defensive_contribution_chance": 9.083922369943975e-05
         },
         "delta": 1.7035826011920676,
         "clears_gate": true
@@ -1259,7 +1259,7 @@
         "player": {
           "id": 542,
           "code": 484420,
-          "name": "E.Le Fée",
+          "name": "E.Le F\u00e9e",
           "club": "SUN",
           "pos": "MID",
           "price": 6,
@@ -1317,7 +1317,7 @@
         "player": {
           "id": 165,
           "code": 475168,
-          "name": "João Pedro",
+          "name": "Jo\u00e3o Pedro",
           "club": "CHE",
           "pos": "FWD",
           "price": 7.5,
@@ -1482,7 +1482,7 @@
           "value_score": 0.4575995628703464,
           "xg_per_90": 0.49,
           "xa_per_90": 0.04,
-          "defensive_contribution_chance": 0.00004009051797054424
+          "defensive_contribution_chance": 4.009051797054424e-05
         },
         "delta": 0.08272879499712094,
         "clears_gate": false
@@ -1607,7 +1607,7 @@
         "player": {
           "id": 388,
           "code": 209036,
-          "name": "Guéhi",
+          "name": "Gu\u00e9hi",
           "club": "MCI",
           "pos": "DEF",
           "price": 6,
@@ -2477,7 +2477,7 @@
         "player": {
           "id": 113,
           "code": 231416,
-          "name": "F.Kadıoğlu",
+          "name": "F.Kad\u0131o\u011flu",
           "club": "BHA",
           "pos": "DEF",
           "price": 4.5,
@@ -3347,7 +3347,7 @@
         "player": {
           "id": 471,
           "code": 227444,
-          "name": "Milenković",
+          "name": "Milenkovi\u0107",
           "club": "NFO",
           "pos": "DEF",
           "price": 5.5,
@@ -3579,7 +3579,7 @@
         "player": {
           "id": 25,
           "code": 224117,
-          "name": "Gyökeres",
+          "name": "Gy\u00f6keres",
           "club": "ARS",
           "pos": "FWD",
           "price": 7.5,
@@ -3628,7 +3628,7 @@
           "value_score": 0.3928786291006134,
           "xg_per_90": 0.5,
           "xa_per_90": 0.08,
-          "defensive_contribution_chance": 0.00003183514685879332
+          "defensive_contribution_chance": 3.183514685879332e-05
         },
         "delta": -0.6314779897110498,
         "clears_gate": false
@@ -3695,7 +3695,7 @@
         "player": {
           "id": 57,
           "code": 457569,
-          "name": "Petrović",
+          "name": "Petrovi\u0107",
           "club": "BOU",
           "pos": "GKP",
           "price": 4.5,
@@ -4595,7 +4595,7 @@
   "blind": [
     "Transfer news, press conferences, tactical changes, a player who has just lost his place.",
     "New signings from abroad, who carry no Premier League data at all.",
-    "The difference between \"injured for three months\" and \"not picked\" — both show as low expected minutes, so check minutes-per-start to tell them apart.",
+    "The difference between \"injured for three months\" and \"not picked\" \u2014 both show as low expected minutes, so check minutes-per-start to tell them apart.",
     "Whether a club is still in a competition. That list is hand-maintained and goes stale the moment a club is knocked out."
   ],
   "policy": {
@@ -4665,6 +4665,283 @@
         "pos": "GKP",
         "body": "Long-term injury with no named return date.",
         "when": "2026-08-18 (1d)"
+      }
+    ]
+  },
+  "import": {
+    "open": false
+  },
+  "house_team": {
+    "overall_points": 0,
+    "current_event": 1,
+    "current_projected": 51.62484024245697,
+    "formation": "3-5-2",
+    "captain": 426,
+    "vice": 4,
+    "xi": [
+      {
+        "id": 426,
+        "name": "B.Fernandes",
+        "club": "MUN",
+        "pos": "MID",
+        "price": 12,
+        "opponent": {
+          "gw": 1,
+          "opp": "HUL",
+          "home": false,
+          "fdr": 2
+        },
+        "match_status": "live",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0,
+        "def_con": 6,
+        "def_con_reached": false
+      },
+      {
+        "id": 4,
+        "name": "Gabriel",
+        "club": "ARS",
+        "pos": "DEF",
+        "price": 8,
+        "opponent": {
+          "gw": 1,
+          "opp": "COV",
+          "home": true,
+          "fdr": 2
+        },
+        "match_status": "live",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0,
+        "def_con": 11,
+        "def_con_reached": true
+      },
+      {
+        "id": 106,
+        "name": "Thiago",
+        "club": "BRE",
+        "pos": "FWD",
+        "price": 8,
+        "opponent": {
+          "gw": 1,
+          "opp": "TOT",
+          "home": true,
+          "fdr": 3
+        },
+        "match_status": "live",
+        "goals": 1,
+        "assists": 0,
+        "clean_sheets": 0,
+        "def_con": 6,
+        "def_con_reached": false
+      },
+      {
+        "id": 356,
+        "name": "Virgil",
+        "club": "LIV",
+        "pos": "DEF",
+        "price": 6.5,
+        "opponent": {
+          "gw": 1,
+          "opp": "NEW",
+          "home": false,
+          "fdr": 3
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      },
+      {
+        "id": 427,
+        "name": "Mbeumo",
+        "club": "MUN",
+        "pos": "MID",
+        "price": 8,
+        "opponent": {
+          "gw": 1,
+          "opp": "HUL",
+          "home": false,
+          "fdr": 2
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      },
+      {
+        "id": 237,
+        "name": "Ndiaye",
+        "club": "EVE",
+        "pos": "MID",
+        "price": 6,
+        "opponent": {
+          "gw": 1,
+          "opp": "CRY",
+          "home": true,
+          "fdr": 3
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      },
+      {
+        "id": 155,
+        "name": "Enzo",
+        "club": "CHE",
+        "pos": "MID",
+        "price": 7,
+        "opponent": {
+          "gw": 1,
+          "opp": "FUL",
+          "home": false,
+          "fdr": 3
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      },
+      {
+        "id": 13,
+        "name": "Rice",
+        "club": "ARS",
+        "pos": "MID",
+        "price": 7.5,
+        "opponent": {
+          "gw": 1,
+          "opp": "COV",
+          "home": true,
+          "fdr": 2
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      },
+      {
+        "id": 1,
+        "name": "Raya",
+        "club": "ARS",
+        "pos": "GKP",
+        "price": 6,
+        "opponent": {
+          "gw": 1,
+          "opp": "COV",
+          "home": true,
+          "fdr": 2
+        },
+        "match_status": "live",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0,
+        "saves": 4
+      },
+      {
+        "id": 229,
+        "name": "Tarkowski",
+        "club": "EVE",
+        "pos": "DEF",
+        "price": 6,
+        "opponent": {
+          "gw": 1,
+          "opp": "CRY",
+          "home": true,
+          "fdr": 3
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      },
+      {
+        "id": 346,
+        "name": "Calvert-Lewin",
+        "club": "LEE",
+        "pos": "FWD",
+        "price": 6,
+        "opponent": {
+          "gw": 1,
+          "opp": "NFO",
+          "home": false,
+          "fdr": 3
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      }
+    ],
+    "bench": [
+      {
+        "id": 445,
+        "name": "Thiaw",
+        "club": "NEW",
+        "pos": "DEF",
+        "price": 5,
+        "opponent": {
+          "gw": 1,
+          "opp": "LIV",
+          "home": true,
+          "fdr": 4
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      },
+      {
+        "id": 202,
+        "name": "Richards",
+        "club": "CRY",
+        "pos": "DEF",
+        "price": 5,
+        "opponent": {
+          "gw": 1,
+          "opp": "EVE",
+          "home": false,
+          "fdr": 3
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      },
+      {
+        "id": 272,
+        "name": "Kusi-Asare",
+        "club": "FUL",
+        "pos": "FWD",
+        "price": 4.5,
+        "opponent": {
+          "gw": 1,
+          "opp": "CHE",
+          "home": true,
+          "fdr": 4
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
+      },
+      {
+        "id": 497,
+        "name": "Dubravka",
+        "club": "TOT",
+        "pos": "GKP",
+        "price": 4,
+        "opponent": {
+          "gw": 1,
+          "opp": "BRE",
+          "home": false,
+          "fdr": 3
+        },
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
       }
     ]
   }

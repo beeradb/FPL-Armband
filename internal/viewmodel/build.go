@@ -74,6 +74,24 @@ type Input struct {
 	// cmd/armband.importWindow — this package may not decide whether a gameweek has been
 	// played any more than it may compute any other model quantity. See State.Import.
 	Import Import
+
+	// HouseEntry and HouseHistory are the site's own FPL manager record — config.EntryID's
+	// Entry and History, fetched by the caller as an ordinary cached client call, exactly
+	// like Boot. Nil when EntryID is unset or the fetch failed; Build then leaves
+	// State.HouseTeam nil rather than showing a partial or stale figure. See State.HouseTeam.
+	HouseEntry   *fpl.Entry
+	HouseHistory *fpl.EntryHistory
+
+	// HouseLive is Boot.CurrentEvent()'s live per-player stats (fpl.Client.Live),
+	// nil before a season has a current gameweek or if the fetch failed.
+	// HouseMatchStatus is "scheduled"/"live"/"finished" per club short name for
+	// that same gameweek, computed by the caller from a freshly-fetched fixture
+	// list (fpl.Client.FixturesLive — NOT Client.Fixtures, which memoises for the
+	// life of the process and would answer a stale "has this kicked off yet" for
+	// as long as the pod runs). This package may not fetch either itself; it only
+	// arranges what the caller already fetched, same as HouseEntry/HouseHistory.
+	HouseLive        *fpl.EventLive
+	HouseMatchStatus map[string]string
 }
 
 // Build translates an assembled page into the client contract.
@@ -107,7 +125,9 @@ func Build(in Input) (*State, error) {
 	}
 
 	s.Squad = buildSquad(p)
-	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips)
+	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips, in.Now, in.Import.Entry != 0)
+	s.HouseTeam = buildHouseTeam(s.Squad, s.Gameweeks, in.HouseEntry, in.HouseHistory, in.Boot,
+		in.HouseLive, in.HouseMatchStatus)
 	s.Market = buildMarket(p)
 	s.Overrides = buildOverrides(p)
 	s.News = buildNews(s, in)
@@ -206,24 +226,53 @@ func buildPlayer(m analysis.PlayerMetrics, p present.Page) Player {
 // note is explicit that the planning window slides and must not be hard-coded, and a rail
 // that silently stopped at five would start lying the first time a chip was planned
 // outside it — which is most of why anyone opens the page.
-func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSchedule) []Gameweek {
+//
+// # Why Current is found by deadline, not Bootstrap.CurrentEvent/IsCurrent
+//
+// This used to prefer IsCurrent, falling back to IsNext. That is FPL's OWN answer to
+// "which gameweek is being played", set by FPL's backend on its own schedule — not the
+// instant a deadline passes. Observed directly on 2026-08-21: GW1's deadline was 17:30
+// UTC, and bootstrap-static still answered is_current=false, is_next=true at 17:54, 24
+// minutes past deadline with kickoff imminent. A reader who opened the planner in that
+// window would have been shown GW1 as the one to act on, when it was already locked. A
+// deadline is a fact this server already has and needs no such lag: Current is simply the
+// gameweek with the EARLIEST deadline that has not yet passed — the next one a reader can
+// still do anything about.
+//
+// # Why a closed, un-imported gameweek is dropped from the rail entirely
+//
+// Once a gameweek's deadline passes, its entry in p.Weeks is the model's hypothetical
+// best-XI for a squad the reader can no longer change — a Monday-morning-quarterback
+// opinion about a locked decision, not a plan. That is worth showing only when it can be
+// replaced by the reader's ACTUAL picks (imported — see State.Import), which this
+// function does not have access to; that is a real gap, tracked rather than worked around
+// here (see ROLLOUT.md). Until then a closed week is filtered rather than left showing a
+// stale hypothetical plan a reader might mistake for their own.
+func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSchedule, now time.Time, imported bool) []Gameweek {
 	deadline := map[int]time.Time{}
 	current := 0
 	if boot != nil {
-		for _, e := range boot.Events {
+		var earliestOpen *fpl.Event
+		for i := range boot.Events {
+			e := &boot.Events[i]
 			deadline[e.ID] = e.DeadlineTime
-			// IsCurrent is the week being played; IsNext is the one taking entries.
-			// Preferring IsCurrent matches what the rail's NOW dot means to a reader
-			// mid-week, and IsNext is the answer for the rest of the time.
-			if e.IsCurrent {
-				current = e.ID
-			} else if e.IsNext && current == 0 {
-				current = e.ID
+			if e.DeadlineTime.Before(now) {
+				continue
 			}
+			if earliestOpen == nil || e.DeadlineTime.Before(earliestOpen.DeadlineTime) {
+				earliestOpen = e
+			}
+		}
+		if earliestOpen != nil {
+			current = earliestOpen.ID
 		}
 	}
 	out := make([]Gameweek, 0, len(p.Weeks))
 	for _, w := range p.Weeks {
+		closed := !deadline[w.Event].IsZero() && deadline[w.Event].Before(now)
+		if closed && !imported {
+			continue
+		}
 		var playable []ChipOption
 		for _, key := range analysis.PlayableChips(boot, w.Event) {
 			playable = append(playable, ChipOption{Key: key, Label: analysis.ChipLabel(key)})
@@ -232,6 +281,7 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 			Number:     w.Event,
 			Deadline:   deadline[w.Event],
 			Current:    w.Event == current,
+			Closed:     closed,
 			Chip:       w.Chip,
 			Projected:  w.Expected,
 			Formation:  w.Formation,
@@ -241,6 +291,101 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 		})
 	}
 	return out
+}
+
+// buildHouseTeam arranges the site's own manager record into the footer's contract.
+//
+// CurrentProjected is sq.Expected — the exact figure the score bug already shows for this
+// same build — not the current week's Gameweek.Projected. The two are NOT the same
+// quantity: Gameweek.Projected is WeekView's own best-XI-and-captain for that week
+// (analysis/weekview.go), computed independent of this squad's actual arrangement, and it
+// diverges from the score bug the moment a reader (or the house account itself) locks,
+// leaves out, or captains someone other than the model's own pick — which the house
+// account's real squad does. Reusing sq.Expected is what keeps the promise "never a second
+// computation" honest rather than merely close.
+func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.EntryHistory, boot *fpl.Bootstrap,
+	live *fpl.EventLive, matchStatus map[string]string) *HouseTeam {
+	if entry == nil {
+		return nil
+	}
+	ht := &HouseTeam{
+		OverallPoints:    entry.SummaryOverallPoints,
+		OverallRank:      entry.SummaryOverallRank,
+		CurrentProjected: sq.Expected,
+		Formation:        sq.Formation,
+		Captain:          sq.Captain,
+		Vice:             sq.Vice,
+	}
+	for _, gw := range gws {
+		if gw.Current {
+			ht.CurrentEvent = gw.Number
+			break
+		}
+	}
+	if history != nil {
+		for _, gw := range history.Current {
+			ht.History = append(ht.History, HouseResult{Event: gw.Event, Points: gw.Points})
+		}
+	}
+
+	byID := make(map[int]Player, len(sq.Players))
+	for _, p := range sq.Players {
+		byID[p.ID] = p
+	}
+	teamPlayer := func(id int) (TeamPlayer, bool) {
+		p, ok := byID[id]
+		if !ok {
+			return TeamPlayer{}, false
+		}
+		tp := TeamPlayer{ID: p.ID, Name: p.Name, Club: p.Club, Pos: p.Pos, Price: p.Price}
+		if len(p.Fixtures) > 0 {
+			f := p.Fixtures[0]
+			tp.Opponent = &f
+		}
+		tp.MatchStatus = matchStatus[p.Club]
+
+		stats := live.ByID(p.ID)
+		if stats == nil {
+			return tp, true
+		}
+		// Goals/assists/clean sheets are an honest "as of now" at every status —
+		// zero before kickoff is correct, not merely a placeholder for it.
+		tp.Goals = stats.GoalsScored
+		tp.Assists = stats.Assists
+		tp.CleanSheets = stats.CleanSheets
+
+		// DefCon/Saves stay nil before kickoff on purpose: "did he clear the bar"
+		// has no honest answer yet, and a red pill on a match that has not
+		// started would read as a verdict rather than an absence of one.
+		if tp.MatchStatus != "live" && tp.MatchStatus != "finished" {
+			return tp, true
+		}
+		if p.Pos == "GKP" {
+			saves := stats.Saves
+			tp.Saves = &saves
+			return tp, true
+		}
+		dc := stats.DefensiveContribution
+		tp.DefCon = &dc
+		if boot != nil {
+			if el := boot.ElementByID(p.ID); el != nil {
+				reached := dc >= analysis.DefConThreshold(el.ElementType)
+				tp.DefConReached = &reached
+			}
+		}
+		return tp, true
+	}
+	for _, id := range sq.XI {
+		if tp, ok := teamPlayer(id); ok {
+			ht.XI = append(ht.XI, tp)
+		}
+	}
+	for _, id := range sq.Bench {
+		if tp, ok := teamPlayer(id); ok {
+			ht.Bench = append(ht.Bench, tp)
+		}
+	}
+	return ht
 }
 
 // buildChipWindow reports the chip window this gameweek falls in, or nil when
