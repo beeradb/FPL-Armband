@@ -75,26 +75,31 @@ flowchart TB
     listrule["a present key wins outright —<br/>empty object, empty list and null included.<br/>An empty list is a statement, and the<br/>agent's removals survive the next load"]
     listexc["except review_policy.rules and<br/>minutes_weight_by_position, which<br/>backfill when empty — and the<br/>latter merges per position"]
 
+    objgroup{"early_floor: is the WHOLE<br/>key present?"}
+    objpresent["absent → the whole default<br/>backfills, {1.0, 0.2, 8}. present →<br/>each subfield backfills on its own<br/>rule instead — until_gameweek: 0<br/>survives that and means off"]
+
     key -->|"absent"| def
     key -->|"present"| shape
     shape -->|"number"| numgroup
     shape -->|"list"| listrule
+    shape -->|"object (early_floor)"| objgroup
     numgroup --> most --> trap1
     numgroup --> zerook --> honoured
     numgroup --> brp --> trap2
     numgroup --> probe --> presence
     listrule -.-> listexc
+    objgroup --> objpresent
 
     classDef io fill:#F4E0E3,stroke:#A8404E,color:#141A21
     classDef pure fill:#E3EDF1,stroke:#1F5F73,color:#141A21
     classDef llm fill:#DFEDE6,stroke:#2F7A57,color:#141A21
     classDef test fill:#FBF2E3,stroke:#B9770E,color:#141A21
     classDef muted fill:#F4F6F9,stroke:#7A8791,color:#141A21
-    class key,shape,numgroup,listexc test
+    class key,shape,numgroup,listexc,objgroup test
     class def,most,zerook,brp,probe muted
     class trap1,trap2 io
     class honoured,listrule llm
-    class presence pure
+    class presence,objpresent pure
 ```
 
 ---
