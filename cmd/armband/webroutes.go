@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -559,6 +560,7 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 	}
 
 	now := s.now()
+	houseEntry, houseHistory := houseTeamSources(r.Context(), s.client, cfg.EntryID)
 	st, err := viewmodel.Build(viewmodel.Input{
 		Page:      b.Page,
 		Boot:      s.engine.Boot,
@@ -582,6 +584,8 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 		NewsReadChecked: newsReadChecked(cfg, now),
 		OverrideEffects: b.OverrideEffects,
 		Import:          buildImport(s.engine.Boot.Events, sess),
+		HouseEntry:      houseEntry,
+		HouseHistory:    houseHistory,
 	})
 	if err != nil {
 		// Build's only failure is a number encoding/json would refuse. Naming the field
@@ -591,6 +595,31 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 	// Marshalled here rather than streamed, so a failure is an error a caller can answer
 	// with a status instead of a truncated body.
 	return json.Marshal(st)
+}
+
+// houseTeamSources fetches the site's own manager record for the footer widget —
+// config.EntryID's Entry and History, through the same cached client call every other
+// caller of Entry/History in this codebase uses for an operator-configured id (see
+// Client.EntryUncached's doc comment on why that trust boundary is what makes the disk
+// cache safe here).
+//
+// A fetch failure returns (nil, nil) rather than an error: this is supplementary
+// proof-of-use, not the squad the page exists to build, and an FPL hiccup on this call
+// must not turn the whole page into a 500. viewmodel.Build already treats a nil Entry as
+// "no house team to show" — the same honest-absence rule State.Import's own fields follow.
+func houseTeamSources(ctx context.Context, client *fpl.Client, entryID int) (*fpl.Entry, *fpl.EntryHistory) {
+	if client == nil || entryID == 0 {
+		return nil, nil
+	}
+	entry, err := client.Entry(ctx, entryID)
+	if err != nil {
+		return nil, nil
+	}
+	history, err := client.History(ctx, entryID)
+	if err != nil {
+		return entry, nil
+	}
+	return entry, history
 }
 
 // saveSession stores the reader's team and answers with the recomputed document.

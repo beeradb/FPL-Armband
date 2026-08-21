@@ -74,6 +74,13 @@ type Input struct {
 	// cmd/armband.importWindow — this package may not decide whether a gameweek has been
 	// played any more than it may compute any other model quantity. See State.Import.
 	Import Import
+
+	// HouseEntry and HouseHistory are the site's own FPL manager record — config.EntryID's
+	// Entry and History, fetched by the caller as an ordinary cached client call, exactly
+	// like Boot. Nil when EntryID is unset or the fetch failed; Build then leaves
+	// State.HouseTeam nil rather than showing a partial or stale figure. See State.HouseTeam.
+	HouseEntry   *fpl.Entry
+	HouseHistory *fpl.EntryHistory
 }
 
 // Build translates an assembled page into the client contract.
@@ -108,6 +115,7 @@ func Build(in Input) (*State, error) {
 
 	s.Squad = buildSquad(p)
 	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips)
+	s.HouseTeam = buildHouseTeam(s.Squad, s.Gameweeks, in.HouseEntry, in.HouseHistory)
 	s.Market = buildMarket(p)
 	s.Overrides = buildOverrides(p)
 	s.News = buildNews(s, in)
@@ -241,6 +249,39 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 		})
 	}
 	return out
+}
+
+// buildHouseTeam arranges the site's own manager record into the footer's contract.
+//
+// CurrentProjected is sq.Expected — the exact figure the score bug already shows for this
+// same build — not the current week's Gameweek.Projected. The two are NOT the same
+// quantity: Gameweek.Projected is WeekView's own best-XI-and-captain for that week
+// (analysis/weekview.go), computed independent of this squad's actual arrangement, and it
+// diverges from the score bug the moment a reader (or the house account itself) locks,
+// leaves out, or captains someone other than the model's own pick — which the house
+// account's real squad does. Reusing sq.Expected is what keeps the promise "never a second
+// computation" honest rather than merely close.
+func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.EntryHistory) *HouseTeam {
+	if entry == nil {
+		return nil
+	}
+	ht := &HouseTeam{
+		OverallPoints:    entry.SummaryOverallPoints,
+		OverallRank:      entry.SummaryOverallRank,
+		CurrentProjected: sq.Expected,
+	}
+	for _, gw := range gws {
+		if gw.Current {
+			ht.CurrentEvent = gw.Number
+			break
+		}
+	}
+	if history != nil {
+		for _, gw := range history.Current {
+			ht.History = append(ht.History, HouseResult{Event: gw.Event, Points: gw.Points})
+		}
+	}
+	return ht
 }
 
 // buildChipWindow reports the chip window this gameweek falls in, or nil when

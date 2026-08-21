@@ -75,6 +75,40 @@ type State struct {
 
 	// Import is the team-import affordance's whole state. See Import.
 	Import Import `json:"import"`
+
+	// HouseTeam is the site's own FPL squad — config.EntryID, run through the identical
+	// pipeline as any reader's team. Nil when EntryID is unset, since there is then no
+	// real team to show. See HouseTeam.
+	HouseTeam *HouseTeam `json:"house_team,omitempty"`
+}
+
+// HouseTeam is proof-of-use for the footer: what the site's own squad actually scored,
+// gameweek by gameweek, and what this week's eleven is projected to return.
+//
+// CurrentProjected is never a second computation — it is Squad.Expected, the same number
+// the score bug already shows, not the current week's Gameweek.Projected. The two are NOT
+// interchangeable: Gameweek.Projected is the rail's own best-XI-and-captain figure for that
+// week, computed independent of this squad's actual arrangement, and it diverges from the
+// score bug the moment a lock, a leave-out or a captain choice is not the model's own pick
+// — which the house account's real squad routinely is not. See buildHouseTeam.
+type HouseTeam struct {
+	OverallPoints int `json:"overall_points"`
+	OverallRank   int `json:"overall_rank,omitempty"`
+
+	// CurrentEvent is the gameweek the rail marks Current, zero before a build has one.
+	// CurrentProjected is Squad.Expected for that same build — see the type comment.
+	CurrentEvent     int     `json:"current_event,omitempty"`
+	CurrentProjected float64 `json:"current_projected,omitempty"`
+
+	// History is every gameweek FPL has scored so far, oldest first — the actual points
+	// the fielded eleven returned, not a projection.
+	History []HouseResult `json:"history,omitempty"`
+}
+
+// HouseResult is one completed gameweek's actual score.
+type HouseResult struct {
+	Event  int `json:"event"`
+	Points int `json:"points"`
 }
 
 // Import is the team-import affordance's whole state — whether it may be offered right

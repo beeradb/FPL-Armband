@@ -70,6 +70,12 @@
      ============================================================ -->
 <section id="view-pitch">
 
+  <!-- Whose squad this is: config.EntryID, the site's own live FPL team, run through the
+       identical pipeline as any reader's. Without this line the pitch below has no context
+       -- it is just eleven cards. Empty when EntryID is unset; see renderHouseTeam() in
+       app.js. Placed above the score bug on purpose: identity before the number. -->
+  <div class="houseteam" id="houseteam"></div>
+
   <!-- the score bug: one number is the product -->
   <div class="scorebug" id="scorebug"></div>
 

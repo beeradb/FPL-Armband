@@ -255,6 +255,79 @@ func TestTheCurrentGameweekComesFromTheBootstrap(t *testing.T) {
 	}
 }
 
+// TestHouseTeamIsAbsentWithoutAnEntry pins the honest-absence rule: no config.EntryID (or
+// a failed fetch, from the caller's point of view — build() supplies no HouseEntry either
+// way) means no house team to show, not a zeroed one a client might render as "GW0 · 0 pts".
+func TestHouseTeamIsAbsentWithoutAnEntry(t *testing.T) {
+	s := build(t, samplePage())
+	if s.HouseTeam != nil {
+		t.Errorf("HouseTeam = %+v, want nil — no HouseEntry was given", s.HouseTeam)
+	}
+}
+
+// TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails pins the bug an earlier version
+// of this function had: samplePage sets Squad.ExpectedPoints to 17.78 (the score bug, this
+// squad's actual arrangement) and Weeks[0].Expected to 52.3 (the rail's OWN best-XI pick
+// for GW1, computed independent of this squad — see WeekView.Expected's doc comment).
+// Those two numbers deliberately differ in this fixture, exactly as they do in production
+// the moment a squad's captain or XI is not the model's own choice. CurrentProjected must
+// be the FIRST number, or the footer contradicts the tab it sits under.
+func TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails(t *testing.T) {
+	rank := 412311
+	history := &fpl.EntryHistory{Current: []struct {
+		Event              int  `json:"event"`
+		Points             int  `json:"points"`
+		TotalPoints        int  `json:"total_points"`
+		Rank               *int `json:"rank"`
+		OverallRank        *int `json:"overall_rank"`
+		Bank               int  `json:"bank"`
+		Value              int  `json:"value"`
+		EventTransfers     int  `json:"event_transfers"`
+		EventTransfersCost int  `json:"event_transfers_cost"`
+		PointsOnBench      int  `json:"points_on_bench"`
+	}{
+		{Event: 1, Points: 62},
+	}}
+	s, err := Build(Input{
+		Page: samplePage(),
+		Boot: &fpl.Bootstrap{Events: []fpl.Event{
+			{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsNext: true},
+			{ID: 2, DeadlineTime: time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC)},
+		}},
+		Cfg: config.Config{},
+		Now: pinned,
+		HouseEntry: &fpl.Entry{
+			SummaryOverallPoints: 236,
+			SummaryOverallRank:   rank,
+		},
+		HouseHistory: history,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if s.HouseTeam == nil {
+		t.Fatal("HouseTeam is nil, want a value — HouseEntry was given")
+	}
+	if s.HouseTeam.CurrentEvent != 1 {
+		t.Errorf("CurrentEvent = %d, want 1", s.HouseTeam.CurrentEvent)
+	}
+	if s.HouseTeam.CurrentProjected != s.Squad.Expected {
+		t.Errorf("CurrentProjected = %v, want %v — the score bug's own Squad.Expected",
+			s.HouseTeam.CurrentProjected, s.Squad.Expected)
+	}
+	if s.HouseTeam.CurrentProjected == s.Gameweeks[0].Projected {
+		t.Fatalf("CurrentProjected (%v) equals the rail's Gameweek.Projected — this fixture "+
+			"sets them to different values on purpose so this test cannot pass by accident",
+			s.HouseTeam.CurrentProjected)
+	}
+	if s.HouseTeam.OverallPoints != 236 || s.HouseTeam.OverallRank != rank {
+		t.Errorf("OverallPoints/OverallRank = %d/%d, want 236/%d", s.HouseTeam.OverallPoints, s.HouseTeam.OverallRank, rank)
+	}
+	if len(s.HouseTeam.History) != 1 || s.HouseTeam.History[0].Event != 1 || s.HouseTeam.History[0].Points != 62 {
+		t.Errorf("History = %+v, want [{1 62}]", s.HouseTeam.History)
+	}
+}
+
 // TestTheOverrideCountsComeFromOneImplementation pins that the API's "how many need a
 // check" is asked of the same code the page asks, rather than recounted here. Two counts
 // of one quantity is the failure this codebase names most often.

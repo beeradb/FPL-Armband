@@ -1981,3 +1981,28 @@ body.saving{cursor:progress;}
 }
 .chipscrim{display:none;}
 @media (max-width:720px){.chipscrim.on{display:block;}}
+
+/* --- the house team identity strip, above the score bug --------
+   config.EntryID is the site's own live FPL squad, run through this exact pipeline. It
+   sits above the score bug because the pitch below it is otherwise eleven cards with no
+   context for whose they are. States what it actually scored last week (a fact, plain ink)
+   and what this week's eleven is projected to return (Squad.Expected, --acc -- the same
+   number the score bug shows, never a second computation of it). No sparkline: two numbers
+   and a name is the whole job. */
+.houseteam{margin-bottom:10px;}
+.houseteamrow{
+  display:flex;align-items:center;gap:14px;padding:10px 16px;
+  background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);
+  flex-wrap:wrap;
+}
+.houseteamrow .htbadge{
+  font-family:var(--display);font-weight:800;font-size:13px;color:var(--ink);white-space:nowrap;
+}
+.houseteamrow .htstat{display:flex;flex-direction:column;gap:1px;padding:0 12px;border-left:1px solid var(--line);}
+.houseteamrow .htstat .v{font-family:var(--mono);font-weight:700;font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums;}
+.houseteamrow .htstat .v.acc{color:var(--acc);}
+.houseteamrow .htstat .k{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--label);}
+@media (max-width:640px){
+  .houseteamrow{gap:0;padding:8px 12px;}
+  .houseteamrow .htstat{padding:0 8px;}
+}
