@@ -13,9 +13,9 @@ alike. The rules below are the ones that catch people out.
 **For most numeric fields, an explicit `0` is treated as an omission.** `config.Load` backfills
 anything non-positive for `max_iterations`, `fixture_horizon`, `minutes_half_life`,
 `bench_weight`, `minutes_weight`, `blend_minutes_k`, `blend_rate_k`, `rest_minutes_factor`,
-`cache_minutes`, all eight congestion penalties, all four `role_risk` numbers and six of
-`review_policy`. So writing `"minutes_half_life": 0` does **not** select the flat season
-average — it silently becomes 4.
+`cache_minutes`, `player_cache_minutes`, all eight congestion penalties, all four `role_risk`
+numbers and six of `review_policy`. So writing `"minutes_half_life": 0` does **not** select the
+flat season average — it silently becomes 4.
 
 Zero *is* honoured for `bonus_weight`, `fixture_weight`, `set_piece_weight`, `band_strength`,
 `rate_half_life`, `prior_half_life` and `defcon_clean_coupling`, because for those it is a real
@@ -113,7 +113,8 @@ everything else has a workable default.
 | `max_iterations` | `25` | Ceiling on tool-calling rounds. A runaway guard, **not** a typical-case setting — the loop ends when the model stops calling tools. |
 | `report_dir` | `reports` | Where Markdown reports are written. |
 | `cache_dir` | `.cache/fpl` | FPL API response cache. |
-| `cache_minutes` | `60` | Cache lifetime. Use `-refresh` to force a refetch before a deadline. |
+| `cache_minutes` | `60` | Cache lifetime for `Bootstrap`/`Fixtures`/`Entry`/`Picks`/`History`. Use `-refresh` to force a refetch before a deadline. |
+| `player_cache_minutes` | `15` | Cache lifetime for `ElementSummary` alone (a player's match history) — separate and much shorter, since it is read per request rather than once per process. |
 | `roster` | absent | Standing player locks, exclusions and minutes corrections. **Written by the agent, not by you** — see below. |
 
 ## `criteria`
