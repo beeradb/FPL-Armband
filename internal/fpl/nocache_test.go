@@ -2,6 +2,7 @@ package fpl
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -254,5 +255,152 @@ func TestTheClientHasNoAuthenticatedSurface(t *testing.T) {
 			t.Errorf("%s issues a POST. This client is read-only against a public API; "+
 				"a write path is out of scope until it is designed with one.", f)
 		}
+	}
+}
+
+// TestEntryAndPicksUncachedWriteNoCacheFile pins EntryUncached's and PicksUncached's whole
+// reason to exist: a public route accepting an attacker-influenced entry id must not turn
+// "number of files under cacheDir" into a quantity that visitor controls. The control is
+// the cached calls in the same test, which DO write — proving the assertions above are
+// exercising the no-cache guarantee and not merely a server nobody asked anything of.
+func TestEntryAndPicksUncachedWriteNoCacheFile(t *testing.T) {
+	c, dir := serve(t, `{"id": 42, "name": "Test Team"}`)
+	ctx := context.Background()
+
+	if _, err := c.EntryUncached(ctx, 42); err != nil {
+		t.Fatalf("EntryUncached: %v", err)
+	}
+	if files := cacheFiles(t, dir); len(files) != 0 {
+		t.Errorf("EntryUncached wrote %v to the cache directory", files)
+	}
+
+	if _, err := c.PicksUncached(ctx, 42, 1); err != nil {
+		t.Fatalf("PicksUncached: %v", err)
+	}
+	if files := cacheFiles(t, dir); len(files) != 0 {
+		t.Errorf("PicksUncached wrote %v to the cache directory", files)
+	}
+
+	// The control: the CACHED equivalents of the same two calls, against the same
+	// directory, must write — otherwise the assertions above would pass for the wrong
+	// reason (a server or a directory that never sees a write regardless).
+	if _, err := c.Entry(ctx, 42); err != nil {
+		t.Fatalf("Entry: %v", err)
+	}
+	if files := cacheFiles(t, dir); len(files) != 1 {
+		t.Errorf("the cached Entry call wrote %v cache files, want exactly 1", files)
+	}
+	if _, err := c.Picks(ctx, 42, 1); err != nil {
+		t.Fatalf("Picks: %v", err)
+	}
+	if files := cacheFiles(t, dir); len(files) != 2 {
+		t.Errorf("the cached Picks call left %v cache files, want exactly 2", files)
+	}
+}
+
+// TestEntryAndPicksUncachedAreAlwaysFresh is TestRawIsAlwaysFresh's counterpart for the two
+// new functions: a cache warmed through the ordinary path must not be read back by the
+// uncached ones, which exist specifically to bypass it.
+func TestEntryAndPicksUncachedAreAlwaysFresh(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id": 42, "name": "Test Team"}`))
+	}))
+	defer srv.Close()
+	c := &Client{
+		http:     &http.Client{Transport: rewrite{to: srv.URL}},
+		cacheDir: t.TempDir(),
+		cacheTTL: time.Hour,
+	}
+	ctx := context.Background()
+
+	if _, err := c.Entry(ctx, 42); err != nil {
+		t.Fatalf("warming the cache: %v", err)
+	}
+	after := hits
+	if _, err := c.EntryUncached(ctx, 42); err != nil {
+		t.Fatalf("EntryUncached: %v", err)
+	}
+	if hits != after+1 {
+		t.Errorf("EntryUncached served from cache (%d hits before, %d after)", after, hits)
+	}
+}
+
+// TestEntryUncachedDecodesTheSameShapeAsEntry pins that the uncached path is not a second,
+// silently-diverging decoder — both read the JSON into the same Entry struct.
+func TestEntryUncachedDecodesTheSameShapeAsEntry(t *testing.T) {
+	c, _ := serve(t, `{"id": 42, "name": "Test Team", "summary_overall_points": 1234}`)
+	e, err := c.EntryUncached(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("EntryUncached: %v", err)
+	}
+	if e.ID != 42 || e.Name != "Test Team" || e.SummaryOverallPoints != 1234 {
+		t.Errorf("EntryUncached decoded %+v, fields did not carry through", e)
+	}
+}
+
+// TestPicksUncachedDecodesTheSameShapeAsPicks mirrors the Entry test above for Picks.
+func TestPicksUncachedDecodesTheSameShapeAsPicks(t *testing.T) {
+	body := `{"active_chip": null, "entry_history": {"event": 3}, "picks": [
+		{"element": 101, "position": 1, "multiplier": 1, "is_captain": false, "is_vice_captain": false},
+		{"element": 202, "position": 2, "multiplier": 2, "is_captain": true, "is_vice_captain": false}
+	]}`
+	c, _ := serve(t, body)
+	p, err := c.PicksUncached(context.Background(), 42, 3)
+	if err != nil {
+		t.Fatalf("PicksUncached: %v", err)
+	}
+	if len(p.Picks) != 2 {
+		t.Fatalf("PicksUncached decoded %d picks, want 2", len(p.Picks))
+	}
+	if p.Picks[1].Element != 202 || !p.Picks[1].IsCaptain {
+		t.Errorf("PicksUncached decoded %+v, fields did not carry through", p.Picks[1])
+	}
+}
+
+// TestEntryUncachedAndPicksUncachedWrapErrNotFoundOn404 pins the sentinel PUT /api/import
+// needs to tell "no such team" apart from "FPL is unreachable" without matching on message
+// text — see ErrNotFound's own doc comment.
+func TestEntryUncachedAndPicksUncachedWrapErrNotFoundOn404(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"detail": "Not found."}`))
+	}))
+	defer srv.Close()
+	c := &Client{
+		http:     &http.Client{Transport: rewrite{to: srv.URL}},
+		cacheDir: t.TempDir(),
+		cacheTTL: time.Hour,
+	}
+	ctx := context.Background()
+
+	if _, err := c.EntryUncached(ctx, 999); !errors.Is(err, ErrNotFound) {
+		t.Errorf("EntryUncached on a 404 returned %v, want an error wrapping ErrNotFound", err)
+	}
+	if _, err := c.PicksUncached(ctx, 42, 1); !errors.Is(err, ErrNotFound) {
+		t.Errorf("PicksUncached on a 404 returned %v, want an error wrapping ErrNotFound", err)
+	}
+}
+
+// TestUncachedOn5xxDoesNotWrapErrNotFound is the mirror: a server error must read as
+// "unreachable", not as "does not exist" — the two answer different HTTP statuses from the
+// import route.
+func TestUncachedOn5xxDoesNotWrapErrNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`upstream error`))
+	}))
+	defer srv.Close()
+	c := &Client{
+		http:     &http.Client{Transport: rewrite{to: srv.URL}},
+		cacheDir: t.TempDir(),
+		cacheTTL: time.Hour,
+	}
+	if _, err := c.EntryUncached(context.Background(), 42); err == nil {
+		t.Fatal("EntryUncached on a 502 returned no error")
+	} else if errors.Is(err, ErrNotFound) {
+		t.Errorf("EntryUncached on a 502 wrapped ErrNotFound: %v", err)
 	}
 }

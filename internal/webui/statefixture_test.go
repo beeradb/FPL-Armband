@@ -39,8 +39,9 @@ import (
 // fixtureNames are the committed documents under testdata/state. Each is rendered at both
 // viewports unless the shot list says otherwise.
 var fixtureNames = []string{
-	"gameweek-one", // an ordinary pre-season state, generated from a real run
-	"edges",        // the states real data will not hand you on demand
+	"gameweek-one",   // an ordinary pre-season state, generated from a real run
+	"edges",          // the states real data will not hand you on demand
+	"import-offered", // the team-ID import affordance offered, from GW2 onward
 }
 
 // loadState reads one fixture and fails loudly if it does not decode into the contract.

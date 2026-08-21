@@ -76,6 +76,19 @@ type session struct {
 	// cannot have integer keys, and a map rather than a list because one gameweek holds
 	// at most one chip.
 	Chips map[string]string `json:"chips,omitempty"`
+
+	// Entry is the imported team's FPL entry (Team) id, 0 if nothing has been imported.
+	//
+	// This is deliberately NOT config.EntryID. That field is the agent-facing "my team"
+	// concept, and squadServer.cfg is one *config.Config shared by every visitor to this
+	// process — writing a visitor's imported id there would leak it into every other
+	// visitor's page on the next build. The imported id belongs to this one reader, so it
+	// lives in the per-visitor session cookie instead, the same way Squad and the rest of
+	// this reader's team do.
+	Entry int `json:"entry,omitempty"`
+	// ImportSkipped records that the reader chose "start fresh" over importing, so the
+	// offer is not shown again on the next reload of the same session.
+	ImportSkipped bool `json:"noimp,omitempty"`
 }
 
 // sessionVersion is the shape below. Bump it when a field changes meaning rather than when
@@ -203,7 +216,8 @@ func (s session) write(w http.ResponseWriter) error {
 
 func (s session) empty() bool {
 	return len(s.Squad) == 0 && len(s.XI) == 0 && len(s.Lock) == 0 && len(s.Exclude) == 0 &&
-		len(s.Dismissed) == 0 && len(s.Chips) == 0 && s.Seed == 0 && !s.Optimised
+		len(s.Dismissed) == 0 && len(s.Chips) == 0 && s.Seed == 0 && !s.Optimised &&
+		s.Entry == 0 && !s.ImportSkipped
 }
 
 // forPlanner strips the corrections that belong to the analysis layer rather than to the
@@ -394,4 +408,28 @@ func (s session) applyAction(action string, code int) session {
 		s.Exclude = drop(s.Exclude, code)
 	}
 	return s
+}
+
+// fromImport returns a new session built from an imported FPL squad.
+//
+// It preserves this session's standing corrections — Lock, Exclude, Dismissed, Chips —
+// because those describe the reader's own decisions and the world as they have corrected
+// it, neither of which an import should discard. It does NOT preserve Squad, XI, Bench,
+// Captain or Vice: an import REPLACES the team, it does not merge with whatever fifteen
+// (if any) the reader had before. Optimised is left false, deliberately — an imported
+// fifteen is the reader's own team from FPL, not the model's optimum, so the Optimize
+// control should read as available rather than already pressed.
+func (s session) fromImport(entry int, squad, xi, bench []int, captain, vice int) session {
+	return session{
+		Lock:      s.Lock,
+		Exclude:   s.Exclude,
+		Dismissed: s.Dismissed,
+		Chips:     s.Chips,
+		Squad:     squad,
+		XI:        xi,
+		Bench:     bench,
+		Captain:   captain,
+		Vice:      vice,
+		Entry:     entry,
+	}
 }

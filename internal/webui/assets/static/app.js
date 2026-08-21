@@ -269,6 +269,12 @@ function hydrate(st){
   S.blocks=new Set((sess.blocked||[]).map(codeToId).filter(Boolean));
   S.optimised=!!sess.optimised;
   S.saved=!!sess.saved;
+  /* entry/noimp live on st.import, not st.session -- see viewmodel.Import -- but they are
+     still session-cookie fields under the hood, and PUT /api/session is a full replace
+     (saveSession decodes straight into a fresh session{}). Any save that omitted them would
+     silently reset an already-imported entry id, or a reader's earlier "start fresh" choice,
+     back to zero on the very next unrelated save (locking a player, toggling a chip, ...). */
+  const imp=st.import||{};
   PENDING={
     v:1,
     seed:undefined,          /* the server owns the seed; never sent back */
@@ -276,7 +282,9 @@ function hydrate(st){
     lock:(sess.locked||[]).slice(),
     excl:(sess.blocked||[]).slice(),
     dis:(sess.dismissed||[]).slice(),
-    chips:Object.assign({},sess.chips||{})
+    chips:Object.assign({},sess.chips||{}),
+    entry:imp.entry||0,
+    noimp:!!imp.skipped
   };
 
   const sq=st.squad;
@@ -296,6 +304,19 @@ function hydrate(st){
   /* The team, by code, so a reload restores exactly this arrangement rather than the
      model's answer to the same fifteen. */
   PENDING.squad=(sq.players||[]).map(p=>p.code).filter(Boolean);
+
+  /* Import state: handle the team ID import affordance. */
+  const card=document.getElementById('importCard');
+  if(card){
+    if(!imp.open || imp.skipped || imp.entry) card.hidden=true;
+    else card.hidden=false;
+  }
+  /* Fill in the gameweek placeholders in the import card. */
+  const nextGwEl=document.getElementById('importNextGw');
+  if(nextGwEl) nextGwEl.textContent=imp.next||'—';
+  const exampleGwEl=document.getElementById('importExampleGw');
+  if(exampleGwEl) exampleGwEl.textContent=imp.next||'—';
+
   syncArrangement();
 }
 
@@ -2125,6 +2146,82 @@ if(resetBtn) resetBtn.onclick=()=>{
     pending.excl=[];
   });
 };
+
+/* Import card: wire up the import and skip buttons */
+const importSubmitBtn=document.getElementById('importSubmit');
+const importSkipBtn=document.getElementById('importSkip');
+const importTeamIdInput=document.getElementById('importTeamId');
+const importErrorDiv=document.getElementById('importError');
+
+if(importSubmitBtn){
+  importSubmitBtn.onclick=()=>importTeam();
+}
+if(importSkipBtn){
+  importSkipBtn.onclick=()=>skipImport();
+}
+if(importTeamIdInput){
+  importTeamIdInput.addEventListener('keypress', e=>{
+    if(e.key==='Enter') importTeam();
+  });
+}
+
+function importTeam(){
+  const teamId=document.getElementById('importTeamId').value.trim();
+  if(!teamId){
+    showImportError('Please enter your Team ID.');
+    return;
+  }
+
+  importSubmitBtn.disabled=true;
+  const originalLabel=importSubmitBtn.textContent;
+  importSubmitBtn.textContent='Reading your team…';
+
+  fetch('/api/import',{
+    method:'PUT',
+    credentials:'same-origin',
+    headers:{'Content-Type':'application/json','X-Armband-Token':TOKEN},
+    body:JSON.stringify({entry:teamId})
+  })
+    .then(r=>{
+      if(!r.ok){
+        return r.text().then(text=>{
+          throw new Error(text||`the server answered ${r.status}`);
+        });
+      }
+      return r.json();
+    })
+    .then(st=>{
+      hydrate(st);
+      renderAll();
+      document.getElementById('importCard').hidden=true;
+      const eventNum=st.import?.event||'your';
+      notify(`Imported your Gameweek ${eventNum} fifteen.`);
+    })
+    .catch(err=>{
+      showImportError(err.message);
+      importSubmitBtn.disabled=false;
+      importSubmitBtn.textContent=originalLabel;
+    });
+}
+
+function skipImport(){
+  /* PUT /api/session is a full replace (saveSession decodes straight into a fresh
+     session{}), so this goes through the same save()/PENDING chain as every other session
+     mutation rather than posting a bespoke body -- a bespoke body would omit the squad,
+     locks, excludes, dismissed overrides and chip placements the reader already has, and
+     saveSession would store their absence as "gone" rather than "unchanged". sendSave's own
+     hydrate(st) call hides the card once the server confirms noimp stuck; it must not be
+     hidden here first, or a failed save would still look like it took. */
+  save(p=>{ p.noimp=true; });
+}
+
+function showImportError(message){
+  const errorDiv=document.getElementById('importError');
+  if(errorDiv){
+    errorDiv.textContent=message;
+    errorDiv.style.display='block';
+  }
+}
 
 boot();
 
