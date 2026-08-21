@@ -228,31 +228,48 @@ var shots = []shot{
 
 func goldenDir() string { return filepath.Join("testdata", "golden") }
 
-// ⚠️ DISABLED IN CI, 2026-08-20, and this is a suppression rather than a fix.
+// ⚠️ NOT RUN IN CI, and as of 2026-08-21 that is a DECISION rather than a suppression.
 //
-// These goldens are machine-dependent. On GitHub's runners every shot differs from
-// the committed PNG by a worst channel delta of 2 out of 255 — a uniform renderer
-// difference, not a visual change — and the comparison allows only
-// browsertest.NoiseFloor pixels to differ by more than 1, so thousands of pixels a
-// hair over that threshold blow the budget instantly. The same content passes
-// locally. `main` was red on six subtests continuously from 2026-08-19.
+// These goldens are machine-dependent. On GitHub's runners every shot differs from the
+// committed PNG by a worst channel delta of 2 out of 255 — a uniform renderer difference,
+// not a visual change — and the comparison allows only browsertest.NoiseFloor pixels to
+// differ by more than 1, so thousands of pixels a hair over that threshold blow the budget
+// instantly. The same content passes locally. `main` was red on six subtests continuously
+// from 2026-08-19, and this block went in on 2026-08-20 to stop a red gate training people
+// to merge over it.
 //
-// It is skipped rather than LOOSENED, deliberately. Raising the magnitude tolerance
-// to 2 would make CI green and would also blind the check to any real change smaller
-// than that, on every screen, forever — and nobody would know it had stopped
-// catching things. A skip is visible in the log and says what it is.
+// It is skipped rather than LOOSENED, deliberately. Raising the magnitude tolerance to 2
+// would make CI green and would also blind the check to any real change smaller than that,
+// on every screen, forever — and nobody would know it had stopped catching things.
 //
-// ⚠️ The cost is real and is not hidden: in CI this suite now proves only that the
-// pages RENDER, not that they render correctly. Locally it still compares, which is
-// where it has always actually caught regressions.
+// ⚠️ THE EARLIER VERSION OF THIS COMMENT ENDED "When it is fixed, DELETE this block". That
+// sentence is withdrawn. It described work nobody had scheduled, which is worse than the
+// skip: it reads as a debt somebody is clearing, so nobody does. The choice was put and
+// taken on 2026-08-21 — pin a browser build in a container for both local runs and CI, or
+// accept that these are a LOCAL check and defend the invariants another way. The second was
+// chosen.
 //
-// The underlying defect is triaged and owned elsewhere. When it is fixed, DELETE this
-// block — do not leave a skip sitting behind a green tick.
+// So the standing arrangement, not a stopgap:
+//
+//   - In CI this suite proves the pages RENDER. It does not prove they render correctly,
+//     and it is not pretending to.
+//   - Locally it still COMPARES, which is where it has always caught regressions, and it
+//     stays the thing to run before shipping anything visual.
+//   - What must not regress silently is asserted over the markup instead, where it needs no
+//     browser and runs everywhere. TestTheHeroPeekAddsUp is the pattern: the landing peek
+//     drew nine players under a 3-5-2 label twice, and BOTH goldens were regenerated inside
+//     the commit that broke it, so the pictures were updated to match the bug. A golden
+//     defends nothing against the change that rewrites it. An assertion does.
+//
+// ⚠️ Reviving the CI comparison means pinning the renderer, not raising the tolerance. If
+// somebody does that, delete this block — but do not delete it merely because the skip is
+// annoying.
 func TestLayout(t *testing.T) {
 	if os.Getenv("GITHUB_ACTIONS") != "" && os.Getenv("FPL_LAYOUT_GOLDENS") == "" {
-		t.Skip("layout goldens are machine-dependent on CI runners (worst channel " +
-			"delta 2/255); skipped here, still compared locally. Set " +
-			"FPL_LAYOUT_GOLDENS=1 to force. See the comment above this test.")
+		t.Skip("layout goldens are a LOCAL check by decision, not a pending fix: they are " +
+			"machine-dependent on CI runners (worst channel delta 2/255). Compared in full " +
+			"locally; invariants that must not regress silently are asserted over the markup " +
+			"instead. Set FPL_LAYOUT_GOLDENS=1 to force. See the comment above this test.")
 	}
 
 	browser := browsertest.Find(t)
