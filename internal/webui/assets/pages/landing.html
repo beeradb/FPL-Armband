@@ -133,7 +133,11 @@
 .mini.cap{border-color:var(--band-hi);box-shadow:0 0 14px rgba(47,83,240,.4);}
 .mini.cap .sh{height:9px;background:linear-gradient(180deg,#4361F5,#2F53F0)!important;
   display:flex;align-items:center;padding:0 4px;}
-.mini .arm{font-family:var(--display);font-weight:800;font-size:7px;color:#fff;line-height:1;}
+/* 9px, not 7: the system states a 9px floor and "Ever.", and this was the last
+   declaration in the whole client breaking it. The strip stays 9px deliberately —
+   `line-height:1` makes the line box exactly 9px and the strip centres it, so the
+   floor is cleared without the card growing and reflowing the page beneath it. */
+.mini .arm{font-family:var(--display);font-weight:800;font-size:9px;color:#fff;line-height:1;}
 /* the news flag on the preview — the pitch card's own .newsflag, on a mini */
 .mini .flg{position:absolute;top:-5px;right:-4px;z-index:3;min-width:14px;height:14px;
   border-radius:4px;display:grid;place-items:center;background:var(--warn);color:#241800;
