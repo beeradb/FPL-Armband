@@ -317,11 +317,29 @@ func (c *Client) fetch(ctx context.Context, path string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GET %s: reading body: %w", path, err)
 	}
+	if resp.StatusCode == http.StatusNotFound {
+		// Wrapped with %w rather than left as plain status text, so a caller that needs
+		// to tell "this resource does not exist" apart from "FPL is unreachable" — the
+		// import route does, for an entry id or a gameweek's picks a visitor typed —
+		// can use errors.Is(err, ErrNotFound) instead of matching on this string, which
+		// is exactly the trap ErrNotAnEntryID's own doc comment names.
+		return nil, fmt.Errorf("GET %s: status %d: %s: %w",
+			path, resp.StatusCode, truncate(string(body), 200), ErrNotFound)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GET %s: status %d: %s", path, resp.StatusCode, truncate(string(body), 200))
 	}
 	return body, nil
 }
+
+// ErrNotFound is returned (wrapped) when FPL answers 404 to a live fetch.
+//
+// A sentinel so a caller can ask "does this resource exist" with errors.Is rather than
+// parsing "status 404" out of an error string — the same reasoning ErrNotAnEntryID's own
+// doc comment gives, and the two exist for the same route: PUT /api/import needs to answer
+// a visitor with "no such team" (404) rather than "FPL is not answering" (503), and those
+// two failures must not be told apart by matching on message text.
+var ErrNotFound = errors.New("fpl: not found")
 
 // Raw returns an endpoint's body exactly as FPL sent it, always over the network.
 //
@@ -426,10 +444,19 @@ func (c *Client) ElementSummary(ctx context.Context, id int) (*ElementSummary, e
 	return &s, nil
 }
 
+// entryPath and picksPath are the one spelling of these two endpoints. Entry, Picks,
+// EntryUncached and PicksUncached all build their request path through these rather than
+// inlining the format string a second time — see this project's own "one quantity, two
+// implementations" rule.
+func entryPath(id int) string { return fmt.Sprintf("/entry/%d/", id) }
+func picksPath(entryID, event int) string {
+	return fmt.Sprintf("/entry/%d/event/%d/picks/", entryID, event)
+}
+
 // Entry returns a manager's overall record.
 func (c *Client) Entry(ctx context.Context, id int) (*Entry, error) {
 	var e Entry
-	if err := c.get(ctx, fmt.Sprintf("/entry/%d/", id), &e); err != nil {
+	if err := c.get(ctx, entryPath(id), &e); err != nil {
 		return nil, err
 	}
 	return &e, nil
@@ -439,8 +466,54 @@ func (c *Client) Entry(ctx context.Context, id int) (*Entry, error) {
 // that gameweek's deadline has passed.
 func (c *Client) Picks(ctx context.Context, entryID, event int) (*EntryPicks, error) {
 	var p EntryPicks
-	if err := c.get(ctx, fmt.Sprintf("/entry/%d/event/%d/picks/", entryID, event), &p); err != nil {
+	if err := c.get(ctx, picksPath(entryID, event), &p); err != nil {
 		return nil, err
+	}
+	return &p, nil
+}
+
+// EntryUncached and PicksUncached are Entry and Picks with no disk cache on either side —
+// always a live fetch, exactly like Raw.
+//
+// # Why this route may not go through the disk cache
+//
+// get()'s cache writes one file per distinct URL it is asked for, keyed on the path. Every
+// other caller of Entry/Picks in this codebase supplies an id the OPERATOR configured
+// (config.EntryID) or one covered by the same trust boundary — a bounded, self-inflicted
+// set of cache files. PUT /api/import is different: the id comes from an anonymous visitor
+// typing into a public form, so a route that reached the ordinary cached path would turn
+// "how many files sit in cacheDir" into an attacker-controlled quantity. This codebase's
+// deployment shares that disk with the season archive, the proxy cache and Traefik's own
+// acme.json — a filled disk there takes certificate renewal down with everything else on
+// it, which is the failure signup.Clean's own length bound exists to prevent on the other
+// public write path this server has.
+//
+// Raw already solves exactly this for the weekly capture, for an unrelated reason (a
+// capture must record a moment, not a cache-write time) — these two functions are it,
+// reused for a different reason, rather than a second no-cache mechanism.
+func (c *Client) EntryUncached(ctx context.Context, id int) (*Entry, error) {
+	path := entryPath(id)
+	body, err := c.Raw(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	var e Entry
+	if err := json.Unmarshal(body, &e); err != nil {
+		return nil, fmt.Errorf("GET %s: decoding: %w", path, err)
+	}
+	return &e, nil
+}
+
+// PicksUncached is Picks with no disk cache — see EntryUncached's doc comment for why.
+func (c *Client) PicksUncached(ctx context.Context, entryID, event int) (*EntryPicks, error) {
+	path := picksPath(entryID, event)
+	body, err := c.Raw(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	var p EntryPicks
+	if err := json.Unmarshal(body, &p); err != nil {
+		return nil, fmt.Errorf("GET %s: decoding: %w", path, err)
 	}
 	return &p, nil
 }

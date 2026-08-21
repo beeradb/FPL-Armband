@@ -72,6 +72,33 @@ type State struct {
 	// News is the News tab: freshness of the two sources it draws from, and every
 	// row it has to show. See News.
 	News News `json:"news"`
+
+	// Import is the team-import affordance's whole state. See Import.
+	Import Import `json:"import"`
+}
+
+// Import is the team-import affordance's whole state — whether it may be offered right
+// now, which gameweek's picks it would fetch, and what this reader has already done about
+// it.
+//
+// The client draws the control iff Open, and never itself decides whether a gameweek has
+// been played — that is exactly the kind of derivation this package's own governing rule
+// forbids the client from doing. See cmd/armband.importWindow for the rule (FPL only
+// serves a gameweek's picks once its deadline has passed, which doubles as "is the feature
+// on") and why it lives in exactly one place.
+type Import struct {
+	Open bool `json:"open"`
+	// Event is the gameweek whose picks would be imported — the one just gone. Zero
+	// when Open is false.
+	Event int `json:"event,omitempty"`
+	// Next is the gameweek being planned — the one the imported squad would be built
+	// for. Zero when Open is false.
+	Next int `json:"next,omitempty"`
+	// Skipped reports that this reader has already chosen "start fresh", so the client
+	// should not offer the control again for this session.
+	Skipped bool `json:"skipped,omitempty"`
+	// Entry is the FPL entry (Team) id this reader has already imported, 0 if none.
+	Entry int `json:"entry,omitempty"`
 }
 
 // News is the News tab's own data, kept apart from Player so a page that has not

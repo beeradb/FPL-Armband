@@ -13,6 +13,7 @@ import (
 
 	"armband/internal/analysis"
 	"armband/internal/config"
+	"armband/internal/fpl"
 	"armband/internal/signup"
 	"armband/internal/viewmodel"
 	"armband/internal/webui"
@@ -44,6 +45,8 @@ const (
 	routeGate    = "/gate"
 	routeState   = "/api/state"
 	routeSession = "/api/session"
+	// routeImport is the team-ID import write path. See importteam.go.
+	routeImport = "/api/import"
 	// routeMetrics serves this process's own Prometheus metrics — the
 	// staleness signal behind internal/fpl.Client's deliberate stale-fallback,
 	// plus the HTTP and pipeline-timing series alongside it. See metrics.go's
@@ -578,6 +581,7 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 		NewsChecked:     newsChecked(s.client, now),
 		NewsReadChecked: newsReadChecked(cfg, now),
 		OverrideEffects: b.OverrideEffects,
+		Import:          buildImport(s.engine.Boot.Events, sess),
 	})
 	if err != nil {
 		// Build's only failure is a number encoding/json would refuse. Naming the field
@@ -882,6 +886,14 @@ func (s *squadServer) validateSession(in session) error {
 				return fmt.Errorf("no player has code %d", code)
 			}
 		}
+	}
+	// Entry is a raw int straight out of a cookie a hand-crafted PUT /api/session could
+	// set to anything. It is re-checked against fpl.ParseEntryID's own range rather than
+	// trusted because it was in the session already — the import route validated it once,
+	// on the way in, but this route (and readValidSession, on every later read) must not
+	// assume every session it is handed came from there.
+	if in.Entry != 0 && !fpl.EntryIDInRange(in.Entry) {
+		return fmt.Errorf("entry id %d is out of range", in.Entry)
 	}
 	if len(in.Chips) > 64 {
 		return fmt.Errorf("%d chip placements, which is more than a season has gameweeks", len(in.Chips))

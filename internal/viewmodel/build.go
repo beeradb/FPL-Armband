@@ -69,6 +69,11 @@ type Input struct {
 	// than a misleading zero, which is also what a lock or an exclude gets,
 	// since neither changes this player's own score.
 	OverrideEffects map[int]Effect
+
+	// Import is the team-import affordance's whole state, computed by the caller via
+	// cmd/armband.importWindow — this package may not decide whether a gameweek has been
+	// played any more than it may compute any other model quantity. See State.Import.
+	Import Import
 }
 
 // Build translates an assembled page into the client contract.
@@ -106,6 +111,7 @@ func Build(in Input) (*State, error) {
 	s.Market = buildMarket(p)
 	s.Overrides = buildOverrides(p)
 	s.News = buildNews(s, in)
+	s.Import = in.Import
 	if p.Reasoning != nil {
 		s.Blind = p.Reasoning.Blind
 		s.Policy = Policy{
