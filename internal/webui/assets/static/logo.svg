@@ -1,25 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 260" width="220" height="260" role="img" aria-label="FPL Armband">
-  <!-- band tails, behind the shield -->
-  <rect x="6" y="112" width="208" height="46" rx="9" fill="#1C34A8"/>
-  <!-- shield -->
-  <path d="M110 16 L192 60 V148 c0 50-34 82-82 100 -48-18-82-50-82-100 V60 Z"
-        fill="#131C26" stroke="#2C3B49" stroke-width="2"/>
-  <!-- circuit traces -->
-  <g stroke="#4C6072" stroke-width="3" fill="none" stroke-linecap="round">
-    <path d="M110 40 V220"/>
-    <path d="M110 62 H82 V96"/>
-    <path d="M110 62 H138 V96"/>
-    <path d="M110 198 H82 V166"/>
-    <path d="M110 198 H138 V166"/>
-  </g>
-  <g fill="#4C6072">
-    <circle cx="110" cy="38" r="6"/><circle cx="82" cy="100" r="6"/><circle cx="138" cy="100" r="6"/>
-    <circle cx="110" cy="222" r="6"/><circle cx="82" cy="162" r="6"/><circle cx="138" cy="162" r="6"/>
-  </g>
-  <!-- the armband -->
-  <path d="M28 112 H192 V158 H28 Z" fill="#2F53F0"/>
-  <rect x="6" y="112" width="208" height="46" rx="9" fill="none"/>
-  <!-- captain C -->
-  <text x="110" y="149" text-anchor="middle" font-family="'Plus Jakarta Sans',system-ui,sans-serif"
-        font-size="46" font-weight="800" fill="#FFFFFF">C</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 64" width="120" height="64"
+     role="img" aria-label="FPL Armband">
+  <!-- The mark: a captain's armband carrying the C.
+
+       It replaced a shield-and-circuit-traces crest, which failed three ways at the
+       sizes this site actually renders it. Those failures are why the drawing below
+       looks the way it does, so they are recorded here rather than in a commit
+       message nobody reads twice:
+
+         1. The crest's near-black interior (#131C26) sat on a #070B10 page ground
+            and read as a hole rather than a shape.
+         2. Its interior died at shipped size. The circuit traces were stroke-width 3
+            in a 220-unit viewBox; the nav renders the mark ~26px wide, a scale of
+            0.118, putting those strokes at 0.35px — under one device pixel. Below
+            ~32px the interior was simply gone.
+         3. What survived to 16px was a blue dash, which is not an identity.
+
+       THE LONG EDGES BOW. The middle of the band is deeper than the ends, because
+       that is what a strap does wrapped round an arm. Drawn with straight edges it
+       reads as a flat label or a button. Do not straighten them.
+
+       THE CENTRE STRAP STANDS PROUD, by about 4.5 units top and bottom. That overlap
+       is the whole reason it is there: it shows the strap passing OVER the band,
+       which is what makes this read as an object rather than a printed stripe.
+       Sitting it flush inside the band was tried and loses that. Standing it proud by
+       much more turns it into a badge stuck on top and makes the silhouette noisy
+       below 24px.
+
+       THE C IS A STROKED ARC, not a <text> element. Text would depend on a webfont
+       that a rasteriser, an SVG-to-PNG step or a feed reader may not have, and the
+       old crest's C did exactly that. As a path it is the same shape everywhere.
+
+       This mark is HORIZONTAL and is never boxed. It sits to the LEFT of the
+       wordmark, at a height close to the wordmark's cap height, and it does not go
+       below 18px tall. The square cuts (favicon.svg, icon-*.png) are crops derived
+       FROM this file — never the reverse. Designing the square first is what produced
+       every cramped version of this mark while it was being explored.
+
+       ⚠️ The band, strap and C are byte-identical here, in favicon.svg, and in the
+       four copies inlined into landing.html (x2), app.html and team.html. They are
+       inlined because the nav mark must paint in the first frame, with no second
+       request. If the drawing ever changes, change all six. -->
+  <path d="M5 14 Q60 6 115 14 L115 50 Q60 58 5 50 Z" fill="#2F53F0"/>
+  <rect x="38" y="5.5" width="44" height="53" rx="3.5" fill="#1B2F9E"/>
+  <path d="M68.31 21.36 A13.5 13.5 0 1 0 68.31 42.64" fill="none" stroke="#FFFFFF"
+        stroke-width="7.2" stroke-linecap="round"/>
 </svg>

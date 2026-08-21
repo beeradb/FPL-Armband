@@ -65,6 +65,40 @@ var (
 	htmlnote   = regexp.MustCompile(`(?s)<!--.*?-->`)
 )
 
+// externalOrigins are the ONLY external origins any document here may name, and the
+// allowlist is the point: the guard below stopped being "no external strings" and became
+// "no external LOADS, plus these two origins and nothing else".
+//
+// Two things arrived that are genuinely external and genuinely correct, and the old guard
+// could not tell them from a missing asset:
+//
+//   - The og:/twitter: share tags. Both specs require ABSOLUTE urls — a scraper resolves
+//     them against nothing — so there is no relative spelling that works. These are read
+//     by Facebook, X and Slack from OUR server; the webview never fetches them.
+//   - The footer's GitHub and Method links. A navigation the reader chooses, not a
+//     subresource the document pulls in before it can paint.
+//
+// The distinction that matters is LOADED versus NAVIGATED-TO. The guard's own reason is
+// "an external reference is not a slow first paint, it is a missing asset" — that is a
+// statement about subresources, and it stays absolute for them: src=, <link href=> and
+// CSS url() are still checked against the whole document with no exemption at all.
+//
+// ⚠️ Do not widen this to a bare "skip anchors and meta". Pinning the origins means a
+// third one — a CDN, an analytics host, a font provider — still fails this test, which is
+// the failure the guard was written to catch. Adding an origin here should feel like a
+// decision, because it is one.
+var externalOrigins = []string{
+	"https://fplarmband.com",
+	"https://github.com/beeradb/FPL-Armband",
+}
+
+// anchorHref and metaContent find the two places an allowlisted origin may appear. They
+// are deliberately narrow: an <a> element's href, and a <meta> element's content.
+var (
+	anchorHref  = regexp.MustCompile(`(?i)<a\b[^>]*?\shref="([^"]*)"`)
+	metaContent = regexp.MustCompile(`(?i)<meta\b[^>]*?\scontent="([^"]*)"`)
+)
+
 func scannable(body []byte) string {
 	s := string(body)
 	s = cssComment.ReplaceAllString(s, " ")
@@ -73,18 +107,132 @@ func scannable(body []byte) string {
 	return s
 }
 
+// originAllowed reports whether an external reference names one of the origins the
+// documents may name at all. Prefix, not equality: the GitHub entry pins the repository,
+// so a link to some other repository on the same host still fails.
+func originAllowed(ref string) bool {
+	for _, o := range externalOrigins {
+		if strings.HasPrefix(ref, o) {
+			return true
+		}
+	}
+	return false
+}
+
+// scanExternal splits a document's external references into the two kinds that are not
+// the same problem: origins NAMED in a navigation or share tag, which must be
+// allowlisted, and subresources LOADED by the document, which must not be external at all.
+//
+// It is a function rather than a closure inside the test so that
+// TestTheExternalHostGuardStillFiresOnASubresource can drive it with synthetic documents.
+// A guard that was narrowed needs a test proving it still catches what it was written for,
+// or the narrowing is indistinguishable from deleting it.
+func scanExternal(raw []byte) (badOrigins, loads []string) {
+	body := scannable(raw)
+
+	// Anchors and meta values are checked against the allowlist and then REMOVED, so that
+	// whatever survives to externalRef below is a genuine subresource. Removing them is
+	// what keeps the remaining scan absolute rather than advisory.
+	for _, re := range []*regexp.Regexp{anchorHref, metaContent} {
+		for _, m := range re.FindAllStringSubmatch(body, -1) {
+			if externalRef.MatchString(m[1]) && !originAllowed(m[1]) {
+				badOrigins = append(badOrigins, m[1])
+			}
+		}
+		body = re.ReplaceAllString(body, "<elided>")
+	}
+	if m := externalRef.FindString(body); m != "" {
+		loads = append(loads, m)
+	}
+	return badOrigins, loads
+}
+
+// TestTheExternalHostGuardStillFiresOnASubresource is the proof that narrowing the guard
+// did not empty it.
+//
+// TestTheEmbeddedAppReachesNoExternalHost used to reject any external-looking string
+// anywhere in a document. It cannot any more: og:/twitter: tags must carry absolute urls
+// by specification, and the footer links out to the repository on purpose. So the guard
+// now distinguishes a LOAD from a NAVIGATION — and a distinction is exactly the kind of
+// change that quietly stops catching anything. These cases pin that it still does.
+func TestTheExternalHostGuardStillFiresOnASubresource(t *testing.T) {
+	cases := []struct {
+		name       string
+		doc        string
+		wantOrigin bool
+		wantLoad   bool
+	}{{
+		name: "a CDN stylesheet is still caught",
+		doc:  `<link rel="stylesheet" href="https://cdn.example.com/a.css">`,
+		// A <link> is not an <a>: it loads.
+		wantLoad: true,
+	}, {
+		name:     "an external script is still caught",
+		doc:      `<script src="https://analytics.example.com/t.js"></script>`,
+		wantLoad: true,
+	}, {
+		name:     "a remote image is still caught",
+		doc:      `<img src="https://images.example.com/hero.png">`,
+		wantLoad: true,
+	}, {
+		name:     "a remote font in CSS is still caught",
+		doc:      `<style>@font-face{src:url(https://fonts.example.com/x.woff2);}</style>`,
+		wantLoad: true,
+	}, {
+		name:       "an anchor to an unlisted origin is caught",
+		doc:        `<a href="https://twitter.com/someone">follow</a>`,
+		wantOrigin: true,
+	}, {
+		name:       "a share tag pointing off-origin is caught",
+		doc:        `<meta property="og:image" content="https://evil.example.com/x.png">`,
+		wantOrigin: true,
+	}, {
+		name:       "another repository on the allowed host is still caught",
+		doc:        `<a href="https://github.com/someone-else/other">src</a>`,
+		wantOrigin: true,
+	}, {
+		name: "the real share tags and footer links pass",
+		doc: `<meta property="og:url" content="https://fplarmband.com/">` +
+			`<meta property="og:image" content="https://fplarmband.com/assets/og-image.png">` +
+			`<a href="https://github.com/beeradb/FPL-Armband">GitHub</a>` +
+			`<a href="/privacy">Privacy</a>`,
+	}, {
+		name: "a comment mentioning an origin is not a reference",
+		doc:  `<!-- see https://ogp.me/ for why these are absolute -->`,
+	}}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			origins, loads := scanExternal([]byte(c.doc))
+			if got := len(origins) > 0; got != c.wantOrigin {
+				t.Errorf("disallowed-origin = %v, want %v (found %q)", got, c.wantOrigin, origins)
+			}
+			if got := len(loads) > 0; got != c.wantLoad {
+				t.Errorf("external-load = %v, want %v (found %q)", got, c.wantLoad, loads)
+			}
+		})
+	}
+}
+
 func TestTheEmbeddedAppReachesNoExternalHost(t *testing.T) {
 	static := Static()
 	var checked int
 
 	check := func(name string, raw []byte) {
 		checked++
-		body := scannable(raw)
-		if m := externalRef.FindString(body); m != "" {
-			t.Errorf("%s references an external host (%q). The app ships into an embedded "+
-				"webview with no network; every asset must be served from the binary.", name, m)
+		badOrigins, loads := scanExternal(raw)
+		for _, o := range badOrigins {
+			t.Errorf("%s names the external origin %q, which is not in externalOrigins. "+
+				"Navigations and share metadata may leave this host, but only to origins "+
+				"listed there on purpose.", name, o)
 		}
-		if strings.Contains(body, "@import") {
+		for _, m := range loads {
+			t.Errorf("%s loads an external subresource (%q). The app ships into an embedded "+
+				"webview with no network; every asset must be served from the binary. "+
+				"(Navigations and <meta> share tags are checked separately, against "+
+				"externalOrigins — this is neither.)", name, m)
+		}
+		if strings.Contains(scannable(raw), "@import") {
 			t.Errorf("%s uses @import, which chains a second round trip before first paint. "+
 				"HANDOFF.md section 6 rules it out; use a <link>.", name)
 		}
@@ -137,6 +285,27 @@ func TestEveryReferencedAssetResolves(t *testing.T) {
 			return
 		case ref == "/" || ref == "/app" || ref == "/armband-team":
 			// The page routes. Served by cmd/armband/serve.go, not from static.
+			return
+		case ref == "/privacy":
+			// The privacy notice. It is a SITE surface rather than an application one:
+			// this binary neither embeds nor serves it, and a local `armband serve` will
+			// answer 404 for it. It is published in front of this process by the
+			// deployment that fronts the public site, which is why the footer link is a
+			// same-origin path and there is no document here to resolve it to.
+			//
+			// ⚠️ Not an oversight, and not a page waiting to be added. If you are adding
+			// pages to assets/pages/, this is deliberately not one of them.
+			return
+		case externalRef.MatchString(ref):
+			// An absolute reference to another origin. There is nothing in the embedded
+			// tree for it to resolve TO, so resolving it here would report a false
+			// missing asset — which is exactly what happened when the footer's GitHub
+			// and Method links landed: path.Join turned them into
+			// "pages/https:/github.com/...".
+			//
+			// This is not a hole. Which external origins may appear at all, and in which
+			// elements, is pinned by TestTheEmbeddedAppReachesNoExternalHost against
+			// externalOrigins. That test owns the question; this one owns local files.
 			return
 		}
 		if !strings.HasPrefix(ref, "/assets/") {
