@@ -93,6 +93,7 @@ func TestSetPieceBonusDoubleCountsPenalties(t *testing.T) {
 // can reason about a newly appointed taker, which the model no longer prices.
 func TestSetPieceNotesSurviveAZeroWeight(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	skipDuringLiveGW1Gap(t, e)
 	var noted, scored int
 	for i := range e.Boot.Elements {
 		el := &e.Boot.Elements[i]

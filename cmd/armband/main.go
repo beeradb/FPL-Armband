@@ -342,8 +342,8 @@ func run() error {
 	//     its benefit is not measurable on the archive: it exists for a star whose
 	//     immediate prior season is an injury artefact, and neither replayed season
 	//     contains that case. See Weights.PriorHalfLife.
-	//   - The single-season cached prior is gated on gameweeks having been played,
-	//     because before GW1 FPL's own aggregates *are* last season's totals. A
+	//   - The single-season cached prior is gated on the season having started,
+	//     because before then FPL's own aggregates *are* last season's totals. A
 	//     single-season prior would be a second copy of the numbers already in the
 	//     bootstrap, so there is nothing for it to add; the gate is what encodes
 	//     that, not an oversight.
@@ -358,7 +358,20 @@ func run() error {
 	// mistaken reasoning that pre-season aggregates already are last season — true
 	// of a single-season prior and false of a blend, which is a better summary of
 	// last season than last season is. The blend is now ungated, and only the
-	// single-season path carries the gate, where the reasoning holds.
+	// single-season path carries the gate.
+	//
+	// ⚠️ Corrected 2026-08-21. The gate itself carried a second copy of the same
+	// mistake, one level down: it read engine.GameweeksPlayed() > 0 rather than
+	// engine.SeasonHasStarted(), on the belief that "before GW1" meant "before GW1
+	// finishes". Observed directly during 2026-27's live GW1: FPL had already
+	// reset the WHOLE league's bootstrap aggregates to fresh-season figures
+	// (correctly zero, for a club that had not itself kicked off) the moment the
+	// season's first match started, days before any gameweek could report
+	// Finished. GameweeksPlayed() answered 0 throughout that window, the gate
+	// never opened, and a player with a real, substantial prior season on record
+	// (585 minutes, 6 starts) scored at 0 with no prior behind him at all — the
+	// exact gap this gate exists to close. SeasonHasStarted (any fixture kicked
+	// off, not any gameweek finished) is the correct trigger; see its own comment.
 	{
 		loaded := false
 		if cfg.Weights.PriorHalfLife > 0 {
@@ -372,7 +385,7 @@ func run() error {
 				fmt.Fprintf(os.Stderr, "%s\n", dim("unavailable: "+err.Error()))
 			}
 		}
-		if !loaded && engine.GameweeksPlayed() > 0 {
+		if !loaded && engine.SeasonHasStarted() {
 			if s, err := priors.Load(ctx, cfg.CacheDir, priorSeasonName(engine)); err == nil {
 				engine.Priors = priors.Adapter{S: s}
 			} else {

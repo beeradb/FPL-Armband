@@ -6,12 +6,66 @@ import (
 	"armband/internal/fpl"
 )
 
+// skipDuringLiveGW1Gap skips when the engine was built from the LIVE API (not a
+// simulated one — see playGameweeks) and the season is caught in the one window
+// this whole suite cannot reason about honestly: SeasonHasStarted true,
+// GameweeksPlayed still 0.
+//
+// # Why this specific window, and not "any live season"
+//
+// Once GameweeksPlayed() > 0, every club has played its first fixture, so every
+// player has SOME current-season evidence — thin, but real, and el.Minutes means
+// what the doc comments say it means again. Before SeasonHasStarted, el.Minutes
+// is still last season's carryover, also honest. Only the gap between the two —
+// GW1 itself, from the first kickoff of the season to the last final whistle of
+// it, a span of days — has SOME clubs on fresh-season zeros and others still on
+// last season's totals, in the SAME live fetch.
+//
+// cmd/armband's live server closes this gap with internal/priors: once
+// SeasonHasStarted, it loads last season as a fallback so a fresh-season zero
+// reads as "no evidence yet" rather than "scores zero". These tests cannot do
+// the same — internal/priors imports internal/analysis, so a test file in
+// package analysis importing internal/priors back is a cycle, not a call.
+// internal/backtest carries the same wiring cmd/armband does, because it is a
+// separate package one level up; that is where this scenario is exercised for
+// real, not here.
+//
+// So a test built on a live engine in exactly this window sees a mix no doc
+// comment in this package promises to handle, and asserting through it proves
+// nothing about the model — only about which clubs happened to have fixtures
+// early in the alphabet this particular gameweek. Skip rather than fail; it
+// passes again within days, on its own, without a code change.
+func skipDuringLiveGW1Gap(t *testing.T, e *Engine) {
+	t.Helper()
+	if e.SeasonHasStarted() && e.GameweeksPlayed() == 0 {
+		t.Skip("mid-GW1: some clubs have played this season and some have not, " +
+			"in the same live fetch, and this package's test engines do not load " +
+			"a prior season the way cmd/armband's live server does — see this " +
+			"function's own comment. Passes again once GW1 finishes.")
+	}
+}
+
 // playGameweeks marks the first n gameweeks finished, so the engine believes
 // that much of the season has been played.
+//
+// It drives BOTH signals the engine reads for this, and must: GameweeksPlayed reads
+// Boot.Events[].Finished, but matchesAvailable — the one that actually turns a
+// player's raw Minutes into a rate — reads TeamMatchesStarted, which is computed
+// from e.Fixtures[].Started, not from Events at all. Both engines here load live
+// fixtures from the real FPL API (see roleEngine), so whatever the real season's
+// current matches happen to show would otherwise leak into a test that is supposed
+// to control every gameweek explicitly. Setting both keeps the simulation the only
+// thing either signal can see.
 func playGameweeks(t *testing.T, e *Engine, n int) {
 	t.Helper()
 	for i := range e.Boot.Events {
 		e.Boot.Events[i].Finished = i < n
+	}
+	for i := range e.Fixtures {
+		ev := e.Fixtures[i].Event
+		played := ev != nil && *ev <= n
+		e.Fixtures[i].Started = played
+		e.Fixtures[i].Finished = played
 	}
 	if got := e.GameweeksPlayed(); got != n {
 		t.Fatalf("set up %d finished gameweeks, engine sees %d", n, got)

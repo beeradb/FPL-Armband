@@ -30,6 +30,7 @@ func TestCalibrationRatioGuardsThinSamples(t *testing.T) {
 // forwards are not taxed by the defenders' poor xG conversion.
 func TestExpectedStatsAreCalibratedPerPosition(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	skipDuringLiveGW1Gap(t, e)
 	if len(e.xScale) == 0 {
 		t.Fatal("no calibration was computed")
 	}

@@ -20,11 +20,16 @@ func testEngine(t *testing.T) *Engine {
 	if err != nil {
 		t.Skipf("FPL API unreachable: %v", err)
 	}
+	// No skipDuringLiveGW1Gap here on purpose: some callers (datawindow_test.go)
+	// immediately call playGameweeks to fully override the live state, and a
+	// skip here would abort before that override ever ran. Callers that do NOT
+	// override the state call it themselves — see this function's callers.
 	return NewEngine(boot, fx, DefaultWeights())
 }
 
 func TestOptimizeProducesLegalSquad(t *testing.T) {
 	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
 
 	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500})
 	if err != nil {
@@ -198,6 +203,7 @@ func TestMinutesReliabilityTracksExpectedMinutes(t *testing.T) {
 
 func TestOptimizeRespectsExpectedMinutesFloor(t *testing.T) {
 	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
 	sq, err := e.Optimize(OptimizeRequest{MinExpectedMinutes: 60, BenchWeight: 0.02})
 	if err != nil {
 		t.Fatalf("Optimize: %v", err)

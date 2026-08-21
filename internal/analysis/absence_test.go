@@ -61,6 +61,15 @@ func TestTournamentAbsenceRaisesMinutesForParticipants(t *testing.T) {
 		if el.Minutes == 0 {
 			continue
 		}
+		if on.TeamMatchesStarted(el.Team) > 0 {
+			// This assertion's GameweeksPerSeason-a.Matches is specifically the
+			// PRE-SEASON window — the one matchesAvailable falls back to before a
+			// club has kicked off. Once his own club's fixture has started,
+			// matchesAvailable correctly narrows to TeamMatchesStarted instead
+			// (see that function's own comment), which this test is not the
+			// place to duplicate just to keep pace with a live match.
+			continue
+		}
 		a := on.tournamentAbsence(el)
 		if a.Matches == 0 {
 			continue

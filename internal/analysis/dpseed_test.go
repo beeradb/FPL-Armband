@@ -7,6 +7,7 @@ import (
 func seedPool(t *testing.T) (*Engine, []PlayerMetrics) {
 	t.Helper()
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	skipDuringLiveGW1Gap(t, e)
 	var pool []PlayerMetrics
 	for _, m := range e.AllMetrics() {
 		if m.Status == "injured" || m.Status == "suspended" || m.Status == "unavailable" {

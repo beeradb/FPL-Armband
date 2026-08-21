@@ -2210,6 +2210,66 @@ func (e *Engine) tournamentAbsence(el *fpl.Element) playerAbsence {
 	return a
 }
 
+// TeamMatchesStarted is how many of this club's league fixtures have kicked off, out
+// of every fixture FPL has scheduled for the season so far. It is the TRUE
+// denominator for turning ONE PLAYER's raw Minutes/Starts into a per-gameweek rate —
+// see matchesAvailable, its only caller.
+//
+// # Why this is not GameweeksPlayed
+//
+// GameweeksPlayed counts a gameweek only once EVERY fixture in it has finished, which
+// can be days after the first ball is kicked — a Premier League gameweek spans
+// Friday to Monday. FPL does not wait: it resets a player's season aggregates to zero
+// the instant HIS OWN CLUB'S fixture kicks off, not when the whole gameweek later
+// finishes. Two clubs are never on the same clock within one gameweek, so the correct
+// window is per club, not per gameweek.
+//
+// Confirmed live during 2026-27's opening gameweek: with Arsenal's fixture kicked off
+// and Arsenal's starting XI showing a live in-match minutes count, GameweeksPlayed
+// still answered 0, because nine of GW1's ten fixtures had not kicked off yet.
+// matchesAvailable, built on GameweeksPlayed at the time, divided that fresh
+// in-match count by the pre-season default of 38 — reporting a nailed goalkeeper as
+// under two expected minutes per gameweek, the exact "catastrophic" failure
+// DataWindow's own comment warns about. No season's opening weekend had run this
+// suite live before that day, which is why it went unnoticed until it happened.
+func (e *Engine) TeamMatchesStarted(teamID int) int {
+	n := 0
+	for _, f := range e.Fixtures {
+		if f.Started && (f.TeamH == teamID || f.TeamA == teamID) {
+			n++
+		}
+	}
+	return n
+}
+
+// SeasonHasStarted reports whether ANY league fixture this season has kicked off —
+// season-wide, not per club. It is the true trigger for "FPL's bootstrap no longer
+// holds last season's totals for anyone", which is NOT GameweeksPlayed() > 0: that
+// answers 0 for the whole first gameweek's multi-day span, right through kickoff,
+// because it waits for a full gameweek to FINISH.
+//
+// Use this, not GameweeksPlayed, for "should a caller stop trusting bootstrap
+// aggregates as last season's and go get a real prior season from somewhere else"
+// — cmd/armband/main.go's own prior-loading gate had exactly this bug: it stayed
+// on GameweeksPlayed() > 0, on the documented reasoning "before GW1 completes,
+// FPL's own aggregates ARE last season's totals", which SeasonHasStarted's own
+// history shows is false the moment the season's first ball is kicked. A player
+// whose own club had not yet played GW1, and who therefore had no current-season
+// evidence at all, was left with no prior loaded either — el.Minutes read 0 (the
+// bootstrap's own fresh-season figure, correctly zero, uninformatively so) with
+// nothing behind it, and he scored at 0 despite a real, substantial season on
+// record (585 minutes, 6 starts) that internal/priors exists specifically to
+// supply. See TeamMatchesStarted's own comment for the per-player half of the
+// same underlying fact.
+func (e *Engine) SeasonHasStarted() bool {
+	for _, f := range e.Fixtures {
+		if f.Started {
+			return true
+		}
+	}
+	return false
+}
+
 // GameweeksPlayed is how many gameweeks have finished. Zero before the season
 // starts.
 func (e *Engine) GameweeksPlayed() int {
@@ -2264,8 +2324,28 @@ func (e *Engine) ScaledMinMinutes(seasonTotal int) int {
 // matchesAvailable is the denominator for minutes and starts: the league
 // matches the player could actually have been picked for, out of those the
 // aggregate stats cover.
+//
+// The base window is the season-wide DataWindow — the number of gameweeks
+// FPL's own aggregates actually cover, real for a backtest's point-in-time
+// reconstruction and for mid-season play alike. It is overridden by his own
+// club's TeamMatchesStarted only in the one case those two disagree: DataWindow
+// still reads a full pre-season 38 (GameweeksPlayed is 0 — no gameweek has
+// FINISHED), while his club has already kicked off at least one live match, so
+// the aggregate really does cover just that much. Outside that gap
+// TeamMatchesStarted is 0 for data sources that never populate Fixture.Started
+// at all — a backtest's synthetic fixtures among them — and must not override
+// a real, non-preseason DataWindow: doing so once divided a synthetic GW7
+// ever-present's accumulated minutes by 38 instead of 7, landing every player
+// in the "fringe" band regardless of how much of the season had actually been
+// played. See TestPointInTimeMarksGameweeksFinished.
 func (e *Engine) matchesAvailable(el *fpl.Element) int {
-	n := e.DataWindow() - e.tournamentAbsence(el).Matches
+	window := e.DataWindow()
+	if window == GameweeksPerSeason {
+		if started := e.TeamMatchesStarted(el.Team); started > 0 {
+			window = started
+		}
+	}
+	n := window - e.tournamentAbsence(el).Matches
 	if n < 1 {
 		n = 1
 	}
