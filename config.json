@@ -497,7 +497,8 @@
       "Morgan Rogers",
       "Maxence Lacroix",
       "Elliot Anderson",
-      "Marcos Senesi Barón"
+      "Marcos Senesi Barón",
+      "Bruno Guimarães"
     ],
     "new_coach_clubs": [
       "BOU",
@@ -550,102 +551,156 @@
       {
         "player_code": 67089,
         "player": "Dubravka",
-        "reason": "Re-checked 2026-08-08, no change. WhoScored's GK preview (6 Aug 2026) states De Zerbi has confirmed Kinsky as undisputed No.1 for 2026/27 on a new long-term deal, with Dubravka signed as \"experienced cover rather than genuine competition\". Kinsky also impressed in pre-season vs Chelsea. Exclusion stands. Clear only if Kinsky is injured or dropped.",
+        "reason": "Backup goalkeeper behind Kinsky at Tottenham under Roberto De Zerbi. Vicario has left on loan to Juventus, so the position is settled for the season: Kinsky starts, Dubravka deputises, Brandon Austin is third choice (BBC, Last Word on Sports, TeamTalk, 18 Aug 2026). Every predicted XI for the Brentford opener starts Kinsky. The model's own natural estimate for Dubravka (82.9 min/gw) is built from backup-goalkeeper history and cannot see that he sits behind a fit, undisputed No.1 — hence the hard exclude rather than a soft minutes correction. Clear only if Kinsky is injured, suspended, or dropped.",
         "set_on": "2026-08-05",
         "until_gameweek": 10,
-        "last_checked": "2026-08-17"
+        "last_checked": "2026-08-21"
       },
       {
         "player_code": 462424,
         "player": "Saliba",
-        "reason": "Re-checked 2026-08-08 and pushed back. Arsenal's statement gives no return date: rehab \"with continual management\", out for an \"extended period\" (Sky Sports, Al Jazeera, 23 Jul 2026). L'Equipe report the back problem has been there since March and that surgery — rejected for now — would have meant four to five months. Arsenal are shopping for a centre-back (Stones, Konsa) which is not what a club does for a short absence. GW8 was optimistic; GW12 is the realistic floor. Clear the moment he is named in a matchday squad.",
+        "reason": "Back injury, no surgery, no return date. Mikel Arteta says he will not be available for \"weeks, even months\" and a return is being pencilled in for winter 2026 (CaughtOffside, 10 Aug 2026; SI.com, Community Shield week). He has not trained fully with the squad and has not been named in a matchday squad. Winter 2026 is taken here as roughly GW17 (mid-December) — a translation of Arteta's own phrase, not a reported gameweek — so until_gameweek is set there rather than left at an already-passed GW12. Clear the moment he is named in a matchday squad.",
         "set_on": "2026-08-05",
-        "until_gameweek": 12,
-        "last_checked": "2026-08-17"
+        "until_gameweek": 17,
+        "last_checked": "2026-08-21"
       }
     ],
     "minutes": [
       {
         "player_code": 500040,
         "player": "Mosquera",
-        "reason": "Steps into Arsenal's centre-back pairing while Saliba is out with a back injury and Timber is still rehabilitating. His 986 minutes over 9 starts are backup minutes and understate the role he is about to hold. Clear when Saliba is back in a matchday squad. RE-DATED 2026-08-19 from GW8 to GW3: Arsenal have agreed a 51m deal for Ezri Konsa explicitly to cover the Saliba and Timber absences, and he is expected to be registered in time for 31 Aug, so the original GW8 assumed a hole that is being filled. ⚠️ CORRECTION, same day: an earlier version of this sentence claimed the re-dating left GW1-2 untouched because he is in every predicted XI for Coventry. THAT IS FALSE. until_gameweek PRORATES — prorateOverride blends the override with the natural estimate across the whole horizon whenever the window is shorter than it — so GW3 at a five-gameweek horizon yields (3x85 + 2x26)/5 = 61, not 85, and the discount lands on GW1 as much as on GW5. The date is left at 3 because 61 is close to an honest horizon average once Konsa arrives; what is removed is the claim that the early weeks are unaffected.",
+        "reason": "Starting centre-back for tonight's Coventry opener, paired with Gabriel — Saliba is out to roughly GW17 and Timber is weeks away, and Konsa's move (agreed, medical done) missed Thursday's registration deadline so he is not available either. Every predicted XI for tonight (LastWordOnSports, SI.com, Yahoo Sports, 20 Aug 2026) has Mosquera starting. The model's own natural estimate is 25.9 min/gw, built from last season's 986 backup minutes over 9 starts, well over 15 minutes below what tonight's projected lineup implies — hence the override. until_gameweek is set to Konsa's expected debut (31 Aug, GW2, away at his old club Villa), because the override prorates across the horizon: this keeps GW1 close to a nailed 85 while pricing in that Mosquera starts sharing CB minutes with Konsa from GW2. Clear when Saliba or Timber returns to a matchday squad.",
         "set_on": "2026-08-05",
-        "until_gameweek": 3,
+        "until_gameweek": 2,
         "expected_minutes": 85,
-        "last_checked": "2026-08-19"
+        "last_checked": "2026-08-21"
       },
       {
         "player_code": 219168,
         "player": "Isak",
-        "reason": "Scores 0.48 at £9.0m because a 2025-26 wrecked by a lack of pre-season held him to 694 minutes. That season is an artefact, not his level: 2758 minutes and 34 starts in 2024-25, 2253 and 27 before that. He is now reported 100% fit, played 45 minutes against Leeds on 2 Aug after returning from the World Cup injury-free, and Iraola has said he 'has come in a good place' (thisisanfield/liverpool.com, Aug 2026). 75 is his 2024-25 rate of 72.6 min/gw rounded up slightly for a settled pre-season, deliberately not a nailed-striker 79 — this corrects a distortion, it does not assert he is better than his best season. Clear once real 2026-27 minutes exist, or revert if he misses the opening weeks.",
+        "reason": "Now at Liverpool (moved from Newcastle a year ago, on deadline day of the 2025 summer window), scoring 0.48 at £9.0m only because a 2025-26 debut season wrecked by an ankle injury and no proper pre-season held him to 694 minutes — an artefact, not his level: 2758 minutes and 34 starts in 2024-25, 2253 and 27 before that. Predicted to start up front for Liverpool tonight's opponent is his old club: he returns to St James' Park for GW1 (23 Aug), where a frosty reception is expected after last year's fallout. Andoni Iraola — Liverpool's new manager this summer — on his fitness: \"I think he was good in the World Cup... he will have three or four weeks of quality training, I hope we can put him in a good place because he is going to be massive for us this season\" (Sky Sports, 20 Aug 2026). No conclusive proof of full match sharpness from pre-season friendlies yet, so 75 (his 2024-25 rate of 72.6 min/gw) is kept rather than raised to a nailed-striker 85. Clear once real 2026-27 minutes exist, or revert if he misses the opening weeks.",
         "set_on": "2026-08-07",
-        "until_gameweek": 6,
+        "until_gameweek": 4,
         "expected_minutes": 75,
-        "last_checked": "2026-08-17"
+        "last_checked": "2026-08-21"
       },
       {
         "player_code": 485055,
         "player": "Kinsky",
-        "reason": "Scores 0.41 at £4.5m off 630 minutes as a backup, and 19% of managers already hold him — the market is right and the model cannot see why. De Zerbi has named him first choice for 2026-27, he has signed a new contract, Vicario is on the transfer market and expected back in Serie A, and Dubravka joined as the experienced deputy (ESPN/Italpress, Aug 2026). This is the same correction as Mosquera: his record is backup minutes and understates the role he now holds. Note prior_half_life cannot fix this — both his seasons are thin (540 and 630), so blending makes him worse, not better. 88 is a nailed Premier League keeper. Clear if Vicario stays and wins the shirt back, or on any pre-season reversal.",
+        "reason": "Tottenham's undisputed No.1 under Roberto De Zerbi. Vicario has left on loan to Juventus and Dubravka arrived only as backup, so this is now settled for the season rather than a pre-season plan: every predicted XI for the Brentford opener (BBC, Last Word on Sports, Sports Mole, Yahoo NZ, 18-21 Aug 2026) starts Kinsky, with Brandon Austin third choice. The model's own natural estimate is 16.6 min/gw, built off his 630 backup minutes and more than 15 below what a nailed starter implies — prior_half_life cannot fix this because both his seasons on record are thin, so blending makes him worse, not better. 88 is a nailed Premier League keeper. Clear only if he is injured, suspended, or dropped.",
         "set_on": "2026-08-07",
-        "until_gameweek": 6,
+        "until_gameweek": 10,
         "expected_minutes": 88,
-        "last_checked": "2026-08-17"
+        "last_checked": "2026-08-21"
       },
       {
         "player_code": 451284,
         "player": "van Ewijk",
-        "reason": "Model scores him 0.00 only because he has no Premier League minutes. He started 43 of Coventry's 44 Championship games in the title win, with 8 assists (8th in the whole division) and 5.92 xA as an attacking right-back, and is the consensus pick as the best 4.0m defender in the game. Nailed starter, not a fringe player. Revisit if Coventry sign a right-back.",
+        "reason": "Model scores him 0.00 only because he has no Premier League minutes. He started 43 of Coventry's 44 Championship games in the title win, with 8 assists (8th in the whole division) and 5.92 xA as an attacking right-back. Sports Mole's predicted Coventry XI for tonight's Arsenal game (21 Aug 2026) starts him at right-back, and CoventryLive's team news agrees — he makes his Premier League debut tonight, not a fringe player. Revisit if Coventry sign a right-back.",
         "set_on": "2026-08-07",
         "until_gameweek": 10,
         "expected_minutes": 85,
-        "last_checked": "2026-08-17"
+        "last_checked": "2026-08-21"
       },
       {
         "player_code": 445122,
         "player": "J.Timber",
-        "reason": "Groin injury that ruled him out of the 2026 World Cup; still rehabilitating as of late July, said only \"hopefully back soon\" (Sky Sports). No return date. Even when fit he is behind Mosquera/Calafiori/Hincapie in a reshuffled back line. Revisit when he is training fully.",
+        "reason": "Groin injury suffered in pre-season on top of the Champions League final injury that ruled him out of the 2026 World Cup. Arteta, ahead of the Community Shield, said he is \"progressing well\" but still \"weeks away\" (SI.com, 10 Aug 2026) — no firm return gameweek has been given since. Even when fit he is behind Mosquera and Gabriel in a reshuffled back line. Revisit when he is training fully.",
         "set_on": "2026-08-07",
         "until_gameweek": 6,
         "expected_minutes": 15,
-        "last_checked": "2026-08-17"
+        "last_checked": "2026-08-21"
       },
       {
         "player_code": 461102,
         "player": "Thomas",
-        "reason": "Coventry CB, scored 0.00 only for lack of PL minutes. 33 Championship games in the title win, 3 goals + 4 assists and 8.56 defensive contributions per 90 — genuine DefCon and set-piece threat at 4.0m. Set to 75 not 85 because Coventry have signed CB Aurele Amenda and were linked with more stoppers, so his place is good but not guaranteed. Revisit after the GW1 XI.",
+        "reason": "Coventry CB, scored 0.00 only for lack of PL minutes. 33 Championship games in the title win, 3 goals + 4 assists and 8.56 defensive contributions per 90 — genuine DefCon and set-piece threat at 4.0m. Sports Mole's predicted Coventry XI for tonight's Arsenal game (21 Aug 2026) starts him alongside new signing Aurele Amenda as the central CB pairing — they play together, not against each other for one slot, which is a stronger read than the earlier assumption that Amenda's arrival threatened his place. Set to 80 rather than a fully nailed 85 because it is his first Premier League start, against a stronger side than he faced in the Championship. Revisit after the GW1 XI.",
         "set_on": "2026-08-07",
         "until_gameweek": 6,
-        "expected_minutes": 75,
-        "last_checked": "2026-08-17"
+        "expected_minutes": 80,
+        "last_checked": "2026-08-21"
       },
       {
         "player_code": 439509,
         "player": "Tzolis",
-        "reason": "Scores ~0 at 6.5m because his only history_past season is 2021/22 at Norwich; the model has no recent minutes for him at all, and 18.0% of managers own him. He is a 34m signing from Club Brugge replacing Trossard, assisted twice on his competitive debut in the Community Shield against Manchester City, and is predicted to START on the left wing against Coventry with Martinelli left out of the squad amid exit speculation (Sky Sports, paininthearsenal, rotowire, Aug 2026). This is the same correction as Kinsky and Mosquera: the record is silent about the role he now holds, and prior_half_life cannot help because the one season available is thin and five years old. Set to 75 rather than 85 deliberately -- he is a starter today, not a nailed one, because Madueke, Eze, Nwaneri and Dowman all compete for the wide slots and Arteta rotates them heavily (Martinelli started only 11 of 38 last season). If Martinelli stays and wins the shirt back, or Tzolis is benched in the opening weeks, clear this.",
+        "reason": "Scores ~0 at 6.5m because his only history_past season is 2021/22 at Norwich; the model has no recent minutes for him at all. He is a 34m signing from Club Brugge replacing Trossard. In the Community Shield he started on the left, produced two assists, and drew direct praise from Arteta (\"fitting in organically... massive quality in the last 20-30 metres\") — Martinelli was left out of the squad entirely, and is now facing a likely Arsenal exit with Galatasaray interest reported (ESPN, ReadArsenal, Arseblog, 17-20 Aug 2026). Every predicted XI for tonight's Coventry game starts Tzolis on the left. prior_half_life cannot help here because the one season available is thin and five years old. Set to 82 rather than a fully nailed 85 because this is still only his second competitive appearance for the club. If Martinelli wins the shirt back, or Tzolis is benched, clear this.",
         "set_on": "2026-08-19",
-        "until_gameweek": 5,
-        "expected_minutes": 75,
-        "last_checked": "2026-08-19"
+        "until_gameweek": 6,
+        "expected_minutes": 82,
+        "last_checked": "2026-08-21"
       },
       {
         "player_code": 199798,
         "player": "Konsa",
-        "reason": "He will not play in GW1. Arsenal agreed roughly 51m plus add-ons with Aston Villa, personal terms are agreed, and he said goodbye to his Villa team-mates on 19 Aug; the medical follows (Sky Sports, GiveMeSport, Yahoo, 19 Aug 2026). He is not expected to beat Arsenal's Thursday 20 Aug 12:00 registration deadline, so he cannot face Coventry on Friday, and having said goodbye he will not play for Villa either. ZERO THROUGH GW1, deliberately, and the arithmetic is the reason rather than the philosophy: minutes overrides PRORATE across the horizon, so 0 through GW1 at a five-gameweek horizon gives (0 + 4x80)/5 = 64 against his natural 80 — which is exactly the honest estimate if he misses GW1 and starts for Arsenal from 31 Aug. An earlier version of this entry said 20 through GW3 as a hedge against the move collapsing; that encodes 44 min/gw, which is FURTHER from the truth than no override at all, and the hedge pointed the wrong way — a collapse argues for more minutes later, not fewer now. Lapsing after GW1 also disposes of a real problem: this override is keyed on the permanent player code, so it follows him to Arsenal, and a longer window would leave it asserting a Villa reason about an Arsenal starter. NOTE this entry currently changes no decision — removing it entirely leaves the optimal fifteen byte-identical, because he is outside the top twelve defenders unaided. It is recorded because it is true and because it will matter at GW2, when a transfer search runs against a squad. Revisit the moment the move is announced.",
+        "reason": "Will not play in GW1. His roughly 51m plus add-ons move from Aston Villa to Arsenal is complete — medical passed, four-year contract signed (DailyCannon) — but he missed Arsenal's Thursday 20 Aug 12:00 registration deadline: AOL reported on 19 Aug that Arsenal were not expected to beat it, and that has held. He cannot face Coventry tonight, and having already said goodbye to his Villa team-mates he will not play for Villa either. His expected debut is 31 Aug at Villa Park — GW2, ironically away at his old club. ZERO THROUGH GW1 is deliberate: minutes overrides prorate across the horizon, so 0 through GW1 at a five-gameweek horizon gives (0 + 4x80)/5 = 64 against his natural 80, which is the honest estimate given he starts for Arsenal from GW2. This override is keyed on his permanent player code, so it follows him to Arsenal regardless of which club's shirt the record shows him in. Revisit if the 31 Aug debut slips.",
         "set_on": "2026-08-19",
         "until_gameweek": 1,
         "expected_minutes": 0,
-        "last_checked": "2026-08-19"
+        "last_checked": "2026-08-21"
+      },
+      {
+        "player_code": 538207,
+        "player": "Osula",
+        "reason": "Newcastle's presumptive starting striker with Isak sold to Liverpool. The model's natural estimate is 21.2 min/gw off thin backup history; Sports Mole's predicted Newcastle XI for the Liverpool game (21 Aug 2026) — the only source found naming a striker — has him leading the line, having scored against Strasbourg in pre-season. This is a single-source, lower-confidence read (no manager quote, no second predicted XI corroborating it), unlike the Coventry entries below, so set conservatively at 65 rather than a nailed 80-85. Revisit after the GW1 XI is confirmed.",
+        "set_on": "2026-08-21",
+        "until_gameweek": 3,
+        "expected_minutes": 65,
+        "last_checked": "2026-08-21"
+      },
+      {
+        "player_code": 539142,
+        "player": "Amenda",
+        "reason": "Coventry's other new centre-back alongside Thomas. Sports Mole's predicted Coventry XI for tonight's Arsenal game (21 Aug 2026) starts him in the same back four as Thomas — they play together, not against each other — and CoventryLive reports he is \"in contention for his debut.\" No Premier League or top-five-league minutes on record (signed from Eintracht Frankfurt, 16 Jul 2026), so the model's natural estimate is 0. Set to 75, slightly below Thomas's 80, reflecting the softer \"in contention\" framing versus Thomas's more definite inclusion. Revisit after the GW1 XI.",
+        "set_on": "2026-08-21",
+        "until_gameweek": 6,
+        "expected_minutes": 75,
+        "last_checked": "2026-08-21"
+      },
+      {
+        "player_code": 122798,
+        "player": "Robertson",
+        "reason": "Tottenham's left-back. Sports Mole's predicted Spurs XI vs Brentford (20 Aug 2026) is explicit and detailed: Robertson starts at left-back on his competitive debut, Udogie is \"spared amid his own fitness concerns\" (missed pre-season, muscular issue) and Porro is short of match sharpness post-World Cup, with Archie Gray preferred at right-back. The model's natural estimate (30.7 min/gw) reflects a free-transfer signing with no Tottenham history and cannot see this. Set to 80 rather than a fully nailed 85 given it is a competitive debut for a 32-year-old in a rebuilt back line. Revisit after the GW1 XI.",
+        "set_on": "2026-08-21",
+        "until_gameweek": 3,
+        "expected_minutes": 80,
+        "last_checked": "2026-08-21"
+      },
+      {
+        "player_code": 242898,
+        "player": "B.Johnson",
+        "reason": "Winger, joined Everton from Crystal Palace on 11 Aug 2026 (a swap deal that sent Dwight McNeil the other way to Palace). Sports Mole's predicted Everton XI for the Palace game (22 Aug 2026) names him directly in the front three alongside Ndiaye and Barry, with no fitness doubts reported. The model's natural estimate (45.0 min/gw) is well below that read, still discounted for being a brand-new signing. Set to 75. Revisit after the GW1 XI.",
+        "set_on": "2026-08-21",
+        "until_gameweek": 3,
+        "expected_minutes": 75,
+        "last_checked": "2026-08-21"
+      },
+      {
+        "player_code": 433154,
+        "player": "McNeil",
+        "reason": "Winger, joined Crystal Palace from Everton on 11 Aug 2026 (the reverse leg of the Brennan Johnson swap). Predicted-lineup coverage for Palace's opener at Everton (22 Aug 2026) is thinner and more hedged than Johnson's own — Sports Mole frames him only as a \"potential option... alongside either McNeil or Yeremy Pino\" for the new manager Pierre Sage's debut, though a minor pre-season knock has since resolved and he is reported fit. The model's natural estimate is 30.6 min/gw. Given the softer sourcing, set to 60 rather than the 75-80 given to better-evidenced debutants in this list. Revisit after the GW1 XI.",
+        "set_on": "2026-08-21",
+        "until_gameweek": 3,
+        "expected_minutes": 60,
+        "last_checked": "2026-08-21"
+      },
+      {
+        "player_code": 483067,
+        "player": "Silva",
+        "reason": "Portuguese centre-back, joined Bournemouth from Benfica on 1 Aug 2026 as the reported direct replacement for Marcos Senesi (departed to Tottenham). Bournemouth play away at Man City (23 Aug 2026), new manager Marco Rose's first league game. Sources disagree: FotMob's predicted lineup starts him at CB alongside James Hill; a separate low-sample crowd prediction (7 users) instead has Diakité starting. No manager quote confirming either way. The model's natural estimate is 0 (no top-five-league minutes on record). Given the genuine disagreement between sources, set conservatively at 55 rather than treating this as settled. Revisit after the GW1 XI.",
+        "set_on": "2026-08-21",
+        "until_gameweek": 2,
+        "expected_minutes": 55,
+        "last_checked": "2026-08-21"
       }
     ],
     "teams": [
       {
         "team": "ARS",
         "xgc_factor": 1.15,
-        "reason": "Arsenal's 0.72 xGC per match was earned with Saliba in the side, and he is out with no return date, with Timber also rehabilitating. Every Arsenal defensive asset is priced off a back line that will not take the field. ⚠️ EVIDENCE CORRECTED 2026-08-19. This previously read \"the archive says Arsenal conceded 0.67 without Saliba against 0.71 with him over nine games in 2025-26, so the direct evidence is that they cope\". Three things were wrong with it. It was SIX games he missed entirely, not nine — nine counts gameweeks where he played under 90 minutes, and on that split the goals-conceded comparison reverses. It quoted GOALS CONCEDED to size a multiplier that acts on xGC, and on the same six-game split xGC ran 0.88 without him against 0.73 with him, a ratio of 1.22 — so 1.15 sits BELOW the point estimate rather than cautiously above zero. And neither reading resolves: difference 0.163, SE 0.300, t = 0.54, with one fixture carrying most of it. Six games cannot separate these. 1.15 IS A PRIOR, NOT A MEASUREMENT, and it should be argued for or against on mechanism. ⚠️ This is also the only entry in the 2026-08-19 pass that changes the squad: removing it brings Gabriel and Raya in and takes Haaland and Kinsky out. Treat it as the decision. RE-DATED from GW12 to GW1: the stated premise is that Konsa fills the hole, and his expected debut of 31 Aug IS the GW2 fixture (AVL v ARS), so the premise expires after GW1. GW4 was left over from an earlier draft and contradicted this sentence. Revert to 1.0 the moment Saliba or Timber is named in a matchday squad.",
+        "reason": "Arsenal's 0.72 xGC per match was earned with Saliba in the side. He is now out to roughly GW17 (Arteta: \"weeks, even months\", a return pencilled in for winter 2026) and Timber remains weeks away; Konsa's arrival (missed GW1 registration, expected debut GW2) adds squad depth but is not a like-for-like replacement for either. Every Arsenal defensive asset is priced off a back line that will not regularly take the field for some time. 1.15 IS A PRIOR, NOT A MEASUREMENT — six 2025-26 games without Saliba could not separate this from 1.0 (difference 0.163, SE 0.300, t = 0.54) — and should be argued for or against on mechanism, not re-derived from that split. Extended from GW1 to GW6 to track Timber's return estimate, the nearer of the two clearing conditions; this changes the squad (removing it brings Gabriel and Raya in, takes Haaland and Kinsky out), so treat the extension as a live decision, not a formality. Revert to 1.0 the moment Saliba or Timber is named in a matchday squad, if that comes sooner.",
         "set_on": "2026-08-07",
-        "until_gameweek": 1,
-        "last_checked": "2026-08-19"
+        "until_gameweek": 6,
+        "last_checked": "2026-08-21"
       }
     ]
   },
