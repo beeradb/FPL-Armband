@@ -4833,10 +4833,11 @@
           "home": true,
           "fdr": 2
         },
-        "match_status": "scheduled",
-        "goals": 0,
+        "match_status": "live",
+        "goals": 2,
         "assists": 0,
-        "clean_sheets": 0
+        "clean_sheets": 0,
+        "saves": 4
       },
       {
         "id": 229,
