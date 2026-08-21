@@ -16,7 +16,24 @@ import (
 // mean a stylesheet cannot answer the question. Size is different: a `font-size` declaration
 // is the whole story, so a scan is the right instrument and costs no browser.
 
-const cssPath = "assets/static/armband.css"
+// styleSources is EVERY place this client declares a font size, which is the whole point.
+//
+// ⚠️ This scan read `armband.css` alone until 2026-08-21, and a scan scoped to one file
+// reports a clean floor for a system that does not have one. The landing page carries its
+// own large <style> block and the scripts set sizes inline; `.mini .arm` sat at 7px there,
+// two below the floor stated at the top of armband.css, for as long as this test has
+// existed and passed. A guard that cannot see a surface does not guard it.
+//
+// Adding a page or a script that declares type means adding it here. The list is short
+// deliberately: it is every file that can carry a `font-size`, not a glob, so a new one is
+// a decision rather than an accident.
+var styleSources = []string{
+	"assets/static/armband.css",
+	"assets/pages/landing.html",
+	"assets/pages/app.html",
+	"assets/static/app.js",
+	"assets/static/landing.js",
+}
 
 var fontSize = regexp.MustCompile(`font-size:\s*(\d+(?:\.\d+)?)px`)
 
@@ -90,21 +107,24 @@ func TestMobileTypeIsNeverSmallerThanDesktopType(t *testing.T) {
 func TestNothingRendersBelowTheTypeFloor(t *testing.T) {
 	const floor = 9.0
 
-	css := read(t)
 	var under []string
-	for _, line := range strings.Split(css, "\n") {
-		for _, m := range fontSize.FindAllStringSubmatch(line, -1) {
-			v, err := strconv.ParseFloat(m[1], 64)
-			if err != nil {
-				continue
-			}
-			if v < floor {
-				under = append(under, trim(v)+"px in: "+strings.TrimSpace(line))
+	for _, src := range styleSources {
+		for _, line := range strings.Split(readSource(t, src), "\n") {
+			for _, m := range fontSize.FindAllStringSubmatch(line, -1) {
+				v, err := strconv.ParseFloat(m[1], 64)
+				if err != nil {
+					continue
+				}
+				if v < floor {
+					under = append(under, src+": "+trim(v)+"px in: "+strings.TrimSpace(line))
+				}
 			}
 		}
 	}
 	if len(under) > 0 {
-		t.Errorf("%d declaration(s) below the %gpx floor this file states at the top:\n  %s",
+		t.Errorf("%d declaration(s) below the %gpx floor armband.css states at the top of "+
+			"itself:\n  %s\n\nThe floor is stated for the whole system, so it is scanned "+
+			"across every style source, not only the stylesheet that states it.",
 			len(under), floor, strings.Join(under, "\n  "))
 	}
 }
@@ -119,6 +139,19 @@ func TestNothingRendersBelowTheTypeFloor(t *testing.T) {
 func sizesBySelector(t *testing.T) (base, mobile map[string]float64) {
 	t.Helper()
 	base, mobile = map[string]float64{}, map[string]float64{}
+	for _, src := range styleSources {
+		scanOne(t, src, base, mobile)
+	}
+	if len(base) == 0 {
+		t.Fatal("parsed no font sizes outside a media query; the scan is broken, not the CSS")
+	}
+	return base, mobile
+}
+
+// scanOne accumulates one source's sizes. Selectors are keyed by source, because the same
+// selector text in two files is two different rules and comparing them would be nonsense.
+func scanOne(t *testing.T, src string, base, mobile map[string]float64) {
+	t.Helper()
 
 	var (
 		inMedia   bool
@@ -127,7 +160,7 @@ func sizesBySelector(t *testing.T) (base, mobile map[string]float64) {
 		depth     int
 		selector  string
 	)
-	for _, raw := range strings.Split(read(t), "\n") {
+	for _, raw := range strings.Split(readSource(t, src), "\n") {
 		line := strings.TrimSpace(raw)
 		if m := mediaHead.FindStringSubmatch(line); m != nil {
 			w, _ := strconv.Atoi(m[1])
@@ -142,10 +175,11 @@ func sizesBySelector(t *testing.T) (base, mobile map[string]float64) {
 		if m := fontSize.FindStringSubmatch(line); m != nil && selector != "" {
 			v, err := strconv.ParseFloat(m[1], 64)
 			if err == nil {
+				key := src + " " + selector
 				if inMedia && isMobile {
-					mobile[selector] = v
+					mobile[key] = v
 				} else if !inMedia {
-					base[selector] = v
+					base[key] = v
 				}
 			}
 		}
@@ -154,17 +188,20 @@ func sizesBySelector(t *testing.T) (base, mobile map[string]float64) {
 			inMedia, isMobile = false, false
 		}
 	}
-	if len(base) == 0 {
-		t.Fatal("parsed no font sizes outside a media query; the scan is broken, not the CSS")
-	}
-	return base, mobile
 }
 
-func read(t *testing.T) string {
+// cssPath is the stylesheet alone. It stays because the CONTRAST suite wants exactly this
+// file — colour tokens are declared here and nowhere else — while the type rules below
+// deliberately want every source. Two questions, two scopes.
+const cssPath = "assets/static/armband.css"
+
+func read(t *testing.T) string { return readSource(t, cssPath) }
+
+func readSource(t *testing.T, src string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Clean(cssPath))
+	b, err := os.ReadFile(filepath.Clean(src))
 	if err != nil {
-		t.Fatalf("reading the stylesheet: %v", err)
+		t.Fatalf("reading %s: %v", src, err)
 	}
 	return string(b)
 }
