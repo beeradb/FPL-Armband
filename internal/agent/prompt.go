@@ -282,7 +282,18 @@ half an answer.
 		overrideGW = next.ID
 	}
 	lock, exclude, expired := cfg.Roster.Active(overrideGW)
-	if len(lock)+len(exclude)+len(expired) > 0 {
+	// Minutes and team corrections bind the squad exactly as locks and exclusions do,
+	// and for a while brief.go's equivalent section listed neither — see its own
+	// comment for the 2026-08-13 incident. This section had the same gap: the agent
+	// read LOCKED IN and EXCLUDED but never saw why a minutes correction put Kinsky
+	// in the squad, nor a flag-only entry (nil expected_minutes) recording that a
+	// player's ROLE has changed without a minutes claim attached — the case a review
+	// establishes something worth the agent's judgement (a deeper position, fewer
+	// expected attacking returns) but not a number it can compute for itself.
+	minutes, minutesExpired := cfg.Roster.ActiveMinutes(overrideGW)
+	teams, teamsExpired := cfg.Roster.ActiveTeams(overrideGW)
+	if len(lock)+len(exclude)+len(expired)+
+		len(minutes)+len(minutesExpired)+len(teams)+len(teamsExpired) > 0 {
 		today := time.Now()
 		b.WriteString("\n## Standing player overrides\n\nSet by earlier reviews and binding on " +
 			"every squad build and transfer search.\n\n" +
@@ -291,9 +302,11 @@ half an answer.
 			"early is the expensive error — the exclusion holds, he is never considered, and " +
 			"nothing draws attention to it because the squad simply never contains him. A " +
 			"setback is cheaper but still wrong: the override lapses on schedule and he becomes " +
-			"pickable while still out. Search the news for each one, then either confirm it " +
-			"(set_player_status mode 'confirm', with a new until_gameweek if the date has " +
-			"moved) or clear it.\n\n")
+			"pickable while still out. A 'minutes' entry with no arrow and value is a flag, not " +
+			"a correction — the minutes figure is untouched and the reason describes a judgement " +
+			"call left to you, such as a role change that may not show up in expected minutes at " +
+			"all. Search the news for each one, then either confirm it (set_player_status mode " +
+			"'confirm', with a new until_gameweek if the date has moved) or clear it.\n\n")
 		show := func(label string, os []config.RosterOverride) {
 			for _, o := range os {
 				flag := ""
@@ -305,8 +318,33 @@ half an answer.
 		}
 		show("LOCKED IN", lock)
 		show("EXCLUDED", exclude)
+		for _, o := range minutes {
+			label := "MINUTES FLAGGED (no value set)"
+			if o.ExpectedMinutes != nil {
+				label = fmt.Sprintf("MINUTES -> %.0f", *o.ExpectedMinutes)
+			}
+			flag := ""
+			if o.NeedsCheck(today, overrideGW) {
+				flag = "  <- CHECK"
+			}
+			fmt.Fprintf(&b, "  - %s: %s%s\n", label, o, flag)
+		}
+		for _, o := range teams {
+			flag := ""
+			if o.NeedsCheck(today, overrideGW) {
+				flag = "  <- CHECK"
+			}
+			fmt.Fprintf(&b, "  - TEAM %s expected goals conceded x%.2f: %s%s\n",
+				o.Team, o.XGCFactor, o.Reason, flag)
+		}
 		for _, o := range expired {
 			fmt.Fprintf(&b, "  - lapsed, no longer applied: %s  <- CHECK, and clear it if he is fit\n", o)
+		}
+		for _, o := range minutesExpired {
+			fmt.Fprintf(&b, "  - lapsed (minutes), no longer applied: %s  <- CHECK, and clear it if he is fit\n", o)
+		}
+		for _, o := range teamsExpired {
+			fmt.Fprintf(&b, "  - lapsed (team), no longer applied: %s %s  <- CHECK, and clear it if resolved\n", o.Team, o.Reason)
 		}
 	}
 	if cfg.Review.AlwaysActOnInjury {
