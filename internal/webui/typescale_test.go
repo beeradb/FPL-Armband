@@ -1,6 +1,7 @@
 package webui_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -8,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"armband/internal/webui"
 )
 
 // The type rules, scanned rather than rendered.
@@ -16,23 +19,82 @@ import (
 // mean a stylesheet cannot answer the question. Size is different: a `font-size` declaration
 // is the whole story, so a scan is the right instrument and costs no browser.
 
-// styleSources is EVERY place this client declares a font size, which is the whole point.
+// styleSources returns every SHIPPED asset that can declare a font size, keyed by name.
 //
 // ⚠️ This scan read `armband.css` alone until 2026-08-21, and a scan scoped to one file
-// reports a clean floor for a system that does not have one. The landing page carries its
-// own large <style> block and the scripts set sizes inline; `.mini .arm` sat at 7px there,
-// two below the floor stated at the top of armband.css, for as long as this test has
-// existed and passed. A guard that cannot see a surface does not guard it.
+// reports a clean floor for a system that does not have one: `.mini .arm` sat at 7px in
+// landing.html's inline <style> for as long as this test existed and passed.
 //
-// Adding a page or a script that declares type means adding it here. The list is short
-// deliberately: it is every file that can carry a `font-size`, not a glob, so a new one is
-// a decision rather than an accident.
-var styleSources = []string{
-	"assets/static/armband.css",
-	"assets/pages/landing.html",
-	"assets/pages/app.html",
-	"assets/static/app.js",
-	"assets/static/landing.js",
+// ⚠️ The first fix was a hand-written list of five files, and it was the same defect one
+// level up — it silently omitted `fonts.css` and `analytics.js`, both of which ship and
+// both of which are natural homes for a stray `font-size`. A list cannot report what it
+// forgot. So this WALKS the embedded tree instead: whatever the binary serves is what gets
+// scanned, and a new asset is covered the day it is added rather than the day somebody
+// remembers this file. The floor below is the same guard webui_test.go's own walk uses.
+//
+// Read from the embed rather than from disk deliberately — a file that is not embedded is
+// not shipped, and a file that is embedded but unreadable fails here rather than silently
+// scanning less.
+func styleSources(t *testing.T) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+
+	for _, name := range []string{"landing", "app"} {
+		b, err := webui.Page(name)
+		if err != nil {
+			t.Fatalf("Page(%q): %v", name, err)
+		}
+		out["pages/"+name+".html"] = stripComments(string(b))
+	}
+
+	static := webui.Static()
+	err := fs.WalkDir(static, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		if !strings.HasSuffix(p, ".css") && !strings.HasSuffix(p, ".js") {
+			return nil
+		}
+		b, readErr := fs.ReadFile(static, p)
+		if readErr != nil {
+			return readErr
+		}
+		out["static/"+p] = stripComments(string(b))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking the embedded assets: %v", err)
+	}
+	// Two pages, two stylesheets, three scripts today. The floor catches a walk that has
+	// stopped reaching the tree, which is the failure that would make every check below
+	// vacuously green.
+	if len(out) < 6 {
+		t.Fatalf("only collected %d style sources; the walk is not reaching the assets", len(out))
+	}
+	return out
+}
+
+// stripComments removes what a comment says from what the file DECLARES.
+//
+// ⚠️ Without this the scans fire on their own explanations. AGENTS.md tells authors to write
+// down the figure that justified a constant, so "/* was font-size:7px, now 9px */" is the
+// natural way to record this very change — and it turned the suite red until this existed.
+// A guard that reads its own reasoning as a violation is one everybody learns to ignore.
+//
+// webui_test.go has the same idea in `scannable`, but it is in the internal test package and
+// this file is the external one, so it cannot be shared without exporting it. The `//` rule
+// is extra here: the scripts use line comments, and the negative lookbehind for `:` is what
+// keeps it from eating the rest of a line at `https://`.
+var (
+	blockComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
+	htmlComment  = regexp.MustCompile(`(?s)<!--.*?-->`)
+	lineComment  = regexp.MustCompile(`(?m)(^|[^:])//.*$`)
+)
+
+func stripComments(s string) string {
+	s = blockComment.ReplaceAllString(s, " ")
+	s = htmlComment.ReplaceAllString(s, " ")
+	return lineComment.ReplaceAllString(s, "$1")
 }
 
 var fontSize = regexp.MustCompile(`font-size:\s*(\d+(?:\.\d+)?)px`)
@@ -108,8 +170,9 @@ func TestNothingRendersBelowTheTypeFloor(t *testing.T) {
 	const floor = 9.0
 
 	var under []string
-	for _, src := range styleSources {
-		for _, line := range strings.Split(readSource(t, src), "\n") {
+	sources := styleSources(t)
+	for _, src := range sortedKeys(sources) {
+		for _, line := range strings.Split(sources[src], "\n") {
 			for _, m := range fontSize.FindAllStringSubmatch(line, -1) {
 				v, err := strconv.ParseFloat(m[1], 64)
 				if err != nil {
@@ -139,8 +202,9 @@ func TestNothingRendersBelowTheTypeFloor(t *testing.T) {
 func sizesBySelector(t *testing.T) (base, mobile map[string]float64) {
 	t.Helper()
 	base, mobile = map[string]float64{}, map[string]float64{}
-	for _, src := range styleSources {
-		scanOne(t, src, base, mobile)
+	sources := styleSources(t)
+	for _, src := range sortedKeys(sources) {
+		scanOne(src, sources[src], base, mobile)
 	}
 	if len(base) == 0 {
 		t.Fatal("parsed no font sizes outside a media query; the scan is broken, not the CSS")
@@ -150,9 +214,7 @@ func sizesBySelector(t *testing.T) (base, mobile map[string]float64) {
 
 // scanOne accumulates one source's sizes. Selectors are keyed by source, because the same
 // selector text in two files is two different rules and comparing them would be nonsense.
-func scanOne(t *testing.T, src string, base, mobile map[string]float64) {
-	t.Helper()
-
+func scanOne(src, body string, base, mobile map[string]float64) {
 	var (
 		inMedia   bool
 		isMobile  bool
@@ -160,7 +222,7 @@ func scanOne(t *testing.T, src string, base, mobile map[string]float64) {
 		depth     int
 		selector  string
 	)
-	for _, raw := range strings.Split(readSource(t, src), "\n") {
+	for _, raw := range strings.Split(body, "\n") {
 		line := strings.TrimSpace(raw)
 		if m := mediaHead.FindStringSubmatch(line); m != nil {
 			w, _ := strconv.Atoi(m[1])
@@ -195,15 +257,23 @@ func scanOne(t *testing.T, src string, base, mobile map[string]float64) {
 // deliberately want every source. Two questions, two scopes.
 const cssPath = "assets/static/armband.css"
 
-func read(t *testing.T) string { return readSource(t, cssPath) }
-
-func readSource(t *testing.T, src string) string {
+func read(t *testing.T) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Clean(src))
+	b, err := os.ReadFile(filepath.Clean(cssPath))
 	if err != nil {
-		t.Fatalf("reading %s: %v", src, err)
+		t.Fatalf("reading %s: %v", cssPath, err)
 	}
 	return string(b)
+}
+
+// sortedKeys keeps the scan order and therefore the failure message stable.
+func sortedKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func trim(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }
