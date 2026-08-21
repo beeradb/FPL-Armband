@@ -1677,6 +1677,7 @@ function closeSheet(){
   S.armLock=null;
 }
 document.getElementById('scrim').onclick=e=>{if(e.target.id==='scrim')closeSheet();};
+document.getElementById('sheetback').onclick=closeSheet;
 
 /* ============================================================
    RENDER — players market
@@ -2034,6 +2035,15 @@ function renderNews(){
    ============================================================ */
 const VIEWS=['pitch','players','news'];
 
+/* What the phone's back bar says it returns to. The sheet always opens from the view the
+   reader is looking at, so the label is a property of the view and is set in one place --
+   setView -- rather than at each of the four places a sheet is opened. */
+/* The whole phrase is ONE text node, set here. It used to be "Back to " in the markup with
+   only the noun in the span, and the bar is display:flex -- so the text run and the span were
+   two flex items with the 8px gap BETWEEN them as well as after the arrow, printing
+   "Back to  the pitch" with a double space. Two flex items, one gap. */
+const BACK_TO={pitch:'the pitch', players:'the players', news:'the news'};
+
 function setView(v, push){
   if(!VIEWS.includes(v)) v='pitch';
   S.view=v;
@@ -2045,6 +2055,8 @@ function setView(v, push){
      filling the back button with them would make Back mean "previous tab" instead of
      "the page I came from". */
   if(push!==false && location.hash!=='#'+v) history.replaceState(null,'','#'+v);
+  const backLabel=document.getElementById('sheetbacklabel');
+  if(backLabel) backLabel.textContent='Back to '+BACK_TO[v];
   window.scrollTo({top:0});
 }
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));

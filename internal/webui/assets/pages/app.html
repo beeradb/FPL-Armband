@@ -343,6 +343,16 @@
 
 <!-- ===================== PLAYER SHEET ===================== -->
 <div class="sheet-scrim" id="scrim">
+  <!-- The phone's dismissal. Below 720px the sheet fills the viewport, and a labelled bar
+       is what closes it; above 720px this is display:none and the corner ✕ is the control.
+       A bar rather than a bigger glyph because the problem was never reach -- the ✕ is
+       reachable, and an earlier reading that it was not came from a golden shot at a height
+       no device has. The problem is that a partial sheet leaves a strip of pitch that reads
+       as tappable and is not, and a glyph does not say where dismissing goes.
+       The label follows the tab, set in setView, because the sheet always opens from the
+       view the reader is looking at. The ✕ is deliberately NOT hidden underneath: it lives
+       inside role="dialog" and is this control's accessible equivalent. -->
+  <button class="sheetback" id="sheetback" type="button"><span class="sheetback-arrow" aria-hidden="true">←</span><span id="sheetbacklabel">Back to the pitch</span></button>
   <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 </div>
 

@@ -690,6 +690,9 @@ button{font-family:inherit;color:inherit;}
   display:none;align-items:center;justify-content:center;padding:20px;
 }
 .sheet-scrim.open{display:flex;}
+/* Hidden on a desktop: there the sheet is a centred dialog with room around it, the ✕ is
+   an easy target, and the scrim itself closes on click. */
+.sheetback{display:none;}
 .sheet{
   width:min(520px,100%);max-height:86vh;overflow-y:auto;background:var(--panel);
   border:1px solid var(--line2);border-radius:var(--r-lg);box-shadow:var(--shadow);
@@ -1069,8 +1072,22 @@ button{font-family:inherit;color:inherit;}
   .instrrow button{grid-area:act;}
   .ovhead .acts{margin-left:0;width:100%;}
   .frow{grid-template-columns:1fr;}
-  .sheet-scrim{align-items:flex-end;padding:0;}
-  .sheet{width:100%;max-height:88vh;border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:0;}
+  /* FULL-SCREEN, not a bottom sheet. The 88vh version left a strip of the pitch showing
+     above it, which reads as tappable and is not -- the scrim swallows the tap. Filling the
+     viewport removes the invitation, and the bar below says what dismissing does. */
+  .sheet-scrim{flex-direction:column;align-items:stretch;padding:0;}
+  .sheet{
+    width:100%;max-height:none;flex:1;min-height:0;
+    border-radius:0;border-left:0;border-right:0;border-bottom:0;
+  }
+  .sheetback{
+    display:flex;align-items:center;gap:8px;flex:none;
+    width:100%;padding:13px 16px;padding-top:calc(13px + env(safe-area-inset-top,0px));
+    background:var(--bg2);border:0;border-bottom:1px solid var(--line2);
+    font-family:var(--ui);font-size:15px;font-weight:600;color:var(--ink);
+    text-align:left;cursor:pointer;
+  }
+  .sheetback:active{background:var(--panel2);}
   .caprow{grid-template-columns:22px 1fr auto;}
   /* the actions must never scroll out of reach on a phone */
   .sheetacts{
