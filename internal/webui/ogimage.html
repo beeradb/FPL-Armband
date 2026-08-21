@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>og:image source — FPL Armband</title>
+<!--
+  SOURCE for assets/static/og-image.png. Not served, not embedded in any page, and
+  never linked: it exists so the share card can be REGENERATED rather than being an
+  unexplained 1200x630 binary in the assets directory.
+
+  Regenerate with internal/webui/ogimage.sh, which shoots this file headless at
+  exactly 1200x630 and writes the PNG.
+
+  Why an HTML file and a browser, rather than drawing the card in SVG: the wordmark
+  and tagline have to be set in the site's OWN faces (Plus Jakarta Sans and Inter,
+  self-hosted under assets/static/fonts). An SVG rasteriser would need those fonts
+  installed system-wide and would silently substitute something else if they were
+  missing -- which is exactly how a share card ends up in the wrong typeface without
+  anyone noticing. Loading assets/static/fonts.css here means the card is set in the
+  same bytes the site serves.
+
+  1200x630 is the size both the Open Graph and Twitter summary_large_image specs
+  want. Do not change it without changing the og:image:width/height meta tags on
+  landing.html and team.html, which state it.
+-->
+<link rel="stylesheet" href="assets/static/fonts.css">
+<style>
+  html,body{margin:0;padding:0;}
+  body{
+    width:1200px;height:630px;overflow:hidden;position:relative;
+    background:#070B10;
+    display:flex;align-items:center;justify-content:center;
+  }
+  /* The same two radial glows the landing page lays behind its hero, so a shared
+     card and the page it links to read as one surface. Scaled up for the card. */
+  .glow{position:absolute;inset:0;overflow:hidden;}
+  .glow::before{content:'';position:absolute;top:-46%;left:50%;transform:translateX(-50%);
+    width:1300px;height:1100px;border-radius:50%;
+    background:radial-gradient(circle,rgba(47,83,240,.26),transparent 62%);}
+  .glow::after{content:'';position:absolute;bottom:-52%;right:-8%;width:1000px;height:1000px;
+    border-radius:50%;background:radial-gradient(circle,rgba(0,232,138,.10),transparent 62%);}
+  .grid{position:absolute;inset:0;opacity:.5;
+    background:linear-gradient(rgba(120,160,190,.045) 1px,transparent 1px) 0 0/100% 46px,
+               linear-gradient(90deg,rgba(120,160,190,.045) 1px,transparent 1px) 0 0/46px 100%;
+    -webkit-mask-image:linear-gradient(180deg,#000,transparent 78%);
+    mask-image:linear-gradient(180deg,#000,transparent 78%);}
+
+  .stack{position:relative;display:flex;flex-direction:column;align-items:center;gap:30px;}
+  .wordmark{
+    font-family:'Plus Jakarta Sans',system-ui,sans-serif;
+    font-weight:800;letter-spacing:-.025em;font-size:82px;line-height:1;
+    color:#EAF2F8;white-space:nowrap;
+  }
+  /* FPL in --ink, Armband in --ink2 at 700. This split is the site's existing
+     convention in armband.css; the card must not invent its own. */
+  .wordmark em{font-style:normal;color:#9DB0C0;font-weight:700;}
+  .tagline{
+    font-family:'Inter',system-ui,sans-serif;font-weight:400;
+    font-size:31px;line-height:1;color:#9DB0C0;white-space:nowrap;
+    border-top:1px solid #2C3B49;padding-top:28px;
+  }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="grid"></div>
+<div class="stack">
+  <!-- The mark, at 2x its natural 120x64 box. Byte-identical to assets/static/logo.svg. -->
+  <svg width="240" height="128" viewBox="0 0 120 64" role="img" aria-label="FPL Armband">
+    <path d="M5 14 Q60 6 115 14 L115 50 Q60 58 5 50 Z" fill="#2F53F0"/>
+    <rect x="38" y="5.5" width="44" height="53" rx="3.5" fill="#1B2F9E"/>
+    <path d="M68.31 21.36 A13.5 13.5 0 1 0 68.31 42.64" fill="none" stroke="#FFFFFF"
+          stroke-width="7.2" stroke-linecap="round"/>
+  </svg>
+  <div class="wordmark">FPL <em>Armband</em></div>
+  <div class="tagline">Your man outside the dressing room.</div>
+</div>
+</body>
+</html>

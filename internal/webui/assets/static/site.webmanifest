@@ -1,0 +1,30 @@
+{
+  "name": "FPL Armband",
+  "short_name": "Armband",
+  "description": "Every Fantasy Premier League player marked from Nailed down to Fringe before you pick him, with FPL's own team news read into his score.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#070B10",
+  "theme_color": "#070B10",
+  "icons": [
+    {
+      "src": "/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

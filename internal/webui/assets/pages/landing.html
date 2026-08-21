@@ -3,8 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>FPL Armband — your man on the pitch</title>
+<title>FPL Armband — your man outside the dressing room</title>
 <meta name="description" content="Every Fantasy Premier League player marked from Nailed down to Fringe before you pick him, with FPL's own team news read into his score — and the working shown, so the call stays yours. Free while it's in preview.">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<link rel="manifest" href="/assets/site.webmanifest">
+<meta name="theme-color" content="#070B10">
+<!-- Open Graph and Twitter require absolute URLs, so the production origin is
+     spelled out again here — the first spelling is signupOrigin in
+     cmd/armband/webroutes.go. The two must move together if the origin ever
+     changes. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FPL Armband">
+<meta property="og:url" content="https://fplarmband.com/">
+<meta property="og:title" content="FPL Armband — your man outside the dressing room">
+<meta property="og:description" content="Every Fantasy Premier League player marked from Nailed down to Fringe before you pick him, with FPL's own team news read into his score. The working is shown, so the call stays yours.">
+<meta property="og:image" content="https://fplarmband.com/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The FPL Armband mark: a captain's armband carrying the C.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="FPL Armband — your man outside the dressing room">
+<meta name="twitter:description" content="Every Fantasy Premier League player marked from Nailed down to Fringe before you pick him, with FPL's own team news read into his score. The working is shown, so the call stays yours.">
+<meta name="twitter:image" content="https://fplarmband.com/assets/og-image.png">
 <!-- The GA4 measurement id, filled in by the server per request when ARMBAND_GA4_ID is
      set. Empty in the embedded file and on every local `armband serve`, so a copy of
      this document taken off disk — or a local run with the env var unset — loads no
@@ -379,19 +401,14 @@ footer a{color:var(--ink3);}
 
   <nav class="lnav">
     <a class="logo" href="#">
-      <svg width="26" height="31" viewBox="0 0 220 260" aria-hidden="true">
-        <rect x="6" y="112" width="208" height="46" rx="9" fill="#1C34A8"/>
-        <path d="M110 16 L192 60 V148 c0 50-34 82-82 100 -48-18-82-50-82-100 V60 Z" fill="#131C26" stroke="#2C3B49" stroke-width="2"/>
-        <g stroke="#4C6072" stroke-width="3" fill="none" stroke-linecap="round">
-          <path d="M110 40 V220"/><path d="M110 62 H82 V96"/><path d="M110 62 H138 V96"/>
-          <path d="M110 198 H82 V166"/><path d="M110 198 H138 V166"/></g>
-        <g fill="#4C6072"><circle cx="110" cy="38" r="6"/><circle cx="82" cy="100" r="6"/><circle cx="138" cy="100" r="6"/><circle cx="110" cy="222" r="6"/><circle cx="82" cy="162" r="6"/><circle cx="138" cy="162" r="6"/></g>
-        <path d="M28 112 H192 V158 H28 Z" fill="#2F53F0"/>
-        <text x="110" y="149" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-size="46" font-weight="800" fill="#fff">C</text>
+      <svg width="37.5" height="20" viewBox="0 0 120 64" aria-hidden="true">
+        <path d="M5 14 Q60 6 115 14 L115 50 Q60 58 5 50 Z" fill="#2F53F0"/>
+        <rect x="38" y="5.5" width="44" height="53" rx="3.5" fill="#1B2F9E"/>
+        <path d="M68.31 21.36 A13.5 13.5 0 1 0 68.31 42.64" fill="none" stroke="#FFFFFF" stroke-width="7.2" stroke-linecap="round"/>
       </svg>
       <span class="wordmark">FPL <em>Armband</em></span>
     </a>
-    <span class="tagline hideSm" data-copy="ln.tagline">Your man on the pitch.</span>
+    <span class="tagline hideSm" data-copy="ln.tagline">Your man outside the dressing room.</span>
     <span class="spacer"></span>
     <span class="pill on" data-copy="ln.previewpill">Open preview</span>
   </nav>
@@ -733,19 +750,14 @@ footer a{color:var(--ink3);}
   <div class="cta">
     <div class="lockup">
       <a class="logo" href="#">
-        <svg width="30" height="35" viewBox="0 0 220 260" aria-hidden="true">
-          <rect x="6" y="112" width="208" height="46" rx="9" fill="#1C34A8"/>
-          <path d="M110 16 L192 60 V148 c0 50-34 82-82 100 -48-18-82-50-82-100 V60 Z" fill="#131C26" stroke="#2C3B49" stroke-width="2"/>
-          <g stroke="#4C6072" stroke-width="3" fill="none" stroke-linecap="round">
-            <path d="M110 40 V220"/><path d="M110 62 H82 V96"/><path d="M110 62 H138 V96"/>
-            <path d="M110 198 H82 V166"/><path d="M110 198 H138 V166"/></g>
-          <g fill="#4C6072"><circle cx="110" cy="38" r="6"/><circle cx="82" cy="100" r="6"/><circle cx="138" cy="100" r="6"/><circle cx="110" cy="222" r="6"/><circle cx="82" cy="162" r="6"/><circle cx="138" cy="162" r="6"/></g>
-          <path d="M28 112 H192 V158 H28 Z" fill="#2F53F0"/>
-          <text x="110" y="149" text-anchor="middle" font-family="'Plus Jakarta Sans',sans-serif" font-size="46" font-weight="800" fill="#fff">C</text>
+        <svg width="45" height="24" viewBox="0 0 120 64" aria-hidden="true">
+          <path d="M5 14 Q60 6 115 14 L115 50 Q60 58 5 50 Z" fill="#2F53F0"/>
+          <rect x="38" y="5.5" width="44" height="53" rx="3.5" fill="#1B2F9E"/>
+          <path d="M68.31 21.36 A13.5 13.5 0 1 0 68.31 42.64" fill="none" stroke="#FFFFFF" stroke-width="7.2" stroke-linecap="round"/>
         </svg>
         <span class="wordmark">FPL <em>Armband</em></span>
       </a>
-      <span class="tagline" data-copy="cta.tagline">Your man on the pitch.</span>
+      <span class="tagline" data-copy="cta.tagline">Your man outside the dressing room.</span>
     </div>
     <span class="pill on" data-copy="cta.pill">Open preview · 2026/27</span>
     <h2 class="t-sec" data-copy="cta.head">Gameweek 1 locks Friday.</h2>
@@ -773,9 +785,11 @@ footer a{color:var(--ink3);}
         how you want it — then make the changes on FPL when you’re happy.</span>
       <span class="spacer"></span>
       <a class="t-meta" href="/armband-team">Our team</a>
-      <a class="t-meta" href="#" data-copy="footer.privacy">Privacy</a>
-      <a class="t-meta" href="#" data-copy="footer.github">GitHub</a>
-      <a class="t-meta" href="#" data-copy="footer.method">Method</a>
+      <!-- A dead Privacy link sitting next to a live email capture field was the
+           reason these three got fixed. -->
+      <a class="t-meta" href="/privacy" data-copy="footer.privacy">Privacy</a>
+      <a class="t-meta" href="https://github.com/beeradb/FPL-Armband" target="_blank" rel="noopener noreferrer" data-copy="footer.github">GitHub</a>
+      <a class="t-meta" href="https://github.com/beeradb/FPL-Armband#readme" target="_blank" rel="noopener noreferrer" data-copy="footer.method">Method</a>
     </div>
   </footer>
 </div>

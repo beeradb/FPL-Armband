@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"
+     role="img" aria-label="FPL Armband">
+  <!-- The SQUARE cut: the source for icon-180.png (apple-touch-icon) and the
+       icon-192/512 pair the web manifest names. Same band, same strap, same C as
+       logo.svg — cropped into a square rather than a circle.
+
+       Square and full-bleed rather than the circle favicon.svg uses, because iOS and
+       Android apply their OWN mask (a squircle, a circle, or nothing, depending on
+       launcher). A circle drawn into the source would be masked a second time and
+       come back with clipped, dark corners. Let the platform do the rounding.
+
+       The ground is the app's `panel` colour #10171F rather than the page's #070B10:
+       one step lifted, so the tile still reads as a container on a dark home screen
+       instead of a hole. This is the same reason the crest this mark replaced failed
+       its first test.
+
+       ⚠️ The `panel` token is named without its CSS custom-property spelling on
+       purpose: an XML comment may not contain a double hyphen, so writing it that way
+       makes this file NOT well-formed. Browsers tolerate it; ImageMagick and Python's
+       XML parser reject it outright, and the icon rasters below are produced by
+       exactly such a step.
+
+       The mark occupies the middle ~73% and is centred on both axes, which keeps it
+       inside the maskable safe zone (the inner 80%) on Android. Do not scale it up to
+       fill the tile — a launcher that crops to a circle would take the band's ends
+       off, and the band's ends are what make it read as a strap. -->
+  <rect width="100" height="100" fill="#10171F"/>
+  <g transform="translate(10 28.667) scale(0.66667)">
+    <path d="M5 14 Q60 6 115 14 L115 50 Q60 58 5 50 Z" fill="#2F53F0"/>
+    <rect x="38" y="5.5" width="44" height="53" rx="3.5" fill="#1B2F9E"/>
+    <path d="M68.31 21.36 A13.5 13.5 0 1 0 68.31 42.64" fill="none" stroke="#FFFFFF"
+          stroke-width="7.2" stroke-linecap="round"/>
+  </g>
+</svg>

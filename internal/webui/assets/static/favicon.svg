@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100"
+     role="img" aria-label="FPL Armband">
+  <!-- The favicon cut, and any use at 24px or below.
+
+       Identical construction to logo.svg — same band, same strap, same C, same
+       geometry — cropped into a circle and scaled to fill it.
+
+       The ONE difference is the ground: a light #F2F6FA rather than the app's dark
+       #10171F. That is a legibility decision, not a design one. A favicon sits in
+       browser chrome rather than on our own page, and at 16px a dark circle on a dark
+       tab bar loses its container entirely, leaving a small blue band floating with
+       nothing to anchor it. On light the same mark holds down to 16px.
+
+       ⚠️ This is a light/dark GROUND variant of one mark, not a second mark. If the
+       drawing changes, change it here, in logo.svg, and in the four inlined copies.
+
+       The 0.84 scale and this offset are load-bearing: at 0.9 the band overflowed the
+       circle and spilled into the corners. -->
+  <circle cx="50" cy="50" r="50" fill="#F2F6FA"/>
+  <g transform="translate(-0.4 23.12) scale(0.84)">
+    <path d="M5 14 Q60 6 115 14 L115 50 Q60 58 5 50 Z" fill="#2F53F0"/>
+    <rect x="38" y="5.5" width="44" height="53" rx="3.5" fill="#1B2F9E"/>
+    <path d="M68.31 21.36 A13.5 13.5 0 1 0 68.31 42.64" fill="none" stroke="#FFFFFF"
+          stroke-width="7.2" stroke-linecap="round"/>
+  </g>
+</svg>
