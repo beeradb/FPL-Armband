@@ -323,6 +323,13 @@ func (s *squadServer) routeFor(path string) (http.Handler, string) {
 		return http.HandlerFunc(s.gate), "gate"
 	case routeState:
 		return http.HandlerFunc(s.state), "state"
+	case routeArmbandTeam:
+		// Ungated, deliberately: see routeArmbandTeam's own comment.
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s.servePage(w, r, "team")
+		}), "armband-team"
+	case routeArmbandTeamState:
+		return http.HandlerFunc(s.armbandTeamState), "armband-team-state"
 	case routeSession:
 		return http.HandlerFunc(s.saveSession), "session"
 	case routeImport:

@@ -103,12 +103,51 @@ type HouseTeam struct {
 	// History is every gameweek FPL has scored so far, oldest first — the actual points
 	// the fielded eleven returned, not a projection.
 	History []HouseResult `json:"history,omitempty"`
+
+	// Formation, Captain and Vice describe the same fifteen XI/Bench name, by ID — the
+	// dedicated /armband-team page's own pitch, entirely separate from Squad above. It
+	// exists because that page is a spectator view, not the interactive builder: no
+	// locks, no leave-outs, no role band, no reliability meter. See TeamPlayer.
+	Formation string       `json:"formation,omitempty"`
+	Captain   int          `json:"captain,omitempty"`
+	Vice      int          `json:"vice,omitempty"`
+	XI        []TeamPlayer `json:"xi,omitempty"`
+	Bench     []TeamPlayer `json:"bench,omitempty"`
 }
 
 // HouseResult is one completed gameweek's actual score.
 type HouseResult struct {
 	Event  int `json:"event"`
 	Points int `json:"points"`
+}
+
+// TeamPlayer is one player on the house team's spectator pitch. Deliberately a smaller
+// vocabulary than Player: no Role, no Reliability, no Override, no Availability — those
+// describe a decision the interactive builder is helping a reader make, and a spectator
+// page reader is not making one. Opponent and this season's counting stats instead: what
+// he is up against, and what he has actually done.
+type TeamPlayer struct {
+	ID    int     `json:"id"`
+	Name  string  `json:"name"`
+	Club  string  `json:"club"`
+	Pos   string  `json:"pos"`
+	Price float64 `json:"price"`
+
+	// Opponent is the next upcoming fixture, nil when none is scheduled (a blank
+	// gameweek). The same Fixture shape the interactive builder uses, so the client's
+	// existing home/away-glyph and difficulty-colour logic needs no second copy.
+	Opponent *Fixture `json:"opponent,omitempty"`
+
+	// Goals, Assists, CleanSheets, Bonus and DefCon are this SEASON's counts, straight
+	// off the FPL bootstrap element — not a rate, not a chance, not this gameweek alone.
+	// A live, in-gameweek version of these is a real follow-up (see ROLLOUT.md) and
+	// needs a new FPL live-event data source this codebase does not have yet; season
+	// totals are what is honestly available today.
+	Goals       int `json:"goals"`
+	Assists     int `json:"assists"`
+	CleanSheets int `json:"clean_sheets"`
+	Bonus       int `json:"bonus"`
+	DefCon      int `json:"def_con"`
 }
 
 // Import is the team-import affordance's whole state — whether it may be offered right

@@ -115,7 +115,7 @@ func Build(in Input) (*State, error) {
 
 	s.Squad = buildSquad(p)
 	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips)
-	s.HouseTeam = buildHouseTeam(s.Squad, s.Gameweeks, in.HouseEntry, in.HouseHistory)
+	s.HouseTeam = buildHouseTeam(s.Squad, s.Gameweeks, in.HouseEntry, in.HouseHistory, in.Boot)
 	s.Market = buildMarket(p)
 	s.Overrides = buildOverrides(p)
 	s.News = buildNews(s, in)
@@ -261,7 +261,7 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 // leaves out, or captains someone other than the model's own pick — which the house
 // account's real squad does. Reusing sq.Expected is what keeps the promise "never a second
 // computation" honest rather than merely close.
-func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.EntryHistory) *HouseTeam {
+func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.EntryHistory, boot *fpl.Bootstrap) *HouseTeam {
 	if entry == nil {
 		return nil
 	}
@@ -269,6 +269,9 @@ func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.Ent
 		OverallPoints:    entry.SummaryOverallPoints,
 		OverallRank:      entry.SummaryOverallRank,
 		CurrentProjected: sq.Expected,
+		Formation:        sq.Formation,
+		Captain:          sq.Captain,
+		Vice:             sq.Vice,
 	}
 	for _, gw := range gws {
 		if gw.Current {
@@ -279,6 +282,42 @@ func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.Ent
 	if history != nil {
 		for _, gw := range history.Current {
 			ht.History = append(ht.History, HouseResult{Event: gw.Event, Points: gw.Points})
+		}
+	}
+
+	byID := make(map[int]Player, len(sq.Players))
+	for _, p := range sq.Players {
+		byID[p.ID] = p
+	}
+	teamPlayer := func(id int) (TeamPlayer, bool) {
+		p, ok := byID[id]
+		if !ok {
+			return TeamPlayer{}, false
+		}
+		tp := TeamPlayer{ID: p.ID, Name: p.Name, Club: p.Club, Pos: p.Pos, Price: p.Price}
+		if len(p.Fixtures) > 0 {
+			f := p.Fixtures[0]
+			tp.Opponent = &f
+		}
+		if boot != nil {
+			if el := boot.ElementByID(p.ID); el != nil {
+				tp.Goals = el.GoalsScored
+				tp.Assists = el.Assists
+				tp.CleanSheets = el.CleanSheets
+				tp.Bonus = el.Bonus
+				tp.DefCon = el.DefensiveContribution
+			}
+		}
+		return tp, true
+	}
+	for _, id := range sq.XI {
+		if tp, ok := teamPlayer(id); ok {
+			ht.XI = append(ht.XI, tp)
+		}
+	}
+	for _, id := range sq.Bench {
+		if tp, ok := teamPlayer(id); ok {
+			ht.Bench = append(ht.Bench, tp)
 		}
 	}
 	return ht

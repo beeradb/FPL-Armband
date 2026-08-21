@@ -328,6 +328,39 @@ func TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails(t *testing.T) {
 	}
 }
 
+// TestHouseTeamRosterIsTrimmedNotRebuilt pins that the spectator page's XI/Bench are the
+// SAME fifteen the interactive builder has -- read off Squad.Players by Squad.XI/Bench's
+// own ID order, never re-optimised -- and that a TeamPlayer carries an opponent (for the
+// glyph the interactive builder already draws) but none of the interactive vocabulary
+// (role, reliability, override) that a spectator page has no use for.
+func TestHouseTeamRosterIsTrimmedNotRebuilt(t *testing.T) {
+	s, err := Build(Input{
+		Page: samplePage(),
+		Boot: &fpl.Bootstrap{Events: []fpl.Event{
+			{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsNext: true},
+		}},
+		Cfg:        config.Config{},
+		Now:        pinned,
+		HouseEntry: &fpl.Entry{SummaryOverallPoints: 236},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if len(s.HouseTeam.XI) != len(s.Squad.XI) {
+		t.Fatalf("HouseTeam.XI has %d players, want %d — one per Squad.XI id", len(s.HouseTeam.XI), len(s.Squad.XI))
+	}
+	if len(s.HouseTeam.Bench) != len(s.Squad.Bench) {
+		t.Fatalf("HouseTeam.Bench has %d players, want %d", len(s.HouseTeam.Bench), len(s.Squad.Bench))
+	}
+	gk := s.HouseTeam.XI[0]
+	if gk.ID != s.Squad.XI[0] || gk.Name != "Kinsky" {
+		t.Errorf("HouseTeam.XI[0] = %+v, want Kinsky (id %d) — same order as Squad.XI", gk, s.Squad.XI[0])
+	}
+	if gk.Opponent == nil || gk.Opponent.Opponent != "BRE" || gk.Opponent.Home {
+		t.Errorf("Kinsky's Opponent = %+v, want the away BRE fixture samplePage gives him", gk.Opponent)
+	}
+}
+
 // TestTheOverrideCountsComeFromOneImplementation pins that the API's "how many need a
 // check" is asked of the same code the page asks, rather than recounted here. Two counts
 // of one quantity is the failure this codebase names most often.

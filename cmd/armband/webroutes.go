@@ -46,6 +46,14 @@ const (
 	routeGate    = "/gate"
 	routeState   = "/api/state"
 	routeSession = "/api/session"
+	// routeArmbandTeam and routeArmbandTeamState are the spectator page: what the site's
+	// own squad (config.EntryID) is actually doing, always, for anyone. Deliberately not a
+	// data-view inside /app -- it must never share a document with the interactive builder,
+	// so a reader (or a link) cannot land on the tool's team-selection surface by accident
+	// while looking for the house team. Ungated like the landing page, for the same reason:
+	// proof-of-use is a marketing surface, not the product behind the gate. See armbandteam.go.
+	routeArmbandTeam      = "/armband-team"
+	routeArmbandTeamState = "/api/armband-team"
 	// routeImport is the team-ID import write path. See importteam.go.
 	routeImport = "/api/import"
 	// routeMetrics serves this process's own Prometheus metrics — the
@@ -560,7 +568,6 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 	}
 
 	now := s.now()
-	houseEntry, houseHistory := houseTeamSources(r.Context(), s.client, cfg.EntryID)
 	st, err := viewmodel.Build(viewmodel.Input{
 		Page:      b.Page,
 		Boot:      s.engine.Boot,
@@ -584,8 +591,10 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 		NewsReadChecked: newsReadChecked(cfg, now),
 		OverrideEffects: b.OverrideEffects,
 		Import:          buildImport(s.engine.Boot.Events, sess),
-		HouseEntry:      houseEntry,
-		HouseHistory:    houseHistory,
+		// No HouseEntry/HouseHistory here on purpose: this is the interactive builder's
+		// document, and the house team's own record has nothing to do with a reader's
+		// session. It is fetched only by armbandTeamState, for the dedicated /armband-team
+		// page — see that function.
 	})
 	if err != nil {
 		// Build's only failure is a number encoding/json would refuse. Naming the field

@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// pages are the two documents, by the name Page takes.
-var pages = []string{"landing", "app"}
+// pages are the documents, by the name Page takes.
+var pages = []string{"landing", "app", "team"}
 
 // TestEveryPageIsEmbeddedAndNonEmpty is the shallowest possible check, and it exists
 // because the failure it catches is silent. A //go:embed directive that matches nothing
@@ -135,8 +135,8 @@ func TestEveryReferencedAssetResolves(t *testing.T) {
 			strings.HasPrefix(ref, "data:"),
 			strings.HasPrefix(ref, "mailto:"):
 			return
-		case ref == "/" || ref == "/app":
-			// The two page routes. Served by cmd/armband/serve.go, not from static.
+		case ref == "/" || ref == "/app" || ref == "/armband-team":
+			// The page routes. Served by cmd/armband/serve.go, not from static.
 			return
 		}
 		if !strings.HasPrefix(ref, "/assets/") {

@@ -53,6 +53,10 @@
     <button data-view="pitch"    aria-selected="true">Pitch</button>
     <button data-view="players"  aria-selected="false">Players <span class="c" id="poolCount">—</span></button>
     <button data-view="news"     aria-selected="false">News <span class="c" id="newsCount" hidden></span></button>
+    <!-- A real link, not a data-view: /armband-team is its own document (team.html),
+         deliberately never a tab this SPA switches into -- see armband.css's note on
+         .navlink and cmd/armband/webroutes.go's routeArmbandTeam comment for why. -->
+    <a class="navlink" href="/armband-team">Our team →</a>
   </div>
 </nav>
 
@@ -69,12 +73,6 @@
      VIEW: PITCH
      ============================================================ -->
 <section id="view-pitch">
-
-  <!-- Whose squad this is: config.EntryID, the site's own live FPL team, run through the
-       identical pipeline as any reader's. Without this line the pitch below has no context
-       -- it is just eleven cards. Empty when EntryID is unset; see renderHouseTeam() in
-       app.js. Placed above the score bug on purpose: identity before the number. -->
-  <div class="houseteam" id="houseteam"></div>
 
   <!-- the score bug: one number is the product -->
   <div class="scorebug" id="scorebug"></div>
@@ -345,6 +343,12 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 11h5M19.5 8.5v5"/></svg>Players</button>
   <button data-view="news" aria-selected="false">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg>News</button>
+  <!-- A real link to /armband-team's own document, in the tabbar's fourth column --
+       reserved since the bar's own grid-template-columns:repeat(4,1fr) predates this,
+       from before Brief was removed (see internal/viewmodel/state.go and ROLLOUT.md's
+       note on the stale /app#brief golden). -->
+  <a href="/armband-team">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/><circle cx="12" cy="11" r="2.4"/></svg>Our team</a>
 </nav>
 
 <!-- ===================== PLAYER SHEET ===================== -->

@@ -288,6 +288,14 @@ button{font-family:inherit;color:inherit;}
   font-family:var(--mono);font-size:9.5px;padding:1px 5px;border-radius:999px;
   background:var(--panel2);color:var(--ink3);
 }
+/* .navlink is a real <a> to a SEPARATE document (/armband-team), never a data-view --
+   right-aligned and visually distinct from the tab buttons on purpose, so it never reads
+   as a fourth tab of the same tool. See routeArmbandTeam's comment in webroutes.go. */
+.mainnav .navlink{
+  margin-left:auto;align-self:center;padding:0 4px;
+  font-size:12px;font-weight:600;color:var(--band-hi);text-decoration:none;
+}
+.mainnav .navlink:hover{color:var(--band);}
 
 /* mobile bottom nav ------------------------------------------- */
 .tabbar{display:none;}
@@ -971,12 +979,12 @@ button{font-family:inherit;color:inherit;}
     z-index:70;background:rgba(7,11,16,.96);backdrop-filter:blur(14px);
     border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);
   }
-  .tabbar button{
+  .tabbar button, .tabbar a{
     appearance:none;background:none;border:0;padding:8px 4px 9px;cursor:pointer;
     display:flex;flex-direction:column;align-items:center;gap:3px;
-    font-size:10px;font-weight:600;color:var(--ink3);
+    font-size:10px;font-weight:600;color:var(--ink3);text-decoration:none;
   }
-  .tabbar button svg{width:19px;height:19px;}
+  .tabbar button svg, .tabbar a svg{width:19px;height:19px;}
   /* --band is 3.40:1 on this bar; the lit side of it is 6.02:1. The selected tab is the one
      word on a phone that says where the reader is, so it may not be the least legible thing
      on the screen. */
@@ -1982,13 +1990,14 @@ body.saving{cursor:progress;}
 .chipscrim{display:none;}
 @media (max-width:720px){.chipscrim.on{display:block;}}
 
-/* --- the house team identity strip, above the score bug --------
-   config.EntryID is the site's own live FPL squad, run through this exact pipeline. It
-   sits above the score bug because the pitch below it is otherwise eleven cards with no
-   context for whose they are. States what it actually scored last week (a fact, plain ink)
+/* --- the house team identity strip -------------------------------
+   config.EntryID is the site's own live FPL squad, run through this exact pipeline. Lives
+   on the dedicated /armband-team page (team.html/team.js) ONLY -- never inside /app, which
+   is the interactive builder and must not share a document with a page that is always the
+   same fifteen for everyone. States what it actually scored last week (a fact, plain ink)
    and what this week's eleven is projected to return (Squad.Expected, --acc -- the same
-   number the score bug shows, never a second computation of it). No sparkline: two numbers
-   and a name is the whole job. */
+   number the interactive score bug would show for this squad, never a second computation
+   of it). No sparkline: two numbers and a name is the whole job. */
 .houseteam{margin-bottom:10px;}
 .houseteamrow{
   display:flex;align-items:center;gap:14px;padding:10px 16px;
@@ -2005,4 +2014,45 @@ body.saving{cursor:progress;}
 @media (max-width:640px){
   .houseteamrow{gap:0;padding:8px 12px;}
   .houseteamrow .htstat{padding:0 8px;}
+}
+
+/* --- /armband-team, the spectator page ---------------------------
+   team.html + team.js. Reuses .pitch/.line for the turf and rows, and .houseteam/
+   .houseteamrow above for the identity strip -- everything else here is new, because a
+   spectator card is deliberately a SMALLER vocabulary than the interactive .card: no
+   lock/leave-out icons, no role band, no reliability meter. Opponent (the same .fxr glyph
+   the interactive ribbon uses) and this season's counting stats instead. */
+.teamwrap{max-width:900px;padding-top:20px;}
+.teamintro{max-width:56ch;margin-bottom:20px;}
+.teamintro h1{margin:4px 0 8px;}
+.teamintro .t-body{color:var(--ink2);}
+
+.teamformation{display:flex;align-items:center;gap:8px;margin:14px 0 8px;}
+.teamformation .form{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--ink);}
+
+.tpcard{
+  position:relative;width:112px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r-sm);overflow:hidden;
+}
+.tpcard .tpbar{height:3px;}
+.tpband{
+  position:absolute;top:4px;right:4px;width:16px;height:16px;border-radius:50%;
+  display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:10px;
+  background:var(--band);color:#fff;
+}
+.tpband.v{background:var(--panel3);color:var(--ink2);}
+.tpbody{padding:6px 7px;}
+.tpname{font-family:var(--ui);font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tpmeta{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-bottom:4px;}
+.tpopp{margin-bottom:5px;}
+.tpstats{display:flex;gap:6px;flex-wrap:wrap;}
+.tpstat{font-family:var(--mono);font-size:10px;color:var(--ink3);display:flex;align-items:center;gap:2px;}
+.tpstat b{font-family:var(--mono);font-weight:700;font-size:11px;color:var(--ink);}
+
+.teambench{margin-top:14px;}
+.teambenchrow{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
+.teambenchrow .tpcard{flex:none;}
+
+@media (max-width:640px){
+  .tpcard{width:88px;}
 }
