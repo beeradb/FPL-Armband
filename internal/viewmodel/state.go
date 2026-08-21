@@ -278,9 +278,17 @@ type Effect struct {
 type Gameweek struct {
 	Number   int       `json:"gw"`
 	Deadline time.Time `json:"deadline"`
-	// Current marks the gameweek being played or next to be played — the rail's NOW
-	// dot. Exactly one gameweek carries it, or none once the season is over.
+	// Current marks the next gameweek a reader can still act on — the rail's NOW dot.
+	// Exactly one gameweek carries it, or none once the season is over. Found from each
+	// gameweek's own deadline against the server's clock, not FPL's IsCurrent/IsNext
+	// flags — see buildGameweeks's own comment for why those lag a real deadline.
 	Current bool `json:"current"`
+	// Closed reports that this gameweek's deadline has passed — selection is locked, so
+	// the interactive builder has nothing left to offer for it. A closed gameweek only
+	// appears in this list at all when the reader has imported their real picks (see
+	// State.Import); otherwise buildGameweeks drops it rather than showing a stale
+	// hypothetical plan for a squad that can no longer change.
+	Closed bool `json:"closed,omitempty"`
 	// Chip is the chip the plan puts in this week: "Wildcard", "Free Hit",
 	// "Bench Boost", "Triple Captain", or empty. Spelled as the engine spells it.
 	Chip string `json:"chip,omitempty"`

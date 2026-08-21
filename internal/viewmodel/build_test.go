@@ -255,6 +255,57 @@ func TestTheCurrentGameweekComesFromTheBootstrap(t *testing.T) {
 	}
 }
 
+// TestClosedGameweeksDropFromTheRailUnlessImported pins the two rules the rail's "GW1 is
+// closed" behaviour depends on: Current moves to the next gameweek whose deadline has not
+// passed — never FPL's own IsCurrent/IsNext flags, which lag a real deadline (see
+// buildGameweeks's own comment for the observed 24-minute case) — and a closed gameweek
+// is dropped from the rail entirely unless the reader has imported real picks for it.
+func TestClosedGameweeksDropFromTheRailUnlessImported(t *testing.T) {
+	p := samplePage()
+	boot := &fpl.Bootstrap{Events: []fpl.Event{
+		// IsNext still true here on purpose: FPL had not yet flipped it 24 minutes past
+		// this exact deadline in production, and Now below is 30 minutes past it. If
+		// buildGameweeks used IsNext/IsCurrent instead of the deadline, this fixture
+		// would still say GW1, and the test would pass by accident.
+		{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsNext: true},
+		{ID: 2, DeadlineTime: time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC)},
+	}}
+	afterGW1Deadline := time.Date(2026, 8, 21, 18, 0, 0, 0, time.UTC)
+
+	notImported, err := Build(Input{Page: p, Boot: boot, Now: afterGW1Deadline})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	for _, gw := range notImported.Gameweeks {
+		if gw.Number == 1 {
+			t.Errorf("GW1 is still on the rail after its deadline with no import, want it dropped: %+v", gw)
+		}
+	}
+	if len(notImported.Gameweeks) == 0 || notImported.Gameweeks[0].Number != 2 || !notImported.Gameweeks[0].Current {
+		t.Errorf("Gameweeks = %+v, want GW2 first and marked Current", notImported.Gameweeks)
+	}
+
+	imported, err := Build(Input{Page: p, Boot: boot, Now: afterGW1Deadline, Import: Import{Entry: 12345}})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	var gw1 *Gameweek
+	for i := range imported.Gameweeks {
+		if imported.Gameweeks[i].Number == 1 {
+			gw1 = &imported.Gameweeks[i]
+		}
+	}
+	if gw1 == nil {
+		t.Fatal("GW1 is missing once the reader has imported; want it present and marked Closed")
+	}
+	if !gw1.Closed {
+		t.Error("GW1.Closed = false, want true — its deadline has passed")
+	}
+	if gw1.Current {
+		t.Error("GW1.Current = true, want false — it is no longer the gameweek to act on")
+	}
+}
+
 // TestHouseTeamIsAbsentWithoutAnEntry pins the honest-absence rule: no config.EntryID (or
 // a failed fetch, from the caller's point of view — build() supplies no HouseEntry either
 // way) means no house team to show, not a zeroed one a client might render as "GW0 · 0 pts".

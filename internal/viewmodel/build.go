@@ -125,7 +125,7 @@ func Build(in Input) (*State, error) {
 	}
 
 	s.Squad = buildSquad(p)
-	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips)
+	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips, in.Now, in.Import.Entry != 0)
 	s.HouseTeam = buildHouseTeam(s.Squad, s.Gameweeks, in.HouseEntry, in.HouseHistory, in.Boot,
 		in.HouseLive, in.HouseMatchStatus)
 	s.Market = buildMarket(p)
@@ -226,24 +226,53 @@ func buildPlayer(m analysis.PlayerMetrics, p present.Page) Player {
 // note is explicit that the planning window slides and must not be hard-coded, and a rail
 // that silently stopped at five would start lying the first time a chip was planned
 // outside it — which is most of why anyone opens the page.
-func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSchedule) []Gameweek {
+//
+// # Why Current is found by deadline, not Bootstrap.CurrentEvent/IsCurrent
+//
+// This used to prefer IsCurrent, falling back to IsNext. That is FPL's OWN answer to
+// "which gameweek is being played", set by FPL's backend on its own schedule — not the
+// instant a deadline passes. Observed directly on 2026-08-21: GW1's deadline was 17:30
+// UTC, and bootstrap-static still answered is_current=false, is_next=true at 17:54, 24
+// minutes past deadline with kickoff imminent. A reader who opened the planner in that
+// window would have been shown GW1 as the one to act on, when it was already locked. A
+// deadline is a fact this server already has and needs no such lag: Current is simply the
+// gameweek with the EARLIEST deadline that has not yet passed — the next one a reader can
+// still do anything about.
+//
+// # Why a closed, un-imported gameweek is dropped from the rail entirely
+//
+// Once a gameweek's deadline passes, its entry in p.Weeks is the model's hypothetical
+// best-XI for a squad the reader can no longer change — a Monday-morning-quarterback
+// opinion about a locked decision, not a plan. That is worth showing only when it can be
+// replaced by the reader's ACTUAL picks (imported — see State.Import), which this
+// function does not have access to; that is a real gap, tracked rather than worked around
+// here (see ROLLOUT.md). Until then a closed week is filtered rather than left showing a
+// stale hypothetical plan a reader might mistake for their own.
+func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSchedule, now time.Time, imported bool) []Gameweek {
 	deadline := map[int]time.Time{}
 	current := 0
 	if boot != nil {
-		for _, e := range boot.Events {
+		var earliestOpen *fpl.Event
+		for i := range boot.Events {
+			e := &boot.Events[i]
 			deadline[e.ID] = e.DeadlineTime
-			// IsCurrent is the week being played; IsNext is the one taking entries.
-			// Preferring IsCurrent matches what the rail's NOW dot means to a reader
-			// mid-week, and IsNext is the answer for the rest of the time.
-			if e.IsCurrent {
-				current = e.ID
-			} else if e.IsNext && current == 0 {
-				current = e.ID
+			if e.DeadlineTime.Before(now) {
+				continue
 			}
+			if earliestOpen == nil || e.DeadlineTime.Before(earliestOpen.DeadlineTime) {
+				earliestOpen = e
+			}
+		}
+		if earliestOpen != nil {
+			current = earliestOpen.ID
 		}
 	}
 	out := make([]Gameweek, 0, len(p.Weeks))
 	for _, w := range p.Weeks {
+		closed := !deadline[w.Event].IsZero() && deadline[w.Event].Before(now)
+		if closed && !imported {
+			continue
+		}
 		var playable []ChipOption
 		for _, key := range analysis.PlayableChips(boot, w.Event) {
 			playable = append(playable, ChipOption{Key: key, Label: analysis.ChipLabel(key)})
@@ -252,6 +281,7 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 			Number:     w.Event,
 			Deadline:   deadline[w.Event],
 			Current:    w.Event == current,
+			Closed:     closed,
 			Chip:       w.Chip,
 			Projected:  w.Expected,
 			Formation:  w.Formation,
