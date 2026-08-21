@@ -31,15 +31,40 @@ function fxrChip(opp){
   return `<i class="f${opp.fdr}" title="${esc(opp.opp)}, ${opp.home?'home':'away'}">${at}${esc(opp.opp)}</i>`;
 }
 
-/* statRow is the season-counting-stats line the interactive card does not have: goals,
-   assists, clean sheets, defensive contribution. Bonus rides along in the API but is not
-   shown here -- four numbers already fills the row at card width, and these four are the
-   ones asked for. Zero is shown, not hidden: before a ball is kicked, "0" is the honest
-   answer and a blank card reads as broken. */
+/* liveDot marks a club's fixture as in progress right now -- fpl.Fixture.Started &&
+   !Finished, computed server-side (see cmd/armband.houseLiveSources). Sits next to the
+   opponent chip because that is where a reader is already looking to place him. */
+function liveDot(status){
+  return status==='live' ? '<span class="tplive" title="In progress"></span>' : '';
+}
+
+/* statRow is this gameweek's counting stats: goals and assists for everyone, then a
+   position-specific pair. A goalkeeper gets Clean sheet and Saves; every other position
+   gets Defensive Contribution instead -- FPL does not score outfielders' clean sheets on
+   this card and does not score keepers on CBIT at all (see
+   internal/analysis.DefConThreshold's own comment), so the two never share a card. DC
+   gets a green/red verdict once his match has started: green means he has cleared the bar
+   FPL pays 2 points at, red means not yet -- reached is recomputed live and can flip green
+   mid-match, never the other way. Before kickoff neither Saves nor DC render at all (both
+   nil from the server): "the match has not started" is not the same fact as "he has zero",
+   and drawing a red pill for a game that has not kicked off would say the wrong one. */
 function statRow(p){
-  const stats = [['G',p.goals],['A',p.assists],['CS',p.clean_sheets],['DC',p.def_con]];
+  const stats = [['G',p.goals],['A',p.assists]];
+  let extra = '';
+  if(p.pos === 'GKP'){
+    // Clean sheet is the keeper's own defensive stat -- DC is an outfield-only channel
+    // (see analysis.DefConThreshold's own comment, and Saves below), so the two never
+    // both appear on one card. Every other position gets DC instead.
+    stats.push(['CS', p.clean_sheets]);
+  }
+  if(p.saves != null){
+    stats.push(['SV', p.saves]);
+  } else if(p.def_con != null){
+    const cls = p.def_con_reached ? 'ok' : 'no';
+    extra = `<span class="tpstat tpdc ${cls}" title="${p.def_con_reached ? 'Cleared the defensive contribution bar' : 'Has not cleared the defensive contribution bar yet'}"><b>${p.def_con}</b>DC</span>`;
+  }
   return `<div class="tpstats">${stats.map(([k,v]) =>
-    `<span class="tpstat"><b>${v}</b>${k}</span>`).join('')}</div>`;
+    `<span class="tpstat"><b>${v}</b>${k}</span>`).join('')}${extra}</div>`;
 }
 
 function teamCard(p, isCaptain, isVice){
@@ -53,7 +78,7 @@ function teamCard(p, isCaptain, isVice){
     <div class="tpbody">
       <div class="tpname">${esc(p.name)}</div>
       <div class="tpmeta">${esc(p.club)}</div>
-      <div class="tpopp fdr">${fxrChip(p.opponent)}</div>
+      <div class="tpopp fdr">${fxrChip(p.opponent)}${liveDot(p.match_status)}</div>
       ${statRow(p)}
     </div>
   </div>`;

@@ -81,6 +81,17 @@ type Input struct {
 	// State.HouseTeam nil rather than showing a partial or stale figure. See State.HouseTeam.
 	HouseEntry   *fpl.Entry
 	HouseHistory *fpl.EntryHistory
+
+	// HouseLive is Boot.CurrentEvent()'s live per-player stats (fpl.Client.Live),
+	// nil before a season has a current gameweek or if the fetch failed.
+	// HouseMatchStatus is "scheduled"/"live"/"finished" per club short name for
+	// that same gameweek, computed by the caller from a freshly-fetched fixture
+	// list (fpl.Client.FixturesLive — NOT Client.Fixtures, which memoises for the
+	// life of the process and would answer a stale "has this kicked off yet" for
+	// as long as the pod runs). This package may not fetch either itself; it only
+	// arranges what the caller already fetched, same as HouseEntry/HouseHistory.
+	HouseLive        *fpl.EventLive
+	HouseMatchStatus map[string]string
 }
 
 // Build translates an assembled page into the client contract.
@@ -115,7 +126,8 @@ func Build(in Input) (*State, error) {
 
 	s.Squad = buildSquad(p)
 	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips)
-	s.HouseTeam = buildHouseTeam(s.Squad, s.Gameweeks, in.HouseEntry, in.HouseHistory, in.Boot)
+	s.HouseTeam = buildHouseTeam(s.Squad, s.Gameweeks, in.HouseEntry, in.HouseHistory, in.Boot,
+		in.HouseLive, in.HouseMatchStatus)
 	s.Market = buildMarket(p)
 	s.Overrides = buildOverrides(p)
 	s.News = buildNews(s, in)
@@ -261,7 +273,8 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 // leaves out, or captains someone other than the model's own pick — which the house
 // account's real squad does. Reusing sq.Expected is what keeps the promise "never a second
 // computation" honest rather than merely close.
-func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.EntryHistory, boot *fpl.Bootstrap) *HouseTeam {
+func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.EntryHistory, boot *fpl.Bootstrap,
+	live *fpl.EventLive, matchStatus map[string]string) *HouseTeam {
 	if entry == nil {
 		return nil
 	}
@@ -299,13 +312,35 @@ func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.Ent
 			f := p.Fixtures[0]
 			tp.Opponent = &f
 		}
+		tp.MatchStatus = matchStatus[p.Club]
+
+		stats := live.ByID(p.ID)
+		if stats == nil {
+			return tp, true
+		}
+		// Goals/assists/clean sheets are an honest "as of now" at every status —
+		// zero before kickoff is correct, not merely a placeholder for it.
+		tp.Goals = stats.GoalsScored
+		tp.Assists = stats.Assists
+		tp.CleanSheets = stats.CleanSheets
+
+		// DefCon/Saves stay nil before kickoff on purpose: "did he clear the bar"
+		// has no honest answer yet, and a red pill on a match that has not
+		// started would read as a verdict rather than an absence of one.
+		if tp.MatchStatus != "live" && tp.MatchStatus != "finished" {
+			return tp, true
+		}
+		if p.Pos == "GKP" {
+			saves := stats.Saves
+			tp.Saves = &saves
+			return tp, true
+		}
+		dc := stats.DefensiveContribution
+		tp.DefCon = &dc
 		if boot != nil {
 			if el := boot.ElementByID(p.ID); el != nil {
-				tp.Goals = el.GoalsScored
-				tp.Assists = el.Assists
-				tp.CleanSheets = el.CleanSheets
-				tp.Bonus = el.Bonus
-				tp.DefCon = el.DefensiveContribution
+				reached := dc >= analysis.DefConThreshold(el.ElementType)
+				tp.DefConReached = &reached
 			}
 		}
 		return tp, true

@@ -200,7 +200,7 @@ func DecomposeMatch(g RealisedMatch, r ScoringRules) MatchPoints {
 	}
 
 	m.Saves = float64(g.Saves/savesBlock) * savePoints
-	if g.DefConPaid && g.DefCon >= defconThreshold(g.Position) {
+	if g.DefConPaid && g.DefCon >= DefConThreshold(g.Position) {
 		m.DefCon = defConPoints
 	}
 	m.Bonus = float64(g.Bonus)

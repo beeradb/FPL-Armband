@@ -4668,6 +4668,9 @@
       }
     ]
   },
+  "import": {
+    "open": false
+  },
   "house_team": {
     "overall_points": 0,
     "current_event": 1,
@@ -4688,11 +4691,12 @@
           "home": false,
           "fdr": 2
         },
-        "goals": 2,
+        "match_status": "live",
+        "goals": 1,
         "assists": 1,
         "clean_sheets": 0,
-        "bonus": 3,
-        "def_con": 0
+        "def_con": 6,
+        "def_con_reached": false
       },
       {
         "id": 4,
@@ -4706,11 +4710,12 @@
           "home": true,
           "fdr": 2
         },
-        "goals": 0,
+        "match_status": "live",
+        "goals": 1,
         "assists": 0,
-        "clean_sheets": 1,
-        "bonus": 4,
-        "def_con": 0
+        "clean_sheets": 0,
+        "def_con": 11,
+        "def_con_reached": true
       },
       {
         "id": 106,
@@ -4724,11 +4729,12 @@
           "home": true,
           "fdr": 3
         },
-        "goals": 1,
-        "assists": 0,
+        "match_status": "live",
+        "goals": 2,
+        "assists": 1,
         "clean_sheets": 0,
-        "bonus": 0,
-        "def_con": 6
+        "def_con": 6,
+        "def_con_reached": false
       },
       {
         "id": 356,
@@ -4742,11 +4748,10 @@
           "home": false,
           "fdr": 3
         },
-        "goals": 3,
+        "match_status": "scheduled",
+        "goals": 0,
         "assists": 0,
-        "clean_sheets": 0,
-        "bonus": 0,
-        "def_con": 8
+        "clean_sheets": 0
       },
       {
         "id": 427,
@@ -4760,11 +4765,10 @@
           "home": false,
           "fdr": 2
         },
-        "goals": 3,
+        "match_status": "scheduled",
+        "goals": 0,
         "assists": 0,
-        "clean_sheets": 0,
-        "bonus": 6,
-        "def_con": 1
+        "clean_sheets": 0
       },
       {
         "id": 237,
@@ -4778,11 +4782,10 @@
           "home": true,
           "fdr": 3
         },
-        "goals": 1,
+        "match_status": "scheduled",
+        "goals": 0,
         "assists": 0,
-        "clean_sheets": 0,
-        "bonus": 4,
-        "def_con": 6
+        "clean_sheets": 0
       },
       {
         "id": 155,
@@ -4796,11 +4799,10 @@
           "home": false,
           "fdr": 3
         },
+        "match_status": "scheduled",
         "goals": 0,
-        "assists": 1,
-        "clean_sheets": 0,
-        "bonus": 0,
-        "def_con": 8
+        "assists": 0,
+        "clean_sheets": 0
       },
       {
         "id": 13,
@@ -4814,11 +4816,10 @@
           "home": true,
           "fdr": 2
         },
-        "goals": 1,
-        "assists": 2,
-        "clean_sheets": 0,
-        "bonus": 3,
-        "def_con": 2
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
       },
       {
         "id": 1,
@@ -4832,11 +4833,10 @@
           "home": true,
           "fdr": 2
         },
+        "match_status": "scheduled",
         "goals": 0,
-        "assists": 2,
-        "clean_sheets": 2,
-        "bonus": 6,
-        "def_con": 2
+        "assists": 0,
+        "clean_sheets": 0
       },
       {
         "id": 229,
@@ -4850,11 +4850,10 @@
           "home": true,
           "fdr": 3
         },
+        "match_status": "scheduled",
         "goals": 0,
-        "assists": 1,
-        "clean_sheets": 1,
-        "bonus": 0,
-        "def_con": 8
+        "assists": 0,
+        "clean_sheets": 0
       },
       {
         "id": 346,
@@ -4868,11 +4867,10 @@
           "home": false,
           "fdr": 3
         },
+        "match_status": "scheduled",
         "goals": 0,
         "assists": 0,
-        "clean_sheets": 0,
-        "bonus": 4,
-        "def_con": 3
+        "clean_sheets": 0
       }
     ],
     "bench": [
@@ -4888,11 +4886,10 @@
           "home": true,
           "fdr": 4
         },
-        "goals": 3,
-        "assists": 3,
-        "clean_sheets": 1,
-        "bonus": 3,
-        "def_con": 7
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
       },
       {
         "id": 202,
@@ -4906,11 +4903,10 @@
           "home": false,
           "fdr": 3
         },
-        "goals": 2,
-        "assists": 2,
-        "clean_sheets": 0,
-        "bonus": 6,
-        "def_con": 2
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
       },
       {
         "id": 272,
@@ -4924,11 +4920,10 @@
           "home": true,
           "fdr": 4
         },
-        "goals": 1,
+        "match_status": "scheduled",
+        "goals": 0,
         "assists": 0,
-        "clean_sheets": 0,
-        "bonus": 4,
-        "def_con": 4
+        "clean_sheets": 0
       },
       {
         "id": 497,
@@ -4942,11 +4937,10 @@
           "home": false,
           "fdr": 3
         },
-        "goals": 3,
-        "assists": 2,
-        "clean_sheets": 2,
-        "bonus": 3,
-        "def_con": 4
+        "match_status": "scheduled",
+        "goals": 0,
+        "assists": 0,
+        "clean_sheets": 0
       }
     ]
   }

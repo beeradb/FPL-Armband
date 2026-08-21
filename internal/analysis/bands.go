@@ -334,7 +334,7 @@ func (e *Engine) FixtureRunFor(teamID, horizon, position int) FixtureRun {
 	b := e.teamBands()
 	// Keepers (1) and defenders (2) read the opponent's attack; midfielders and
 	// forwards read the opponent's defence. See above. Bare element types because
-	// that is this package's idiom — defconThreshold spells it the same way.
+	// that is this package's idiom — DefConThreshold spells it the same way.
 	side := b.defence
 	if position == 1 || position == 2 {
 		side = b.attack

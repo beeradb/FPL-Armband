@@ -2044,10 +2044,26 @@ body.saving{cursor:progress;}
 .tpbody{padding:6px 7px;}
 .tpname{font-family:var(--ui);font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .tpmeta{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-bottom:4px;}
-.tpopp{margin-bottom:5px;}
+.tpopp{margin-bottom:5px;display:flex;align-items:center;}
+/* The broadcast-red dot is a universal "this is live" convention independent of this
+   system's own three channels, so it borrows --bad rather than minting a fourth colour --
+   the two meanings do not collide in practice, since one sits on the opponent chip and the
+   other on the stat row below it. Deliberately not animated: an infinite pulse is caught
+   mid-cycle by a screenshot at a random opacity every run, which made this the one element
+   on the page a golden test could not pin — see TestLayout/armband-team-desktop's own
+   flake before this was cut. A static dot loses nothing prefers-reduced-motion readers
+   were not already going to be denied. */
+.tplive{display:inline-flex;align-items:center;margin-left:4px;}
+.tplive::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--bad);}
+
 .tpstats{display:flex;gap:6px;flex-wrap:wrap;}
 .tpstat{font-family:var(--mono);font-size:10px;color:var(--ink3);display:flex;align-items:center;gap:2px;}
 .tpstat b{font-family:var(--mono);font-weight:700;font-size:11px;color:var(--ink);}
+/* DC's verdict is all-or-nothing, same as the rule it reads (analysis.DefConThreshold) --
+   green once the bar for his position is cleared, red until it is, never a gradient
+   between them. Absent entirely before his match kicks off; see team.js's statRow. */
+.tpstat.tpdc.ok, .tpstat.tpdc.ok b{color:var(--acc);}
+.tpstat.tpdc.no, .tpstat.tpdc.no b{color:var(--bad);}
 
 .teambench{margin-top:14px;}
 .teambenchrow{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}

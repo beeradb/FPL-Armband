@@ -328,6 +328,70 @@ func TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails(t *testing.T) {
 	}
 }
 
+// TestHouseTeamLiveStatsGateOnMatchStatus pins the three rules buildHouseTeam's live-data
+// half enforces: a goalkeeper gets Saves and never DefCon; an outfielder whose match has
+// kicked off gets DefCon and DefConReached, computed against analysis.DefConThreshold for
+// his real element type; and a player whose match has NOT kicked off gets neither, even
+// though the live payload already has a (zero) stats row for him -- "the match has not
+// started" must render as "no verdict yet", not as a false "failed the bar".
+func TestHouseTeamLiveStatsGateOnMatchStatus(t *testing.T) {
+	s, err := Build(Input{
+		Page: samplePage(),
+		Boot: &fpl.Bootstrap{
+			Events: []fpl.Event{{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsCurrent: true}},
+			Elements: []fpl.Element{
+				{ID: 1, ElementType: 1}, // Kinsky, GKP
+				{ID: 2, ElementType: 2}, // Kadıoğlu, DEF
+				{ID: 3, ElementType: 4}, // Haaland, FWD
+			},
+		},
+		Cfg:        config.Config{},
+		Now:        pinned,
+		HouseEntry: &fpl.Entry{SummaryOverallPoints: 236},
+		HouseLive: &fpl.EventLive{Elements: []fpl.LiveElement{
+			{ID: 1, Stats: fpl.LiveStats{Minutes: 90, Saves: 4}},
+			{ID: 2, Stats: fpl.LiveStats{Minutes: 90, DefensiveContribution: 11}}, // clears the DEF bar (10)
+			{ID: 3, Stats: fpl.LiveStats{Minutes: 0}},                             // his match has not kicked off
+		}},
+		HouseMatchStatus: map[string]string{"TOT": "live", "BHA": "live", "MCI": "scheduled"},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	byID := map[int]TeamPlayer{}
+	for _, p := range s.HouseTeam.XI {
+		byID[p.ID] = p
+	}
+
+	gk := byID[1]
+	if gk.Saves == nil || *gk.Saves != 4 {
+		t.Errorf("Kinsky (GKP) Saves = %v, want a pointer to 4", gk.Saves)
+	}
+	if gk.DefCon != nil || gk.DefConReached != nil {
+		t.Errorf("Kinsky (GKP) DefCon/DefConReached = %v/%v, want nil/nil — keepers have no DC", gk.DefCon, gk.DefConReached)
+	}
+
+	def := byID[2]
+	if def.DefCon == nil || *def.DefCon != 11 {
+		t.Fatalf("Kadıoğlu DefCon = %v, want a pointer to 11", def.DefCon)
+	}
+	if def.DefConReached == nil || !*def.DefConReached {
+		t.Errorf("Kadıoğlu DefConReached = %v, want true — 11 clears the defender bar of 10", def.DefConReached)
+	}
+	if def.Saves != nil {
+		t.Errorf("Kadıoğlu (DEF) Saves = %v, want nil — outfielders have no saves", def.Saves)
+	}
+
+	fwd := byID[3]
+	if fwd.MatchStatus != "scheduled" {
+		t.Fatalf("Haaland MatchStatus = %q, want %q", fwd.MatchStatus, "scheduled")
+	}
+	if fwd.DefCon != nil || fwd.DefConReached != nil {
+		t.Errorf("Haaland DefCon/DefConReached = %v/%v, want nil/nil — his match has not started, "+
+			"so there is no verdict to render yet, not a failing one", fwd.DefCon, fwd.DefConReached)
+	}
+}
+
 // TestHouseTeamRosterIsTrimmedNotRebuilt pins that the spectator page's XI/Bench are the
 // SAME fifteen the interactive builder has -- read off Squad.Players by Squad.XI/Bench's
 // own ID order, never re-optimised -- and that a TeamPlayer carries an opponent (for the

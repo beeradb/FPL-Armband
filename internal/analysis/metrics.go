@@ -2638,9 +2638,16 @@ func (e *Engine) bonusEvidence(el *fpl.Element) float64 {
 	return clamp(n90/(n90+k), 0, 1)
 }
 
-// defconThreshold is the defensive-contribution bar: ten actions for a
+// DefConThreshold is the defensive-contribution bar: ten actions for a
 // defender, twelve for everyone else. FPL's rule, not a model choice.
-func defconThreshold(pos int) int {
+//
+// Exported so a caller outside this package can ask "did he clear the bar this
+// match" against a real per-match count (from the FPL live endpoint), rather
+// than restate FPL's own rule a second time — see
+// internal/viewmodel.buildHouseTeam, which does exactly that for the spectator
+// team page. Not exported for a match FPL has not scored yet: this function
+// only names the bar, it does not know whether anyone has reached it.
+func DefConThreshold(pos int) int {
 	if pos == 2 {
 		return 10
 	}
@@ -2653,7 +2660,7 @@ func defconPer90(pos int, dc90 float64) float64 {
 	if dc90 <= 0 {
 		return 0
 	}
-	return poissonAtLeast(defconThreshold(pos), dc90) * defConPoints
+	return poissonAtLeast(DefConThreshold(pos), dc90) * defConPoints
 }
 
 // defconChance is the probability of earning the defensive-contribution award
@@ -2691,7 +2698,7 @@ func (e *Engine) defconChance(pos int, m PlayerMetrics) float64 {
 		return 0
 	}
 	mins := clamp(m.ExpectedMinutes/appears, 0, 90)
-	return appears * poissonAtLeast(defconThreshold(pos), m.DefCon90*mins/90)
+	return appears * poissonAtLeast(DefConThreshold(pos), m.DefCon90*mins/90)
 }
 
 // defconPerGameweek is defconChance's probability turned into points. See

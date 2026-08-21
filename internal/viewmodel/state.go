@@ -138,16 +138,33 @@ type TeamPlayer struct {
 	// existing home/away-glyph and difficulty-colour logic needs no second copy.
 	Opponent *Fixture `json:"opponent,omitempty"`
 
-	// Goals, Assists, CleanSheets, Bonus and DefCon are this SEASON's counts, straight
-	// off the FPL bootstrap element — not a rate, not a chance, not this gameweek alone.
-	// A live, in-gameweek version of these is a real follow-up (see ROLLOUT.md) and
-	// needs a new FPL live-event data source this codebase does not have yet; season
-	// totals are what is honestly available today.
+	// MatchStatus is his club's fixture in the gameweek this page is showing:
+	// "scheduled", "live" or "finished". Empty before a season has a current
+	// gameweek at all (see buildHouseTeam) — there is then nothing to report a
+	// status about.
+	MatchStatus string `json:"match_status,omitempty"`
+
+	// Goals, Assists and CleanSheets are THIS gameweek's counts — zero before
+	// kickoff, live during the match, final once FPL finishes scoring it. Never a
+	// season total: a card that said "9 goals" before a ball had been kicked this
+	// season was the bug an earlier version of this page shipped with.
 	Goals       int `json:"goals"`
 	Assists     int `json:"assists"`
 	CleanSheets int `json:"clean_sheets"`
-	Bonus       int `json:"bonus"`
-	DefCon      int `json:"def_con"`
+
+	// DefCon is this gameweek's defensive-action count and DefConReached is
+	// whether it has cleared analysis.DefConThreshold for his position — the
+	// same all-or-nothing bar the model prices (see that function's own
+	// comment), never a partial-credit read of a bar that has not been
+	// cleared. Both nil for a goalkeeper, who FPL does not score on defensive
+	// actions at all (see Saves), and both nil until his match has kicked off —
+	// zero DC before kickoff is a fact, not yet an answer to "did he clear it".
+	DefCon        *int  `json:"def_con,omitempty"`
+	DefConReached *bool `json:"def_con_reached,omitempty"`
+
+	// Saves is this gameweek's save count. Goalkeepers only — nil for an
+	// outfielder, the same way DefCon is nil for a goalkeeper.
+	Saves *int `json:"saves,omitempty"`
 }
 
 // Import is the team-import affordance's whole state — whether it may be offered right

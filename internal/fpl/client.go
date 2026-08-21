@@ -456,6 +456,40 @@ func (c *Client) Fixtures(ctx context.Context) ([]Fixture, error) {
 	return f, nil
 }
 
+// FixturesLive is Fixtures with no cache anywhere — always a live fetch.
+//
+// Client.Fixtures memoises in memory for the life of the process (see its own
+// comment), which is right for planning a fixture list and wrong for asking
+// "has this match kicked off yet" — a question the process's own long life
+// makes stale the moment it is answered once. See Raw's doc comment for the
+// same shape of problem on Entry/Picks, for an unrelated reason.
+func (c *Client) FixturesLive(ctx context.Context) ([]Fixture, error) {
+	body, err := c.Raw(ctx, "/fixtures/")
+	if err != nil {
+		return nil, err
+	}
+	var f []Fixture
+	if err := json.Unmarshal(body, &f); err != nil {
+		return nil, fmt.Errorf("GET /fixtures/: decoding: %w", err)
+	}
+	return f, nil
+}
+
+// Live returns one gameweek's per-player stats — live during play, final once FPL
+// finishes scoring it. Always a fetch, never cached, for the same reason
+// FixturesLive is: a cached "live" number is a contradiction.
+func (c *Client) Live(ctx context.Context, event int) (*EventLive, error) {
+	body, err := c.Raw(ctx, fmt.Sprintf("/event/%d/live/", event))
+	if err != nil {
+		return nil, err
+	}
+	var el EventLive
+	if err := json.Unmarshal(body, &el); err != nil {
+		return nil, fmt.Errorf("GET /event/%d/live/: decoding: %w", event, err)
+	}
+	return &el, nil
+}
+
 // ElementSummary returns per-player match history, past seasons and upcoming fixtures.
 func (c *Client) ElementSummary(ctx context.Context, id int) (*ElementSummary, error) {
 	var s ElementSummary
