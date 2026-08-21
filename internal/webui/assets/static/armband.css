@@ -777,6 +777,20 @@ button{font-family:inherit;color:inherit;}
 }
 @media (max-width:720px){.sortpill{display:flex;align-items:center;gap:6px;}}
 
+/* Import card -- initial offer and permanent affordance to import a team by ID */
+.importcard{margin:14px 0 10px;}
+.importcard[hidden]{display:none;}
+.importcard input{font-family:var(--mono);}
+.importcard input:focus{outline:2px solid var(--band);outline-offset:2px;background:var(--panel2);}
+.importcard details summary{user-select:none;}
+.importcard details summary:hover{color:var(--ink);}
+.importcard code{color:var(--ink);background:var(--panel3);padding:2px 4px;border-radius:3px;}
+.importcard .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);}
+.importcard .btn:hover{background:var(--panel3);border-color:var(--line2);}
+.importcard .btn.primary{background:var(--band);border-color:var(--band);color:#fff;}
+.importcard .btn.primary:hover{background:#4064FF;border-color:#4064FF;}
+.importcard .btn:disabled{opacity:.4;cursor:not-allowed;}
+
 .ptable{width:100%;border-collapse:collapse;font-size:13px;}
 .ptable th{
   position:sticky;top:0;background:var(--bg2);text-align:left;padding:0;

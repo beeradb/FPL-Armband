@@ -231,6 +231,14 @@ type squadServer struct {
 	// a test for /api/player needs a fixed history with no live client and no network call.
 	// Nil means client.ElementSummary. See playerdetail.go.
 	fetchSummary func(ctx context.Context, id int) (*fpl.ElementSummary, error)
+	// fetchEntry and fetchPicks are the same seam over Client.EntryUncached and
+	// Client.PicksUncached, for PUT /api/import — a test needs a fixed entry and picks
+	// response with no live client and no network call, and it needs to drive every
+	// branch (not found, unreachable, a real squad) without standing up a fake HTTP
+	// server for each. Nil means client.EntryUncached / client.PicksUncached. See
+	// importteam.go.
+	fetchEntry func(ctx context.Context, id int) (*fpl.Entry, error)
+	fetchPicks func(ctx context.Context, entryID, event int) (*fpl.EntryPicks, error)
 
 	// metricsOnce and metricsReg are this server's lazily-built Prometheus
 	// registry — the three staleness series, which close over client above.
@@ -317,6 +325,8 @@ func (s *squadServer) routeFor(path string) (http.Handler, string) {
 		return http.HandlerFunc(s.state), "state"
 	case routeSession:
 		return http.HandlerFunc(s.saveSession), "session"
+	case routeImport:
+		return http.HandlerFunc(s.importTeam), "import"
 	case routeMetrics:
 		return http.HandlerFunc(s.metrics), "metrics"
 	case "/action":
