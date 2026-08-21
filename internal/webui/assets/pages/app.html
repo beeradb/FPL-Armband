@@ -352,9 +352,7 @@
        The label follows the tab, set in setView, because the sheet always opens from the
        view the reader is looking at. The ✕ is deliberately NOT hidden underneath: it lives
        inside role="dialog" and is this control's accessible equivalent. -->
-  <button class="sheetback" id="sheetback" type="button">
-    <span aria-hidden="true">←</span> Back to <span id="sheetbacklabel">the pitch</span>
-  </button>
+  <button class="sheetback" id="sheetback" type="button"><span class="sheetback-arrow" aria-hidden="true">←</span><span id="sheetbacklabel">Back to the pitch</span></button>
   <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 </div>
 
