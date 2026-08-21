@@ -12,10 +12,10 @@ alike. The rules below are the ones that catch people out.
 
 **For most numeric fields, an explicit `0` is treated as an omission.** `config.Load` backfills
 anything non-positive for `max_iterations`, `fixture_horizon`, `minutes_half_life`,
-`bench_weight`, `minutes_weight`, `blend_minutes_k`, `blend_rate_k`, `rest_minutes_factor`,
-`cache_minutes`, `player_cache_minutes`, all eight congestion penalties, all four `role_risk`
-numbers and six of `review_policy`. So writing `"minutes_half_life": 0` does **not** select the
-flat season average — it silently becomes 4.
+`bench_weight`, `minutes_weight`, `blend_minutes_k`, `blend_rate_k`, `league_shrink_k`,
+`rest_minutes_factor`, `cache_minutes`, `player_cache_minutes`, all eight congestion penalties,
+all four `role_risk` numbers and six of `review_policy`. So writing `"minutes_half_life": 0` does
+**not** select the flat season average — it silently becomes 4.
 
 Zero *is* honoured for `bonus_weight`, `fixture_weight`, `set_piece_weight`, `band_strength`,
 `rate_half_life`, `prior_half_life` and `defcon_clean_coupling`, because for those it is a real
@@ -29,10 +29,10 @@ switch**, because the term multiplies expected minutes and zero would erase them
 only weight with two defaults for one quantity, which is a shape this project has been bitten by
 before, so `TestBlankRunPenaltyHasOneDefault` pins both halves.
 
-Two fields need a genuine third state and get one by probing for **key presence** rather than
+Three fields need a genuine third state and get one by probing for **key presence** rather than
 value: `bonus_prior_weight`, so that an absent key does not read as a deliberate 0 — which is
-why its off switch is `-1` — and `rest_minutes_factor`, for the rename migration described under
-post-tournament rest below.
+why its off switch is `-1` — `rest_minutes_factor`, for the rename migration described under
+post-tournament rest below, and `review_policy.early_floor`, described next.
 
 **List-valued fields follow a different rule again.** An absent key keeps the Go default; a
 present key wins outright — `{}`, `[]` and `null` included, since `encoding/json` zeroes a map
@@ -153,6 +153,7 @@ ship at zero because the honest measurement said "off" — the table notes each 
 | `bonus_weight` | `1.5` | Weight on a player's own bonus-points rate once that rate is this season's evidence. |
 | `bonus_prior_weight` | `0.5` | Weight on the same rate while it is still entirely *last* season's. The model slides between the two as he plays — see [model.md](model.md#4d-the-bonus-term-is-a-schedule-not-a-constant). Set it to `-1` to disable the slide and use `bonus_weight` throughout. |
 | `blend_rate_k` | `8` | How stubbornly last season's per-90 rates are held onto, measured in 90 minutes played. At 8, a player with 8 full matches this season is believed half on this season and half on last. |
+| `league_shrink_k` | `8` | The same shrinkage strength for a player with **no prior at all** — a promoted club's starter, an arrival from abroad — pulling him toward his position's league-wide rate instead of `blend_rate_k`'s previous-season rate, until he has his own sample. Split out from `blend_rate_k` and measured separately; the split did not change the value, and nothing has separated 8 from lower settings on points. |
 | `blend_minutes_k` | `5` | The same idea for minutes per match, counted in matches played. |
 | `defcon_clean_coupling` | `0.3` | Links a defender's own defensive workload to his clean-sheet chance: a defender clearing the ball ten times a match is defending a side under pressure, so he is *less* likely to keep a clean sheet. `0` unlinks them. See [model.md](model.md#4e-defensive-work-and-the-clean-sheet-are-linked). |
 | `blank_run_penalty` | `0.75` | Discounts expected minutes through a run of one to three consecutive blanks, where the recency weighting has not yet caught up on a player who has just been dropped or hurt. `1.0` disables it. See [model.md](model.md#absence-versus-rotation). |
@@ -411,6 +412,7 @@ them.
 | `scheduled_run_lead_hours` | `6` | How long before a deadline a scheduled run fires. The point of running late is team news: press conferences land one to two days out, confirmed line-ups only at the deadline. |
 | `always_act_on_ruled_out_starter` | `true` | Forces a move regardless of thresholds — an unavailable player scores zero. |
 | `rules` | five shipped | Free-text policy, passed to the agent verbatim exactly like `criteria`. The defaults cover churn, hits, chip-adjacent transfers and fixture-chasing. |
+| `early_floor` | `{free_transfer_value: 1.0, min_gain_for_free_transfer: 0.2, until_gameweek: 8}` | A looser gate for the opening gameweeks, when a squad's real problems are still being found. The **key itself** is probed for presence, not just its values — an absent `early_floor` object backfills the whole default above, exactly like `bonus_prior_weight` and `rest_minutes_factor` above. Within an object that IS present, `free_transfer_value` and `min_gain_for_free_transfer` backfill on `<= 0` as usual, but `until_gameweek: 0` is honoured as the real off state — it does not backfill — so that is how to disable the floor without deleting the key. |
 
 ### `option_value` — pricing what you hold and can only spend once
 
