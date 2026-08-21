@@ -4692,8 +4692,8 @@
           "fdr": 2
         },
         "match_status": "live",
-        "goals": 1,
-        "assists": 1,
+        "goals": 0,
+        "assists": 0,
         "clean_sheets": 0,
         "def_con": 6,
         "def_con_reached": false
@@ -4711,7 +4711,7 @@
           "fdr": 2
         },
         "match_status": "live",
-        "goals": 1,
+        "goals": 0,
         "assists": 0,
         "clean_sheets": 0,
         "def_con": 11,
@@ -4730,8 +4730,8 @@
           "fdr": 3
         },
         "match_status": "live",
-        "goals": 2,
-        "assists": 1,
+        "goals": 1,
+        "assists": 0,
         "clean_sheets": 0,
         "def_con": 6,
         "def_con_reached": false
@@ -4834,7 +4834,7 @@
           "fdr": 2
         },
         "match_status": "live",
-        "goals": 2,
+        "goals": 0,
         "assists": 0,
         "clean_sheets": 0,
         "saves": 4
