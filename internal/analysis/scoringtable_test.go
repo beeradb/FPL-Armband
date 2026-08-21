@@ -42,7 +42,7 @@ import (
 // compare a keeper against a forward's published value and still pass.
 func scoringConfig(t *testing.T) (fpl.GameConfig, map[int]string) {
 	t.Helper()
-	c := fpl.New(t.TempDir(), 24*time.Hour)
+	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
 	boot, err := c.Bootstrap(context.Background())
 	if err != nil {
 		t.Skipf("FPL API unreachable: %v", err)
@@ -261,7 +261,7 @@ func TestSquadAndTransferRulesMatchFPL(t *testing.T) {
 // not mis-score a player — it would make every squad the program has ever
 // produced illegal, or legal and needlessly restricted.
 func TestSquadQuotasAndFormationBoundsMatchFPL(t *testing.T) {
-	c := fpl.New(t.TempDir(), 24*time.Hour)
+	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
 	boot, err := c.Bootstrap(context.Background())
 	if err != nil {
 		t.Skipf("FPL API unreachable: %v", err)

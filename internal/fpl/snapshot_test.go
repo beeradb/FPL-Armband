@@ -58,7 +58,7 @@ func TestOverlayPreferredOverSnapshot(t *testing.T) {
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if out.From != "overlay" {
@@ -86,7 +86,7 @@ func TestSnapshotUsedWhenOverlayEmpty(t *testing.T) {
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if out.From != "snapshot" {
@@ -118,7 +118,7 @@ func TestASnapshotMissFallsThroughToALiveFetch(t *testing.T) {
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if out.From != "live" {
@@ -146,7 +146,7 @@ func TestWritesAlwaysLandInTheOverlay(t *testing.T) {
 	}
 
 	var out map[string]any
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 
@@ -184,7 +184,7 @@ func TestZeroTTLBypassesBothOverlayAndSnapshot(t *testing.T) {
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if out.From != "live" {
@@ -232,14 +232,14 @@ func TestNewWithSnapshotResolvesTheSymlinkOnceNotPerRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := NewWithSnapshot(t.TempDir(), current, time.Hour)
+	c := NewWithSnapshot(t.TempDir(), current, time.Hour, time.Hour)
 	// Prevent any accidental live fetch from masking a wrong read.
 	c.http = &http.Client{Transport: dialErrorTransport{}}
 
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if out.From != "A" {
@@ -255,7 +255,7 @@ func TestNewWithSnapshotResolvesTheSymlinkOnceNotPerRead(t *testing.T) {
 	}
 
 	out.From = ""
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get (after repoint): %v", err)
 	}
 	if out.From != "A" {
@@ -293,13 +293,13 @@ func TestASnapshotSymlinkThatDoesNotExistYetIsDisabledForTheProcessLifetime(t *t
 	root := t.TempDir()
 	current := filepath.Join(root, "current") // does not exist at construction
 
-	c := NewWithSnapshot(t.TempDir(), current, time.Hour)
+	c := NewWithSnapshot(t.TempDir(), current, time.Hour, time.Hour)
 	c.http = &http.Client{Transport: rewrite{to: srv.URL}}
 
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if out.From != "live" {
@@ -322,7 +322,7 @@ func TestASnapshotSymlinkThatDoesNotExistYetIsDisabledForTheProcessLifetime(t *t
 	// two outcomes are observably different regardless of transport, since a
 	// snapshot read never dials out at all.
 	out.From = ""
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get (after the symlink appeared): %v", err)
 	}
 	if out.From != "live" {
@@ -362,7 +362,7 @@ func TestALiveFetchFailureFallsBackToTheStaleSnapshot(t *testing.T) {
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v, want the stale fallback to succeed", err)
 	}
 	if out.From != "stale-snapshot" {
@@ -399,7 +399,7 @@ func TestALiveFetchFailureFallsBackToTheStaleOverlayWhenNoSnapshotIsConfigured(t
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if out.From != "stale-overlay" {
@@ -435,7 +435,7 @@ func TestStaleSnapshotIsPreferredOverStaleOverlay(t *testing.T) {
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if out.From != "stale-snapshot" {
@@ -461,7 +461,7 @@ func TestNoFallbackAvailableAnywhereStillReturnsTheLiveFetchError(t *testing.T) 
 	var out struct {
 		From string `json:"from"`
 	}
-	err := c.get(context.Background(), snapshotTestPath, &out)
+	err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL)
 	if err == nil {
 		t.Fatal("expected an error when nothing exists anywhere to fall back to")
 	}
@@ -514,7 +514,7 @@ func TestARequestContextEndingIsNotCountedAsALiveFetchFailure(t *testing.T) {
 	var out struct {
 		From string `json:"from"`
 	}
-	err := c.get(ctx, snapshotTestPath, &out)
+	err := c.get(ctx, snapshotTestPath, &out, c.cacheTTL)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("get() error = %v, want it to wrap context.Canceled", err)
 	}
@@ -547,7 +547,7 @@ func TestAFreshReadClearsTheStaleGaugeAfterFPLRecovers(t *testing.T) {
 	var out struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), snapshotTestPath, &out); err != nil {
+	if err := c.get(context.Background(), snapshotTestPath, &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if !c.StaleServing() {
@@ -567,7 +567,7 @@ func TestAFreshReadClearsTheStaleGaugeAfterFPLRecovers(t *testing.T) {
 	var out2 struct {
 		From string `json:"from"`
 	}
-	if err := c.get(context.Background(), "/fixtures/", &out2); err != nil {
+	if err := c.get(context.Background(), "/fixtures/", &out2, c.cacheTTL); err != nil {
 		t.Fatalf("get (recovery): %v", err)
 	}
 	if c.StaleServing() {

@@ -143,7 +143,7 @@ func TestFormGetOnNil(t *testing.T) {
 // numbers: requests succeed, nothing panics under concurrency, and a player with
 // no matches yet is reported absent rather than as zero minutes.
 func TestLoadAgainstTheLiveAPI(t *testing.T) {
-	c := fpl.New(t.TempDir(), time.Hour)
+	c := fpl.New(t.TempDir(), time.Hour, time.Hour)
 	ctx := context.Background()
 	full, err := c.Bootstrap(ctx)
 	if err != nil {
@@ -194,7 +194,7 @@ func TestLoadAgainstTheLiveAPI(t *testing.T) {
 // TestLoadRejectsAnUnstartedSeason — with no finished gameweek there is nothing
 // to weight, and silently returning an empty Form would look like full coverage.
 func TestLoadRejectsAnUnstartedSeason(t *testing.T) {
-	c := fpl.New(t.TempDir(), time.Hour)
+	c := fpl.New(t.TempDir(), time.Hour, time.Hour)
 	boot := &fpl.Bootstrap{Events: []fpl.Event{{ID: 1, Finished: false}}}
 	if _, err := Load(context.Background(), c, boot, 3, 2); err == nil {
 		t.Error("Load accepted a season that has not started")

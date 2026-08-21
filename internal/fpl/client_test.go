@@ -10,7 +10,7 @@ import (
 
 func liveBootstrap(t *testing.T) *Bootstrap {
 	t.Helper()
-	b, err := New(t.TempDir(), 24*time.Hour).Bootstrap(context.Background())
+	b, err := New(t.TempDir(), 24*time.Hour, 24*time.Hour).Bootstrap(context.Background())
 	if err != nil {
 		t.Skipf("FPL API unreachable: %v", err)
 	}
@@ -25,7 +25,7 @@ func liveBootstrap(t *testing.T) *Bootstrap {
 func TestBootstrapFetchedAtTracksTheDiskCacheAndTTL(t *testing.T) {
 	dir := t.TempDir()
 	ttl := 45 * time.Minute
-	c := New(dir, ttl)
+	c := New(dir, ttl, ttl)
 
 	if got := c.BootstrapFetchedAt(); !got.IsZero() {
 		t.Errorf("BootstrapFetchedAt = %v before anything was cached, want the zero time", got)

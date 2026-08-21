@@ -71,7 +71,7 @@ func TestUnpricedResponsesStillCache(t *testing.T) {
 	c, dir := serve(t, `{"events": [], "elements": []}`)
 
 	var out map[string]any
-	if err := c.get(context.Background(), "/bootstrap-static/", &out); err != nil {
+	if err := c.get(context.Background(), "/bootstrap-static/", &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	files := cacheFiles(t, dir)
@@ -124,7 +124,7 @@ func TestRawIsAlwaysFresh(t *testing.T) {
 
 	// Warm the cache through the ordinary path, then confirm Raw ignores it.
 	var out map[string]any
-	if err := c.get(context.Background(), "/bootstrap-static/", &out); err != nil {
+	if err := c.get(context.Background(), "/bootstrap-static/", &out, c.cacheTTL); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	after := hits
@@ -165,7 +165,7 @@ func TestZeroTTLRefetchesEvenAFreshFile(t *testing.T) {
 
 	seed := &Client{http: httpClient, cacheDir: dir, cacheTTL: time.Hour}
 	var out map[string]any
-	if err := seed.get(context.Background(), "/bootstrap-static/", &out); err != nil {
+	if err := seed.get(context.Background(), "/bootstrap-static/", &out, seed.cacheTTL); err != nil {
 		t.Fatalf("seeding the cache: %v", err)
 	}
 	if hits != 1 {
@@ -176,7 +176,7 @@ func TestZeroTTLRefetchesEvenAFreshFile(t *testing.T) {
 	// wrote from cache, without a second network round trip. This is what confirms
 	// the file is genuinely "fresh" — the case that must NOT fool a zero-TTL client.
 	fresh := &Client{http: httpClient, cacheDir: dir, cacheTTL: time.Hour}
-	if err := fresh.get(context.Background(), "/bootstrap-static/", &out); err != nil {
+	if err := fresh.get(context.Background(), "/bootstrap-static/", &out, fresh.cacheTTL); err != nil {
 		t.Fatalf("fresh-TTL client: %v", err)
 	}
 	if hits != 1 {
@@ -187,7 +187,7 @@ func TestZeroTTLRefetchesEvenAFreshFile(t *testing.T) {
 	// The generator's client: same directory, same file, zero TTL. It must refetch
 	// regardless of the file's age.
 	refresh := &Client{http: httpClient, cacheDir: dir, cacheTTL: 0}
-	if err := refresh.get(context.Background(), "/bootstrap-static/", &out); err != nil {
+	if err := refresh.get(context.Background(), "/bootstrap-static/", &out, refresh.cacheTTL); err != nil {
 		t.Fatalf("zero-TTL client: %v", err)
 	}
 	if hits != 2 {

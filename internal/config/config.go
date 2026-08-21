@@ -94,6 +94,18 @@ type Config struct {
 	// CacheMinutes is how long cached API responses stay fresh.
 	CacheMinutes int `json:"cache_minutes"`
 
+	// PlayerCacheMinutes is CacheMinutes' own TTL, but only for ElementSummary —
+	// the per-player match history the playerDetail route fetches on demand,
+	// once per viewed player, rather than once per process. CacheMinutes is set
+	// deep in `serve`'s deployment because Bootstrap and Fixtures are memoised
+	// for the process and an on-call human wants that TTL near-infinite so an
+	// FPL outage cannot CrashLoop a pod; ElementSummary carries no such
+	// constraint; every call to it already re-checks the cache per request, so
+	// a short TTL here just means a viewed player's stats catch up to FPL
+	// between the (much slower) archive-wide refresh cycles, without touching
+	// the frozen-worldview guarantee the other endpoints rely on.
+	PlayerCacheMinutes int `json:"player_cache_minutes"`
+
 	// SnapshotDir is an optional read-only base checked before CacheDir on every
 	// read; CacheDir remains the only place anything is ever written. Empty (the
 	// zero value, and Default()'s value) disables it entirely, which is every
@@ -126,9 +138,10 @@ func Default() Config {
 			"For new signings, last season's stats came from a different club. Say so, and be explicit that their role in the new side is unproven.",
 			"Players returning late from a summer international tournament are routinely eased back in. Prefer rested alternatives for the opening weeks.",
 		},
-		ReportDir:    "reports",
-		CacheDir:     filepath.Join(".cache", "fpl"),
-		CacheMinutes: 60,
+		ReportDir:          "reports",
+		CacheDir:           filepath.Join(".cache", "fpl"),
+		CacheMinutes:       60,
+		PlayerCacheMinutes: 15,
 	}
 }
 
@@ -392,6 +405,9 @@ func Load(path string) (Config, error) {
 	}
 	if cfg.CacheMinutes <= 0 {
 		cfg.CacheMinutes = d.CacheMinutes
+	}
+	if cfg.PlayerCacheMinutes <= 0 {
+		cfg.PlayerCacheMinutes = d.PlayerCacheMinutes
 	}
 	return cfg, nil
 }

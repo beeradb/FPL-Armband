@@ -48,11 +48,25 @@ const baseURL = "https://fantasy.premierleague.com/api"
 // StaleAgeSeconds and LiveFetchFailures for cmd/armband's /metrics route to
 // publish, so an on-call human is paged rather than finding out from a user
 // report.
+//
+// # Two TTLs, because two endpoint families have different freshness needs
+//
+// cacheTTL governs Bootstrap, Fixtures, Entry, Picks and History — every
+// endpoint the served worldview is built from once, at process startup, and
+// frozen for the process's life (see cmd/armband's engine construction).
+// elementTTL governs ElementSummary alone: it is read per HTTP request by
+// playerDetail, not memoised, so it has no frozen-worldview guarantee to
+// protect and can be given a much shorter window — a viewed player's match
+// history catches up to whatever FPL is currently serving between archive
+// refreshes, rather than waiting for the next scheduled warm+publish+restart
+// cycle. Both TTLs are gated by get()'s same overlay-then-snapshot-then-live
+// order and the same stale-serving fallback described above.
 type Client struct {
 	http        *http.Client
 	cacheDir    string
 	snapshotDir string
 	cacheTTL    time.Duration
+	elementTTL  time.Duration
 
 	mu        sync.Mutex
 	bootstrap *Bootstrap
@@ -137,7 +151,10 @@ func (c *Client) LiveFetchFailures() uint64 { return c.staleness.liveFetchFailur
 // frozen, which is the per-read behaviour this whole mechanism exists to
 // avoid. Disabling on failure fails in the safe direction (more live fetches)
 // instead of quietly reintroducing that inconsistency.
-func NewWithSnapshot(cacheDir, snapshotDir string, ttl time.Duration) *Client {
+// elementTTL, like ttl, is forced to zero by -refresh (see cmd/armband/main.go)
+// so the generator always refetches ElementSummary too, not just Bootstrap and
+// Fixtures.
+func NewWithSnapshot(cacheDir, snapshotDir string, ttl, elementTTL time.Duration) *Client {
 	if snapshotDir != "" {
 		resolved, err := filepath.EvalSymlinks(snapshotDir)
 		if err != nil {
@@ -151,24 +168,28 @@ func NewWithSnapshot(cacheDir, snapshotDir string, ttl time.Duration) *Client {
 		cacheDir:    cacheDir,
 		snapshotDir: snapshotDir,
 		cacheTTL:    ttl,
+		elementTTL:  elementTTL,
 	}
 }
 
 // New is NewWithSnapshot with no snapshot base — every existing caller's
 // behaviour, unchanged.
-func New(cacheDir string, ttl time.Duration) *Client {
-	return NewWithSnapshot(cacheDir, "", ttl)
+func New(cacheDir string, ttl, elementTTL time.Duration) *Client {
+	return NewWithSnapshot(cacheDir, "", ttl, elementTTL)
 }
 
-func (c *Client) get(ctx context.Context, path string, out any) error {
+func (c *Client) get(ctx context.Context, path string, out any, ttl time.Duration) error {
 	key := strings.NewReplacer("/", "_", "?", "_", "&", "_").Replace(strings.Trim(path, "/"))
 	overlayPath := filepath.Join(c.cacheDir, key+".json")
 
 	// Every endpoint this client reaches is public and TTL-cached. There is no
 	// authenticated endpoint and no credentialled response, so there is nothing
-	// here that must be kept off disk — see the note on Client.
+	// here that must be kept off disk — see the note on Client. ttl is the
+	// caller's own freshness window (cacheTTL or elementTTL — see the Client
+	// comment), not a fixed field, so Bootstrap/Fixtures and ElementSummary can
+	// disagree about how old is too old.
 	fresh := func(fi os.FileInfo) bool {
-		return time.Since(fi.ModTime()) < c.cacheTTL
+		return time.Since(fi.ModTime()) < ttl
 	}
 
 	// The overlay first: it holds anything a process sharing this cacheDir has
@@ -189,7 +210,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 
 	// Then the read-only snapshot, if one is configured. Its mtime is the
 	// moment the GENERATOR fetched it, not the moment this process started —
-	// cacheTTL is measuring the same thing it always measured (how long ago
+	// ttl is measuring the same thing it always measured (how long ago
 	// this exact JSON was fetched from FPL), so a process that has fetched
 	// nothing itself can still serve fresh data. A missing snapshot (not yet
 	// generated, or this deployment doesn't use one) falls straight through to
@@ -413,7 +434,7 @@ func (c *Client) Bootstrap(ctx context.Context) (*Bootstrap, error) {
 		return c.bootstrap, nil
 	}
 	var b Bootstrap
-	if err := c.get(ctx, "/bootstrap-static/", &b); err != nil {
+	if err := c.get(ctx, "/bootstrap-static/", &b, c.cacheTTL); err != nil {
 		return nil, err
 	}
 	c.bootstrap = &b
@@ -428,7 +449,7 @@ func (c *Client) Fixtures(ctx context.Context) ([]Fixture, error) {
 		return c.fixtures, nil
 	}
 	var f []Fixture
-	if err := c.get(ctx, "/fixtures/", &f); err != nil {
+	if err := c.get(ctx, "/fixtures/", &f, c.cacheTTL); err != nil {
 		return nil, err
 	}
 	c.fixtures = f
@@ -438,7 +459,7 @@ func (c *Client) Fixtures(ctx context.Context) ([]Fixture, error) {
 // ElementSummary returns per-player match history, past seasons and upcoming fixtures.
 func (c *Client) ElementSummary(ctx context.Context, id int) (*ElementSummary, error) {
 	var s ElementSummary
-	if err := c.get(ctx, fmt.Sprintf("/element-summary/%d/", id), &s); err != nil {
+	if err := c.get(ctx, fmt.Sprintf("/element-summary/%d/", id), &s, c.elementTTL); err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -456,7 +477,7 @@ func picksPath(entryID, event int) string {
 // Entry returns a manager's overall record.
 func (c *Client) Entry(ctx context.Context, id int) (*Entry, error) {
 	var e Entry
-	if err := c.get(ctx, entryPath(id), &e); err != nil {
+	if err := c.get(ctx, entryPath(id), &e, c.cacheTTL); err != nil {
 		return nil, err
 	}
 	return &e, nil
@@ -466,7 +487,7 @@ func (c *Client) Entry(ctx context.Context, id int) (*Entry, error) {
 // that gameweek's deadline has passed.
 func (c *Client) Picks(ctx context.Context, entryID, event int) (*EntryPicks, error) {
 	var p EntryPicks
-	if err := c.get(ctx, picksPath(entryID, event), &p); err != nil {
+	if err := c.get(ctx, picksPath(entryID, event), &p, c.cacheTTL); err != nil {
 		return nil, err
 	}
 	return &p, nil
@@ -701,7 +722,7 @@ func (e *Element) PriceM() float64 { return TenthsToMillions(e.NowCost) }
 // History returns a manager's gameweek-by-gameweek record and chips played.
 func (c *Client) History(ctx context.Context, entryID int) (*EntryHistory, error) {
 	var h EntryHistory
-	if err := c.get(ctx, fmt.Sprintf("/entry/%d/history/", entryID), &h); err != nil {
+	if err := c.get(ctx, fmt.Sprintf("/entry/%d/history/", entryID), &h, c.cacheTTL); err != nil {
 		return nil, err
 	}
 	return &h, nil

@@ -12,7 +12,7 @@ import (
 
 func roleEngine(t *testing.T, w Weights, rr RoleRisk) *Engine {
 	t.Helper()
-	c := fpl.New(t.TempDir(), 24*time.Hour)
+	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
 	ctx := context.Background()
 	boot, err := c.Bootstrap(ctx)
 	if err != nil {
