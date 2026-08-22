@@ -207,10 +207,12 @@ type Weights struct {
 	// minutes_floor was removed. It claimed to be "the total minutes below which
 	// a player is treated as a rotation/sample-size risk and discounted", was
 	// reported to the agent in those words, and no scoring path ever read it.
-	// Both jobs it described are done elsewhere and were measured there: sample
-	// size by BlendRateK and shrinkToLeague, rotation by MinutesRating. A knob
-	// that documents a behaviour the model does not have is worse than no knob,
-	// because it is the agent's stated reason for trusting a number.
+	// Rate sample size is handled elsewhere, by BlendRateK and shrinkToLeague;
+	// rotation itself is reported by MinutesRating, but MinutesRating is a bare
+	// function of the point estimate with no sample-size term of its own — see
+	// shrinkToLeague's doc comment. A knob that documents a behaviour the model
+	// does not have is worse than no knob, because it is the agent's stated
+	// reason for trusting a number.
 
 	// BenchWeight is how much bench players count when scoring a 15-man squad.
 	// Defaults to DefaultBenchWeight, which is the measured value; it used to
