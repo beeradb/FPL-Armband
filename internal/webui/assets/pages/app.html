@@ -250,43 +250,38 @@
   </div><!-- /pitchcol -->
 
   <div class="pitchside">
-  <!-- News callout: a POINTER to the News tab, not a third email capture -- there is
-       already a signup on this same screen (#pitch-newsnudge, above the pitch) and another
-       on the News tab's own panel (pressPanelHtml's newsAskFootHtml). This block is static
-       markup; renderNewsCallout() (app.js) only ever toggles its `hidden` attribute, and it
-       hides this whenever #pitch-newsnudge has drawn something -- that nudge is the
-       stronger ask, because it names a player from THIS fifteen, and two news asks visible
-       at once is one too many. See THE PITCH NUDGE in app.js for that comparison.
+  <!-- News callout: the SECOND mount of the one signup ask, plus a plain pointer to the
+       News tab -- not a third capture. Staging review, 2026-08-22, the owner's own words:
+       "we need to collect emails right on that page... We will lose people if we make them
+       bounce around." Before this it was a pointer only, on the reasoning that
+       #pitch-newsnudge (above the pitch) already asks and a third ask here would be one too
+       many -- that reasoning still holds, which is why this callout still cedes to the
+       nudge (renderNewsCallout() hides this whenever #pitch-newsnudge has drawn something)
+       rather than the two ever showing together. What changed is that THIS mount, not the
+       nudge, is now the one that asks when the nudge has nothing to say -- so a reader who
+       never triggers the nudge (nothing flagged or doubtful on their fifteen) is no longer
+       sent to another tab just to leave an address.
+
+       Built entirely by renderNewsCallout() (app.js) -- this element ships empty. It calls
+       newsAskFootHtml() directly, the SAME function the News tab's own panel calls
+       (pressPanelHtml), so the ask, its three states (open / just signed up / declined) and
+       its wiring exist in exactly one place, not a copy that can drift from it. The
+       "See what we've caught →" link is the second, separate control this callout still
+       owns -- its own element, worded and placed below the form so it reads as its own
+       affordance, not a second submit for the ask above it.
 
        Reuses pressPanelHtml's own .notyet/.nyhead/.pill.soon shape (armband.css) rather than
        inventing a third "coming soon" look -- .pill.soon's own comment there names it the
-       one Coming soon badge, shared by the landing page's later card and (in Phase 2) the
-       News tab's own press panel, so a callout with a different badge would be exactly the
-       fourth variant that comment rules out. The specimen row and the signup form
-       (pressPanelHtml's other two pieces) are
-       deliberately NOT pulled in here: the specimen is a demo for a tab with room to show
-       one, and a signup form would be the third ask this comment's first paragraph exists
-       to prevent.
-
-       Moved above Your instructions and reworded 2026-08-22 (owner review of `61388151`,
-       "needs fixing... more visible... no hedging"): the old copy led with what the product
-       already does today ("we read the football news...") and buried the actual ask under
-       an apology ("Alerts aren't live yet -- we're building them"). The badge already says
-       "not live yet" without apologising for it, so the one sentence left gets to say what
-       the thing IS, in the owner's own words, and nothing hedges further than the badge
-       already does.
+       one Coming soon badge, shared by the landing page's later card and the News tab's own
+       press panel, so a callout with a different badge would be exactly the fourth variant
+       that comment rules out.
 
        Still inside 69ac868's line: "Coming soon" plus what the thing IS, never a promise
-       about a specific event ("we'll tell you when your striker is benched"). This sentence
-       names no event and commits to no delivery date -- see pressPanelHtml's own comment
-       for the promise that commit had to remove from a sentence very like it. -->
-  <div class="notyet" id="pitch-newscallout" hidden>
-    <div class="nyhead">
-      <span class="pill soon">Coming soon</span>
-      <span class="t-row">A live alerts service for breaking team news.</span>
-    </div>
-    <button class="btn sm ghost" data-view="news">See what we’ve caught →</button>
-  </div>
+       about a specific event ("we'll tell you when your striker is benched"). The one
+       sentence in the header names no event and commits to no delivery date; the ask below
+       it (newsAskFootHtml's own copy) is about the mechanics of signing up, not a second
+       description of what the service is -- say it once. -->
+  <div class="notyet" id="pitch-newscallout" hidden></div>
 
   <!-- YOUR INSTRUCTIONS: replaces the formations rail. Everything acting on the fifteen
        that a human decided, in the reader's own voice and removable in place. Split into
