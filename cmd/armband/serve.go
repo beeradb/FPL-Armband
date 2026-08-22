@@ -335,6 +335,8 @@ func (s *squadServer) routeFor(path string) (http.Handler, string) {
 		return http.HandlerFunc(s.saveSession), "session"
 	case routeImport:
 		return http.HandlerFunc(s.importTeam), "import"
+	case routeResults:
+		return http.HandlerFunc(s.apiResults), "results"
 	case routeMetrics:
 		return http.HandlerFunc(s.metrics), "metrics"
 	case "/action":

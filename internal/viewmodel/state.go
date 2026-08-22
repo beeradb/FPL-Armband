@@ -76,31 +76,38 @@ type State struct {
 	// Import is the team-import affordance's whole state. See Import.
 	Import Import `json:"import"`
 
-	// HouseTeam is the site's own FPL squad — config.EntryID, run through the identical
-	// pipeline as any reader's team. Nil when EntryID is unset, since there is then no
-	// real team to show. See HouseTeam.
-	HouseTeam *HouseTeam `json:"house_team,omitempty"`
+	// Results is one entry's squad for one gameweek, run through buildResults — the site's
+	// own (config.EntryID, on /armband-team) or a reader's own imported squad (session.Entry,
+	// on GET /api/results). Nil when there is no entry to describe, since there is then no
+	// real team to show. See Results.
+	Results *Results `json:"results,omitempty"`
 }
 
-// HouseTeam is the results page's (/armband-team) whole document: the site's own squad's
-// actual gameweek result. The page's tense is "what happened", never "what might happen"
-// — see ResultState.
+// Results is one entry's actual gameweek result — /armband-team's whole document for the
+// site's own squad, and GET /api/results' whole document for a reader's own imported one.
+// The page's tense is "what happened", never "what might happen" — see ResultState.
 //
-// ResultEvent/ResultState/EventAverage all describe the SAME gameweek: the one
-// latestClosedEvent chose, the one whose picks are on the pitch and whose live stats are
-// on the cards. These replace CurrentEvent/CurrentProjected, which are gone from the
-// contract entirely rather than merely stopped being rendered: CurrentEvent came from the
-// rail's own Current gameweek while the pitch, the live stats and the match statuses all
-// came from latestClosedEvent, and those are routinely different gameweeks the moment a
-// deadline has passed but the rail has not rolled over — so the old footer was routinely
-// labelling one week's projection next to another week's actual eleven. Leaving the
-// fields in the contract, even unrendered, would leave the trap for the next reader.
-type HouseTeam struct {
+// Nothing in this type says whose entry it is; the identity lives entirely in which entry
+// id the caller fetched with (config.EntryID or session.Entry), never in a field here — see
+// buildResults's own comment.
+//
+// ResultEvent/ResultState/EventAverage all describe the SAME gameweek: the one the caller
+// chose (latestClosedEvent for the spectator page, the requested ?gw= for the results
+// route), the one whose picks are on the pitch and whose live stats are on the cards. These
+// replace CurrentEvent/CurrentProjected, which are gone from the contract entirely rather
+// than merely stopped being rendered: CurrentEvent came from the rail's own Current
+// gameweek while the pitch, the live stats and the match statuses all came from a chosen
+// closed gameweek, and those are routinely different gameweeks the moment a deadline has
+// passed but the rail has not rolled over — so the old footer was routinely labelling one
+// week's projection next to another week's actual eleven. Leaving the fields in the
+// contract, even unrendered, would leave the trap for the next reader.
+type Results struct {
 	OverallPoints int `json:"overall_points"`
 	OverallRank   int `json:"overall_rank,omitempty"`
 
-	// ResultEvent is the gameweek this page describes, chosen server-side by
-	// latestClosedEvent. The client must not infer it from anything on the pitch.
+	// ResultEvent is the gameweek this page describes, chosen server-side — by
+	// latestClosedEvent on the spectator page, by the requested ?gw= on GET
+	// /api/results. The client must not infer it from anything on the pitch.
 	ResultEvent int `json:"result_event,omitempty"`
 
 	// ResultState is "live" while any fixture in ResultEvent is short of
@@ -126,7 +133,7 @@ type HouseTeam struct {
 
 	// History is every gameweek FPL has scored so far, oldest first — the actual points
 	// the fielded eleven returned, not a projection.
-	History []HouseResult `json:"history,omitempty"`
+	History []Result `json:"history,omitempty"`
 
 	// LivePoints is this gameweek's score summed from the squad while the gameweek is
 	// still being played, and it is set ONLY while ResultState is "live".
@@ -139,7 +146,7 @@ type HouseTeam struct {
 	// visibly scoring).
 	//
 	// Summed as Points * Multiplier over XI and Bench together, minus the gameweek's
-	// transfer-hit cost (HouseResult.Hit) so the live figure and the settled figure
+	// transfer-hit cost (Result.Hit) so the live figure and the settled figure
 	// mean the same thing: a benched player's multiplier is 0, so the bench
 	// contributes nothing without needing a second rule, and the captain's double is
 	// already carried by his own multiplier.
@@ -152,10 +159,11 @@ type HouseTeam struct {
 	// number is still moving, so this field carries no second label for it.
 	LivePoints int `json:"live_points,omitempty"`
 
-	// Formation, Captain and Vice describe the same fifteen XI/Bench name, by ID — the
-	// dedicated /armband-team page's own pitch, entirely separate from Squad above. It
-	// exists because that page is a spectator view, not the interactive builder: no
-	// locks, no leave-outs, no role band, no reliability meter. See TeamPlayer.
+	// Formation, Captain and Vice describe the same fifteen XI/Bench name, by ID — this
+	// result's own pitch (the dedicated /armband-team page's, or GET /api/results'),
+	// entirely separate from Squad above. It exists because both are a spectator view, not
+	// the interactive builder: no locks, no leave-outs, no role band, no reliability
+	// meter. See TeamPlayer.
 	Formation string       `json:"formation,omitempty"`
 	Captain   int          `json:"captain,omitempty"`
 	Vice      int          `json:"vice,omitempty"`
@@ -163,11 +171,11 @@ type HouseTeam struct {
 	Bench     []TeamPlayer `json:"bench,omitempty"`
 }
 
-// HouseResult is one completed gameweek's actual result — not just the points, but the
+// Result is one completed gameweek's actual result — not just the points, but the
 // context that makes a bare total mean something: where it ranked that week, whether a
 // hit paid for it, and how many points sat unused on the bench. Rank/Hit/BenchPoints are
 // already parsed off fpl.EntryHistory.Current, so this is a copy, not a second fetch.
-type HouseResult struct {
+type Result struct {
 	Event  int `json:"event"`
 	Points int `json:"points"`
 	// Rank is that gameweek's rank among all FPL managers, nil if FPL has not settled
@@ -182,7 +190,8 @@ type HouseResult struct {
 	BenchPoints int `json:"bench_points,omitempty"`
 }
 
-// TeamPlayer is one player on the house team's spectator pitch. Deliberately a smaller
+// TeamPlayer is one player on a results spectator pitch — the site's own team or a
+// reader's own imported one. Deliberately a smaller
 // vocabulary than Player: no Role, no Reliability, no Override, no Availability — those
 // describe a decision the interactive builder is helping a reader make, and a spectator
 // page reader is not making one. Opponent and this season's counting stats instead: what
@@ -212,7 +221,7 @@ type TeamPlayer struct {
 
 	// MatchStatus is his club's fixture in the gameweek this page is showing:
 	// "scheduled", "live", "fulltime" or "finished". Empty before a season has a
-	// current gameweek at all (see buildHouseTeam) — there is then nothing to
+	// current gameweek at all (see buildResults) — there is then nothing to
 	// report a status about. Together with Minutes this decides the card's state
 	// — see team.js cardState, the ONE place that derivation happens.
 	//

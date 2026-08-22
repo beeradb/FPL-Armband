@@ -64,8 +64,8 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 	houseLive, houseMatchStatus, houseOpponent, resultState := houseLiveSources(r.Context(), s.client, s.engine.Boot, event)
 
 	// event is nil for a season with no closed gameweek yet (see latestClosedEvent) --
-	// resultEvent/eventAverage then stay zero, which HouseTeam's own omitempty tags
-	// already treat as "nothing to report", the same honest absence buildHouseTeam
+	// resultEvent/eventAverage then stay zero, which Results's own omitempty tags
+	// already treat as "nothing to report", the same honest absence buildResults
 	// gives every other figure it has no data for.
 	var resultEvent, eventAverage int
 	if event != nil {
@@ -74,20 +74,20 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	st, err := viewmodel.Build(viewmodel.Input{
-		Page:              b.Page,
-		Boot:              s.engine.Boot,
-		Cfg:               *s.cfg,
-		Now:               now,
-		Chips:             s.cfg.Chips,
-		HouseEntry:        houseEntry,
-		HouseHistory:      houseHistory,
-		HouseLive:         houseLive,
-		HouseMatchStatus:  houseMatchStatus,
-		HouseOpponent:     houseOpponent,
-		HouseMultiplier:   arrange.Mult,
-		HouseResultEvent:  resultEvent,
-		HouseResultState:  resultState,
-		HouseEventAverage: eventAverage,
+		Page:         b.Page,
+		Boot:         s.engine.Boot,
+		Cfg:          *s.cfg,
+		Now:          now,
+		Chips:        s.cfg.Chips,
+		Entry:        houseEntry,
+		History:      houseHistory,
+		Live:         houseLive,
+		MatchStatus:  houseMatchStatus,
+		Opponent:     houseOpponent,
+		Multiplier:   arrange.Mult,
+		ResultEvent:  resultEvent,
+		ResultState:  resultState,
+		EventAverage: eventAverage,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "serve: armband-team: %v\n", err)
@@ -137,7 +137,7 @@ func latestClosedEvent(boot *fpl.Bootstrap, now time.Time) *fpl.Event {
 // never the memoised Client.Bootstrap/Client.Fixtures the rest of this process uses -- a
 // live score that only updates when the pod restarts is not live. A nil event (a fetch
 // failure finding it, or a season with no closed gameweek yet) answers (nil, nil, nil,
-// ""): viewmodel.buildHouseTeam then leaves every player's MatchStatus/Opponent/DefCon/
+// ""): viewmodel.buildResults then leaves every player's MatchStatus/Opponent/DefCon/
 // Saves at their zero value, which is the honest answer to "what happened in a gameweek
 // that has not started or does not exist".
 //
@@ -150,7 +150,7 @@ func latestClosedEvent(boot *fpl.Bootstrap, now time.Time) *fpl.Event {
 // pitch may not cover all twenty clubs in a gameweek, so a client inferring "is this
 // gameweek over" from their match_status fields alone could reach the wrong answer for a
 // club nobody on the squad plays for. The opponent map is computed here for the SAME
-// reason Input.HouseOpponent gives for not letting viewmodel fall back to a player's own
+// reason Input.Opponent gives for not letting viewmodel fall back to a player's own
 // forward-looking Fixtures[0]: only this function already holds ResultEvent's own fixture
 // list, fetched fresh, to answer "who did this club actually play".
 // fixtureMatchStatus is one fixture's club-facing status: "scheduled", "live",
@@ -219,7 +219,7 @@ func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstr
 	// never the other way, so one fixture still in progress is enough to keep the
 	// whole gameweek "live". f.Finished (not FinishedProvisional) is the bar, because
 	// FPL sets Finished only after bonus is applied -- "final" here means the scores
-	// on this page will not move again, matching HouseTeam.ResultState's own contract.
+	// on this page will not move again, matching Results.ResultState's own contract.
 	resultState := ""
 	for _, f := range fixtures {
 		if f.Event == nil || *f.Event != event.ID {

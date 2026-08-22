@@ -59,6 +59,11 @@ const (
 	routeArmbandTeamState = "/api/armband-team"
 	// routeImport is the team-ID import write path. See importteam.go.
 	routeImport = "/api/import"
+	// routeResults is the on-demand per-gameweek results read for the SESSION's own
+	// imported entry — the results document buildResults assembles, generalised off
+	// armbandTeamState's config.EntryID path to any reader who has imported a team. See
+	// results.go.
+	routeResults = "/api/results"
 	// routeMetrics serves this process's own Prometheus metrics — the
 	// staleness signal behind internal/fpl.Client's deliberate stale-fallback,
 	// plus the HTTP and pipeline-timing series alongside it. See metrics.go's
@@ -628,10 +633,10 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 		NewsReadChecked: newsReadChecked(cfg, now),
 		OverrideEffects: b.OverrideEffects,
 		Import:          buildImport(s.engine.Boot.Events, sess),
-		// No HouseEntry/HouseHistory here on purpose: this is the interactive builder's
-		// document, and the house team's own record has nothing to do with a reader's
-		// session. It is fetched only by armbandTeamState, for the dedicated /armband-team
-		// page — see that function.
+		// No Entry/History here on purpose: this is the interactive builder's
+		// document, and a manager's record has nothing to do with building it. It is
+		// fetched only by the two results documents — armbandTeamState for
+		// /armband-team, apiResults for GET /api/results — see those functions.
 	})
 	if err != nil {
 		// Build's only failure is a number encoding/json would refuse. Naming the field

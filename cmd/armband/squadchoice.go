@@ -25,11 +25,11 @@ type arrangement struct {
 	Captain int
 	Vice    int
 
-	// Mult is this gameweek's FPL pick multiplier, by code — the house team's results
-	// page reads it (see viewmodel.Input.HouseMultiplier) to render the captain's
-	// doubled score and to tell a Triple Captain week apart from an ordinary one. Not
-	// consumed by arrangeFrom/squadFromCodes above; it exists only to ride alongside
-	// XI/Bench/Captain/Vice from picksToFixed through to the results page.
+	// Mult is this gameweek's FPL pick multiplier, by code — a results page reads it
+	// (see viewmodel.Input.Multiplier) to render the captain's doubled score and to
+	// tell a Triple Captain week apart from an ordinary one. Not consumed by
+	// arrangeFrom/squadFromCodes above; it exists only to ride alongside
+	// XI/Bench/Captain/Vice from picksToFixed through to a results page.
 	Mult map[int]int
 }
 

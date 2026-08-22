@@ -2537,22 +2537,22 @@ function renderSquadSource(){
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
 
-/* renderHouseTeam draws the identity strip above the score bug from STATE.house_team, the
+/* renderHouseTeam draws the identity strip above the score bug from STATE.results, the
    site's own FPL squad (config.EntryID) run through the identical pipeline as the
    reader's -- context for whose pitch this is, nothing else. Absent means EntryID is unset
    or the fetch failed this request -- the element is then left empty rather than shown
    half-filled, the same honest-absence rule the rest of this file follows for a missing
    Effect or a missing fixture.
 
-   In practice STATE.house_team is always absent here: buildState (this page's own
-   document) deliberately never sets HouseEntry/HouseHistory, so this function only ever
+   In practice STATE.results is always absent here: buildState (this page's own
+   document) deliberately never sets Entry/History, so this function only ever
    runs its `if(!h)` branch — see buildState's own comment. Kept rather than deleted so a
    future caller that DOES wire the fetch in gets a strip that already matches team.js's,
    not a second implementation to keep in sync.
 
    No projected-score cell: that used to read h.current_event/h.current_projected, both
    removed from the viewmodel contract in the /armband-team redesign (see
-   viewmodel.HouseTeam's own comment — CurrentEvent came from the rail's Current gameweek
+   viewmodel.Results's own comment — CurrentEvent came from the rail's Current gameweek
    while everything else on a house-team strip comes from latestClosedEvent, routinely a
    different week). This page already draws this squad's own projection in the score bug
    directly below, so the cell was a second, sometimes-wrong copy of a number already on
@@ -2560,7 +2560,7 @@ function renderSquadSource(){
 function renderHouseTeam(){
   const el=document.getElementById('houseteam');
   if(!el) return;
-  const h=STATE.house_team;
+  const h=STATE.results;
   if(!h){ el.innerHTML=''; return; }
   const hist=h.history||[];
   const last=hist.length ? hist[hist.length-1] : null;
