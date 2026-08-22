@@ -2297,4 +2297,15 @@ body.saving{cursor:progress;}
   .teambenchrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;overflow:visible;}
   .teambenchrow .tpcard{flex:none;width:auto;max-width:none;}
 }
-.line{align-items:stretch;}
+/* ⚠️ SCOPED TO #teampitch, and the scope is the whole point. `.line` is NOT this page's
+   class -- it is the pitch ROW class, and app.html uses it four times for the interactive
+   builder's GKP/DEF/MID/FWD rows. Written bare, as the design spec had it, this rule
+   silently restyled the builder's pitch as a side effect of a spectator-page change, and
+   moved pitch-mobile and import-offered-mobile in the golden suite on 2026-08-22 -- which
+   is how it was caught, by shots that had nothing to do with the change that broke them.
+   Nothing had asked for the builder's rows to change.
+
+   What it is FOR here: the cards in one row must match the tallest of them, so a card that
+   wraps its badges to a second line does not leave its neighbours short and ladder the row.
+   That is a spectator-card problem and it does not exist on the builder's pitch. */
+#teampitch .line{align-items:stretch;}
