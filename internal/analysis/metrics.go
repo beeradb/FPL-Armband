@@ -2242,6 +2242,26 @@ func (e *Engine) TeamMatchesStarted(teamID int) int {
 	return n
 }
 
+// TeamMatchesFinished is TeamMatchesStarted's own stricter sibling: a fixture that has
+// kicked off but not yet blown its final whistle is not a match's worth of evidence, it
+// is a partial one. Use this, never TeamMatchesStarted, anywhere a caller is about to
+// divide by "matches played" to produce a per-match RATE — el.Minutes for a club mid-fixture
+// is whatever the live match has accumulated so far (a nailed player's 47 minutes into his
+// 90), and treating that as a complete match understates a starter's true rate for as long
+// as the match is live, then silently corrects itself the moment the whistle blows. The
+// gap this closes is smaller than the one TeamMatchesStarted itself closes (minutes,
+// not gameweeks, of staleness) but it is the same class of mistake: counting an event
+// before it has actually produced the evidence it is being asked to stand for.
+func (e *Engine) TeamMatchesFinished(teamID int) int {
+	n := 0
+	for _, f := range e.Fixtures {
+		if f.Finished && (f.TeamH == teamID || f.TeamA == teamID) {
+			n++
+		}
+	}
+	return n
+}
+
 // SeasonHasStarted reports whether ANY league fixture this season has kicked off —
 // season-wide, not per club. It is the true trigger for "FPL's bootstrap no longer
 // holds last season's totals for anyone", which is NOT GameweeksPlayed() > 0: that

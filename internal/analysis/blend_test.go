@@ -324,6 +324,40 @@ func TestMinutesEvidenceIsTheClubsOwnMatches(t *testing.T) {
 	}
 }
 
+// TestMinutesEvidenceIgnoresAMatchStillInProgress guards the sibling mistake to the one
+// above, at a finer grain: a fixture that has KICKED OFF but not yet finished is not a
+// match's worth of evidence, it is a partial one. el.Minutes for a club mid-fixture is
+// whatever the live match has accumulated so far — a nailed starter's 47 minutes into his
+// 90, not his eventual total — and TeamMatchesStarted alone would count that as "1 match
+// played", blending the partial figure in as if it were complete. TeamMatchesFinished must
+// answer 0 here, leaving the blend on the prior until the whistle actually blows.
+func TestMinutesEvidenceIgnoresAMatchStillInProgress(t *testing.T) {
+	e, _ := partialGameweekEngine(t)
+	established := &e.Boot.Elements[0]
+	// Overwrite the shared fixture's Finished flag: kicked off, still being played.
+	e.Fixtures[0].Finished = false
+	if got := e.TeamMatchesStarted(established.Team); got != 1 {
+		t.Fatalf("setup: TeamMatchesStarted = %d, want 1 (the match has kicked off)", got)
+	}
+	if got := e.TeamMatchesFinished(established.Team); got != 0 {
+		t.Fatalf("TeamMatchesFinished = %d, want 0 — the match is still in progress", got)
+	}
+
+	e.Priors = fakePriors{established.Code: {Minutes: 630, Starts: 7, XG: 1, XA: 1, XGC: 10, DefCon: 5}}
+	// A live snapshot mid-match: 47 minutes so far, not a completed 90.
+	established.Minutes, established.Starts = 47, 1
+
+	m := e.Metrics(established)
+
+	priorOnly := 630.0 / GameweeksPerSeason
+	if m.ExpectedMinutes > priorOnly+5 {
+		t.Errorf("expected minutes %.1f moved away from the pure-prior figure %.1f while "+
+			"the match is still live; a partial in-match snapshot must not count as a "+
+			"completed match of evidence until TeamMatchesFinished says it is one",
+			m.ExpectedMinutes, priorOnly)
+	}
+}
+
 // TestCountingStatsGoThroughTheBlend guards a bug that survived the first blend.
 //
 // Bonus, saves and cards were read straight off the element as count*90/minutes

@@ -547,23 +547,37 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 	// season — a transfer, a new manager, form already diverging from last
 	// year's pattern.
 	//
-	// This is TeamMatchesStarted(el.Team) directly, deliberately NOT avail
-	// (matchesAvailable) above: avail is a per-90 RATE DENOMINATOR, so it
-	// falls back to the full pre-season 38 whenever this club itself has not
-	// yet kicked off, on the correct assumption that a truly pre-season
-	// el.Minutes is a 38-match season total. That fallback is wrong read as
-	// an EVIDENCE COUNT: mid-gap, a club that has not yet played its own
-	// fixture has el.Minutes == 0 (FPL has already zeroed the whole league's
-	// aggregates the moment SeasonHasStarted, not per club — confirmed live,
-	// contrary to TeamMatchesStarted's own comment, which describes only the
+	// This is TeamMatchesFinished(el.Team), NOT TeamMatchesStarted, and NOT
+	// avail (matchesAvailable) above. Two distinct failure modes on two
+	// sides of the same fix:
+	//
+	// avail is a per-90 RATE DENOMINATOR, so it falls back to the full
+	// pre-season 38 whenever this club itself has not yet kicked off, on the
+	// correct assumption that a truly pre-season el.Minutes is a 38-match
+	// season total. That fallback is wrong read as an EVIDENCE COUNT:
+	// mid-gap, a club that has not yet played its own fixture has
+	// el.Minutes == 0 (FPL has already zeroed the whole league's aggregates
+	// the moment SeasonHasStarted, not per club — confirmed live, contrary
+	// to TeamMatchesStarted's own comment, which describes only the
 	// opposite disagreement), and avail's 38-fallback then read that genuine
 	// zero as "38 matches of evidence he doesn't play", collapsing
 	// MinutesPerMatch to a sliver of his prior rate for every player at a
-	// club that simply had not kicked off yet — the same failure this fix
-	// exists to remove, reintroduced from the other side. TeamMatchesStarted
-	// has no such fallback: 0 stays 0, so w stays 0 and the prior rate
-	// carries unchanged until this specific club actually plays.
-	n := float64(e.TeamMatchesStarted(el.Team))
+	// club that simply had not kicked off yet.
+	//
+	// TeamMatchesStarted has no such fallback and fixes that side, but it
+	// introduces the opposite mistake at the boundary: a fixture that has
+	// KICKED OFF but not yet finished counts as a full match, and
+	// el.Minutes for that club is whatever the LIVE match has accumulated
+	// so far — a nailed starter's 47 minutes into his 90, not his eventual
+	// total. Dividing that partial figure by "1 match played" and blending
+	// it in with real weight understates his true rate for as long as the
+	// match is live, then silently corrects itself the moment the whistle
+	// blows — a smaller-grained version of exactly the mistake this whole
+	// fix exists to remove: counting an event before it has produced the
+	// evidence it is being asked to stand for. TeamMatchesFinished has no
+	// such window: a fixture counts only once it is actually over, so
+	// el.Minutes attributed to it is always a completed match's worth.
+	n := float64(e.TeamMatchesFinished(el.Team))
 	priorPerMatch := float64(p.Minutes) / GameweeksPerSeason
 	priorStarts := float64(p.Starts) / GameweeksPerSeason
 	b.MinutesPerMatch = mix(b.MinutesPerMatch, priorPerMatch, n, e.Weights.BlendMinutesK)
