@@ -93,6 +93,18 @@ type Input struct {
 	HouseLive        *fpl.EventLive
 	HouseMatchStatus map[string]string
 
+	// HouseOpponent is ResultEvent's own fixture per club short name — computed by
+	// the caller, in houseLiveSources, from the SAME freshly-fetched fixture list
+	// that already decides HouseMatchStatus, so the two always describe the same
+	// match. This package may not fall back to a player's own forward-looking
+	// Fixtures[0] for this: that list is anchored on the model's NEXT planning
+	// gameweek (see analysis.Engine's own fromEvent) and drops ResultEvent's own
+	// fixture the moment its deadline has passed, which is what silently swapped in
+	// next week's opponent beside this week's counting stats — see
+	// TeamPlayer.Opponent's own comment. A club absent from this map had no fixture
+	// in ResultEvent (a blank gameweek) and TeamPlayer.Opponent stays nil for it.
+	HouseOpponent map[string]Fixture
+
 	// HouseMultiplier is this gameweek's pick multiplier, keyed by permanent code —
 	// the SAME keyspace armbandteam.picksToFixed already uses for arrangement's
 	// XI/Bench/Captain/Vice, because element ids are reassigned every summer and code
@@ -146,7 +158,7 @@ func Build(in Input) (*State, error) {
 	s.Squad = buildSquad(p)
 	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips, in.Now, in.Import.Entry != 0)
 	s.HouseTeam = buildHouseTeam(s.Squad, in.HouseEntry, in.HouseHistory, in.Boot,
-		in.HouseLive, in.HouseMatchStatus, in.HouseMultiplier,
+		in.HouseLive, in.HouseMatchStatus, in.HouseOpponent, in.HouseMultiplier,
 		in.HouseResultEvent, in.HouseResultState, in.HouseEventAverage)
 	s.Market = buildMarket(p)
 	s.Overrides = buildOverrides(p)
@@ -324,7 +336,7 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 // deadline has passed but the rail has not rolled over. Removing gws (no longer used here
 // at all) removes the temptation to reach for it again.
 func buildHouseTeam(sq Squad, entry *fpl.Entry, history *fpl.EntryHistory, boot *fpl.Bootstrap,
-	live *fpl.EventLive, matchStatus map[string]string, multiplier map[int]int,
+	live *fpl.EventLive, matchStatus map[string]string, opponent map[string]Fixture, multiplier map[int]int,
 	resultEvent int, resultState string, eventAverage int) *HouseTeam {
 	if entry == nil {
 		return nil
@@ -361,8 +373,13 @@ func buildHouseTeam(sq Squad, entry *fpl.Entry, history *fpl.EntryHistory, boot 
 			return TeamPlayer{}, false
 		}
 		tp := TeamPlayer{ID: p.ID, Name: p.Name, Club: p.Club, Pos: p.Pos, Price: p.Price}
-		if len(p.Fixtures) > 0 {
-			f := p.Fixtures[0]
+		// Opponent comes from the caller's ResultEvent-keyed map, NOT p.Fixtures[0] —
+		// that field is the model's forward-looking fixture window (see
+		// Input.HouseOpponent's own comment) and index 0 stopped being ResultEvent's
+		// fixture the moment its deadline passed. A club absent from the map had no
+		// fixture in ResultEvent (a blank gameweek); leave Opponent nil rather than
+		// falling back to the model's list, which is exactly what produced the bug.
+		if f, ok := opponent[p.Club]; ok {
 			tp.Opponent = &f
 		}
 		tp.MatchStatus = matchStatus[p.Club]
@@ -422,6 +439,28 @@ func buildHouseTeam(sq Squad, entry *fpl.Entry, history *fpl.EntryHistory, boot 
 		if tp, ok := teamPlayer(id); ok {
 			ht.Bench = append(ht.Bench, tp)
 		}
+	}
+	// LivePoints only while ResultState is "live" -- see its own doc comment for why
+	// EntryHistory's Points is not usable yet at that state. XI and Bench together,
+	// never just XI, because a benched player's Multiplier is already 0 and adding him
+	// changes nothing -- a separate "bench excluded" branch would be a second rule for
+	// a fact the multiplier already carries.
+	if resultState == "live" {
+		var hit int
+		for _, h := range ht.History {
+			if h.Event == resultEvent {
+				hit = h.Hit
+				break
+			}
+		}
+		var sum int
+		for _, p := range ht.XI {
+			sum += p.Points * p.Multiplier
+		}
+		for _, p := range ht.Bench {
+			sum += p.Points * p.Multiplier
+		}
+		ht.LivePoints = sum - hit
 	}
 	return ht
 }

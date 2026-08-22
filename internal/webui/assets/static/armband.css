@@ -1206,14 +1206,22 @@ body.saving{cursor:progress;}
    the four states). Wraps rather than truncating at narrow widths, so the button is never
    the thing that gets clipped -- it drops to its own line instead, under the "imported from
    FPL team N · GWn" text, which is the longest of the four strings this line ever shows. */
+/* 12px left matches .pitchhud's own left padding, so this row sits in the same column
+   rhythm as FORMATION above it rather than starting two pixels further out. 8px top gives
+   the button air under the divider instead of sitting flush against it -- both were invisible
+   while this row was dim text with no button, and both were visibly wrong the moment
+   renderSquadSource() started appending a real 30px .btn.sm here. */
 .squadsource{
-  font-size:11.5px;padding:0 2px 8px;font-family:var(--mono);
+  font-size:11.5px;padding:8px 12px 10px;font-family:var(--mono);
   display:flex;align-items:center;flex-wrap:wrap;gap:8px;
 }
 /* button{font-family:inherit} (global) would otherwise set this in the surrounding line's
    monospace -- every other button on the page inherits the UI font because nothing above it
-   in the tree sets --mono, and this is the one spot that does. */
-.squadsource .btn{font-family:var(--ui);}
+   in the tree sets --mono, and this is the one spot that does. 24px/11.5px keeps the control
+   proportionate to the sentence it belongs to -- a 30px .btn.sm here read as the same weight
+   as Optimise in the HUD directly above, two primary-looking actions competing within 40px of
+   each other. Still a real .btn, not a bare link: it performs an action and should look like it. */
+.squadsource .btn{font-family:var(--ui);height:24px;padding:0 9px;font-size:11.5px;}
 
 /* Import panel -- moved here from the Players tab. It used to be a one-shot card that
    vanished for good the moment an entry was on record; now #squadsource's button reopens

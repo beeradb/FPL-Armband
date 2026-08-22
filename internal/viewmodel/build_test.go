@@ -505,15 +505,25 @@ func TestHouseTeamLiveStatsGateOnMatchStatus(t *testing.T) {
 // own ID order, never re-optimised -- and that a TeamPlayer carries an opponent (for the
 // glyph the interactive builder already draws) but none of the interactive vocabulary
 // (role, reliability, override) that a spectator page has no use for.
+//
+// Opponent is asserted against HouseOpponent, not samplePage's Kinsky.Fixtures (which
+// happens to start at event 1, the SAME gameweek this test's HouseResultEvent asks for,
+// so it would pass even under the pre-fix Fixtures[0] read this test used to pin —
+// TestHouseTeamOpponentIsResultEventsFixtureNotTheNextOne below is the case that tells
+// the two sources apart).
 func TestHouseTeamRosterIsTrimmedNotRebuilt(t *testing.T) {
 	s, err := Build(Input{
 		Page: samplePage(),
 		Boot: &fpl.Bootstrap{Events: []fpl.Event{
 			{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsNext: true},
 		}},
-		Cfg:        config.Config{},
-		Now:        pinned,
-		HouseEntry: &fpl.Entry{SummaryOverallPoints: 236},
+		Cfg:              config.Config{},
+		Now:              pinned,
+		HouseEntry:       &fpl.Entry{SummaryOverallPoints: 236},
+		HouseResultEvent: 1,
+		HouseOpponent: map[string]Fixture{
+			"TOT": {Gameweek: 1, Opponent: "BRE", Home: false, Difficulty: 3},
+		},
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -529,7 +539,139 @@ func TestHouseTeamRosterIsTrimmedNotRebuilt(t *testing.T) {
 		t.Errorf("HouseTeam.XI[0] = %+v, want Kinsky (id %d) — same order as Squad.XI", gk, s.Squad.XI[0])
 	}
 	if gk.Opponent == nil || gk.Opponent.Opponent != "BRE" || gk.Opponent.Home {
-		t.Errorf("Kinsky's Opponent = %+v, want the away BRE fixture samplePage gives him", gk.Opponent)
+		t.Errorf("Kinsky's Opponent = %+v, want the away BRE fixture HouseOpponent gives him", gk.Opponent)
+	}
+}
+
+// TestHouseTeamLivePointsSumsTheSquadOnlyWhileLive pins the 2026-08-22 defect:
+// history[last].points is FPL's own EntryHistory figure, which reads 0 for a gameweek
+// FPL has not finished scoring -- exactly the state a reader is most likely to check this
+// page in, live staging showed 0 POINTS above eleven cards visibly scoring. LivePoints
+// exists to replace that cell while ResultState is "live"; see its own doc comment.
+//
+// samplePage's captain (Haaland, id 3, code 333) carries HouseMultiplier 2 here, and the
+// bench player (Woodman, id 4, code 444) carries non-zero live points at multiplier 0 --
+// a regression that forgot the multiplier (captain's double, bench's zero) or that summed
+// the bench unconditionally would both be caught: the multiplier-blind sum is 2+6+9+5=22,
+// the bench-counting-without-multiplier sum is 2+6+18+5=31, and the correct answer,
+// below, is neither. The gameweek's Hit (4) is subtracted so the live figure means the
+// same thing as the settled one once FPL finishes scoring.
+func TestHouseTeamLivePointsSumsTheSquadOnlyWhileLive(t *testing.T) {
+	rank := 88214
+	input := func(resultState string) Input {
+		return Input{
+			Page: samplePage(),
+			Boot: &fpl.Bootstrap{
+				Events: []fpl.Event{{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC)}},
+				Elements: []fpl.Element{
+					{ID: 1, ElementType: 1}, {ID: 2, ElementType: 2}, {ID: 3, ElementType: 4}, {ID: 4, ElementType: 1},
+				},
+			},
+			Cfg:        config.Config{},
+			Now:        pinned,
+			HouseEntry: &fpl.Entry{SummaryOverallPoints: 236},
+			HouseHistory: &fpl.EntryHistory{Current: []struct {
+				Event              int  `json:"event"`
+				Points             int  `json:"points"`
+				TotalPoints        int  `json:"total_points"`
+				Rank               *int `json:"rank"`
+				OverallRank        *int `json:"overall_rank"`
+				Bank               int  `json:"bank"`
+				Value              int  `json:"value"`
+				EventTransfers     int  `json:"event_transfers"`
+				EventTransfersCost int  `json:"event_transfers_cost"`
+				PointsOnBench      int  `json:"points_on_bench"`
+			}{
+				{Event: 1, Points: 0, Rank: &rank, EventTransfersCost: 4},
+			}},
+			HouseLive: &fpl.EventLive{Elements: []fpl.LiveElement{
+				{ID: 1, Stats: fpl.LiveStats{Minutes: 90, TotalPoints: 2}},
+				{ID: 2, Stats: fpl.LiveStats{Minutes: 90, TotalPoints: 6}},
+				{ID: 3, Stats: fpl.LiveStats{Minutes: 90, TotalPoints: 9}}, // captain, multiplier 2
+				{ID: 4, Stats: fpl.LiveStats{Minutes: 0, TotalPoints: 5}},  // bench, multiplier 0
+			}},
+			// Keyed by CODE, the same keyspace HouseMultiplier always uses (see
+			// TestHouseTeamMultiplierIsKeyedByCodeNotID).
+			HouseMultiplier:   map[int]int{111: 1, 222: 1, 333: 2, 444: 0},
+			HouseResultEvent:  1,
+			HouseResultState:  resultState,
+			HouseEventAverage: 56,
+		}
+	}
+
+	live, err := Build(input("live"))
+	if err != nil {
+		t.Fatalf("Build (live): %v", err)
+	}
+	const want = 2*1 + 6*1 + 9*2 + 5*0 - 4 // = 22, the transfer hit already subtracted
+	if live.HouseTeam.LivePoints != want {
+		t.Errorf("LivePoints = %d, want %d (multiplier-weighted XI+bench sum, hit subtracted)",
+			live.HouseTeam.LivePoints, want)
+	}
+
+	final, err := Build(input("final"))
+	if err != nil {
+		t.Fatalf("Build (final): %v", err)
+	}
+	if final.HouseTeam.LivePoints != 0 {
+		t.Errorf("LivePoints = %d on a FINAL gameweek, want 0 -- it is set only while live",
+			final.HouseTeam.LivePoints)
+	}
+}
+
+// TestHouseTeamOpponentIsResultEventsFixtureNotTheNextOne pins the 2026-08-22 defect:
+// buildHouseTeam used to read a player's own p.Fixtures[0] for the opponent chip, but
+// that list is the model's forward-looking fixture window, anchored on the NEXT planning
+// gameweek (analysis.Engine's own fromEvent) -- not ResultEvent, the gameweek this page
+// actually reports on. The moment ResultEvent's deadline passes, fromEvent moves beyond
+// it and that gameweek's own fixture drops out of Fixtures entirely, so Fixtures[0]
+// silently became the NEXT gameweek's opponent beside THIS gameweek's goals, assists and
+// points -- caught live 2026-08-22 at result_event 1 showing the GW2 fixture.
+//
+// Kinsky's Fixtures here starts at event 2 (his GW1 fixture is deliberately absent,
+// matching production once fromEvent has rolled past GW1) while HouseOpponent carries
+// the true GW1 fixture. A regression back to p.Fixtures[0] resolves to NEW (home) and
+// fails this test; the fix must resolve to BRE (away) from HouseOpponent instead.
+func TestHouseTeamOpponentIsResultEventsFixtureNotTheNextOne(t *testing.T) {
+	p := samplePage()
+	p.Squad.Players = append([]analysis.PlayerMetrics(nil), p.Squad.Players...)
+	p.Squad.Players[0].Fixtures = []analysis.FixtureBrief{
+		{Event: 2, Opponent: "NEW", Home: true, Difficulty: 2},
+	}
+	s, err := Build(Input{
+		Page: p,
+		Boot: &fpl.Bootstrap{Events: []fpl.Event{
+			{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC)},
+		}},
+		Cfg:              config.Config{},
+		Now:              pinned,
+		HouseEntry:       &fpl.Entry{SummaryOverallPoints: 236},
+		HouseResultEvent: 1,
+		HouseResultState: "live",
+		HouseOpponent: map[string]Fixture{
+			"TOT": {Gameweek: 1, Opponent: "BRE", Home: false, Difficulty: 3},
+			// BHA (Kadıoğlu) deliberately absent -- a blank gameweek for that club --
+			// so this also pins that an absent club gets a nil Opponent, never a
+			// fallback to Fixtures[0].
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	byID := map[int]TeamPlayer{}
+	for _, tp := range s.HouseTeam.XI {
+		byID[tp.ID] = tp
+	}
+	gk := byID[1]
+	if gk.Opponent == nil || gk.Opponent.Opponent != "BRE" || gk.Opponent.Home {
+		t.Fatalf("Kinsky's Opponent = %+v, want the GW1 away BRE fixture (ResultEvent) "+
+			"from HouseOpponent, not GW2's home NEW from Fixtures[0]", gk.Opponent)
+	}
+	def := byID[2]
+	if def.Opponent != nil {
+		t.Errorf("Kadıoğlu's Opponent = %+v, want nil — BHA has no fixture in "+
+			"HouseOpponent for this gameweek (a blank gameweek), and there must be no "+
+			"fallback to his own Fixtures list", def.Opponent)
 	}
 }
 
