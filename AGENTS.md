@@ -413,8 +413,8 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   days — where it answers a pre-season 38 that is false for every club: FPL zeroes the whole
   league at the first kickoff, and within the gap some clubs have a completed match and some have
   not begun. `GameweeksPlayed()>0` and `SeasonHasStarted()` are two implementations of one
-  question and agree all season except this gap — seven call sites across six incidents came
-  from using the former where the latter was meant: #39, #42, the squad pool's minutes floor,
+  question and agree all season except this gap — six call sites across five PRs came from
+  using the former where the latter was meant: #39, #42, the squad pool's minutes floor,
   `bonusEvidence` and `AssemblyBudget` (both #45), `squadPriceGameweek`. (#40 shipped the same
   day in the same window but is mechanistically distinct — a blend-weight dilution, not a
   swapped predicate — and is not a seventh instance of this specific pattern.) Use the shared
