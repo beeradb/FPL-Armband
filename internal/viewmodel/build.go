@@ -92,6 +92,25 @@ type Input struct {
 	// arranges what the caller already fetched, same as HouseEntry/HouseHistory.
 	HouseLive        *fpl.EventLive
 	HouseMatchStatus map[string]string
+
+	// HouseMultiplier is this gameweek's pick multiplier, keyed by permanent code —
+	// the SAME keyspace armbandteam.picksToFixed already uses for arrangement's
+	// XI/Bench/Captain/Vice, because element ids are reassigned every summer and code
+	// is what survives that. buildHouseTeam looks it up via the already-resolved
+	// Player.Code rather than re-deriving anything: getting this keying wrong (id
+	// instead of code) silently zeroes every multiplier and renders the whole pitch
+	// as bench.
+	HouseMultiplier map[int]int
+
+	// HouseResultEvent/HouseResultState/HouseEventAverage describe the ONE gameweek
+	// the results page is about — event.ID and event.AverageScore for the event
+	// latestClosedEvent chose, and the "live"/"final" state houseLiveSources computed
+	// from the fixture list it already holds. This package may not decide any of the
+	// three itself, for the same reason Import may not decide whether a gameweek has
+	// been played — see Import's own comment.
+	HouseResultEvent  int
+	HouseResultState  string
+	HouseEventAverage int
 }
 
 // Build translates an assembled page into the client contract.
@@ -126,8 +145,9 @@ func Build(in Input) (*State, error) {
 
 	s.Squad = buildSquad(p)
 	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips, in.Now, in.Import.Entry != 0)
-	s.HouseTeam = buildHouseTeam(s.Squad, s.Gameweeks, in.HouseEntry, in.HouseHistory, in.Boot,
-		in.HouseLive, in.HouseMatchStatus)
+	s.HouseTeam = buildHouseTeam(s.Squad, in.HouseEntry, in.HouseHistory, in.Boot,
+		in.HouseLive, in.HouseMatchStatus, in.HouseMultiplier,
+		in.HouseResultEvent, in.HouseResultState, in.HouseEventAverage)
 	s.Market = buildMarket(p)
 	s.Overrides = buildOverrides(p)
 	s.News = buildNews(s, in)
@@ -293,38 +313,41 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 	return out
 }
 
-// buildHouseTeam arranges the site's own manager record into the footer's contract.
+// buildHouseTeam arranges the site's own manager record into the results page's contract.
 //
-// CurrentProjected is sq.Expected — the exact figure the score bug already shows for this
-// same build — not the current week's Gameweek.Projected. The two are NOT the same
-// quantity: Gameweek.Projected is WeekView's own best-XI-and-captain for that week
-// (analysis/weekview.go), computed independent of this squad's actual arrangement, and it
-// diverges from the score bug the moment a reader (or the house account itself) locks,
-// leaves out, or captains someone other than the model's own pick — which the house
-// account's real squad does. Reusing sq.Expected is what keeps the promise "never a second
-// computation" honest rather than merely close.
-func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.EntryHistory, boot *fpl.Bootstrap,
-	live *fpl.EventLive, matchStatus map[string]string) *HouseTeam {
+// resultEvent/resultState/eventAverage all come from the caller (armbandTeamState, via
+// latestClosedEvent and houseLiveSources) rather than being found here: this package may
+// not decide which gameweek is being described or whether it has finished, the same rule
+// Import's own comment states for the import affordance. This used to instead look up
+// "the gameweek the rail marks Current" out of gws and pair it with sq.Expected — a
+// different gameweek from the one the pitch and live stats actually describe the moment a
+// deadline has passed but the rail has not rolled over. Removing gws (no longer used here
+// at all) removes the temptation to reach for it again.
+func buildHouseTeam(sq Squad, entry *fpl.Entry, history *fpl.EntryHistory, boot *fpl.Bootstrap,
+	live *fpl.EventLive, matchStatus map[string]string, multiplier map[int]int,
+	resultEvent int, resultState string, eventAverage int) *HouseTeam {
 	if entry == nil {
 		return nil
 	}
 	ht := &HouseTeam{
-		OverallPoints:    entry.SummaryOverallPoints,
-		OverallRank:      entry.SummaryOverallRank,
-		CurrentProjected: sq.Expected,
-		Formation:        sq.Formation,
-		Captain:          sq.Captain,
-		Vice:             sq.Vice,
-	}
-	for _, gw := range gws {
-		if gw.Current {
-			ht.CurrentEvent = gw.Number
-			break
-		}
+		OverallPoints: entry.SummaryOverallPoints,
+		OverallRank:   entry.SummaryOverallRank,
+		ResultEvent:   resultEvent,
+		ResultState:   resultState,
+		EventAverage:  eventAverage,
+		Formation:     sq.Formation,
+		Captain:       sq.Captain,
+		Vice:          sq.Vice,
 	}
 	if history != nil {
 		for _, gw := range history.Current {
-			ht.History = append(ht.History, HouseResult{Event: gw.Event, Points: gw.Points})
+			ht.History = append(ht.History, HouseResult{
+				Event:       gw.Event,
+				Points:      gw.Points,
+				Rank:        gw.Rank,
+				Hit:         gw.EventTransfersCost,
+				BenchPoints: gw.PointsOnBench,
+			})
 		}
 	}
 
@@ -343,16 +366,31 @@ func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.Ent
 			tp.Opponent = &f
 		}
 		tp.MatchStatus = matchStatus[p.Club]
+		// multiplier is keyed by permanent code (see Input.HouseMultiplier's own
+		// comment), the same keyspace Player.Code already carries — looked up via
+		// p.Code, NOT p.ID. Using p.ID here is the exact mistake that silently zeroes
+		// every multiplier and renders the whole pitch as bench, because element ids
+		// and codes are different numbers for the same player.
+		tp.Multiplier = multiplier[p.Code]
 
 		stats := live.ByID(p.ID)
 		if stats == nil {
 			return tp, true
 		}
-		// Goals/assists/clean sheets are an honest "as of now" at every status —
-		// zero before kickoff is correct, not merely a placeholder for it.
+		// An honest "as of now" at every status — zero before kickoff is correct, not
+		// merely a placeholder for it.
+		tp.Minutes = stats.Minutes
+		tp.Points = stats.TotalPoints
+		tp.Bonus = stats.Bonus
 		tp.Goals = stats.GoalsScored
 		tp.Assists = stats.Assists
 		tp.CleanSheets = stats.CleanSheets
+		tp.GoalsConceded = stats.GoalsConceded
+		tp.YellowCards = stats.YellowCards
+		tp.RedCards = stats.RedCards
+		tp.OwnGoals = stats.OwnGoals
+		tp.PenaltiesSaved = stats.PenaltiesSaved
+		tp.PenaltiesMissed = stats.PenaltiesMissed
 
 		// DefCon/Saves stay nil before kickoff on purpose: "did he clear the bar"
 		// has no honest answer yet, and a red pill on a match that has not

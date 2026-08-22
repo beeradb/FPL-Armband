@@ -2423,7 +2423,21 @@ function renderSquadSource(){
    reader's -- context for whose pitch this is, nothing else. Absent means EntryID is unset
    or the fetch failed this request -- the element is then left empty rather than shown
    half-filled, the same honest-absence rule the rest of this file follows for a missing
-   Effect or a missing fixture. */
+   Effect or a missing fixture.
+
+   In practice STATE.house_team is always absent here: buildState (this page's own
+   document) deliberately never sets HouseEntry/HouseHistory, so this function only ever
+   runs its `if(!h)` branch — see buildState's own comment. Kept rather than deleted so a
+   future caller that DOES wire the fetch in gets a strip that already matches team.js's,
+   not a second implementation to keep in sync.
+
+   No projected-score cell: that used to read h.current_event/h.current_projected, both
+   removed from the viewmodel contract in the /armband-team redesign (see
+   viewmodel.HouseTeam's own comment — CurrentEvent came from the rail's Current gameweek
+   while everything else on a house-team strip comes from latestClosedEvent, routinely a
+   different week). This page already draws this squad's own projection in the score bug
+   directly below, so the cell was a second, sometimes-wrong copy of a number already on
+   screen — removing it removes both the bug and the redundancy. */
 function renderHouseTeam(){
   const el=document.getElementById('houseteam');
   if(!el) return;
@@ -2434,7 +2448,6 @@ function renderHouseTeam(){
   el.innerHTML=`<div class="houseteamrow">
     <span class="htbadge">FPL Armband</span>
     ${last ? `<span class="htstat"><span class="v">${last.points}</span><span class="k">GW${last.event} actual</span></span>` : ''}
-    ${h.current_event ? `<span class="htstat"><span class="v acc">${(+h.current_projected).toFixed(1)}</span><span class="k">GW${h.current_event} projected</span></span>` : ''}
     ${h.overall_rank ? `<span class="htstat"><span class="v">${(+h.overall_rank).toLocaleString()}</span><span class="k">Overall rank</span></span>` : ''}
   </div>`;
 }

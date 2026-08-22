@@ -82,23 +82,40 @@ type State struct {
 	HouseTeam *HouseTeam `json:"house_team,omitempty"`
 }
 
-// HouseTeam is proof-of-use for the footer: what the site's own squad actually scored,
-// gameweek by gameweek, and what this week's eleven is projected to return.
+// HouseTeam is the results page's (/armband-team) whole document: the site's own squad's
+// actual gameweek result. The page's tense is "what happened", never "what might happen"
+// — see ResultState.
 //
-// CurrentProjected is never a second computation — it is Squad.Expected, the same number
-// the score bug already shows, not the current week's Gameweek.Projected. The two are NOT
-// interchangeable: Gameweek.Projected is the rail's own best-XI-and-captain figure for that
-// week, computed independent of this squad's actual arrangement, and it diverges from the
-// score bug the moment a lock, a leave-out or a captain choice is not the model's own pick
-// — which the house account's real squad routinely is not. See buildHouseTeam.
+// ResultEvent/ResultState/EventAverage all describe the SAME gameweek: the one
+// latestClosedEvent chose, the one whose picks are on the pitch and whose live stats are
+// on the cards. These replace CurrentEvent/CurrentProjected, which are gone from the
+// contract entirely rather than merely stopped being rendered: CurrentEvent came from the
+// rail's own Current gameweek while the pitch, the live stats and the match statuses all
+// came from latestClosedEvent, and those are routinely different gameweeks the moment a
+// deadline has passed but the rail has not rolled over — so the old footer was routinely
+// labelling one week's projection next to another week's actual eleven. Leaving the
+// fields in the contract, even unrendered, would leave the trap for the next reader.
 type HouseTeam struct {
 	OverallPoints int `json:"overall_points"`
 	OverallRank   int `json:"overall_rank,omitempty"`
 
-	// CurrentEvent is the gameweek the rail marks Current, zero before a build has one.
-	// CurrentProjected is Squad.Expected for that same build — see the type comment.
-	CurrentEvent     int     `json:"current_event,omitempty"`
-	CurrentProjected float64 `json:"current_projected,omitempty"`
+	// ResultEvent is the gameweek this page describes, chosen server-side by
+	// latestClosedEvent. The client must not infer it from anything on the pitch.
+	ResultEvent int `json:"result_event,omitempty"`
+
+	// ResultState is "live" while any fixture in ResultEvent is short of
+	// fpl.Fixture.Finished, "final" once every one is — computed in houseLiveSources,
+	// which already holds the fixture list, and NEVER derived here or client-side from
+	// the fifteen players' MatchStatus: the squad may not cover all twenty clubs, so a
+	// club with no fixture status representation would leave the state a guess. Finished
+	// is the correct bar rather than FinishedProvisional, because FPL sets Finished only
+	// after bonus is applied — "final" means the scores on this page will not move again.
+	ResultState string `json:"result_state,omitempty"`
+
+	// EventAverage is fpl.Event.AverageScore for ResultEvent — every FPL manager's mean
+	// score that week, already parsed off Boot with no new fetch. It is what makes a bare
+	// points total mean something.
+	EventAverage int `json:"event_average,omitempty"`
 
 	// History is every gameweek FPL has scored so far, oldest first — the actual points
 	// the fielded eleven returned, not a projection.
@@ -115,10 +132,23 @@ type HouseTeam struct {
 	Bench     []TeamPlayer `json:"bench,omitempty"`
 }
 
-// HouseResult is one completed gameweek's actual score.
+// HouseResult is one completed gameweek's actual result — not just the points, but the
+// context that makes a bare total mean something: where it ranked that week, whether a
+// hit paid for it, and how many points sat unused on the bench. Rank/Hit/BenchPoints are
+// already parsed off fpl.EntryHistory.Current, so this is a copy, not a second fetch.
 type HouseResult struct {
 	Event  int `json:"event"`
 	Points int `json:"points"`
+	// Rank is that gameweek's rank among all FPL managers, nil if FPL has not settled
+	// it yet (the same "absence over a wrong assertion" rule the rest of this package
+	// follows).
+	Rank *int `json:"rank,omitempty"`
+	// Hit is EventTransfersCost — points given up for extra transfers that gameweek.
+	// Rendered as a negative on the page; stored here as FPL's own positive cost.
+	Hit int `json:"hit,omitempty"`
+	// BenchPoints is PointsOnBench — what the fielded eleven left unused. The number
+	// every FPL manager looks for after a big bench score.
+	BenchPoints int `json:"bench_points,omitempty"`
 }
 
 // TeamPlayer is one player on the house team's spectator pitch. Deliberately a smaller
@@ -141,16 +171,48 @@ type TeamPlayer struct {
 	// MatchStatus is his club's fixture in the gameweek this page is showing:
 	// "scheduled", "live" or "finished". Empty before a season has a current
 	// gameweek at all (see buildHouseTeam) — there is then nothing to report a
-	// status about.
+	// status about. Together with Minutes this decides the card's state — see
+	// team.js cardState, the ONE place that derivation happens.
 	MatchStatus string `json:"match_status,omitempty"`
 
-	// Goals, Assists and CleanSheets are THIS gameweek's counts — zero before
-	// kickoff, live during the match, final once FPL finishes scoring it. Never a
-	// season total: a card that said "9 goals" before a ball had been kicked this
-	// season was the bug an earlier version of this page shipped with.
+	// Minutes is this gameweek's minutes. Not rendered as a figure — it is the one
+	// fact that separates "finished, did not play" from "finished, played, earned
+	// nothing", which are different cards.
+	Minutes int `json:"minutes"`
+
+	// Points is this gameweek's total_points for this player, UNMULTIPLIED — the raw
+	// FPL figure, never his contribution to the team score. The captain's doubling is
+	// Multiplier's job and the client's arithmetic, the same separation app.js already
+	// keeps for the projected figure.
+	Points int `json:"points"`
+
+	// Multiplier is his FPL pick multiplier for this gameweek: 0 on the bench, 1 in
+	// the XI, 2 as captain, 3 under Triple Captain. Sourced from fpl.Pick.Multiplier
+	// via arrangement.Mult (see picksToFixed, keyed by permanent code the same way
+	// XI/Bench/Captain are) and never derived client-side from the Captain id —
+	// deriving it would silently render a Triple Captain week as a double.
+	Multiplier int `json:"multiplier"`
+
+	// Bonus is FPL's settled bonus for this gameweek, already inside Points. Zero
+	// until FPL applies it, which is the same moment MatchStatus becomes "finished" —
+	// see houseLiveSources.
+	Bonus int `json:"bonus"`
+
+	// Goals, Assists, CleanSheets and the rest of this gameweek's counting stats are
+	// an honest "as of now" at every status — zero before kickoff, live during the
+	// match, final once FPL finishes scoring it. Never a season total: a card that
+	// said "9 goals" before a ball had been kicked this season was the bug an earlier
+	// version of this page shipped with.
 	Goals       int `json:"goals"`
 	Assists     int `json:"assists"`
 	CleanSheets int `json:"clean_sheets"`
+
+	GoalsConceded   int `json:"goals_conceded"`
+	YellowCards     int `json:"yellow_cards"`
+	RedCards        int `json:"red_cards"`
+	OwnGoals        int `json:"own_goals"`
+	PenaltiesSaved  int `json:"penalties_saved"`
+	PenaltiesMissed int `json:"penalties_missed"`
 
 	// DefCon is this gameweek's defensive-action count and DefConReached is
 	// whether it has cleared analysis.DefConThreshold for his position — the
