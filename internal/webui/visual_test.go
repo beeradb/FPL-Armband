@@ -231,6 +231,10 @@ var shots = []shot{
 	{"picker-desktop", "gameweek-one", "/app#replace-542", desktop(1500)},
 	{"picker-mobile", "gameweek-one", "/app#replace-542", mobile(1700)},
 
+	// The rotation-risk nudge headline, rendered when no player is flagged but one player
+	// carries rotation risk with no news. The third headline had no coverage until this fixture.
+	{"rotation-risk-desktop", "rotation-risk", "/app#pitch", desktop(1700)},
+
 	// ---- and the same screens at a height a real device actually has -------
 	//
 	// Every shot above is deliberately TALL, because its job is to capture a whole page in
