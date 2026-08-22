@@ -270,6 +270,60 @@ func TestMinutesOverrideSurvivesThePriorsBlend(t *testing.T) {
 	}
 }
 
+// TestMinutesEvidenceIsTheClubsOwnMatches guards the general-population sibling
+// of TestMinutesOverrideSurvivesThePriorsBlend: a player with NO override at
+// all, who simply has a real prior season AND a real appearance already on the
+// board for his own club this season.
+//
+// blendRatesCode's current/prior mix used n = GameweeksPlayed() as the evidence
+// count for MinutesPerMatch and StartShare. During the same multi-day gap the
+// other two fixes (#39, #40, both today) address — SeasonHasStarted true,
+// GameweeksPlayed still 0 because no gameweek has fully finished — that meant
+// EVERY player was blended at n == 0, regardless of how many matches his own
+// club had actually played: w = 0/(0+k) = 0, so MinutesPerMatch and StartShare
+// came back as exactly last season's rate, discarding a real ninety-minute
+// appearance already on record. Left unfixed alongside the other two because it
+// degrades toward the prior rather than exploding to a raw value — bounded, not
+// silent.
+func TestMinutesEvidenceIsTheClubsOwnMatches(t *testing.T) {
+	e, _ := partialGameweekEngine(t)
+	established := &e.Boot.Elements[0]
+	if e.GameweeksPlayed() != 0 || !e.SeasonHasStarted() {
+		t.Fatalf("setup: GameweeksPlayed=%d SeasonHasStarted=%v, want 0/true",
+			e.GameweeksPlayed(), e.SeasonHasStarted())
+	}
+	if got := e.TeamMatchesStarted(established.Team); got != 1 {
+		t.Fatalf("setup: TeamMatchesStarted(established's club) = %d, want 1 — "+
+			"this test needs a player whose OWN club has already played", got)
+	}
+
+	// A thin backup season last year — 630 minutes across 38, the same shape as
+	// the Kinsky incident's prior.
+	e.Priors = fakePriors{established.Code: {Minutes: 630, Starts: 7, XG: 1, XA: 1, XGC: 10, DefCon: 5}}
+	// But his club's one match so far this season, he played the full ninety —
+	// real, current-season evidence that his role is not what it was, and no
+	// standing override asserts it for him.
+	established.Minutes, established.Starts = 90, 1
+
+	m := e.Metrics(established)
+
+	priorOnly := 630.0 / GameweeksPerSeason // what n == 0 (the bug) reports
+	if m.ExpectedMinutes <= priorOnly+5 {
+		t.Errorf("expected minutes %.1f is barely above the pure-prior figure %.1f; "+
+			"a 90-minute appearance already on record for this club's one match is "+
+			"not moving the estimate, so the blend is still keyed on GameweeksPlayed "+
+			"(0) rather than this club's own TeamMatchesStarted (1)",
+			m.ExpectedMinutes, priorOnly)
+	}
+	// And it must not be anywhere near the full 90 either — one match is thin
+	// evidence against a real 38-game prior season, and BlendMinutesK exists to
+	// shrink exactly this.
+	if m.ExpectedMinutes > 50 {
+		t.Errorf("expected minutes %.1f overweights a single match against a real "+
+			"prior season", m.ExpectedMinutes)
+	}
+}
+
 // TestCountingStatsGoThroughTheBlend guards a bug that survived the first blend.
 //
 // Bonus, saves and cards were read straight off the element as count*90/minutes
