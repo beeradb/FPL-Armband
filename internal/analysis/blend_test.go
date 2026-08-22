@@ -219,6 +219,57 @@ func TestPlayersWhoHaveAlreadyPlayedShrinkDuringThePartialGameweek(t *testing.T)
 	}
 }
 
+// TestMinutesOverrideSurvivesThePriorsBlend is the fplarmband.com production
+// incident of 2026-08-22: a player with a genuine prior season on record, given
+// a standing minutes correction, must not have that correction diluted back
+// toward his prior by the current/prior-season blend.
+//
+// blendRatesCode applies the override once, early, to seed b.MinutesPerMatch —
+// then, for a player who HAS a prior (p.Minutes > 0, the branch shrinkToLeague
+// does NOT cover), blended that already-corrected figure straight back against
+// his prior season with weight n/(n+k), n = GameweeksPlayed(), and never
+// reasserted the override afterward — unlike the pre-season branch a few lines
+// above it, which already did. At n == 0 the weight is exactly 0 and the
+// override vanished entirely.
+//
+// Live incident: Kinsky was corrected to a nailed 88 expected minutes ("De
+// Zerbi has named him first choice"), but his own prior season was 630 backup
+// minutes. During the exact window this test constructs — SeasonHasStarted
+// true, GameweeksPlayed still 0, the multi-day gap between a gameweek's first
+// kickoff and its last final whistle — the site reported 16.6 expected minutes
+// (630/38) and "fringe" instead. A sibling player with NO prior of his own
+// (van Ewijk, no Premier League minutes on record) was unaffected, because
+// shrinkToLeague never touches minutes — only a player who has a real prior
+// season took this path at all, which is why the bug was invisible on most
+// overridden players and exact on this one.
+func TestMinutesOverrideSurvivesThePriorsBlend(t *testing.T) {
+	e, _ := partialGameweekEngine(t)
+	established := &e.Boot.Elements[0]
+	if e.GameweeksPlayed() != 0 || !e.SeasonHasStarted() {
+		t.Fatalf("setup: GameweeksPlayed=%d SeasonHasStarted=%v, want 0/true",
+			e.GameweeksPlayed(), e.SeasonHasStarted())
+	}
+
+	// A thin-minutes backup last season -- a real prior, but a low one, same
+	// shape as Kinsky's 630.
+	e.Priors = fakePriors{established.Code: {Minutes: 630, Starts: 7, XG: 1, XA: 1, XGC: 10, DefCon: 5}}
+	established.Minutes, established.Starts = 0, 0 // nothing from this season yet
+
+	// The analysis layer has corrected him: nailed now, 88 expected minutes.
+	e.SetMinutesOverride(established.Code, 88, 6)
+
+	m := e.Metrics(established)
+	if m.ExpectedMinutes < 80 {
+		t.Errorf("override says 88 expected minutes but Metrics reports %.1f — the "+
+			"priors blend (weight n/(n+k), n = GameweeksPlayed() = %d) reverted "+
+			"almost entirely to his 630-minute prior season (630/38 = %.1f)",
+			m.ExpectedMinutes, e.GameweeksPlayed(), 630.0/38)
+	}
+	if m.RotationRisk != "nailed" {
+		t.Errorf("rotation_risk = %q with an 88-minute override in force, want nailed", m.RotationRisk)
+	}
+}
+
 // TestCountingStatsGoThroughTheBlend guards a bug that survived the first blend.
 //
 // Bonus, saves and cards were read straight off the element as count*90/minutes

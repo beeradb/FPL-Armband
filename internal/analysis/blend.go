@@ -153,6 +153,32 @@ func (e *Engine) prorateOverride(code int, override, natural float64) float64 {
 	return (float64(affected)*override + float64(horizon-affected)*natural) / float64(horizon)
 }
 
+// reassertMinutesOverride re-applies el's minutes override to b, if one is set
+// and ignoreCode is not suppressing it — after some earlier step in
+// blendRatesCode has touched b.MinutesPerMatch or b.StartShare.
+//
+// It exists because the override is applied once, early, before the current-
+// and prior-season blend runs — and every step after that point is a
+// weighted average that pulls toward some OTHER number. An override is a
+// statement of fact, not a sample (see the comment where it is first
+// applied), so a step that overwrites b.MinutesPerMatch has to hand control
+// back rather than leaving the override diluted or erased by construction.
+// blendRatesCode has two such steps today, the pre-season prior injection and
+// the current/prior-season minutes blend, and both call this rather than
+// repeating the same four lines: a copy already drifted once (the second
+// call site simply had no reassertion at all until it was added here) and a
+// third copy would be how it drifts again.
+func (e *Engine) reassertMinutesOverride(el *fpl.Element, ignoreCode int, b *blend) {
+	if ignoreCode != 0 && el.Code == ignoreCode {
+		return
+	}
+	if v, _, ok := e.minutesOverrideFor(el.Code); ok {
+		v = e.prorateOverride(el.Code, v, b.MinutesPerMatch)
+		b.MinutesPerMatch = v
+		b.StartShare = clamp(v/90, 0, 1)
+	}
+}
+
 func (e *Engine) blendFor(el *fpl.Element, m PlayerMetrics) blend {
 	return e.blendForCode(el, m, 0)
 }
@@ -474,13 +500,7 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 			b.Red90 = per90(float64(p.Red), p.Minutes)
 		}
 		// A minutes correction still wins over everything.
-		if ignoreCode == 0 || el.Code != ignoreCode {
-			if v, _, ok := e.minutesOverrideFor(el.Code); ok {
-				v = e.prorateOverride(el.Code, v, b.MinutesPerMatch)
-				b.MinutesPerMatch = v
-				b.StartShare = clamp(v/90, 0, 1)
-			}
-		}
+		e.reassertMinutesOverride(el, ignoreCode, &b)
 		return b
 	}
 	p, ok := e.Priors.Get(el.Code)
@@ -511,6 +531,29 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 	priorStarts := float64(p.Starts) / GameweeksPerSeason
 	b.MinutesPerMatch = mix(b.MinutesPerMatch, priorPerMatch, n, e.Weights.BlendMinutesK)
 	b.StartShare = mix(b.StartShare, priorStarts, n, e.Weights.BlendMinutesK)
+
+	// A minutes correction still wins over everything — see the identical
+	// reassertion in the pre-season branch above.
+	//
+	// Without this, a player with a genuine PRIOR season on record (as
+	// distinct from the no-prior case above, which shrinkToLeague already
+	// leaves alone) had his override blended straight back toward that
+	// prior by the two lines above, and the blend weight is n/(n+k) with n
+	// the CURRENT season's matches played — which is 0 or 1 for most of the
+	// season's first few gameweeks. A backup goalkeeper handed a "he is
+	// nailed now" override read as a backup goalkeeper again the moment his
+	// club had a prior season on file, because w was too small for the
+	// override to survive the mix. Caught live: n == 0 in the gap between a
+	// gameweek's first kickoff and its last final whistle (SeasonHasStarted
+	// true, GameweeksPlayed 0) reverts the override completely — Kinsky's
+	// 88-minute correction returned exactly his prior season's rate,
+	// 630 minutes / 38 = 16.6, because w was 0/(0+k) = 0. But the blend
+	// weakens the override even once n is positive and small, which is why
+	// the fix is a full reassertion rather than a workaround for n == 0
+	// alone: blend.go's own comment on the override says "unlike the blend
+	// it is not shrunk toward anything", and the two lines above did
+	// exactly that.
+	e.reassertMinutesOverride(el, ignoreCode, &b)
 
 	// Per-90 rates are judged per 90 played, so the evidence is 90s played —
 	// a substitute who has appeared six times has far less than six matches of
