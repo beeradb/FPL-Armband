@@ -110,6 +110,13 @@ type HouseTeam struct {
 	// club with no fixture status representation would leave the state a guess. Finished
 	// is the correct bar rather than FinishedProvisional, because FPL sets Finished only
 	// after bonus is applied — "final" means the scores on this page will not move again.
+	//
+	// ⚠️ Deliberately still two-value as of 2026-08-22, even though TeamPlayer.MatchStatus
+	// gained a third state ("fulltime") the same day. This field answers "is the WHOLE
+	// gameweek final", which a per-club fulltime/live split does not change — a third
+	// value here would be a second vocabulary for the same fact. Do not "complete" it to
+	// match MatchStatus; see that field's own comment for the distinction it carries
+	// instead.
 	ResultState string `json:"result_state,omitempty"`
 
 	// EventAverage is fpl.Event.AverageScore for ResultEvent — every FPL manager's mean
@@ -204,10 +211,21 @@ type TeamPlayer struct {
 	Opponent *Fixture `json:"opponent,omitempty"`
 
 	// MatchStatus is his club's fixture in the gameweek this page is showing:
-	// "scheduled", "live" or "finished". Empty before a season has a current
-	// gameweek at all (see buildHouseTeam) — there is then nothing to report a
-	// status about. Together with Minutes this decides the card's state — see
-	// team.js cardState, the ONE place that derivation happens.
+	// "scheduled", "live", "fulltime" or "finished". Empty before a season has a
+	// current gameweek at all (see buildHouseTeam) — there is then nothing to
+	// report a status about. Together with Minutes this decides the card's state
+	// — see team.js cardState, the ONE place that derivation happens.
+	//
+	// "fulltime" (added 2026-08-22) is the gap between fpl.Fixture's own
+	// FinishedProvisional and Finished: the match has been played out and its
+	// score locked in, but FPL has not yet applied and checked bonus. That
+	// window is real and often long (see cmd/armband.houseLiveSources), and
+	// collapsing it into "live" is what put an "in progress" dot and a
+	// "provisional" asterisk on matches that had already ended — caught live
+	// 2026-08-22 for five of six gameweek-one fixtures at once. "fulltime"
+	// behaves like "live" everywhere on the card EXCEPT the live dot, which
+	// answers a narrower question ("is this being played right now") that
+	// "fulltime" is specifically the "no" answer to — see cardState and liveDot.
 	MatchStatus string `json:"match_status,omitempty"`
 
 	// Minutes is this gameweek's minutes. Not rendered as a figure — it is the one
@@ -262,6 +280,39 @@ type TeamPlayer struct {
 	// Saves is this gameweek's save count. Goalkeepers only — nil for an
 	// outfielder, the same way DefCon is nil for a goalkeeper.
 	Saves *int `json:"saves,omitempty"`
+
+	// Breakdown is how Points was earned, in FPL's own scoring order, one entry
+	// per non-zero component, plus a trailing "Captain (×N)" line when
+	// Multiplier doubles or triples it. Computed server-side, in
+	// scoreBreakdown, for the same reason LivePoints is: the client renders
+	// decided numbers and never derives a scoring quantity itself — see the
+	// Import type's own governing comment.
+	//
+	// Nil whenever the computed channels do not sum EXACTLY to Points (logged
+	// to stderr when that happens, at runtime) — a breakdown that disagrees
+	// with the number above it is worse than no breakdown, so it is withheld
+	// rather than shown wrong. Also nil before a position is known (no boot) or
+	// before a match has produced any non-zero channel (nothing to explain
+	// yet).
+	//
+	// Rendered in team.js as the title on .tppts. ⚠️ Unreachable on a touch
+	// device, the same limitation Defect 3's asterisk legend exists to partly
+	// answer for a DIFFERENT mark — title has no touch equivalent at all, and
+	// this ships anyway because the owner asked for the hover specifically;
+	// a tap-target follow-up is a separate decision, not solved here.
+	Breakdown []ScoreLine `json:"breakdown,omitempty"`
+}
+
+// ScoreLine is one component of a player's gameweek score: what he did, and what
+// FPL paid for it. Points may be negative (a card, an own goal, a missed
+// penalty, goals conceded). Detail is a short pre-formatted clarifier — "2 × 6",
+// "12 CBIRT" — empty when the label and points already say everything ("Bonus",
+// a single clean sheet). See scoreBreakdown for how this is built and why it is
+// never a second implementation of FPL's scoring table.
+type ScoreLine struct {
+	Label  string `json:"label"`
+	Detail string `json:"detail,omitempty"`
+	Points int    `json:"points"`
 }
 
 // Import is the team-import affordance's whole state — whether it may be offered right

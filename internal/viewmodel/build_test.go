@@ -500,6 +500,56 @@ func TestHouseTeamLiveStatsGateOnMatchStatus(t *testing.T) {
 	}
 }
 
+// TestHouseTeamFulltimeStillGetsDefConAndSaves pins the highest-risk line in the
+// 2026-08-22 three-way match_status change: "fulltime" (played out, bonus not yet
+// applied) MUST gate into buildHouseTeam's DefCon/Saves branch the same way "live" and
+// "finished" already do. Dropping it from that condition silently strips DefCon and
+// saves from every ended-but-unsettled match — a regression in the OPPOSITE direction
+// from the live-dot/asterisk bug the same change fixes. If this test fails, that
+// condition lost "fulltime" again.
+func TestHouseTeamFulltimeStillGetsDefConAndSaves(t *testing.T) {
+	s, err := Build(Input{
+		Page: samplePage(),
+		Boot: &fpl.Bootstrap{
+			Events: []fpl.Event{{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsCurrent: true}},
+			Elements: []fpl.Element{
+				{ID: 1, ElementType: 1}, // Kinsky, GKP
+				{ID: 2, ElementType: 2}, // Kadıoğlu, DEF
+				{ID: 3, ElementType: 4}, // Haaland, FWD
+			},
+		},
+		Cfg:        config.Config{},
+		Now:        pinned,
+		HouseEntry: &fpl.Entry{SummaryOverallPoints: 236},
+		HouseLive: &fpl.EventLive{Elements: []fpl.LiveElement{
+			{ID: 1, Stats: fpl.LiveStats{Minutes: 90, Saves: 4}},
+			{ID: 2, Stats: fpl.LiveStats{Minutes: 90, DefensiveContribution: 11}}, // clears the DEF bar (10)
+		}},
+		HouseMatchStatus: map[string]string{"TOT": "fulltime", "BHA": "fulltime"},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	byID := map[int]TeamPlayer{}
+	for _, p := range s.HouseTeam.XI {
+		byID[p.ID] = p
+	}
+
+	gk := byID[1]
+	if gk.Saves == nil || *gk.Saves != 4 {
+		t.Errorf("Kinsky (GKP, fulltime) Saves = %v, want a pointer to 4 — fulltime must gate "+
+			"the same as live/finished", gk.Saves)
+	}
+
+	def := byID[2]
+	if def.DefCon == nil || *def.DefCon != 11 {
+		t.Fatalf("Kadıoğlu (DEF, fulltime) DefCon = %v, want a pointer to 11", def.DefCon)
+	}
+	if def.DefConReached == nil || !*def.DefConReached {
+		t.Errorf("Kadıoğlu (DEF, fulltime) DefConReached = %v, want true", def.DefConReached)
+	}
+}
+
 // TestHouseTeamRosterIsTrimmedNotRebuilt pins that the spectator page's XI/Bench are the
 // SAME fifteen the interactive builder has -- read off Squad.Players by Squad.XI/Bench's
 // own ID order, never re-optimised -- and that a TeamPlayer carries an opponent (for the

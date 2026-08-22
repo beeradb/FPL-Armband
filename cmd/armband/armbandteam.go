@@ -104,8 +104,8 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 }
 
 // houseLiveSources fetches the most recently CLOSED gameweek's live per-player stats and
-// every club's match status ("scheduled"/"live"/"finished") for it -- the "is this game
-// being played right now" and "did he clear the DC bar" data the team page draws.
+// every club's match status ("scheduled"/"live"/"fulltime"/"finished") for it -- the "is
+// this game being played right now" and "did he clear the DC bar" data the team page draws.
 //
 // # Why the relevant gameweek is found by deadline, not Bootstrap.CurrentEvent
 //
@@ -153,6 +153,33 @@ func latestClosedEvent(boot *fpl.Bootstrap, now time.Time) *fpl.Event {
 // reason Input.HouseOpponent gives for not letting viewmodel fall back to a player's own
 // forward-looking Fixtures[0]: only this function already holds ResultEvent's own fixture
 // list, fetched fresh, to answer "who did this club actually play".
+// fixtureMatchStatus is one fixture's club-facing status: "scheduled", "live",
+// "fulltime" or "finished". A pure function of the fixture alone (no fetch, no
+// clock), pulled out of houseLiveSources' loop so the three-way split added
+// 2026-08-22 is unit-testable without a live client -- see
+// TestFixtureMatchStatusThreeWay.
+//
+// Three states, not two, as of 2026-08-22 -- see fpl.Fixture's own comment on
+// Finished vs FinishedProvisional. Verified live 2026-08-22 against
+// /api/fixtures/?event=1: five of six fixtures had started, finished AND
+// played out to a locked-in score, with Finished still false -- f.Started
+// alone (the pre-fix condition) reported all five as "live", which is what
+// put an "in progress" dot and a "provisional" asterisk on finished matches
+// (see team.js's liveDot and ptsHtml). The window this splits out is real and
+// routinely long: FPL sets Finished only once bonus is applied and checked,
+// which is exactly the state a reader is most likely to find this page in.
+func fixtureMatchStatus(f fpl.Fixture) string {
+	switch {
+	case f.Finished:
+		return "finished" // bonus applied and checked; nothing here moves again
+	case f.FinishedProvisional:
+		return "fulltime" // played out, locked-in score, bonus not yet confirmed
+	case f.Started:
+		return "live" // actually being played right now
+	}
+	return "scheduled"
+}
+
 func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstrap, event *fpl.Event) (*fpl.EventLive, map[string]string, map[string]viewmodel.Fixture, string) {
 	if client == nil || boot == nil || event == nil {
 		return nil, nil, nil, ""
@@ -198,13 +225,7 @@ func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstr
 		if f.Event == nil || *f.Event != event.ID {
 			continue
 		}
-		s := "scheduled"
-		switch {
-		case f.Finished:
-			s = "finished"
-		case f.Started:
-			s = "live"
-		}
+		s := fixtureMatchStatus(f)
 		home := idToShort[f.TeamH]
 		away := idToShort[f.TeamA]
 		if home != "" {

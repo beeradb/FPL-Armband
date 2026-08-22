@@ -44,8 +44,13 @@ function fxrChip(opp){
 }
 
 /* liveDot marks a club's fixture as in progress right now -- fpl.Fixture.Started &&
-   !Finished, computed server-side (see cmd/armband.houseLiveSources). Sits next to the
-   opponent chip because that is where a reader is already looking to place him. */
+   !FinishedProvisional && !Finished, computed server-side (see
+   cmd/armband.houseLiveSources). Renders ONLY for 'live', never 'fulltime': a match that
+   has been played out and locked in is not "in progress", even though FPL has not yet
+   confirmed its bonus (see match_status's own three-way split, added 2026-08-22) -- an
+   ended match still carrying this dot was the defect that split 'fulltime' out of 'live'.
+   Sits next to the opponent chip because that is where a reader is already looking to
+   place him. */
 function liveDot(status){
   return status==='live' ? '<span class="tplive" title="In progress"></span>' : '';
 }
@@ -56,8 +61,22 @@ function liveDot(status){
    -- reads this value rather than re-deriving it from some other field. That is what lets
    an absent badge mean one thing only ("he did not do it"): "not yet known" is state
    'toplay', which never reaches badgeHtml at all, so nothing downstream can confuse the
-   two. */
+   two.
+
+   'fulltime' (added 2026-08-22, see match_status's own comment) deliberately maps into
+   the SAME four states rather than growing a fifth: the total genuinely can still move
+   (bonus is not settled), so it draws everything 'live' draws -- the points figure, the
+   badge row, the asterisk -- and must not fall through to 'toplay'. The one place it does
+   NOT behave like 'live' is the dot beside the opponent chip, and that is liveDot's job,
+   not this function's: liveDot reads match_status directly, so it already tells 'live'
+   and 'fulltime' apart without cardState needing a fifth value to do it.
+
+   The dnp rule gets the same "full time is knowable" treatment as everything else here:
+   at 'finished' zero minutes is DNP, and at 'fulltime' it is too, deliberately -- the
+   match is over either way, so "did not play" is already a fact, not a placeholder for
+   one. */
 function cardState(p){
+  if(p.match_status === 'fulltime') return p.minutes > 0 ? 'live' : 'dnp';
   if(p.match_status === 'live') return 'live';
   if(p.match_status === 'finished') return p.minutes > 0 ? 'played' : 'dnp';
   return 'toplay'; // "scheduled", or empty before a season has a current gameweek at all
@@ -89,8 +108,13 @@ function badgeHtml(p, state){
     push('pos','PS',p.penalties_saved,`${p.penalties_saved} ${plural(p.penalties_saved,'penalty saved','penalties saved')}`);
   // DC loses its count and loses red once a match is finished: the bar is cleared or it
   // is not, and a red pill would be a verdict where the absent badge already says "he
-  // earned nothing here". The count survives only in 'live', where it is genuinely
-  // progress toward a bar rather than a verdict, so it is neutral (--ink3/.pend) there.
+  // earned nothing here". The count survives in cardState 'live', shown neutral
+  // (--ink3/.pend) there. ⚠️ That state now covers 'fulltime' too (2026-08-22, see
+  // cardState's own comment), where the count is no longer "progress toward a bar" --
+  // full time has been reached, so a card in this branch there is already the final
+  // answer, just displayed with the same not-yet-a-verdict styling 'live' uses.
+  // Deliberate: splitting a fifth visual state out for it is a decision beyond the four
+  // defects this change fixes, not an oversight.
   // The two conditions are mutually exclusive by construction (def_con_reached is only
   // ever non-null once his match has kicked off).
   if(p.def_con_reached === true){
@@ -132,6 +156,24 @@ function bonusHtml(p){
   return `<span class="tpbon" title="${esc(title)}">${disp}B</span>`;
 }
 
+/* breakdownTitle turns p.breakdown -- computed server-side, see
+   internal/viewmodel.TeamPlayer.Breakdown's own comment for why this script never derives
+   it -- into the hover text for .tppts: one component per line, `title` honours \n. Empty
+   string (so ptsHtml adds no title attribute at all) before anything has happened, or
+   whenever the server withheld a disagreeing breakdown.
+
+   The sign is rendered here, not server-side -- the same kind of display arithmetic
+   ptsHtml already does for the doubled figure below, formatting a decided list rather
+   than deriving one. */
+function breakdownTitle(p){
+  if(!p.breakdown || !p.breakdown.length) return '';
+  return p.breakdown.map(l => {
+    const sign = l.points < 0 ? '−' : '+';
+    const detail = l.detail ? `  ${l.detail}` : '';
+    return `${l.label}${detail}  ${sign}${Math.abs(l.points)}`;
+  }).join('\n');
+}
+
 /* ptsHtml is the points slot -- three shapes for three facts, never alike, so a saved
    screenshot never reads one as another:
      'toplay' -- nothing is known, so nothing numeric renders. Not 0: a match that has not
@@ -140,8 +182,15 @@ function bonusHtml(p){
                  one. Colour alone would be too weak a carrier for the pair most damaging
                  to confuse.
      'live'/'played' -- the doubled figure (see teamCard's own comment on the captain), an
-                 asterisk while the match is still live and bonus is not settled, or the
-                 settled bonus token once it is. */
+                 asterisk while the match is still live OR played out but not yet settled
+                 (see match_status's "fulltime"), or the settled bonus token once it is.
+
+   The hover breakdown (Defect 4, 2026-08-22) is a `title` on the WHOLE slot, not on the
+   numeral alone, so it is reachable wherever the figure renders -- 'live' and 'played'
+   both get it, the two states that ever carry a non-empty Breakdown. It supplements the
+   asterisk's own title (Defect 3's legend does the same, for touch); it does not replace
+   it, and hovering the asterisk itself still shows its own narrower text, since a nested
+   element's title wins over its ancestor's. */
 function ptsHtml(p, state){
   if(state === 'toplay') return '<div class="tppts"><span class="tpstate">To play</span></div>';
   if(state === 'dnp') return '<div class="tppts"><span class="tpstate" title="Did not play">DNP</span></div>';
@@ -149,14 +198,17 @@ function ptsHtml(p, state){
   // Bench (multiplier 0) special-cases to the raw figure his card is actually reporting.
   const disp = p.multiplier === 0 ? p.points : p.points * p.multiplier;
   const num = `<b${disp<0?' class="neg"':''}>${disp}</b>`;
+  const title = breakdownTitle(p);
+  const attr = title ? ` title="${esc(title)}"` : '';
   if(state === 'live'){
-    // The asterisk marks the NUMBER, not the bonus slot: during a live match it is not
-    // merely the bonus that is unknown, it is the total, which is still moving. See
-    // houseLiveSources -- match_status is "finished" iff FPL has applied bonus, so 'live'
-    // is exactly the window with no honest bonus figure to show.
-    return `<div class="tppts">${num}<i class="tpprov" title="Provisional — bonus is not settled">*</i></div>`;
+    // The asterisk marks the NUMBER, not the bonus slot: while the match_status is
+    // 'live' or 'fulltime' it is not merely the bonus that is unknown, it is the total,
+    // which is still moving until match_status reaches 'finished' (FPL applies bonus at
+    // the same moment it settles FinishedProvisional into Finished -- see
+    // houseLiveSources).
+    return `<div class="tppts"${attr}>${num}<i class="tpprov" title="Provisional — bonus is not settled">*</i></div>`;
   }
-  return `<div class="tppts">${num}${bonusHtml(p)}</div>`;
+  return `<div class="tppts"${attr}>${num}${bonusHtml(p)}</div>`;
 }
 
 /* teamCard draws one results card. The band chip (C / 3× / V) is driven by Multiplier, NOT
@@ -215,6 +267,18 @@ function pitchHtml(ht){
   const benchNote = last && last.bench_points > 0
     ? `<span class="teambenchpts">${last.bench_points} pts left on the bench</span>` : '';
 
+  // Defect 3, 2026-08-22: the owner asked what the asterisk meant, and its only
+  // explanation was a `title`, which a touch device cannot reach at all (see
+  // ptsHtml's own comment -- this legend supplements that title, it does not
+  // replace it). Renders only when at least one card actually carries the mark --
+  // cardState(p)==='live' is exactly ptsHtml's own asterisk condition, covering both
+  // a genuinely in-progress match and an ended-but-unsettled 'fulltime' one, so a
+  // fully settled gameweek shows no legend for a mark that is not on screen.
+  const anyProvisional = [...(ht.xi||[]), ...(ht.bench||[])].some(p => cardState(p) === 'live');
+  const legend = anyProvisional
+    ? `<div class="teamlegend">* Still to be settled — FPL confirms bonus after full time.</div>`
+    : '';
+
   return `
     <div class="teamformation">
       <span class="k">Formation</span>
@@ -225,6 +289,7 @@ function pitchHtml(ht){
       <span class="k">Bench</span>${benchNote}
       <div class="teambenchrow">${bench}</div>
     </div>` : ''}
+    ${legend}
   `;
 }
 
