@@ -21,7 +21,7 @@
  * This page's tense is "what happened", never "what might happen" -- see results.js's
  * cardState and scoreboard. Every number here arrives from /api/armband-team already
  * decided; this script computes no model quantity and derives no gameweek state (see
- * internal/viewmodel.HouseTeam.ResultState's own comment for why that one lives
+ * internal/viewmodel.Results.ResultState's own comment for why that one lives
  * server-side, in cmd/armband.houseLiveSources, and not here).
  *
  * Vanilla DOM, no framework, no build step, same as app.js.
@@ -31,7 +31,7 @@
 fetch('/api/armband-team', {credentials:'same-origin'})
   .then(r => { if(!r.ok) throw new Error(`the server answered ${r.status}`); return r.json(); })
   .then(st => {
-    const ht = st.house_team;
+    const ht = st.results;
     const houseEl = document.getElementById('houseteam');
     const pitchEl = document.getElementById('teampitch');
     if(!ht){

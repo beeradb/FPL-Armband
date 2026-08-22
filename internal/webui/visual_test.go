@@ -101,7 +101,7 @@ func serve(t *testing.T, fixture string) *httptest.Server {
 	})
 	// /armband-team is a separate document from /app on purpose (see
 	// cmd/armband/webroutes.go's routeArmbandTeam comment) -- its data happens to come
-	// from the same fixture file here only because HouseTeam already rides along in
+	// from the same fixture file here only because Results already rides along in
 	// State for this test's convenience; the real server builds it from an entirely
 	// different, session-less path (armbandTeamState).
 	mux.HandleFunc("/api/armband-team", func(w http.ResponseWriter, r *http.Request) {

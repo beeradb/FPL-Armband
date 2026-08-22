@@ -6,7 +6,7 @@
  *
  * Its tense is "what happened", never "what might happen" -- see cardState and scoreboard.
  * Every number it draws arrives already decided; this module computes no model quantity and
- * derives no gameweek state (see internal/viewmodel.HouseTeam.ResultState's own comment for
+ * derives no gameweek state (see internal/viewmodel.Results.ResultState's own comment for
  * why that one lives server-side, in cmd/armband.houseLiveSources, and not here).
  *
  * Vanilla DOM, no framework, no build step, same as app.js and gate.js. Exposed as one
@@ -307,7 +307,7 @@ function pitch(r){
 /* scoreboard is the header row: a scoreboard for one completed gameweek, not a
    projection -- the old "GW{n} projected" cell paired the rail's Current gameweek with
    this squad's own score-bug figure, which are routinely different gameweeks the moment a
-   deadline has passed but the rail has not rolled over (see viewmodel.HouseTeam's own
+   deadline has passed but the rail has not rolled over (see viewmodel.Results's own
    comment). Removing the cell removes the bug; there is no replacement projection here on
    purpose.
 
@@ -327,7 +327,7 @@ function scoreboard(r){
   // Points reads live_points while the gameweek is still being played and
   // history[last].points once FPL has settled it -- FPL itself reports 0 for
   // history[last].points until scoring finishes, which is exactly the state a reader
-  // is most likely to check this page in (see viewmodel.HouseTeam.LivePoints's own
+  // is most likely to check this page in (see viewmodel.Results.LivePoints's own
   // comment; this script sums neither figure, it only picks which server-decided one
   // to show). One cell, one meaning, two sources depending on whether FPL has
   // settled. The LIVE/FINAL chip above already tells the reader which one they are
