@@ -1803,7 +1803,7 @@ func (e *Engine) metricsIgnoring(el *fpl.Element, ignoreCode int) PlayerMetrics 
 	m.XGScale, m.XAScale = sc.Goals, sc.Assists
 	m.TournamentAbsence = e.tournamentAbsence(el).Name
 	m.MinutesRating = reliabilityFrom(b, e.minutesExponent(el.ElementType))
-	m.RotationRisk = rotationLabel(m.ExpectedMinutes)
+	m.RotationRisk = rotationLabel(m.ExpectedMinutes, e.minutesCorroborated(el, ignoreCode))
 	m.NewSigning, m.JoinedDate = e.newSigning(el)
 
 	// The door. Everything below this line PRICES a player, and a position the
@@ -2478,10 +2478,20 @@ func (e *Engine) matchesAvailable(el *fpl.Element) int {
 }
 
 // rotationLabel turns expected minutes into a plain-language risk band.
-func rotationLabel(expMins float64) string {
+//
+// "nailed" additionally requires corroborated to be true — see
+// Engine.minutesCorroborated for what that means and why a point estimate
+// cannot decide it alone. Everything below "nailed" is unaffected: an
+// uncorroborated ≥75 estimate reads "likely starter" instead, which is the
+// band immediately below and already an honest description of "clearly
+// playing regularly, not yet established beyond doubt".
+func rotationLabel(expMins float64, corroborated bool) string {
 	switch {
 	case expMins >= 75:
-		return "nailed"
+		if corroborated {
+			return "nailed"
+		}
+		return "likely starter"
 	case expMins >= 60:
 		return "likely starter"
 	case expMins >= 40:
