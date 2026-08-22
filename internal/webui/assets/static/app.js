@@ -247,6 +247,11 @@ function hydrate(st){
   GWS=(st.gameweeks||[]).map(g=>({
     gw:g.gw, deadline:g.deadline ? new Date(g.deadline) : null,
     d:g.deadline ? fmtDeadline(new Date(g.deadline)) : '',
+    /* Closed only ever arrives true for an imported reader -- buildGameweeks
+       (internal/viewmodel) drops a closed week for everyone else -- and renderRail's whole
+       job with it is to stop a tab click opening the planning surface for a week that is
+       already played and scored. See that function's own comment. */
+    closed:!!g.closed,
     chip:CHIPKEY[g.chip]||null, live:!!g.current, projected:g.projected,
     /* Which chips the competition allows THIS week, decided by the model. Gameweek one
        offers only the bench boost and the triple captain -- a wildcard buys nothing when
@@ -783,18 +788,33 @@ function renderRail(){
     const c=CHIPS.find(c=>c.k===g.chip);
     /* The window boundary is a fact about the calendar, so it lives on the calendar: the
        19px .chipslot already reserves per week, on the window's last week, quiet ink while
-       the pill is quiet and amber when the pill is amber. Because the rail only shows the
-       current week and the ones ahead, GW{endsGw} walks into view on its own about five
-       weeks out -- the reader meets the deadline before the alarm (NOTES.md §4). */
+       the pill is quiet and amber when the pill is amber. The rail shows the current week
+       and the ones ahead PLUS, for an imported reader, the closed weeks behind it
+       (buildGameweeks) -- so GW{endsGw} no longer always walks into view five weeks out on
+       its own; an imported reader can find it much sooner, already on screen. 2026-08-22:
+       corrected after the closed-week guard below made the old five-week claim false for
+       that reader. */
     const slot=c?`<span class="pill on">${c.ic} ${c.n}</span>`
       :(g.gw===CHIPWIN.endsGw?`<span class="wend${due?' due':''}">Chips end</span>`:'');
+    /* A closed week (g.closed) only reaches this rail at all for an imported reader --
+       buildGameweeks drops it for everyone else, see viewmodel.Gameweek.Closed's own
+       comment. This rail has nothing to open for one: every control behind a tab click --
+       Optimise, Reset, drag-to-reorder, locks, the chip control -- edits a hypothetical
+       eleven for a week that is already played and scored, and none of it can do anything
+       there. Disabled, not omitted: the reader should still see that the week happened, not
+       watch it vanish the moment they import. Showing what ACTUALLY happened that week is a
+       separate, larger piece of work (fetch GET /api/results, render results into this
+       view, hide the planning controls) and is not this guard's job -- this only stops the
+       broken state being reachable until that lands. Found 2026-08-22: the guard existed on
+       the server (viewmodel.Gameweek.Closed) with no client-side handling at all, reachable
+       the moment PUT /api/import stopped being blocked by the deployment's own 403. */
     return `<button class="gw${g.live?' live':''}" role="tab" data-gw="${g.gw}"
-      aria-selected="${g.gw===S.gw}">
-      <div class="n">GW${g.gw}${g.live?' <span class="k" style="letter-spacing:.1em">NOW</span>':''}</div>
+      aria-selected="${g.gw===S.gw}"${g.closed?' disabled title="This gameweek is already played — results for past gameweeks aren’t shown here yet."':''}>
+      <div class="n">GW${g.gw}${g.live?' <span class="k" style="letter-spacing:.1em">NOW</span>':g.closed?' <span class="k" style="letter-spacing:.1em">PAST</span>':''}</div>
       <div class="d">${g.d}</div>
       <div class="chipslot">${slot}</div>
     </button>`;}).join('');
-  el.querySelectorAll('.gw').forEach(b=>b.onclick=()=>{S.gw=+b.dataset.gw;renderAll();});
+  el.querySelectorAll('.gw').forEach(b=>{ if(!b.disabled) b.onclick=()=>{S.gw=+b.dataset.gw;renderAll();}; });
 }
 
 /* ============================================================
@@ -2907,7 +2927,19 @@ function skipImport(){
      locks, excludes, dismissed overrides and chip placements the reader already has, and
      saveSession would store their absence as "gone" rather than "unchanged". sendSave's own
      hydrate(st) call hides the card once the server confirms noimp stuck; it must not be
-     hidden here first, or a failed save would still look like it took. */
+     hidden here first, or a failed save would still look like it took.
+
+     ⚠️ importPanelOpenedByReader must be cleared HERE, not left to closeImportCard(). Found
+     2026-08-22: #squadsource's action button calls openImportCard() in every state it
+     offers, including the first-run one where hydrate() has already auto-opened the panel --
+     so pressing it there (redundant on screen, but nothing stops it) sets the flag before
+     "Not now" is ever pressed. hydrate()'s closing clause is
+     `!imp.open || (imp.skipped && !importPanelOpenedByReader)`, and with the flag left set
+     that clause never fires: the save lands, imp.skipped goes true, and the panel stays
+     open. "Not now" is a deliberate dismissal and must beat the flag, since dismissing IS
+     the reader closing it -- pinned by
+     TestNotNowClosesThePanelEvenAfterTheReaderReopenedIt. */
+  importPanelOpenedByReader=false;
   save(p=>{ p.noimp=true; });
 }
 

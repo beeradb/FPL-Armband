@@ -42,7 +42,11 @@ fetch('/api/armband-team', {credentials:'same-origin'})
     // Names the saved copy in the one place a crawler never reads and every browser
     // surface does: the tab, the bookmark, the history entry and "Save Page As" all read
     // document.title, not og:title (see team.html for why the OG card stays generic).
-    if(ht.result_event) document.title = `Gameweek ${ht.result_event} — our team — FPL Armband`;
+    //
+    // "FPL Armband's Team", not "our team" -- once a reader has imported their own squad
+    // into /app, "our" reads as ambiguous (whose?), the same defect the owner flagged on
+    // the nav link and the pill on this page's own <title> (see team.html). 2026-08-22.
+    if(ht.result_event) document.title = `Gameweek ${ht.result_event} — FPL Armband’s Team`;
     if(houseEl) houseEl.innerHTML = ArmbandResults.scoreboard(ht);
     if(pitchEl) pitchEl.innerHTML = ArmbandResults.pitch(ht);
   })
