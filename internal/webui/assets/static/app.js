@@ -2635,7 +2635,7 @@ function renderSquadSource(){
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
 
-/* renderHouseTeam draws the identity strip above the score bug from STATE.results, the
+/* renderResultsStrip draws the identity strip above the score bug from STATE.results, the
    site's own FPL squad (config.EntryID) run through the identical pipeline as the
    reader's -- context for whose pitch this is, nothing else. Absent means EntryID is unset
    or the fetch failed this request -- the element is then left empty rather than shown
@@ -2655,7 +2655,7 @@ function renderSquadSource(){
    different week). This page already draws this squad's own projection in the score bug
    directly below, so the cell was a second, sometimes-wrong copy of a number already on
    screen — removing it removes both the bug and the redundancy. */
-function renderHouseTeam(){
+function renderResultsStrip(){
   const el=document.getElementById('houseteam');
   if(!el) return;
   const h=STATE.results;
@@ -2669,7 +2669,7 @@ function renderHouseTeam(){
   </div>`;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderNewsCallout();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderHouseTeam();}
+function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderNewsCallout();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderResultsStrip();}
 
 /* boot fetches the state and draws once.
 

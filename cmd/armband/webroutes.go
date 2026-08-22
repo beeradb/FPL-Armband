@@ -109,6 +109,20 @@ const signupOrigin = "https://fplarmband.com"
 // Two documents, two policies, and the difference is one entry on one directive. If a third
 // document ever appears, this stops being a switch and starts being a table.
 //
+// ⚠️ THE FPL API CANNOT BE ADDED HERE, AND THE REASON IS NOT THE ONE ABOVE. The paragraph
+// above is an XSS argument, which invites the reading that a sufficiently careful case
+// could justify letting the browser call fantasy.premierleague.com directly and save the
+// server a round trip. It could not, because the browser would be refused anyway:
+//
+//	curl -sI -H 'Origin: https://fplarmband.com' \
+//	  https://fantasy.premierleague.com/api/bootstrap-static/
+//
+// answers 200 with NO Access-Control-Allow-Origin of any kind, and additionally
+// cross-origin-resource-policy: same-origin. Measured 2026-08-22. So a fetch from the page
+// completes and the response is then withheld from it — widening this directive buys a
+// broken feature and a weaker policy, in that order. Anything the client needs from FPL is
+// proxied by this server; GET /api/results is the pattern.
+//
 // ga4 adds a second, independent exception to the same directive, and it is ALWAYS false
 // for page != "landing" -- checked inside this function, not only by the caller, so a
 // mistake in servePage's call cannot widen the application's policy. See scriptSrcFor for

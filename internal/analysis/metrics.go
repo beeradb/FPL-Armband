@@ -2808,7 +2808,7 @@ func (e *Engine) bonusEvidence(el *fpl.Element) float64 {
 // Exported so a caller outside this package can ask "did he clear the bar this
 // match" against a real per-match count (from the FPL live endpoint), rather
 // than restate FPL's own rule a second time — see
-// internal/viewmodel.buildHouseTeam, which does exactly that for the spectator
+// internal/viewmodel.buildResults, which does exactly that for the spectator
 // team page. Not exported for a match FPL has not scored yet: this function
 // only names the bar, it does not know whether anyone has reached it.
 func DefConThreshold(pos int) int {

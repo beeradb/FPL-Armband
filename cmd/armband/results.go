@@ -179,10 +179,17 @@ func (s *squadServer) apiResults(w http.ResponseWriter, r *http.Request) {
 // for PUT /api/import, where an anonymous visitor can make the disk cache's file count
 // grow just by typing digits into a form, whether or not a real team exists behind them.
 // session.Entry is narrower than that: it can only be an id that already passed
-// EntryUncached's own existence check at import time, and — the design's own corrected
-// note — a closed gameweek's picks never change, so a fetched entry or squad is safe to
-// keep on the cached path houseRealPicks already argues for the site's own account. See
-// the design note this route was built from for the correction this replaced.
+// EntryUncached's own existence check at import time, and a closed gameweek's picks never
+// change — Client.Picks: "Only available once that gameweek's deadline has passed" — so a
+// fetched entry or squad is safe on the cached path houseRealPicks already argues for the
+// site's own account.
+//
+// ⚠️ An earlier draft of this route gated the cached path on the gameweek being SETTLED
+// rather than merely CLOSED, and the difference matters: a squad locks at the deadline, so
+// its picks are immutable from that instant, while settlement is about bonus and lands
+// hours later. Caching picks needs the first fact and not the second. It is the live STATS
+// that must never be memoised, which is why houseLiveSources fetches those fresh every
+// time and only the HTTP response caching turns on ResultState (see writeResult).
 func (s *squadServer) entryCached(ctx context.Context, id int) (*fpl.Entry, error) {
 	if s.fetchEntry != nil {
 		return s.fetchEntry(ctx, id)
@@ -219,7 +226,7 @@ func eventByID(boot *fpl.Bootstrap, id int) *fpl.Event {
 }
 
 // writeResult sends a GET /api/results document, cached according to whether the
-// gameweek it describes can still change — see routeResults' own design note.
+// gameweek it describes can still change — see routeResults' own comment in webroutes.go.
 //
 // "final" (every fixture in the gameweek is FPL-Finished, bonus applied and checked)
 // never changes again, so the response may cache hard. "live" and "fulltime" can still
