@@ -136,6 +136,89 @@ func TestPriorlessPlayersShrinkToTheLeague(t *testing.T) {
 	}
 }
 
+// partialGameweekEngine builds a synthetic engine caught in the exact window
+// GameweeksPlayed() cannot see: one club's fixture has kicked off, but no
+// Event is Finished, because a Premier League gameweek spans days and this one
+// has not finished yet. It cannot be built on roleEngine/playGameweeks — that
+// helper always finishes a fixture and its event together — and it cannot be
+// built on the live API either: skipDuringLiveGW1Gap in datawindow_test.go
+// documents that this package's tests cannot load a prior season the way
+// cmd/armband's live server does, so live data in this exact window proves
+// nothing about the model.
+func partialGameweekEngine(t *testing.T) (*Engine, *fpl.Element) {
+	t.Helper()
+	established := fpl.Element{
+		ID: 1, Code: 1, WebName: "Established", ElementType: 3, Team: 2,
+		NowCost: 60, Status: "a", Minutes: 3000, Starts: 33,
+		ExpectedGoals: 8, ExpectedAssists: 6, ExpectedGoalsConceded: 40, Bonus: 10,
+	}
+	debutant := fpl.Element{
+		ID: 2, Code: 2, WebName: "Debutant", ElementType: 3, Team: 1,
+		NowCost: 45, Status: "a",
+	}
+	b := &fpl.Bootstrap{
+		Season: "2026-27",
+		Teams: []fpl.Team{
+			{ID: 1, ShortName: "AAA", Strength: 3},
+			{ID: 2, ShortName: "BBB", Strength: 3},
+		},
+		ElementTypes: []fpl.ElementType{
+			{ID: 1, SingularNameShort: "GKP"}, {ID: 2, SingularNameShort: "DEF"},
+			{ID: 3, SingularNameShort: "MID"}, {ID: 4, SingularNameShort: "FWD"},
+		},
+		Elements: []fpl.Element{established, debutant},
+	}
+	for i := 1; i <= 38; i++ {
+		b.Events = append(b.Events, fpl.Event{ID: i, Name: "Gameweek"})
+	}
+	gw1 := 1
+	fx := []fpl.Fixture{
+		// Kicked off and even finished — real football has happened — but no
+		// Event.Finished is set anywhere, which is what GameweeksPlayed() reads.
+		// That is the live GW1 gap: this fixture is done while the gameweek it
+		// belongs to is not.
+		{ID: 1, Event: &gw1, TeamH: 1, TeamA: 2, Started: true, Finished: true},
+	}
+	e := NewEngineFull(b, fx, DefaultWeights(), Congestion{}, RoleRisk{})
+	return e, &e.Boot.Elements[1]
+}
+
+// TestPlayersWhoHaveAlreadyPlayedShrinkDuringThePartialGameweek reproduces the
+// live GW1 failure directly: GameweeksPlayed() reads 0 for days after real
+// matches have happened, because it waits for the whole gameweek to finish
+// rather than for a club's own fixture to start. A player with no prior of his
+// own and a real cameo already on the board then hit blendForCode's
+// "pre-season, nothing to blend against" branch and came back raw — his three
+// bonus points in thirty minutes read as nine bonus a gameweek — rather than
+// through shrinkToLeague, the same defect 1a6f0a3 fixed one call site over.
+func TestPlayersWhoHaveAlreadyPlayedShrinkDuringThePartialGameweek(t *testing.T) {
+	e, debutant := partialGameweekEngine(t)
+	e.Priors = fakePriors{} // empty: nobody has a prior
+
+	if e.GameweeksPlayed() != 0 {
+		t.Fatalf("GameweeksPlayed() = %d, want 0 — this test is about the gap "+
+			"where it is still 0 despite real football", e.GameweeksPlayed())
+	}
+	if !e.SeasonHasStarted() {
+		t.Fatal("SeasonHasStarted() is false; the fixture setup is not exercising the gap")
+	}
+
+	debutant.Minutes, debutant.Starts, debutant.Bonus = 30, 1, 3 // a cameo, three bonus points
+	m := e.Metrics(debutant)
+
+	if m.PriorWeight >= 0.5 {
+		t.Errorf("one cameo carries weight %.2f; a debut whose club just kicked off "+
+			"is not half a season of evidence", m.PriorWeight)
+	}
+	// Raw, three bonus in thirty minutes reads as nine bonus every gameweek.
+	// Shrunk toward the league rate it should read nowhere close.
+	if m.Bonus90 > 2.0 {
+		t.Errorf("bonus/90 is %.2f off a single thirty-minute cameo; the league rate "+
+			"should have pulled it well below the raw 9.0 — SeasonHasStarted's gate "+
+			"is not taking effect", m.Bonus90)
+	}
+}
+
 // TestCountingStatsGoThroughTheBlend guards a bug that survived the first blend.
 //
 // Bonus, saves and cards were read straight off the element as count*90/minutes

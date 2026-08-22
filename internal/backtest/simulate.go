@@ -256,8 +256,18 @@ func playedFixtures(all []fpl.Fixture, through int) []fpl.Fixture {
 	for _, f := range all {
 		if f.Event != nil && *f.Event <= through {
 			f.Finished = f.TeamHScore != nil && f.TeamAScore != nil
+			// The archive never models "in progress" — a historical gameweek at or
+			// before `through` is played in full, or not at all. Started tracks
+			// Finished's own gate rather than a separate concept, so
+			// analysis.SeasonHasStarted() (which keys on Started, not Finished, to
+			// catch a gameweek mid-flight) reads a completed replay correctly
+			// instead of reading permanently pre-season. season.go's raw archive
+			// build leaves Started at its zero value on purpose; this is the
+			// point-in-time layer that is allowed an opinion about what has played.
+			f.Started = true
 		} else {
 			f.Finished = false
+			f.Started = false
 			f.TeamHScore, f.TeamAScore = nil, nil
 		}
 		out = append(out, f)
