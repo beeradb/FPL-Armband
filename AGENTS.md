@@ -248,6 +248,11 @@ it is replay documentation, needed when running a sweep, not every run. → **ar
   affordable to run, the binding constraint on this enterprise; velocity is the same argument one
   layer up; a scoring fix changes `Score`, therefore the ordering, therefore which footballers
   get bought.
+- **A staging environment exists now** — a second copy of the app in its own namespace, in the
+  separate ops/deployment repo, first used 2026-08-22 to verify a live-API fix before promoting
+  it to production. **Verify on staging against real live data before promoting, not just `go
+  test`**, for anything touching account-specific or live-API-dependent paths — that class of
+  bug passed every test and still broke `fplarmband.com` within minutes of a deploy the same day.
 - **Convert per-gameweek figures by multiplying by 38. Never divide a pooled total by the cell
   count.** The six entry points give cells of 38/33/28/23/18/13 gameweeks (mean 25.5), so
   dividing by 36 understates by about a third.
