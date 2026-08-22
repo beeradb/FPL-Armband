@@ -410,7 +410,13 @@ func (t *Toolbox) searchPlayers() (anthropic.BetaTool, error) {
 				if in.MinPrice > 0 && m.Price < in.MinPrice-1e-9 {
 					continue
 				}
-				if m.Minutes < t.Engine.ScaledMinMinutes(in.MinMinutes) {
+				// Scaled on this player's OWN club, exactly as Optimize's pool
+				// filter scales it. The two are one quantity — "what does a
+				// season-total minutes floor mean right now" — and the agent
+				// asking which players clear a floor must get the same answer as
+				// the optimiser deciding which players it may buy, or the agent
+				// recommends a footballer the optimiser cannot reach.
+				if m.Minutes < t.Engine.ScaledMinMinutesFor(m.TeamID, in.MinMinutes) {
 					continue
 				}
 				if in.MinExpectedMinutes > 0 && m.SettledMinutes < in.MinExpectedMinutes {
