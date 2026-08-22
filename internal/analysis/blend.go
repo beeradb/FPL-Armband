@@ -401,6 +401,13 @@ func (e *Engine) blendRates(el *fpl.Element, m PlayerMetrics) blend {
 // at both places blendRates reads one. See blendForCode for why this is a
 // parameter on the one implementation rather than a second copy of it.
 func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int) blend {
+	// played gates the recency index below (Recent != nil && played > 0), not
+	// bonus/minutes evidence — leave it on GameweeksPlayed, deliberately: a
+	// recency index built over a single, still-live gameweek adds nothing over
+	// el.Minutes itself. cmd/armband/main.go gates FETCHING that same index on
+	// GameweeksPlayed() > 0 too (search "engine.GameweeksPlayed() > 0" there) —
+	// the two are a matched pair. Changing either alone is safe on its own (a
+	// wasted fetch, or a nil index read here); changing them apart is not.
 	played := e.GameweeksPlayed()
 	avail := e.matchesAvailable(el)
 	minsPerMatch := float64(el.Minutes) / float64(avail)

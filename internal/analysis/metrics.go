@@ -2340,6 +2340,40 @@ func (e *Engine) DataWindow() int {
 	return GameweeksPerSeason
 }
 
+// inLiveGameweekGap is true during the multi-day span between a gameweek's
+// first kickoff and its last final whistle: SeasonHasStarted is true (FPL has
+// zeroed the whole league's aggregates) but GameweeksPlayed is still 0 (no
+// gameweek has FINISHED). GameweeksPlayed walks 38 Events; SeasonHasStarted
+// walks 380 Fixtures — ordered this way round, the cheap term short-circuits
+// the expensive one for all but a few days a season.
+//
+// This is the one thing every consumer of the gap actually needs to ask, but
+// what to DO once it is true differs by what the caller is computing, and
+// collapsing that into one shared answer would be wrong. Three classes, found
+// by auditing every call site in this package on 2026-08-22 after the fourth
+// incident in this defect family (PR #44):
+//
+//   - Class A, a rate DENOMINATOR (matchesAvailable): fall back to
+//     TeamMatchesStarted, and only when it is > 0. A club that has not kicked
+//     off keeps the season-wide window, because a per-club 0 here would divide
+//     a genuine zero numerator by zero evidence and read as "38 matches of
+//     proof he doesn't play" — see blend.go's comment on the identical trap.
+//   - Class B, an evidence COUNT or sample-size THRESHOLD (minutesFloorWindow,
+//     blend.go's minutes-evidence mix): substitute TeamMatchesFinished,
+//     ALWAYS, including when it is 0. Zero is the right answer there — with no
+//     completed match, there is no sample, so the test cannot be applied at
+//     all. Mirroring Class A's >0 guard here is what shipped PR #44's
+//     incident: it left roughly half the league, the clubs with zero fixtures
+//     started, stuck on the unscaled pre-season default.
+//   - Class C, aggregate PROVENANCE ("have FPL's aggregates been zeroed yet"):
+//     not per-club at all. FPL zeroes the WHOLE LEAGUE the moment the season's
+//     first ball is kicked, confirmed live and recorded on blend.go's
+//     SeasonHasStarted comment — reaching for a per-club signal here is
+//     exactly the mistake this predicate exists to head off.
+func (e *Engine) inLiveGameweekGap() bool {
+	return e.GameweeksPlayed() == 0 && e.SeasonHasStarted()
+}
+
 // minutesFloorWindow is how many matches of RECORDED, FINAL football a given
 // club's players have behind them in FPL's current aggregates — the window a
 // season-total minutes floor has to be scaled to before it can be compared
@@ -2366,7 +2400,7 @@ func (e *Engine) DataWindow() int {
 // floor (cutByExpectedMinutes, read off SettledMinutes, which blend.go backs
 // with the prior season) is what carries the screening there.
 func (e *Engine) minutesFloorWindow(teamID int) int {
-	if e.SeasonHasStarted() && e.GameweeksPlayed() == 0 {
+	if e.inLiveGameweekGap() {
 		return e.TeamMatchesFinished(teamID)
 	}
 	return e.DataWindow()
@@ -2410,21 +2444,28 @@ func (e *Engine) ScaledMinMinutesFor(teamID, seasonTotal int) int {
 // The base window is the season-wide DataWindow — the number of gameweeks
 // FPL's own aggregates actually cover, real for a backtest's point-in-time
 // reconstruction and for mid-season play alike. It is overridden by his own
-// club's TeamMatchesStarted only in the one case those two disagree: DataWindow
-// still reads a full pre-season 38 (GameweeksPlayed is 0 — no gameweek has
-// FINISHED), while his club has already kicked off at least one live match, so
-// the aggregate really does cover just that much. In a backtest this only
-// arises at through==38 (PointInTimeWith sets GameweeksPlayed==through
-// otherwise); playedFixtures now sets Fixture.Started there too, so
-// TeamMatchesStarted agrees with window and the override is a no-op — not
-// because it is unconditionally zero, as before that fix. It must still not
-// fire against a real, non-preseason DataWindow: doing so once divided a
-// synthetic GW7 ever-present's accumulated minutes by 38 instead of 7,
-// landing every player in the "fringe" band regardless of how much of the
-// season had actually been played. See TestPointInTimeMarksGameweeksFinished.
+// club's TeamMatchesStarted only inLiveGameweekGap (Class A there — see that
+// predicate's comment): his club has already kicked off at least one live
+// match, so the aggregate really does cover just that much, and the override
+// only fires when TeamMatchesStarted is itself positive.
+//
+// This used to be spelled as `window == GameweeksPerSeason` rather than the
+// predicate — a PROXY for the gap that also matches a genuine
+// GameweeksPlayed()==38 at a season's end. Harmless today (every fixture by
+// then has Started, so TeamMatchesStarted==38 and the override is a no-op),
+// but a single postponed final-day fixture would have made the proxy fire and
+// silently changed that club's denominator from 38 to 37. inLiveGameweekGap
+// says what is meant instead of what merely correlates with it. In a backtest
+// the predicate is never true at all — playedFixtures now sets Fixture.Started
+// alongside Finished, so GameweeksPlayed and SeasonHasStarted never disagree
+// there. It must still not fire against a real, non-preseason DataWindow:
+// doing so once divided a synthetic GW7 ever-present's accumulated minutes by
+// 38 instead of 7, landing every player in the "fringe" band regardless of how
+// much of the season had actually been played. See
+// TestPointInTimeMarksGameweeksFinished.
 func (e *Engine) matchesAvailable(el *fpl.Element) int {
 	window := e.DataWindow()
-	if window == GameweeksPerSeason {
+	if e.inLiveGameweekGap() {
 		if started := e.TeamMatchesStarted(el.Team); started > 0 {
 			window = started
 		}
@@ -2790,8 +2831,20 @@ func (e *Engine) bonusWeightFor(el *fpl.Element) float64 {
 
 // bonusEvidence is the share of a player's bonus rate that comes from the
 // current season: zero before a ball is kicked, rising as he plays.
+//
+// Class C (see inLiveGameweekGap): the question is whether el.Minutes
+// describes THIS season at all, which is a league-wide fact — FPL zeroes
+// every club's aggregates at the season's first kickoff, not at each club's
+// own. No per-club signal is wanted here, and none is needed: el.Minutes
+// already IS this player's own evidence count, so a player at a club that has
+// not kicked off contributes n90 = 0 and lands on the prior end by
+// arithmetic, not by a gate. Gating on GameweeksPlayed()==0 pinned every
+// player in the game to the prior end for the whole multi-day GW1 span,
+// regardless of how much football his own club had actually played — the
+// fourth instance of the defect blend.go:474's SeasonHasStarted fix (and
+// PR #44's DataWindow fix) already closed one call site over.
 func (e *Engine) bonusEvidence(el *fpl.Element) float64 {
-	if e.GameweeksPlayed() == 0 {
+	if !e.SeasonHasStarted() {
 		return 0
 	}
 	n90 := float64(el.Minutes) / 90

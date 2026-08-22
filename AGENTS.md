@@ -248,6 +248,12 @@ it is replay documentation, needed when running a sweep, not every run. → **ar
   affordable to run, the binding constraint on this enterprise; velocity is the same argument one
   layer up; a scoring fix changes `Score`, therefore the ordering, therefore which footballers
   get bought.
+- **Verify on staging against real live data before promoting to production, not just `go
+  test`, for anything touching account-specific or live-API-dependent paths.** A staging
+  environment — a second copy of the app in its own namespace, in the separate ops/deployment
+  repo — went live 2026-08-22 and was used that same day to check a live-API fix this way before
+  it reached production. That class of bug had passed every test and still broken
+  `fplarmband.com` within minutes of a deploy earlier the same day.
 - **Convert per-gameweek figures by multiplying by 38. Never divide a pooled total by the cell
   count.** The six entry points give cells of 38/33/28/23/18/13 gameweeks (mean 25.5), so
   dividing by 36 understates by about a third.
@@ -406,10 +412,30 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   during the live GW1 gap** — `SeasonHasStarted()` true, `GameweeksPlayed()` still 0, a span of
   days — where it answers a pre-season 38 that is false for every club: FPL zeroes the whole
   league at the first kickoff, and within the gap some clubs have a completed match and some have
-  not begun. Four shipped bugs came from following this line literally (#39, #40, #42, and the
-  squad pool's minutes floor). Per club there: `matchesAvailable` for a rate DENOMINATOR,
-  `minutesFloorWindow` for a sample-size THRESHOLD, `TeamMatchesFinished` for an evidence COUNT
-  — never `TeamMatchesStarted` for the last two, since a live match's minutes are still climbing.
+  not begun. `GameweeksPlayed()>0` and `SeasonHasStarted()` are two implementations of one
+  question and agree all season except this gap — six call sites across five PRs came from
+  using the former where the latter was meant: #39, #42, the squad pool's minutes floor,
+  `bonusEvidence` and `AssemblyBudget` (both #45), `squadPriceGameweek`. (#40 shipped the same
+  day in the same window but is mechanistically distinct — a blend-weight dilution, not a
+  swapped predicate — and is not a seventh instance of this specific pattern.) Use the shared
+  `inLiveGameweekGap()` predicate, whose doc comment routes
+  every call site to one of three classes: `matchesAvailable` for a rate DENOMINATOR (per-club
+  `TeamMatchesStarted`, only when `>0`), `minutesFloorWindow`/the minutes-evidence mix for a
+  sample-size THRESHOLD or evidence COUNT (per-club `TeamMatchesFinished`, always including 0 —
+  never `TeamMatchesStarted` there, a live match's minutes are still climbing), and
+  `bonusEvidence`/`AssemblyBudget` for aggregate PROVENANCE (`SeasonHasStarted()` alone, no
+  per-club signal — the quantity itself, e.g. `el.Minutes`, already carries per-player evidence).
+  ⚠️ **Two of these bugs cancelled each other out, and fixing one exposed the other as a live
+  production incident.** `AssemblyBudget`'s gate and `run()`'s squad-price-fetch gate both used
+  `GameweeksPlayed()==0` for the same "has this manager bought anything" question; fixing the
+  first alone (correctly) turned the second's dormant nil `Bank`/`SquadValue` into a hard 500 for
+  the real production entry, deployed and rolled back within minutes. **A fix in this family is
+  only proven by exercising the live gap end to end, not by `go test` on the changed function
+  alone** — grep every other reader of the two raw predicates before shipping one fix among them.
+  Pinned by `TestTheMinutesFloorScalesOnTheClubsOwnMatches`,
+  `TestTheBonusScheduleReadsAPlayedMatchDuringTheGap`,
+  `TestSquadPriceGameweekTracksEveryGameweeksOwnGap`. →
+  **the-squad-pools-minutes-floor-was-the-fourth-datawindow-gap-bug-and-the-only-one-users-saw**
 - **Every per-90 rate must go through `blendFor`, counting stats included.**
   `TestCountingStatsGoThroughTheBlend`.
 - **A player with no prior is not a player with no uncertainty.** `shrinkToLeague` pulls rates

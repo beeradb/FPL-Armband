@@ -154,7 +154,7 @@ func TestBonusScheduleTracksEvidence(t *testing.T) {
 	}
 
 	// Pre-season the rate is entirely last season's, so the prior end applies.
-	if e.GameweeksPlayed() == 0 {
+	if !e.SeasonHasStarted() {
 		if got := e.bonusWeightFor(el); got != 0.5 {
 			t.Errorf("pre-season bonus weight %v, want the prior end 0.5 — the rate is "+
 				"entirely last season's there", got)
@@ -174,6 +174,107 @@ func TestBonusScheduleTracksEvidence(t *testing.T) {
 	e.Weights = w
 	if got := e.bonusWeightFor(el); got != w.BonusWeight {
 		t.Errorf("disabled schedule gives %v, want the flat %v", got, w.BonusWeight)
+	}
+}
+
+// TestTheBonusScheduleReadsAPlayedMatchDuringTheGap is the liveness half of the
+// fifth instance of this record's GameweeksPlayed()-vs-SeasonHasStarted()
+// defect family, found the same day PR #44 fixed the fourth: bonusEvidence
+// gated on GameweeksPlayed()==0, which stays 0 for the whole multi-day span
+// between a gameweek's first kickoff and its last final whistle — pinning
+// EVERY player's bonus weight to the pure-prior end regardless of how much
+// football his own club had actually played. Unlike the minutes floor
+// (Class B, PR #44), this needed no per-club signal: el.Minutes already IS
+// the player's own evidence count, so the fix is the provenance gate alone
+// (Class C, see inLiveGameweekGap's comment).
+func TestTheBonusScheduleReadsAPlayedMatchDuringTheGap(t *testing.T) {
+	e := floorWindowEngine(t)
+	established := &fpl.Element{Minutes: 90}
+
+	if got := e.bonusEvidence(established); got <= 0 {
+		t.Errorf("bonusEvidence = %v for a player 90 minutes into his own club's "+
+			"completed match; want > 0 — a real match already on the board must not "+
+			"read as no evidence just because no gameweek has FINISHED yet", got)
+	}
+}
+
+// TestTheBonusScheduleIsUnchangedOutsideTheGap is the confinement pair to the
+// liveness test above. It passes with the fix and without it, on purpose — a
+// confinement check on a path the change cannot reach can only ever fail, so
+// it confirms nothing on its own; TestTheBonusScheduleReadsAPlayedMatchDuringTheGap
+// is the one that must move, and does.
+func TestTheBonusScheduleIsUnchangedOutsideTheGap(t *testing.T) {
+	e := floorWindowEngine(t)
+	established := &fpl.Element{Minutes: 90}
+
+	// Pre-season: nothing has kicked off anywhere.
+	for i := range e.Fixtures {
+		e.Fixtures[i].Started = false
+		e.Fixtures[i].Finished = false
+		e.Fixtures[i].FinishedProvisional = false
+	}
+	if got := e.bonusEvidence(established); got != 0 {
+		t.Errorf("pre-season bonusEvidence = %v, want 0 — the rate is entirely last "+
+			"season's before a ball is kicked anywhere", got)
+	}
+
+	// A gameweek has finished: DataWindow is honest again for everybody, and the
+	// gate must not still be forcing 0.
+	for i := range e.Fixtures {
+		e.Fixtures[i].Started = true
+		e.Fixtures[i].Finished = true
+		e.Fixtures[i].FinishedProvisional = true
+	}
+	e.Boot.Events[0].Finished = true
+	if e.GameweeksPlayed() != 1 {
+		t.Fatalf("setup: GameweeksPlayed = %d, want 1", e.GameweeksPlayed())
+	}
+	want := 1.0 / (1.0 + e.Weights.BlendRateK)
+	if got := e.bonusEvidence(established); math.Abs(got-want) > 1e-9 {
+		t.Errorf("post-gap bonusEvidence = %v, want the raw n90/(n90+k) share %v — "+
+			"the fix must not keep gating once GameweeksPlayed is honest again", got, want)
+	}
+}
+
+// TestTheBonusScheduleIsZeroForAnUnplayedClub confirms the fix works by
+// arithmetic, not by a second gate: a player at a club that has not kicked off
+// has el.Minutes == 0 (FPL zeroes the whole league's aggregates the moment the
+// season starts, not per club), so n90 == 0 and the schedule lands on the
+// prior end regardless of SeasonHasStarted being true.
+func TestTheBonusScheduleIsZeroForAnUnplayedClub(t *testing.T) {
+	e := floorWindowEngine(t)
+	debutant := &fpl.Element{Minutes: 0}
+
+	if got := e.bonusEvidence(debutant); got != 0 {
+		t.Errorf("bonusEvidence = %v for a player with no minutes on the board yet, "+
+			"want 0 — no per-club gate is needed here, only el.Minutes itself", got)
+	}
+}
+
+// TestInLiveGameweekGap pins the shared predicate directly, independent of any
+// one consumer, so a future change to it is caught at the source.
+func TestInLiveGameweekGap(t *testing.T) {
+	e := floorWindowEngine(t)
+	if !e.inLiveGameweekGap() {
+		t.Fatal("floorWindowEngine's own setup is SeasonHasStarted=true, " +
+			"GameweeksPlayed=0 — inLiveGameweekGap must read true here")
+	}
+
+	for i := range e.Fixtures {
+		e.Fixtures[i].Started = false
+	}
+	if e.inLiveGameweekGap() {
+		t.Error("pre-season (nothing started) must not read as the gap")
+	}
+
+	for i := range e.Fixtures {
+		e.Fixtures[i].Started = true
+	}
+	for i := range e.Boot.Events {
+		e.Boot.Events[i].Finished = true
+	}
+	if e.inLiveGameweekGap() {
+		t.Error("once a gameweek has finished, this must not still read as the gap")
 	}
 }
 

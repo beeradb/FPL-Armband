@@ -102,9 +102,14 @@ func (e *Engine) AssemblyBudget() (tenths int, source string, err error) {
 		return v + b, fmt.Sprintf("£%.1fm squad value plus £%.1fm in the bank",
 			float64(v)/10, float64(b)/10), nil
 
-	case e.Entry != 0 && e.GameweeksPlayed() == 0:
+	case e.Entry != 0 && !e.SeasonHasStarted():
 		// Pre-season nothing has been bought, so the allowance is the budget and
-		// it needs no reconstruction to know.
+		// it needs no reconstruction to know. Gated on SeasonHasStarted, not
+		// GameweeksPlayed()==0: this is a whole-account fact ("has this manager
+		// bought anything yet"), not a per-club one, and GameweeksPlayed stays 0
+		// for days after the first ball is kicked — during which a squad may
+		// well have already been bought, and assuming otherwise fails in the
+		// expensive direction this function's own doc comment warns about.
 		return DefaultBudget, "the pre-season allowance, nothing having been bought yet", nil
 
 	case e.Entry != 0:
