@@ -37,8 +37,21 @@ func TestAssemblyBudgetIsRealOrItIsRefused(t *testing.T) {
 
 	// A tracked squad, pre-season: nothing has been bought, so the allowance is
 	// the answer and no reconstruction is needed to know it.
+	//
+	// This is now gated on SeasonHasStarted, not GameweeksPlayed()==0 (see
+	// AssemblyBudget's own comment), and testEngine loads real live data — if
+	// this test happens to run during the live GW1 gap, real fixtures already
+	// have Started=true, so finishGameweeks(e, 0) alone (which only fakes
+	// Boot.Events, never Fixture.Started) would no longer read as pre-season.
+	// Force every fixture back to not-started too, so this sub-case is
+	// genuinely pre-season regardless of what day this test runs.
 	e.Entry, e.SquadValue, e.Bank = 12345, nil, nil
 	finishGameweeks(e, 0)
+	for i := range e.Fixtures {
+		e.Fixtures[i].Started = false
+		e.Fixtures[i].Finished = false
+		e.Fixtures[i].FinishedProvisional = false
+	}
 	if got, _, err = e.AssemblyBudget(); err != nil || got != DefaultBudget {
 		t.Errorf("pre-season with an entry id got (%d, %v), want the %d allowance",
 			got, err, DefaultBudget)
@@ -46,6 +59,11 @@ func TestAssemblyBudgetIsRealOrItIsRefused(t *testing.T) {
 
 	// The same squad in-season, unpriced. This is the case the whole rule
 	// exists for, so it is exercised whatever time of year the test runs.
+	// Restore Started (the pre-season case above forced it off) — a season with
+	// gameweeks finished necessarily has fixtures that have started.
+	for i := range e.Fixtures {
+		e.Fixtures[i].Started = true
+	}
 	finishGameweeks(e, 3)
 	got, _, err = e.AssemblyBudget()
 	if err == nil {
