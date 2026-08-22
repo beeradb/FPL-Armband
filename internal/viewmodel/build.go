@@ -84,8 +84,8 @@ type Input struct {
 
 	// HouseLive is Boot.CurrentEvent()'s live per-player stats (fpl.Client.Live),
 	// nil before a season has a current gameweek or if the fetch failed.
-	// HouseMatchStatus is "scheduled"/"live"/"finished" per club short name for
-	// that same gameweek, computed by the caller from a freshly-fetched fixture
+	// HouseMatchStatus is "scheduled"/"live"/"fulltime"/"finished" per club short
+	// name for that same gameweek, computed by the caller from a freshly-fetched fixture
 	// list (fpl.Client.FixturesLive — NOT Client.Fixtures, which memoises for the
 	// life of the process and would answer a stale "has this kicked off yet" for
 	// as long as the pod runs). This package may not fetch either itself; it only
@@ -412,8 +412,30 @@ func buildHouseTeam(sq Squad, entry *fpl.Entry, history *fpl.EntryHistory, boot 
 		// DefCon/Saves stay nil before kickoff on purpose: "did he clear the bar"
 		// has no honest answer yet, and a red pill on a match that has not
 		// started would read as a verdict rather than an absence of one.
-		if tp.MatchStatus != "live" && tp.MatchStatus != "finished" {
+		//
+		// ⚠️ "fulltime" MUST stay in this list alongside "live" and "finished" --
+		// this is the highest-risk line in the 2026-08-22 three-way status change.
+		// FPL locks in DefCon and saves the moment FinishedProvisional flips (see
+		// fpl.Fixture's own comment: "the match's own numbers ... are locked in"),
+		// not at Finished, so gating on "finished" alone would silently strip
+		// DefCon and saves from every ended-but-unsettled match -- a regression in
+		// the OPPOSITE direction from the live-dot/asterisk bug this change fixes.
+		// TestHouseTeamFulltimeStillGetsDefConAndSaves pins it.
+		if tp.MatchStatus != "live" && tp.MatchStatus != "finished" && tp.MatchStatus != "fulltime" {
 			return tp, true
+		}
+		// The hover breakdown (see TeamPlayer.Breakdown's own comment) needs the
+		// real element_type -- goal and clean-sheet values are position-priced --
+		// the same lookup DefConReached below already needs, done once here so
+		// neither has to look the element up twice.
+		var pos int
+		if boot != nil {
+			if el := boot.ElementByID(p.ID); el != nil {
+				pos = el.ElementType
+			}
+		}
+		if pos != 0 {
+			tp.Breakdown = scoreBreakdown(pos, *stats, tp.Points, tp.Multiplier)
 		}
 		if p.Pos == "GKP" {
 			saves := stats.Saves
@@ -422,11 +444,9 @@ func buildHouseTeam(sq Squad, entry *fpl.Entry, history *fpl.EntryHistory, boot 
 		}
 		dc := stats.DefensiveContribution
 		tp.DefCon = &dc
-		if boot != nil {
-			if el := boot.ElementByID(p.ID); el != nil {
-				reached := dc >= analysis.DefConThreshold(el.ElementType)
-				tp.DefConReached = &reached
-			}
+		if pos != 0 {
+			reached := dc >= analysis.DefConThreshold(pos)
+			tp.DefConReached = &reached
 		}
 		return tp, true
 	}

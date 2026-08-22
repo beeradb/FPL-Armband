@@ -2315,6 +2315,13 @@ body.saving{cursor:progress;}
 .tpbadge.warn{color:var(--warn);} /*  9.86:1 */
 .tpbadge.pend{color:var(--ink3);} /*  6.69:1 — the live, not-yet-cleared DC count only */
 
+/* The asterisk legend (Defect 3, 2026-08-22): --label is the .k eyebrow-label colour, at
+   the bench line's size and weight (.teambenchpts) rather than .k's own letter-spaced
+   uppercase treatment, which reads as shouting on a full sentence. Sits with the
+   formation/bench furniture, not inside .pitch -- it explains a mark that can appear on
+   any card, not one card's own fact. */
+.teamlegend{margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--label);}
+
 .teambench{margin-top:14px;}
 /* The number every FPL manager looks for after a big bench score. Renders iff > 0, the
    same honest-absence rule as everything else on this page. */
