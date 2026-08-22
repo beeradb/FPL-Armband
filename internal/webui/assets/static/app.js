@@ -2114,8 +2114,14 @@ function renderNews(){
   const pressEl=document.getElementById('news-press');
   if(pressEl){
     pressEl.innerHTML=pressPanelHtml();
-    const notNow=document.getElementById('newsAskNotNow');
-    if(notNow) notNow.onclick=()=>{ declineNewsAsk(); renderNews(); };
+    // Scoped to pressEl, not document.getElementById: the Pitch callout mounts the SAME
+    // newsAskFootHtml() markup (renderNewsCallout, below) and both can be in the document
+    // at once, so a document-wide id lookup could pick up the wrong one's "Not now".
+    const notNow=pressEl.querySelector('#newsAskNotNow');
+    // Declining is one fact (localStorage), read by both mounts -- resync the callout too,
+    // or a reader who declines here still sees the ask on Pitch until something unrelated
+    // re-renders it.
+    if(notNow) notNow.onclick=()=>{ declineNewsAsk(); renderNews(); renderNewsCallout(); };
     if(window.wireGateForms) window.wireGateForms(pressEl);
   }
 
@@ -2543,22 +2549,48 @@ function renderNewsNudge(){
   if(window.wireGateForms) window.wireGateForms(el);
 }
 
-/* renderNewsCallout decides only VISIBILITY -- the callout's markup (app.html) is static,
-   so there is nothing here to build. It reads #pitch-newsnudge's own rendered output
-   rather than re-deriving nudgeDismissed()/flagSubject/riskSubject a second time: two news
-   asks on one screen is one too many, and the nudge is the stronger ask because it names a
-   player from THIS fifteen (see THE PITCH NUDGE above) -- so the callout shows only when
-   the nudge has nothing to say.
+/* renderNewsCallout decides VISIBILITY the same way it always did -- reading
+   #pitch-newsnudge's own rendered output rather than re-deriving nudgeDismissed()/
+   flagSubject/riskSubject a second time: two news asks on one screen is one too many, and
+   the nudge is the stronger ask because it names a player from THIS fifteen (see THE PITCH
+   NUDGE above) -- so the callout shows only when the nudge has nothing to say.
+
+   It now also BUILDS the markup, on the owner's staging note that a reader who has to leave
+   the pitch to sign up is a reader lost: "Coming soon" + what the thing is (unchanged copy,
+   own comment on the app.html element), then newsAskFootHtml() called DIRECTLY -- the exact
+   function pressPanelHtml calls for the News tab's own panel -- so the ask, its three
+   states, and its wiring are one implementation, not a second copy of the form that can
+   drift from the first. The "See what we've caught" link is separate: its own element,
+   below the form, wired to setView so it reads as a second, distinct affordance rather than
+   a second submit for the ask above it.
 
    Call it everywhere renderNewsNudge() is called, not only from renderAll(): the nudge can
    flip from present to empty (Dismiss, arriving on News) or empty to present (a fresh
    hydrate) at any of those call sites, and a callout that only synced on the next full
-   render would sit visibly wrong until one happened. 2026-08-22. */
+   render would sit visibly wrong until one happened. Also call it whenever the signup or
+   decline state can have changed underneath it (armband:signedup below, and the News tab's
+   own "Not now") -- the callout carries the same ask now, so it owes the same resync.
+   2026-08-22. */
 function renderNewsCallout(){
   const el=document.getElementById('pitch-newscallout');
   const nudge=document.getElementById('pitch-newsnudge');
   if(!el) return;
-  el.hidden=!!(nudge && nudge.innerHTML.trim());
+  const nudgeShowing=!!(nudge && nudge.innerHTML.trim());
+  el.hidden=nudgeShowing;
+  if(nudgeShowing) return;
+  el.innerHTML=`<div class="nyhead">
+      <span class="pill soon">Coming soon</span>
+      <span class="t-row">A live alerts service for breaking team news.</span>
+    </div>
+    ${newsAskFootHtml()}
+    <button class="btn sm ghost" type="button" id="calloutSeeNews">See what we’ve caught →</button>`;
+  // Scoped to el, not document.getElementById -- see the matching comment where the News
+  // tab's own panel wires the same id.
+  const notNow=el.querySelector('#newsAskNotNow');
+  if(notNow) notNow.onclick=()=>{ declineNewsAsk(); renderNews(); renderNewsCallout(); };
+  const see=el.querySelector('#calloutSeeNews');
+  if(see) see.onclick=()=>setView('news');
+  if(window.wireGateForms) window.wireGateForms(el);
 }
 
 /* ============================================================
