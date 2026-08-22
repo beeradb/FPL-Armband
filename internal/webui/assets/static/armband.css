@@ -283,6 +283,12 @@ button{font-family:inherit;color:inherit;}
   content:'';position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;
   background:var(--acc);box-shadow:0 0 0 3px rgba(0,232,138,.18);
 }
+/* A closed week is a real thing that happened, not an error -- dimmed and inert rather than
+   hidden, so an imported reader can still see GW1 sitting there. cursor+hover are both
+   turned off so the tab does not invite a click its own `disabled` attribute already
+   refuses. See renderRail's own comment (app.js) for why it has nothing to open. */
+.gw:disabled{opacity:.5;cursor:not-allowed;}
+.gw:disabled:hover{border-color:var(--line);}
 
 /* section nav ------------------------------------------------- */
 .mainnav{border-bottom:1px solid var(--line);background:var(--bg);}
@@ -393,6 +399,12 @@ button{font-family:inherit;color:inherit;}
    THE PITCH
    ============================================================ */
 .pitchgrid{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:14px;align-items:start;}
+/* pitchcol holds everything in the LEFT column: the provenance row and import panel, then
+   the turf box -- one grid item, so .pitchgrid still has exactly two children and .pitchside
+   still sits in column two without any row/column arithmetic here. Same gap as .pitchside's
+   own flex column, so the two columns keep one rhythm. 2026-08-22, moving #squadsource off
+   .pitchwrap's turf -- see that element's own comment. */
+.pitchcol{display:flex;flex-direction:column;gap:10px;}
 .pitchside{position:sticky;top:76px;display:flex;flex-direction:column;gap:12px;}
 .pitchwrap{
   position:relative;border-radius:var(--r-lg);overflow:hidden;
@@ -1009,21 +1021,12 @@ button{font-family:inherit;color:inherit;}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 
 /* news callout -------------------------------------------------
-   A pointer to the News tab, sitting in .pitchside between .why.instr and .storenote
-   (app.html). Built from the same primitives as its neighbours rather than new tokens:
-   .why's own bordered-panel look for the block, .k for the eyebrow label, .dim for the
-   status line's reduced weight, .btn.sm.ghost for the action -- so it reads as part of
-   this column rather than a new kind of thing in it. Visibility only, not content, is
-   renderNewsCallout()'s job (app.js); see that function's comment for why. 2026-08-22. */
-.newscallout{
-  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
-  padding:12px 13px;display:flex;flex-direction:column;gap:6px;
-}
-.newscallout p{margin:0;font-size:12.5px;color:var(--ink2);line-height:1.5;}
-/* The "alerts aren't live yet" status line sits at the SAME weight (font-size) as the
-   sentence above it, only quieter in colour (.dim) -- a status note, not a second offer
-   competing with the first sentence for attention. */
-.newscallout .btn{align-self:flex-start;margin-top:2px;}
+   A pointer to the News tab, first in .pitchside, above .why.instr (app.html). Built from
+   pressPanelHtml's own .notyet/.nyhead/.pill.soon (below, "PHASE 2") rather than new tokens
+   -- see the HTML comment on #pitch-newscallout for why that shape and not a bespoke one.
+   Visibility only, not content, is renderNewsCallout()'s job (app.js); see that function's
+   comment for why. Moved off its own bespoke look 2026-08-22. */
+.notyet > .btn{margin-top:2px;}
 
 /* storage note ------------------------------------------------ */
 .storenote{
@@ -1071,7 +1074,15 @@ button{font-family:inherit;color:inherit;}
      on the screen. */
   .tabbar button[aria-selected="true"]{color:var(--band-hi);}
 
-  .topbar .row{padding:8px 12px;gap:10px;}
+  /* flex-wrap, not narrower: /armband-team's row is logo + a pill that can run to
+     "FPL ARMBAND'S TEAM" + "Plan your own →", and at 390px those three plus the two
+     14px gaps do not fit one line -- .btn has no white-space:nowrap of its own, so the
+     old single-line row did not overflow, it broke the BUTTON's own words onto three
+     lines instead ("your"/"own"/"→" stacked), which reads as broken rather than
+     responsive. Wrapping the row is the honest fix: the pill is .pill's own nowrap
+     (never breaks internally), so wrapping only ever moves it or the button to a second
+     line, whole. Caught in the armband-team-mobile golden, 2026-08-22. */
+  .topbar .row{padding:8px 12px;gap:10px;flex-wrap:wrap;row-gap:6px;}
   .deadline .t{font-size:13px;}
   .wrap{padding:0 12px;}
 
@@ -1229,34 +1240,39 @@ body.saving{cursor:progress;}
 }
 
 /* Where the fifteen came from: the model's best, a varied opening, the reader's own saved
-   team, or -- once the import window is open -- what they imported. Quiet, because it is
-   context rather than a number; flex row rather than plain text now that renderSquadSource()
-   appends a real <button> for the one action this line can offer (see its own comment for
-   the four states). Wraps rather than truncating at narrow widths, so the button is never
-   the thing that gets clipped -- it drops to its own line instead, under the "imported from
-   FPL team N · GWn" text, which is the longest of the four strings this line ever shows. */
-/* 12px left matches .pitchhud's own left padding, so this row sits in the same column
-   rhythm as FORMATION above it rather than starting two pixels further out. 8px top gives
-   the button air under the divider instead of sitting flush against it -- both were invisible
-   while this row was dim text with no button, and both were visibly wrong the moment
-   renderSquadSource() started appending a real 30px .btn.sm here. */
+   team, or -- once the import window is open -- what they imported. Quiet as TEXT, because
+   it is context rather than a number, but the control it carries is not quiet: in the
+   first-run state this button is the primary action on the whole screen. Flex row rather
+   than plain text now that renderSquadSource() appends a real <button> for the one action
+   this line can offer (see its own comment for the four states). Wraps rather than
+   truncating at narrow widths, so the button is never the thing that gets clipped -- it
+   drops to its own line instead, under the "imported from FPL team N · GWn" text, which is
+   the longest of the four strings this line ever shows.
+
+   ⚠️ On --panel now, not on .pitchwrap's turf -- moved 2026-08-22 (owner review of
+   `61388151`: "the import button... blends in... I'd prefer it not be on the green field").
+   A control sitting on the turf gradient reads as pitch furniture, not an action; shrinking
+   it in place (the 24px/11.5px .btn override this rule used to carry) fixed the collision
+   with Optimise but made exactly that worse. Off the green is the fix; see .pitchcol. */
 .squadsource{
-  font-size:11.5px;padding:8px 12px 10px;font-family:var(--mono);
+  font-size:11.5px;padding:9px 12px;font-family:var(--mono);
   display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
 }
 /* button{font-family:inherit} (global) would otherwise set this in the surrounding line's
    monospace -- every other button on the page inherits the UI font because nothing above it
-   in the tree sets --mono, and this is the one spot that does. 24px/11.5px keeps the control
-   proportionate to the sentence it belongs to -- a 30px .btn.sm here read as the same weight
-   as Optimise in the HUD directly above, two primary-looking actions competing within 40px of
-   each other. Still a real .btn, not a bare link: it performs an action and should look like it. */
-.squadsource .btn{font-family:var(--ui);height:24px;padding:0 9px;font-size:11.5px;}
+   in the tree sets --mono, and this is the one spot that does. Full .btn.sm height (30px)
+   now that the row is off the turf and has nothing left to compete with for weight -- the
+   entry-set "Change team" state keeps .ghost (renderSquadSource()), which is the one that
+   still wants to read as secondary. */
+.squadsource .btn{font-family:var(--ui);}
 
 /* Import panel -- moved here from the Players tab. It used to be a one-shot card that
    vanished for good the moment an entry was on record; now #squadsource's button reopens
    it as "Change team", so the [hidden] toggle and the input/detail styling below are shared
-   between the two states rather than belonging to a single dismissible offer. */
-.importcard{margin:14px 0 10px;}
+   between the two states rather than belonging to a single dismissible offer. No margin of
+   its own: it is a flex child of .pitchcol now, which supplies the gap on both sides. */
+.importcard{margin:0;}
 .importcard[hidden]{display:none;}
 .importcard input{font-family:var(--mono);}
 .importcard input:focus{outline:2px solid var(--band);outline-offset:2px;background:var(--panel2);}

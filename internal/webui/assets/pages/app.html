@@ -69,8 +69,12 @@
     <button data-view="news"     aria-selected="false">News <span class="c" id="newsCount" hidden></span></button>
     <!-- A real link, not a data-view: /armband-team is its own document (team.html),
          deliberately never a tab this SPA switches into -- see armband.css's note on
-         .navlink and cmd/armband/webroutes.go's routeArmbandTeam comment for why. -->
-    <a class="navlink" href="/armband-team">Our team →</a>
+         .navlink and cmd/armband/webroutes.go's routeArmbandTeam comment for why.
+
+         "FPL Armband's Team", not "Our team": once a reader has imported their own squad
+         onto this same screen, "our" reads as ambiguous -- their team, or the site's? The
+         brand possessive says whose. Owner review of `61388151`, 2026-08-22. -->
+    <a class="navlink" href="/armband-team">FPL Armband’s Team →</a>
   </div>
 </nav>
 
@@ -96,51 +100,15 @@
   <div class="chipscrim" id="chipscrim"></div>
 
   <div class="pitchgrid">
-  <div class="pitchwrap">
-    <div class="pitchhud" id="pitchhud">
-      <span class="k">Formation</span>
-      <!-- The old "legal / no" badge is gone. A permanent green tick that only sometimes
-           turns red is a STATUS; the rule that formation actually obeys is a REFUSAL, so
-           the error state lives on the readout itself and a bad drag flashes the rule in
-           place -- borrowing the score bug's 1.4s rhythm, below. -->
-      <span class="form" id="formation">3-5-2</span>
-      <span class="formerr" id="formErr" hidden></span>
-      <span class="pill" id="clubcap" hidden>max 3/club ✓</span>
-      <!-- The squad is where an over-budget state actually lives -- the same treatment
-           lands on the Players tab's #bank, via bankHtml(), so it is not something you
-           can only see on one tab. -->
-      <span class="pill bad" id="budgetPill" hidden></span>
-      <button class="pill armpill" id="capPick"><b>C</b> <span id="capName">—</span><span class="cmath" id="capMath"></span></button>
-      <button class="pill armpill v" id="vcPick"><b>V</b> <span id="vcName">—</span></button>
-      <!-- The chip control: silent by default, one ghost pill, escalating as its window
-           closes. Replaces <details class="chipfold">, deleted below -- a four-times-a-
-           season decision does not need the best space on the screen, and the answer to
-           that is not a worse slab lower down, it is not being a slab. renderChips() (in
-           app.js) fills this in. -->
-      <span class="chipctl" id="chipctl"></span>
-      <span class="delta" id="vsmodel"></span>
-      <span class="pitchactions">
-        <!-- Reset asks the model for its true best with none of your locks or blocks in
-             force -- it discards them, which Optimize never does. Ghost + warn so the two
-             adjacent buttons do not read as the same weight of action. -->
-        <button class="btn sm ghost warn" id="resetBtn" title="The model's honest best — ignores every lock-in and leave-out you’ve set">Reset</button>
-        <!-- Puts the model's best fifteen back, respecting your locks and blocks. The
-             opening squad is deliberately varied, so this is how a reader asks for the
-             unvaried answer. -->
-        <button class="btn sm" id="optimise">Optimise</button>
-      </span>
-    </div>
+  <div class="pitchcol">
 
-    <!-- The news nudge: a legend for the amber .newsflag and role-chip markers already on
-         the cards below, not an advertisement for a tab that has nothing on it. Rendered by
-         renderNewsNudge() (app.js), which names its two players from flaggedRows() and
-         riskRows() -- the SAME functions renderNews() draws the News tab's own groups from
-         -- so it can never name a player the News tab itself does not. Absent when the
-         fifteen has no such player, and permanently retired (localStorage) the moment it is
-         dismissed, its own ask is answered, or the News tab is opened by any route -- see
-         NUDGE_DISMISSED_KEY's comment for why those three writers share one key. -->
-    <div id="pitch-newsnudge"></div>
-
+    <!-- Provenance row: where the fifteen came from, and the one action to change it. Lives
+         on the page ground (--panel), not on .pitchwrap's turf below -- a control reading as
+         pitch furniture is a control nobody presses. Moved off the turf 2026-08-22: it had
+         been sized down to 24px/11.5px specifically so it would stop competing with Optimise
+         in the HUD, which worked but left the first-run "Import your team" button -- the
+         primary action on an unimported screen -- too quiet to notice. Off the green is the
+         structural fix; the size restore below only works because of it. -->
     <div class="squadsource dim" id="squadsource"></div>
 
     <!-- Import panel: the thing #squadsource's one action button opens. It used to be a
@@ -207,6 +175,51 @@
       </div>
     </div>
 
+  <div class="pitchwrap">
+    <div class="pitchhud" id="pitchhud">
+      <span class="k">Formation</span>
+      <!-- The old "legal / no" badge is gone. A permanent green tick that only sometimes
+           turns red is a STATUS; the rule that formation actually obeys is a REFUSAL, so
+           the error state lives on the readout itself and a bad drag flashes the rule in
+           place -- borrowing the score bug's 1.4s rhythm, below. -->
+      <span class="form" id="formation">3-5-2</span>
+      <span class="formerr" id="formErr" hidden></span>
+      <span class="pill" id="clubcap" hidden>max 3/club ✓</span>
+      <!-- The squad is where an over-budget state actually lives -- the same treatment
+           lands on the Players tab's #bank, via bankHtml(), so it is not something you
+           can only see on one tab. -->
+      <span class="pill bad" id="budgetPill" hidden></span>
+      <button class="pill armpill" id="capPick"><b>C</b> <span id="capName">—</span><span class="cmath" id="capMath"></span></button>
+      <button class="pill armpill v" id="vcPick"><b>V</b> <span id="vcName">—</span></button>
+      <!-- The chip control: silent by default, one ghost pill, escalating as its window
+           closes. Replaces <details class="chipfold">, deleted below -- a four-times-a-
+           season decision does not need the best space on the screen, and the answer to
+           that is not a worse slab lower down, it is not being a slab. renderChips() (in
+           app.js) fills this in. -->
+      <span class="chipctl" id="chipctl"></span>
+      <span class="delta" id="vsmodel"></span>
+      <span class="pitchactions">
+        <!-- Reset asks the model for its true best with none of your locks or blocks in
+             force -- it discards them, which Optimize never does. Ghost + warn so the two
+             adjacent buttons do not read as the same weight of action. -->
+        <button class="btn sm ghost warn" id="resetBtn" title="The model's honest best — ignores every lock-in and leave-out you’ve set">Reset</button>
+        <!-- Puts the model's best fifteen back, respecting your locks and blocks. The
+             opening squad is deliberately varied, so this is how a reader asks for the
+             unvaried answer. -->
+        <button class="btn sm" id="optimise">Optimise</button>
+      </span>
+    </div>
+
+    <!-- The news nudge: a legend for the amber .newsflag and role-chip markers already on
+         the cards below, not an advertisement for a tab that has nothing on it. Rendered by
+         renderNewsNudge() (app.js), which names its two players from flaggedRows() and
+         riskRows() -- the SAME functions renderNews() draws the News tab's own groups from
+         -- so it can never name a player the News tab itself does not. Absent when the
+         fifteen has no such player, and permanently retired (localStorage) the moment it is
+         dismissed, its own ask is answered, or the News tab is opened by any route -- see
+         NUDGE_DISMISSED_KEY's comment for why those three writers share one key. -->
+    <div id="pitch-newsnudge"></div>
+
     <div class="pitch" id="pitch">
       <div class="sixyard"></div><div class="spot"></div>
       <div class="line" data-pos="GKP"></div>
@@ -233,18 +246,10 @@
       </div>
       <div class="benchrow" id="benchrow"></div>
     </div>
-  </div>
+  </div><!-- /pitchwrap -->
+  </div><!-- /pitchcol -->
 
   <div class="pitchside">
-  <!-- YOUR INSTRUCTIONS: replaces the formations rail. Everything acting on the fifteen
-       that a human decided, in the reader's own voice and removable in place. Split into
-       what THIS session set (Remove is a real deletion) and what the settings file already
-       carries for a player in the squad (Ignore only suppresses it — see News, view-news). -->
-  <div class="why instr" style="margin-top:0">
-    <h3>Your instructions <span class="dim" id="instrCount"></span></h3>
-    <div id="instrbody"></div>
-  </div>
-
   <!-- News callout: a POINTER to the News tab, not a third email capture -- there is
        already a signup on this same screen (#pitch-newsnudge, above the pitch) and another
        on the News tab's own panel (pressPanelHtml's newsAskFootHtml). This block is static
@@ -253,17 +258,43 @@
        stronger ask, because it names a player from THIS fifteen, and two news asks visible
        at once is one too many. See THE PITCH NUDGE in app.js for that comparison.
 
-       Copy is deliberately effort, not delivery: "we read the news and tell the model" is
-       true today; "Alerts aren't live yet -- we're building them" states intent without
-       promising a message will arrive. pressPanelHtml's own comment records that
-       landing.html once carried "we'll notify you when your striker is named on the
-       bench" -- a specific promise about a specific event this product cannot honour --
-       and commit 69ac868 had to fix it. Do not reintroduce that register here. 2026-08-22. -->
-  <div class="newscallout" id="pitch-newscallout" hidden>
-    <span class="k">News</span>
-    <p>We read the football news and tell the model before the deadline — with the source and the date.</p>
-    <p class="dim">Alerts aren’t live yet — we’re building them.</p>
+       Reuses pressPanelHtml's own .notyet/.nyhead/.pill.soon shape (armband.css) rather than
+       inventing a third "coming soon" look -- .pill.soon's own comment there names it the
+       one Coming soon badge, shared by the landing page's later card and (in Phase 2) the
+       News tab's own press panel, so a callout with a different badge would be exactly the
+       fourth variant that comment rules out. The specimen row and the signup form
+       (pressPanelHtml's other two pieces) are
+       deliberately NOT pulled in here: the specimen is a demo for a tab with room to show
+       one, and a signup form would be the third ask this comment's first paragraph exists
+       to prevent.
+
+       Moved above Your instructions and reworded 2026-08-22 (owner review of `61388151`,
+       "needs fixing... more visible... no hedging"): the old copy led with what the product
+       already does today ("we read the football news...") and buried the actual ask under
+       an apology ("Alerts aren't live yet -- we're building them"). The badge already says
+       "not live yet" without apologising for it, so the one sentence left gets to say what
+       the thing IS, in the owner's own words, and nothing hedges further than the badge
+       already does.
+
+       Still inside 69ac868's line: "Coming soon" plus what the thing IS, never a promise
+       about a specific event ("we'll tell you when your striker is benched"). This sentence
+       names no event and commits to no delivery date -- see pressPanelHtml's own comment
+       for the promise that commit had to remove from a sentence very like it. -->
+  <div class="notyet" id="pitch-newscallout" hidden>
+    <div class="nyhead">
+      <span class="pill soon">Coming soon</span>
+      <span class="t-row">A live alerts service for breaking team news.</span>
+    </div>
     <button class="btn sm ghost" data-view="news">See what we’ve caught →</button>
+  </div>
+
+  <!-- YOUR INSTRUCTIONS: replaces the formations rail. Everything acting on the fifteen
+       that a human decided, in the reader's own voice and removable in place. Split into
+       what THIS session set (Remove is a real deletion) and what the settings file already
+       carries for a player in the squad (Ignore only suppresses it — see News, view-news). -->
+  <div class="why instr">
+    <h3>Your instructions <span class="dim" id="instrCount"></span></h3>
+    <div id="instrbody"></div>
   </div>
 
   <div class="storenote">
@@ -434,9 +465,15 @@
   <!-- A real link to /armband-team's own document, in the tabbar's fourth column --
        reserved since the bar's own grid-template-columns:repeat(4,1fr) predates this,
        from before Brief was removed (see internal/viewmodel/state.go and ROLLOUT.md's
-       note on the stale /app#brief golden). -->
+       note on the stale /app#brief golden).
+
+       "The team", not "Our team" -- same fix as the desktop .navlink (see its own
+       comment), but not the full "FPL Armband's Team": this column is ~85px at the 10px
+       this bar renders at, next to three single-word siblings, and that phrase wraps
+       ungracefully at this width. "The" still drops the possessive that read as the
+       reader's own squad; the destination disambiguates the rest once tapped. -->
   <a href="/armband-team">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/><circle cx="12" cy="11" r="2.4"/></svg>Our team</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/><circle cx="12" cy="11" r="2.4"/></svg>The team</a>
 </nav>
 
 <!-- ===================== PLAYER SHEET ===================== -->
