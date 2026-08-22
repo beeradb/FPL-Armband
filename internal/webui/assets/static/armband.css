@@ -73,6 +73,13 @@
   --acc-lo:    #07281E;
   --warn:      #FFB020;
   --warn-lo:   #2C2008;
+  /* the mildest availability flag (FPL's 75% fit) -- split out from --warn so the middle
+     and top severities stop rendering identically (2026-08-22, see .card .newsflag).
+     14.73:1 with black text -- that pairing's own comment carries the arithmetic. */
+  --flag-doubt:#FFD43B;
+  /* the tinted ground .pill.doubt / .chip.doubt sit on, same relationship --warn-lo has to
+     --warn: 10.64:1 for --flag-doubt text on this fill. */
+  --flag-doubt-lo:#2B260A;
   --bad:       #FF4D6A;
   --bad-lo:    #2E1017;
   --ov:        #A98BFF;   /* override violet */
@@ -156,6 +163,9 @@ button{font-family:inherit;color:inherit;}
 .pill.acc{background:var(--acc-lo);border-color:#0F553A;color:var(--acc);}
 .pill.warn{background:var(--warn-lo);border-color:#5A4210;color:var(--warn);}
 .pill.bad{background:var(--bad-lo);border-color:#5E2130;color:var(--bad);}
+/* the mildest availability doubt (75% fit) -- see --flag-doubt's own comment for why this
+   is a third pill colour and not a tint of .pill.warn. */
+.pill.doubt{background:var(--flag-doubt-lo);border-color:#5A4A12;color:var(--flag-doubt);}
 .pill.ov{background:var(--ov-lo);border-color:#3B2F63;color:var(--ov);}
 .pill .unit{text-transform:none;letter-spacing:.02em;font-weight:500;color:var(--ink3);}
 
@@ -623,17 +633,32 @@ button{font-family:inherit;color:inherit;}
 .armpill .cmath{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:2px;}
 
 /* the FPL-news corner glyph — an injured or suspended player looks identical to a healthy
-   one everywhere else on the pitch card. Warn by default, bad when availability is 0 (a
-   ruled-out player, whose score is zero for that reason and no other). Opposite corner
-   from the armband glyph so a flagged captain does not collide with his own band. */
+   one everywhere else on the pitch card. THREE colours, not two (2026-08-22): FPL's own
+   scale is 100/75/50/25/0, and a two-colour glyph rendered 75% and 25% identically -- a
+   player who will probably play looked the same as one who almost certainly would not.
+   The glyph also now CARRIES THE FIGURE rather than a bare "!" (app.js cardHtml), so the
+   fact is legible without a hover, on a phone, and to a colour-blind reader -- colour is
+   redundant reinforcement here, never the only carrier. min-width is a floor for "OUT",
+   not the size: the padding below is what actually rooms "75%"/"OUT" at 10px. Opposite
+   corner from the armband glyph so a flagged captain does not collide with his own band. */
 .card .newsflag{
   position:absolute;top:-6px;right:-4px;z-index:4;min-width:15px;height:15px;
-  border-radius:4px;display:grid;place-items:center;
-  background:var(--warn);color:#241800;border:1.5px solid var(--turf);
+  padding:0 3px;border-radius:4px;display:grid;place-items:center;
+  background:var(--flag-doubt);color:#000;border:1.5px solid var(--turf);
   font-family:var(--display);font-weight:800;font-size:10px;line-height:1;
 }
+/* Black, not white: white on --flag-doubt is 1.43:1 and fails outright. Black on the same
+   fill is 14.73:1, clearing the 4.5:1 floor this codebase guards on every rendered surface
+   (contrast_test.go) with room to spare. */
+/* the middle severity: FPL saying a player probably will not start (50% or 25% fit) --
+   the colour --warn owned alone, for any doubt at all, before this split. Text colour is
+   unchanged: #241800 on --warn is the pairing this glyph already shipped with. */
+.card .newsflag.warn{background:var(--warn);color:#241800;}
 /* Black, not white: white-on-var(--bad) is 3.22:1 and fails the 4.5:1 floor this codebase
-   guards on every rendered surface (contrast_test.go). Black on the same fill is 6.52:1. */
+   guards on every rendered surface (contrast_test.go). Black on the same fill is 6.52:1.
+   OUT rather than 0%, deliberately: zero isn't a probability FPL is expressing, it's a
+   statement the player cannot feature -- a different KIND of fact from the three doubts
+   above it (2026-08-22). */
 .card .newsflag.bad{background:var(--bad);color:#000;}
 
 /* captain picker rows ---------------------------------------- */
@@ -1901,10 +1926,13 @@ body.saving{cursor:progress;}
 .notyet.nypanel{margin-bottom:12px;}
 
 /* --- the other source chips --------------------------------------
-   .fpl and .out carry a channel because their meaning IS the channel: a doubt is risk, a
-   player who scores nothing is negative. .read (team news we've read) is deliberately on
-   NO channel — it is an input that moved the model's own number, not a meaning of its own
-   (NOTES.md §3). .press is the coming-soon source, drawn in the band-blue the badge uses. */
+   .doubt, .fpl and .out carry a channel because their meaning IS the channel: FPL's own
+   three severities (75% doubt / 50-25% probably-won't-start / ruled out), matching the
+   three the corner glyph now carries on the pitch card (2026-08-22, .card .newsflag).
+   .read (team news we've read) is deliberately on NO channel — it is an input that moved
+   the model's own number, not a meaning of its own (NOTES.md §3). .press is the
+   coming-soon source, drawn in the band-blue the badge uses. */
+.nsrc .chip.doubt{background:var(--flag-doubt-lo);border-color:#5A4A12;color:var(--flag-doubt);}
 .nsrc .chip.fpl{background:var(--warn-lo);border-color:#5A4210;color:var(--warn);}
 .nsrc .chip.out{background:var(--bad-lo);border-color:#5E2130;color:var(--bad);}
 .nsrc .chip.read{background:var(--panel2);border-color:var(--line2);color:var(--ink2);}

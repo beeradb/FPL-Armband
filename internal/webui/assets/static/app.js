@@ -1017,14 +1017,28 @@ function cardHtml(p,opts={}){
   /* The FPL-news glyph: an injured or suspended player looks identical to a healthy one
      everywhere else on the pitch. availability's most important value is 0 -- a ruled-out
      player, whose score is zero for that reason and no other -- so a card below 1 gets a
-     corner marker rather than just a smaller number and no reason. */
+     corner marker rather than just a smaller number and no reason.
+
+     THREE colours, not two (2026-08-22): FPL's own scale is 100/75/50/25/0, and a
+     two-colour glyph rendered 75% and 25% identically. flagCls picks the colour --
+     --flag-doubt (no modifier class) for the mildest doubt, --warn for the middle
+     severity FPL owned alone before this split, --bad for ruled out.
+
+     The glyph also carries the FIGURE ITSELF now, not a bare "!" -- "it does not have to
+     be the flags, but it should be visible... maybe a box with a 75%" (owner). OUT rather
+     than 0%, deliberately: zero isn't a probability FPL is expressing, it's a statement
+     the player cannot feature -- a different KIND of fact from the three doubts above it,
+     and rendering both in one vocabulary is exactly what this codebase avoids elsewhere
+     (the results card's four states, DefCon staying nil before kickoff). */
   const av=p.availability===undefined?1:p.availability;
+  const flagCls=av===0?'bad':av>0.5?'':'warn';
+  const flagTxt=av===0?'OUT':Math.round(av*100)+'%';
   return `<div class="card${lock?' haslock':''}${block?' hasblock':''}${S.swapFrom===p.id?' sel':''}${isC?' iscap':''}${isC&&chip==='3xc'?' tcap':''}${isV?' isvc':''}"
      draggable="true" data-id="${p.id}" style="--clubc:${CLUBC[p.club]||'#39506A'}">
     <div class="shirt">${isC?`<span class="bandc">${chip==='3xc'?'3×':'C'}</span>`:''}</div>
     ${isC?`<span class="armchip${chip==='3xc'?' tc':''}">${chip==='3xc'?'3×':'C'}</span>`:''}
     ${isV?`<span class="armchip v">V</span>`:''}
-    ${av<1?`<span class="newsflag${av===0?' bad':''}" title="${av===0?'Ruled out':Math.round(av*100)+'% fit'} — see News">!</span>`:''}
+    ${av<1?`<span class="newsflag${flagCls?' '+flagCls:''}" title="${av===0?'Ruled out':Math.round(av*100)+'% fit'} — see News">${flagTxt}</span>`:''}
     <div class="chead">
       <span class="lhs"><span class="cl">${esc(p.club)}</span></span>
       <div class="acts">
@@ -1435,14 +1449,17 @@ const FDR_WORD={1:'very easy',2:'easy',3:'even',4:'hard',5:'very hard'};
 function playerNewsRows(p){
   const rows=[];
   const av=p.availability===undefined?1:p.availability;
+  // Same three severities as the pitch card's corner glyph (cardHtml): doubt (75%, the
+  // colour --warn used to own alone), warn (50/25%), bad (ruled out).
+  const avCls=av===0?'out':av>0.5?'doubt':'fpl';
   if(p.news || av<1){
     rows.push({
       chip: av===0?'OUT':(av<1?`${Math.round(av*100)}% FIT`:'FPL'),
-      cls: av===0?'out':(av<1?'fpl':''),
+      cls: av<1?avCls:'',
       when:'FPL',
       text: p.news?p.news:'FPL hasn’t said why.',
       pill: av===0?'<span class="pill bad">He scores nothing this week</span>'
-          : av<1?`<span class="pill warn">We're counting ${Math.round(av*100)}% of his points</span>`:''
+          : av<1?`<span class="pill ${av>0.5?'doubt':'warn'}">We're counting ${Math.round(av*100)}% of his points</span>`:''
     });
   }
   if(p.ov){
@@ -1923,11 +1940,13 @@ function riskRows(){
    A player qualifies on FPL's own availability figure OR a reported news item; the nudge's
    own FPL-flag clause narrows further, to availability alone, because that is what
    `.card .newsflag` actually fires on (see cardHtml) -- a reported item with no
-   availability drop lights no corner glyph, so citing it as "the ! on his card" would be
-   wrong. riskRows()'s own consumer (renderNews()'s neutral "Who may not start" list) narrows
-   nothing -- a plain list is entitled to the whole 3/4/5 range, because it isn't claiming
-   anything is surprising. The nudge's own risk clause narrows further still, to rotation
-   risk (3) alone: see the comment on riskSubject below for why. */
+   availability drop lights no corner glyph, so pointing the reader at his card would be
+   wrong. The nudge narrows a THIRD time, to 75% only -- see flagSubject's own comment in
+   renderNewsNudge for why 50%-and-below is deliberately excluded. riskRows()'s own
+   consumer (renderNews()'s neutral "Who may not start" list) narrows nothing -- a plain
+   list is entitled to the whole 3/4/5 range, because it isn't claiming anything is
+   surprising. The nudge's own risk clause narrows further still, to rotation risk (3)
+   alone: see the comment on riskSubject below for why. */
 function flaggedRows(){
   return P.filter(p=>(p.availability!==undefined&&p.availability<1)||p.news);
 }
@@ -2014,16 +2033,26 @@ function renderNews(){
   if(checkedEl) checkedEl.textContent=NEWS.checked;
 
   const flaggedEl=document.getElementById('news-flagged');
+  // The count pill takes the WORST severity in the group, same ranking the corner glyph
+  // uses (bad > warn > doubt): OUT beats 50/25% beats 75%. A player who qualified on a
+  // news item alone, with no availability drop, falls through to the amber this pill
+  // rendered unconditionally before the three-level split -- there is no "doubt" reading
+  // for a player FPL hasn't graded at all.
   if(flaggedEl) flaggedEl.innerHTML = flagged.length ? newsGroupHtml('Hurt, suspended or doubtful',
-    `<span class="pill ${flagged.some(p=>p.availability===0)?'bad':'warn'}">${flagged.length}</span>
+    `<span class="pill ${flagged.some(p=>p.availability===0)?'bad'
+       :flagged.some(p=>p.availability!==undefined&&p.availability<1&&p.availability<=0.5)?'warn'
+       :flagged.some(p=>p.availability!==undefined&&p.availability<1)?'doubt':'warn'}">${flagged.length}</span>
      <span class="t-meta">FPL's own ruling — nothing to decide here</span>`,
     flagged.map(p=>{
       const av=p.availability===undefined?1:p.availability;
+      // Same three severities as the pitch card's corner glyph (cardHtml).
       return {
-        chip: av===0?'OUT':`${Math.round(av*100)}% FIT`, chipClass: av===0?'out':'fpl',
+        chip: av===0?'OUT':`${Math.round(av*100)}% FIT`,
+        chipClass: av===0?'out':(av<1&&av>0.5?'doubt':'fpl'),
         who:p.n, club:p.club,
         text:p.news?p.news:'FPL hasn’t said why.',
         pill: av===0?'<span class="pill bad">He scores nothing this week</span>'
+            : av<1&&av>0.5?`<span class="pill doubt">We're counting ${Math.round(av*100)}% of his points</span>`
             : `<span class="pill warn">We're counting ${Math.round(av*100)}% of his points</span>`
       };
     }), '', '') : '';
@@ -2299,7 +2328,20 @@ function renderNewsNudge(){
   // definition of "worth mentioning" is introduced here. riskSubject additionally requires
   // roleNum(p.role)===3 -- rotation risk only, never squad (4) or fringe (5): see the
   // comment on THE PITCH NUDGE above.
-  const flagSubject=flaggedRows().find(p=>p.availability!==undefined&&p.availability<1);
+  //
+  // flagSubject narrows further than flaggedRows() itself does: FPL's own 50%-or-below
+  // reading is "he definitely will not start" -- the card already says so plainly, in
+  // orange or red (cardHtml's three-level newsflag) -- so claiming it here as a heads-up
+  // oversells what this row knows. Per the owner, 2026-08-22: "anything 50% or below is
+  // basically FPL saying they definitely won't start. so no need to specially flag that as
+  // if we're giving them extra info." On FPL's 100/75/50/25/0 scale that leaves exactly
+  // ONE value this can ever match -- 75%, the one genuinely ambiguous reading. Do NOT
+  // widen this back to `<1` "for completeness": completeness is what oversold it before.
+  // flaggedRows() itself is UNCHANGED and still returns every one of these players -- this
+  // narrows the nudge's own subject only, never the News tab's flagged group or the nav
+  // badge count that reads it (see flaggedRows' own comment above).
+  const flagSubject=flaggedRows().find(p=>p.availability!==undefined
+    && p.availability<1 && p.availability>0.5);
   const riskSubject=riskRows().find(p=>p!==flagSubject && !p.news &&
     roleNum(p.role)===3 &&
     (p.availability===undefined||p.availability>=1));
@@ -2307,10 +2349,11 @@ function renderNewsNudge(){
 
   const clauses=[];
   if(flagSubject){
+    // Always 75% now (see the narrowing above), so the "ruled out" branch this ternary
+    // used to need is gone -- and so is the "! on his card" it pointed at: the corner
+    // glyph carries the figure itself now, not a bare "!" (cardHtml).
     const av=flagSubject.availability;
-    clauses.push(av===0
-      ? `<b>${esc(flagSubject.n)}</b> is ruled out — that one is FPL’s own ruling, and it is the ! on his card.`
-      : `<b>${esc(flagSubject.n)}</b> is ${Math.round(av*100)}% fit — that one is FPL’s own ruling, and it is the ! on his card.`);
+    clauses.push(`<b>${esc(flagSubject.n)}</b> is ${Math.round(av*100)}% fit — that one is FPL’s own ruling, and it is the ${Math.round(av*100)}% on his card.`);
   }
   if(riskSubject){
     clauses.push(`<b>${esc(riskSubject.n)}</b> carries no flag at all and we still don’t have him starting: nobody reported that, we modelled it.`);
@@ -2363,8 +2406,25 @@ function renderNewsNudge(){
      Not eleven who might."), and it is used here deliberately rather than the siblings'
      comma-and shape: those two join facts that are both true, while this one states a
      CONTRADICTION, and a full stop is the honest join for that. */
+  /* The flagSubject-only branch used to read "FPL flagged one of your fifteen, and it's
+     more than a stat" -- true, but vaguer than the corner glyph it points at now that the
+     glyph carries the number itself (cardHtml's three-level newsflag, above). This line
+     states the same figure the card does. "We doubt he starts" rather than the owner's
+     "we don't think he starts": chosen for parallelism with the riskSubject-only sibling
+     below, which already ends exactly that way -- a real editorial call, not a
+     transcription, and worth overruling if the owner would rather match the exact words.
+
+     It is a TEMPLATE now, not a literal, so it renders through the SAME `esc(headline)`
+     call every branch of this ternary already goes through (below) -- this file escapes
+     every interpolated value regardless of source, and a rounded percentage is no
+     exception even though it can only ever be digits. Survives uppercase (checked):
+     "LISTED AT 75% FIT. WE DOUBT HE STARTS." is 38 characters, comfortably under the ~60
+     typographic budget the constraint above documents. flagSubject is always 75% by the
+     time it gets here (see its own narrowing comment), but the figure stays computed
+     rather than hardcoded so a future change to that narrowing does not silently mismatch
+     the number it names. */
   const headline=both ? 'Two kinds of bad news, and both are on your fifteen'
-    : flagSubject ? 'FPL flagged one of your fifteen, and it’s more than a stat'
+    : flagSubject ? `Listed at ${Math.round(flagSubject.availability*100)}% fit. We doubt he starts.`
     : 'One of your fifteen isn’t flagged. We doubt he starts.';
   const seeLabel=both ? 'See both on News' : 'See him on News';
   const tail=both ? 'Both are on News' : 'He’s on News';
@@ -3086,7 +3146,9 @@ function pickerRowBuy(p,t){
       title="${clears?'clears':'below'} the +${gateOf().toFixed(2)} gate"></span></span>
     <span class="n"><b>${esc(p.n)}</b><span class="club">${esc(p.club)}</span>
       <span class="pill xi">${xiTag}</span>
-      ${av===0?`<span class="pill bad">ruled out</span>`:av<1?`<span class="pill warn">${Math.round(av*100)}% fit</span>`:''}</span>
+      ${av===0?`<span class="pill bad">ruled out</span>`
+        :av<1&&av>0.5?`<span class="pill doubt">${Math.round(av*100)}% fit</span>`
+        :av<1?`<span class="pill warn">${Math.round(av*100)}% fit</span>`:''}</span>
     <span class="m">sells £${sellPriceOf(p).toFixed(1)}m ${roleChip(p.role,true)}
       ${gap<0?`<span class="short">needs +£${Math.abs(gap).toFixed(1)}m</span>`:''}</span>
     <span class="x"><b class="xp">${p.xp.toFixed(2)}</b>
