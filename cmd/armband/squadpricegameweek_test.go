@@ -79,4 +79,10 @@ func TestSquadPriceGameweekTracksEveryGameweeksOwnGap(t *testing.T) {
 		t.Errorf("squadPriceGameweek(4, stale GW3 current) = %d, want %d — a finished "+
 			"gameweek later than the reported current event must still win", got, want)
 	}
+	// The boundary the two branches must agree on: the gameweek that just
+	// finished is also the one still flagged current (FPL has not rolled
+	// is_current onto the next one yet).
+	if got, want := squadPriceGameweek(1, &fpl.Event{ID: 1}), 1; got != want {
+		t.Errorf("squadPriceGameweek(1, GW1 current) = %d, want %d", got, want)
+	}
 }
