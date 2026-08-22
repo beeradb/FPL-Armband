@@ -151,8 +151,20 @@
          panel, two states, both drawn by renderImportCard() in app.js: first-run (no entry
          imported yet, whether or not the reader has skipped) and "change team" (an entry is
          already on record). hydrate() auto-opens it for first-run only; every other opening
-         goes through openImportCard(), which #squadsource's button calls. -->
-    <div class="importcard" id="importCard">
+         goes through openImportCard(), which #squadsource's button calls.
+
+         ⚠️ `hidden` HERE IS LOAD-BEARING, and it was not needed before 2026-08-22.
+         The old hydrate() closed this element on every render unless it was offering a
+         first-run import (`if(!imp.open || imp.skipped || imp.entry) card.hidden=true`),
+         so the markup's starting state was overwritten before anyone saw it. hydrate()
+         now deliberately leaves the panel ALONE in the entry-set case, so that an
+         unrelated save mid-edit cannot yank a "Change team" panel shut -- which means
+         nothing closes it on first paint, and without this attribute a reader who has
+         already imported lands on the pitch with the panel hanging open showing the
+         first-run copy. Caught by the import-imported golden, which is the shot that
+         exists because this feature had none. Closed is the default; opening is always
+         something a reader or hydrate() asks for. -->
+    <div class="importcard" id="importCard" hidden>
       <div class="panel" style="padding:14px 13px">
         <h3 id="importHeading" style="margin:0 0 8px 0;font-size:15px;font-weight:600;color:var(--ink)">Already picked your team?</h3>
         <p style="margin:0 0 12px 0;font-size:13px;color:var(--ink2);line-height:1.5">Pull in your real fifteen and plan Gameweek <span id="importNextGw">—</span> from where you actually are.</p>
