@@ -270,6 +270,72 @@ func TestMinutesOverrideSurvivesThePriorsBlend(t *testing.T) {
 	}
 }
 
+// TestSingleCameoDoesNotReadNailed is the fplarmband.com defect this is the
+// regression test for: rotationLabel used to be a flat threshold on the point
+// estimate alone, so a promoted-club debutant's one match — ninety minutes
+// divided by the one match his club has played so far — read exactly like a
+// season of established starts. No override and no prior season are involved
+// here at all: this is the organic, no-override population the fix's evidence
+// gate exists for.
+func TestSingleCameoDoesNotReadNailed(t *testing.T) {
+	e, debutant := partialGameweekEngine(t)
+	e.Priors = fakePriors{} // no prior season for anybody
+
+	debutant.Minutes, debutant.Starts = 90, 1 // his club's one match, played in full
+
+	m := e.Metrics(debutant)
+	if m.ExpectedMinutes < 75 {
+		t.Fatalf("test is not exercising the failure: expected minutes %.1f, want >= 75 "+
+			"(one full match against one match available)", m.ExpectedMinutes)
+	}
+	if m.RotationRisk == "nailed" {
+		t.Errorf("rotation_risk = nailed off a single 90-minute cameo with no prior season "+
+			"and no override — expected minutes (%.1f) cleared the threshold on one match's "+
+			"worth of raw evidence, exactly the failure this label is supposed to catch",
+			m.ExpectedMinutes)
+	}
+}
+
+// TestOverrideConfidenceGatesNailed is the Tzolis/van Ewijk contrast from the
+// live 2026-27 config: two manual minutes overrides on players with no
+// Premier League history at all (RosterOverride carries no field a program can
+// read "how confident is this" from), where the override-setter's own
+// reasoning hedges one ("a starter today, not a nailed one") and asserts the
+// other outright ("nailed starter, not a fringe player") — and the only place
+// that distinction is written down, structurally, is the value itself: 75
+// against 85. An override must clear the same evidentiary bar as anyone else
+// to read "nailed"; a bare override at the label's own floor is exactly the
+// hedge this test pins.
+func TestOverrideConfidenceGatesNailed(t *testing.T) {
+	tests := []struct {
+		name       string
+		overrideAt float64
+		wantNailed bool
+	}{
+		{"hedged override at the nailed floor reads only as a starter", 75, false},
+		{"confidently asserted override reads nailed", 85, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, debutant := partialGameweekEngine(t)
+			e.Priors = fakePriors{} // no Premier League history on record at all
+			debutant.Minutes, debutant.Starts = 0, 0
+
+			e.SetMinutesOverride(debutant.Code, tt.overrideAt, 0)
+
+			m := e.Metrics(debutant)
+			if m.ExpectedMinutes != tt.overrideAt {
+				t.Fatalf("expected minutes %.1f, want the override value %.1f unchanged — "+
+					"this test is about the LABEL, not the estimate", m.ExpectedMinutes, tt.overrideAt)
+			}
+			if got := m.RotationRisk == "nailed"; got != tt.wantNailed {
+				t.Errorf("override %.0f: rotation_risk = %q (nailed=%v), want nailed=%v",
+					tt.overrideAt, m.RotationRisk, got, tt.wantNailed)
+			}
+		})
+	}
+}
+
 // TestMinutesEvidenceIsTheClubsOwnMatches guards the general-population sibling
 // of TestMinutesOverrideSurvivesThePriorsBlend: a player with NO override at
 // all, who simply has a real prior season AND a real appearance already on the

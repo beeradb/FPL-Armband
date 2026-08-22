@@ -207,10 +207,12 @@ type Weights struct {
 	// minutes_floor was removed. It claimed to be "the total minutes below which
 	// a player is treated as a rotation/sample-size risk and discounted", was
 	// reported to the agent in those words, and no scoring path ever read it.
-	// Both jobs it described are done elsewhere and were measured there: sample
-	// size by BlendRateK and shrinkToLeague, rotation by MinutesRating. A knob
-	// that documents a behaviour the model does not have is worse than no knob,
-	// because it is the agent's stated reason for trusting a number.
+	// Rate sample size is handled elsewhere, by BlendRateK and shrinkToLeague;
+	// rotation itself is reported by MinutesRating, but MinutesRating is a bare
+	// function of the point estimate with no sample-size term of its own — see
+	// shrinkToLeague's doc comment. A knob that documents a behaviour the model
+	// does not have is worse than no knob, because it is the agent's stated
+	// reason for trusting a number.
 
 	// BenchWeight is how much bench players count when scoring a 15-man squad.
 	// Defaults to DefaultBenchWeight, which is the measured value; it used to
@@ -1803,7 +1805,7 @@ func (e *Engine) metricsIgnoring(el *fpl.Element, ignoreCode int) PlayerMetrics 
 	m.XGScale, m.XAScale = sc.Goals, sc.Assists
 	m.TournamentAbsence = e.tournamentAbsence(el).Name
 	m.MinutesRating = reliabilityFrom(b, e.minutesExponent(el.ElementType))
-	m.RotationRisk = rotationLabel(m.ExpectedMinutes)
+	m.RotationRisk = rotationLabel(m.ExpectedMinutes, e.minutesCorroborated(el, ignoreCode))
 	m.NewSigning, m.JoinedDate = e.newSigning(el)
 
 	// The door. Everything below this line PRICES a player, and a position the
@@ -2478,10 +2480,20 @@ func (e *Engine) matchesAvailable(el *fpl.Element) int {
 }
 
 // rotationLabel turns expected minutes into a plain-language risk band.
-func rotationLabel(expMins float64) string {
+//
+// "nailed" additionally requires corroborated to be true — see
+// Engine.minutesCorroborated for what that means and why a point estimate
+// cannot decide it alone. Everything below "nailed" is unaffected: an
+// uncorroborated ≥75 estimate reads "likely starter" instead, which is the
+// band immediately below and already an honest description of "clearly
+// playing regularly, not yet established beyond doubt".
+func rotationLabel(expMins float64, corroborated bool) string {
 	switch {
 	case expMins >= 75:
-		return "nailed"
+		if corroborated {
+			return "nailed"
+		}
+		return "likely starter"
 	case expMins >= 60:
 		return "likely starter"
 	case expMins >= 40:
