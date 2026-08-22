@@ -1174,6 +1174,10 @@ button{font-family:inherit;color:inherit;}
   background:var(--band);color:#fff;font-size:12.5px;font-weight:600;
 }
 .swapbar.on{display:flex;}
+/* flex:none stops the shrink: a bare <svg> flex item beside text that can wrap in a flex
+   row shrinks below its intrinsic size, which is the second instance of the pattern
+   .storenote fixed with the same rule on 2026-08-22. */
+.swapbar svg{flex:none;}
 .swapbar .x{margin-left:auto;}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}

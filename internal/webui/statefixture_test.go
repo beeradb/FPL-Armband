@@ -47,6 +47,10 @@ var fixtureNames = []string{
 	// #squadsource from an offer into a provenance line carrying "Change team". Holding
 	// everything else identical is what makes a diff between the two shots readable.
 	"import-imported",
+	// A fixture that reaches the third headline in renderNewsNudge, the rotation-risk nudge.
+	// No flagged players, one rotation-risk player with no news: derived from gameweek-one
+	// by changing Calvert-Lewin's role to "rotation risk".
+	"rotation-risk",
 }
 
 // loadState reads one fixture and fails loudly if it does not decode into the contract.
