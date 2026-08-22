@@ -43,6 +43,9 @@ import (
 const (
 	routeLanding = "/"
 	routeApp     = "/app"
+	// routeAbout is the marketing/gate document, landing.html -- moved off "/" when the
+	// app itself became the root, so it still has an address for whoever links to it.
+	routeAbout   = "/about"
 	routeGate    = "/gate"
 	routeState   = "/api/state"
 	routeSession = "/api/session"
@@ -82,8 +85,9 @@ const (
 // cross-origin locally, which is what the CORS echo in allowGateOrigin is for.
 //
 // ⚠️ This value is spelled TWICE: here, where it enters the Content-Security-Policy, and
-// in assets/static/landing.js, where the fetch actually goes. One quantity with two
-// implementations is this project's signature failure, so the two are pinned equal by
+// on landing.html's gate forms' data-gate attribute, where assets/static/gate.js reads it
+// to decide where the fetch actually goes. One quantity with two implementations is this
+// project's signature failure, so the two are pinned equal by
 // TestTheSignupOriginIsSpelledOnceInEffect. A change here without the other is a page
 // whose own policy blocks its only control.
 const signupOrigin = "https://fplarmband.com"
@@ -214,7 +218,7 @@ func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name str
 	// anywhere if it did.
 	//
 	// script-src has no 'unsafe-inline'. That is the whole point, and it is why app.js and
-	// landing.js are separate files rather than inline blocks -- a policy that permits
+	// gate.js are separate files rather than inline blocks -- a policy that permits
 	// inline script permits whatever an injection manages to open, which is most of the
 	// value gone.
 	//
@@ -258,6 +262,20 @@ func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name str
 	// here, once, covers both branches without duplicating the fill.
 	if name == "landing" {
 		body = withGA4(body)
+	}
+	// Unconditional, unlike withToken below: the signup ask is not a capability, so there
+	// is no authed/anonymous split to gate it on -- an anonymous visitor is exactly who it
+	// exists to reach. See withSignups' own comment for what it fills and why "landing"
+	// never gets a call: that document carries its own gate form already.
+	if name == "app" {
+		// withSignups makes these body bytes depend on the request's signup cookie, so a
+		// cache sitting in front of this process (the deployment caches "/" for 60s --
+		// see instruments.go's comment on httpRequests) must not serve one visitor's
+		// filled-or-empty meta tag to the next visitor with different cookie state. Vary
+		// is scoped to this branch, not set for every page: /about's body never depends
+		// on the cookie, so it carries no Vary and stays as cacheable as before.
+		w.Header().Set("Vary", "Cookie")
+		body = s.withSignups(r, body)
 	}
 	s.grantAuth(w, r)
 	if !s.authed(r) {
@@ -306,6 +324,32 @@ func withGA4(body []byte) []byte {
 	}
 	filled := `<meta name="armband-ga4" content="` + html.EscapeString(id) + `">`
 	return bytes.Replace(body, []byte(ga4Meta), []byte(filled), 1)
+}
+
+// signupsMeta is app.html's placeholder for whether the client should offer an email ask.
+// landing.html carries no copy of this tag: it has its own gate form already, and asking a
+// visitor there a second way to give the same address would be the one page doubling up on
+// itself.
+//
+// The embedded file ships with the placeholder EMPTY, so a copy of the document taken off
+// disk, or a build where the fill never runs, asks for nothing -- the safe direction, since
+// the alternative is a form the client cannot tell is dead.
+const signupsMeta = `<meta name="armband-signups" content="">`
+
+// withSignups fills app.html's signup-ask meta tag with "1" exactly when there is something
+// to gain by asking: a store is configured (otherwise /gate 503s on every submission -- an
+// operator's local `armband serve` with no signup DSN set, which must never be shown a form
+// that cannot succeed) AND this request does not already carry the signup cookie (otherwise
+// the ask is repeated at someone who has already given an address). Unlike withToken it is
+// not gated on s.authed: the ask has nothing to do with the write capability, and per-request
+// cookie state is exactly why this is a method rather than a package function the way
+// withGA4 is -- withGA4 reads only the process environment.
+func (s *squadServer) withSignups(r *http.Request, body []byte) []byte {
+	if s.signups == nil || s.hasSignedUp(r) {
+		return body
+	}
+	filled := `<meta name="armband-signups" content="1">`
+	return bytes.Replace(body, []byte(signupsMeta), []byte(filled), 1)
 }
 
 // gate accepts the landing page's email form and records the address.
@@ -363,7 +407,7 @@ func (s *squadServer) gate(w http.ResponseWriter, r *http.Request) {
 	//
 	// The temptation is to accept and discard, as this route did before there was
 	// anywhere to put an address. That is precisely the bug the change removed: 204
-	// means "recorded" to landing.js, so a deployment that had lost its database URL —
+	// means "recorded" to gate.js, so a deployment that had lost its database URL —
 	// a misspelled env var, an empty Secret — would tell every reader they had signed
 	// up, forever, while the table stayed empty and nothing failed. A 503 is loud, and
 	// it costs nothing locally because the local landing page posts to the live site
@@ -392,7 +436,7 @@ func (s *squadServer) gate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name:     gateCookieName,
+		Name:     signupCookieName,
 		Value:    "1",
 		Path:     "/",
 		SameSite: http.SameSiteStrictMode,
@@ -429,8 +473,8 @@ func (s *squadServer) gate(w http.ResponseWriter, r *http.Request) {
 // nothing for a page to learn that it did not supply itself.
 //
 // Access-Control-Allow-Credentials is deliberately absent, so the cross-origin case sends
-// and sets no cookies. The gate cookie is worth nothing locally anyway: /app is reachable
-// directly, exactly as the design's "I have access" link expects.
+// and sets no cookies. The signup cookie is worth nothing locally anyway: the app is open
+// and reachable directly, with no email required first.
 func allowGateOrigin(w http.ResponseWriter, r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	// Absent means a same-origin form post or a non-browser client. Refusing it would
@@ -457,32 +501,25 @@ func allowGateOrigin(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// gateCookieName marks a reader who has been through the landing form.
+// signupCookieName marks a reader who has already given an email address through the
+// landing form.
 //
-// ⚠️ It now GATES, which reverses what this comment said for its whole life. The two
-// documents answer each other: "/" sends a reader who has the cookie on to /app, and /app
-// sends one who does not back to "/". There is no third way in — the landing page's
-// "I have access" link, which was the by-design bypass, is deleted.
-const gateCookieName = "fpl_gate"
+// ⚠️ The Go identifier changed (it was gateCookieName) but the wire value did NOT: it is
+// still "fpl_gate", not "fpl_signup". The app no longer gates on anything, so nothing here
+// is a gate any more -- but a reader who already carries the old cookie from before this
+// change shipped must not be asked again, and the cookie's identity to a browser is its
+// string value, never the Go name pointing at it. Renaming the constant without renaming
+// the wire value is deliberate for exactly that reason.
+const signupCookieName = "fpl_gate"
 
-// gated reports whether the gate is enforced at all.
+// hasSignedUp reports whether the request carries the signup form's cookie -- nothing more.
 //
-// ⚠️ It keys on the SIGNUP STORE rather than on a flag, and that is what makes enforcing it
-// safe. A local `armband serve` has no store: signups is nil, the gate answers 503 rather
-// than accepting and discarding, and there is therefore no way for a local reader to obtain
-// the cookie at all. Enforcing there would lock an operator out of their own tool behind a
-// form that cannot succeed. The public deployment configures a store, so the gate binds
-// exactly where it can be passed.
-func (s *squadServer) gated() bool { return s.signups != nil }
-
-// hasGatePass reports whether the request carries the landing form's cookie.
-//
-// Presence is the whole test, and the value is a constant "1" that proves nothing on its
-// own. ⚠️ This is a soft gate on a free preview, not an authorisation boundary, and it must
-// not be read as one or grown into one without a threat model: anyone willing to set a
-// cookie is through it. What it buys is that the ordinary path runs through the form.
-func (s *squadServer) hasGatePass(r *http.Request) bool {
-	c, err := r.Cookie(gateCookieName)
+// It used to gate /app and /api/import; it no longer gates anything, because there is
+// nothing left in this application that requires an email address first. What it answers
+// now is narrower and purely informational: has this visitor already given one, so the
+// client knows whether asking again would be pointless. See withSignups, its one caller.
+func (s *squadServer) hasSignedUp(r *http.Request) bool {
+	c, err := r.Cookie(signupCookieName)
 	return err == nil && c.Value != ""
 }
 

@@ -564,6 +564,49 @@ button{font-family:inherit;color:inherit;}
 .btn.ghost.warn{color:var(--warn);border-color:#5A4210;background:transparent;}
 .btn.ghost.warn:hover{background:var(--warn-lo);border-color:var(--warn);}
 
+/* the news nudge -------------------------------------------------
+   A legend for the amber .newsflag glyph and role-chip dot already on the cards below,
+   naming the two real players they belong to -- never an advertisement for a tab with
+   nothing on it. Amber, not band-blue: blue is this product's informational/interactive
+   channel everywhere else, and amber means "FPL flagged, or the model is unsure" -- the
+   exact markers this row explains -- so a blue row pointing at amber markers would spend
+   the one channel meaning it has. Rendered by renderNewsNudge() (app.js) into
+   #pitch-newsnudge, above .squadsource and the turf card. */
+.newsnudge{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;margin-bottom:10px;
+  border-radius:var(--r);
+  background:linear-gradient(180deg,var(--warn-lo),rgba(44,32,8,.34));
+  border:1px solid #4A380E;}
+.newsnudge .glyph{flex:0 0 auto;min-width:15px;height:15px;border-radius:4px;
+  display:grid;place-items:center;background:var(--warn);color:#241800;margin-top:2px;
+  font-family:var(--display);font-weight:800;font-size:10px;line-height:1;}
+.newsnudge .nncopy{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:3px;}
+/* The actions sit UNDER the prose rather than beside it: the primary is a sentence-length
+   promise, and a wide button crowding 13px-wide copy would push the words it depends on
+   into too narrow a column. */
+.newsnudge .nnacts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;}
+.newsnudge .nnacts .spacer{flex:1;}
+.newsnudge .nnacts .btn.sm{height:30px;}
+.newsnudge .seenews{background:transparent;border-color:transparent;color:var(--ink2);
+  padding:0 6px;}
+.newsnudge .seenews .arw{color:var(--ink3);font-family:var(--mono);}
+.newsnudge .dismiss{color:var(--ink-idle);border-color:transparent;background:transparent;}
+.newsnudge .nngov{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:8px;
+  padding-top:8px;border-top:1px dashed #4A380E;}
+.newsnudge .nngov .t-meta{flex:1 1 300px;min-width:0;}
+.newsnudge .rowdone{display:flex;align-items:center;gap:9px;flex:1 1 300px;min-width:0;}
+/* .nyask mounted a second time, re-tinted for the amber ground and one size down -- same
+   markup, same gate.js caller, same relative /gate; see the design record for why this is
+   a CONFIGURATION, not a copy. Its own dashed top rule is dropped: the governance line
+   below already carries one, and two would be a stack of dividers rather than a structure. */
+.newsnudge .nyask{margin-top:9px;padding-top:0;border-top:0;}
+.newsnudge .nyask input{height:30px;width:190px;background:rgba(7,11,16,.5);
+  border-color:#5A4210;}
+.newsnudge .nyask .btn.sm{height:30px;padding:0 12px;}
+
+@media (max-width:720px){
+  .newsnudge{flex-wrap:wrap;}
+}
+
 /* armband controls ------------------------------------------- */
 .armpill{cursor:pointer;font-family:var(--ui);text-transform:none;letter-spacing:0;
   font-size:11.5px;font-weight:600;gap:6px;padding:3px 10px 3px 4px;color:var(--ink);}
@@ -1844,6 +1887,54 @@ body.saving{cursor:progress;}
 .nempty .g svg{width:14px;height:14px;}
 .nempty .txt{display:flex;flex-direction:column;gap:3px;min-width:0;}
 
+/* --- the one signup, asked in two places -------------------------
+   .nyask is the form; the News panel mounts it at the foot of the coming-soon panel and
+   the Pitch nudge (THE PITCH, below) mounts the SAME markup re-tinted for its own amber
+   ground -- one implementation, two configurations, per the design record's own argument
+   for why the /gate destination lives on a data-gate attribute rather than in script.
+   .askdone/.tick is the answered state, three lines below, drawn from the same checkmark
+   idiom as .nallgood .g above: one signup, one mark. Neither state is a disabled control --
+   the "Coming soon" badge beside it governs a LIVE form, never a greyed one. */
+.nyask{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;
+  padding-top:12px;border-top:1px dashed #2A3C8C;}
+.nyask .askcopy{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.nyask form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.nyask input{height:36px;width:210px;padding:0 11px;border-radius:var(--r-sm);
+  background:var(--bg2);border:1px solid var(--line2);color:var(--ink);font-family:var(--ui);
+  font-size:13px;}
+.nyask input::placeholder{color:var(--ink3);}
+.nyask input:focus{outline:2px solid var(--band);outline-offset:-1px;border-color:var(--band);}
+.nyask .notnow{color:var(--ink-idle);border-color:transparent;}
+/* gate.js's own failure text -- a write that failed must never read as a write that
+   worked, so it gets a colour and not just a sentence. */
+.nyask .done{width:100%;color:var(--bad);font-size:12px;margin:2px 0 0;}
+.askdone{display:flex;align-items:center;gap:9px;margin-top:12px;padding-top:12px;
+  border-top:1px dashed #2A3C8C;}
+.tick{flex:0 0 auto;display:grid;place-items:center;width:24px;height:24px;
+  border-radius:50%;background:var(--acc-lo);border:1px solid #0F553A;color:var(--acc);}
+.tick svg{width:13px;height:13px;}
+
+@media (max-width:720px){
+  .nyask input{width:100%;}
+}
+
+/* --- the backstory band: the landing page's three beats, migrated -----------
+   First on a first visit, above the live feed; collapsed to .backstrip on every visit
+   after -- BAND_HIDDEN_KEY (app.js), a localStorage flag with no server round trip,
+   following the OV_CACHE idiom this file's own comment (app.js) documents. */
+.ngroup.backstory{background:linear-gradient(180deg,var(--panel),rgba(12,18,25,.7));}
+.backstory .claimline{padding:12px 13px 2px;}
+.backstory .halves{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  border-top:1px solid var(--line);}
+.backstory .half{background:var(--panel);padding:13px;display:flex;flex-direction:column;
+  gap:7px;min-width:0;}
+.backstory .leakfoot{padding:9px 13px;border-top:1px solid var(--line);background:var(--bg2);}
+.hidebtn{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-idle);background:none;border:0;cursor:pointer;padding:2px 4px;}
+.backstrip{display:flex;align-items:center;gap:9px;padding:9px 13px;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px;}
+.backstrip .arw{color:var(--ink-idle);font-family:var(--mono);}
+
 @media (max-width:720px){
   .nrow{grid-template-columns:88px minmax(0,1fr);gap:10px;padding:11px 12px;}
   .nact{grid-column:2;flex-direction:row;justify-content:flex-end;}
@@ -1851,6 +1942,7 @@ body.saving{cursor:progress;}
      forbids it outright (a phone is read further away and one-handed, so mobile type must
      be equal or larger, never smaller) -- kept at the desktop size instead. */
   .nsrc .chip{letter-spacing:.06em;}
+  .backstory .halves{grid-template-columns:1fr;}
 }
 
 

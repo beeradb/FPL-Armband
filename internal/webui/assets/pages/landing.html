@@ -443,7 +443,7 @@ footer a{color:var(--ink3);}
              The reason still travels with it -- the two footnote lines below carry it in
              two lines instead of a whole section -- and the closing CTA still repeats the
              ask for a reader who went the distance. -->
-        <form class="gatecard">
+        <form class="gatecard" data-gate="https://fplarmband.com/gate" data-gate-redirect="/">
           <span class="t-label lbl" data-copy="gate.label">Get preview access</span>
           <div class="gateform">
             <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
@@ -457,6 +457,7 @@ footer a{color:var(--ink3);}
           </div>
           <div class="done t-body" hidden></div>
         </form>
+        <a class="t-meta" href="/">Already know what you want? Open the app →</a>
       </div>
 
       <!-- The preview is the real card design. One card carries the FPL news flag,
@@ -698,7 +699,7 @@ footer a{color:var(--ink3);}
              afternoon rather than a feature, and it must not be converted to
              the present tense: the badge carries the tense, the sentence
              carries the picture. -->
-        <p class="t-body" data-copy="split.soon.body">We’ll text you when your striker is named on the bench.</p>
+        <p class="t-body" data-copy="split.soon.body">We’ll notify you when your striker might not start — reported, or only modelled. We won’t catch everything.</p>
         <!-- No caption over the mock and no disclaimer under it. The single
              Coming soon badge at the head of this card is the whole label,
              and the mock sits directly under the copy so the two are never
@@ -767,7 +768,7 @@ footer a{color:var(--ink3);}
          beat 1 on purpose: beat 1 is the reader's own Saturday and never ages. -->
     <p class="t-body" data-copy="cta.body">Be the one in your mini-league who already knew — and first to hear when
       notifications land.</p>
-    <form class="gatecard">
+    <form class="gatecard" data-gate="https://fplarmband.com/gate" data-gate-redirect="/">
       <div class="gateform">
         <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
         <button class="btn primary" type="submit" data-copy="cta.gate.cta">Claim my armband</button>
@@ -795,6 +796,6 @@ footer a{color:var(--ink3);}
 </div>
 
 <script src="/assets/analytics.js" defer></script>
-<script src="/assets/landing.js" defer></script>
+<script src="/assets/gate.js" defer></script>
 </body>
 </html>

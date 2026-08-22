@@ -1896,6 +1896,19 @@ function riskRows(){
     .sort((a,b)=>(roleNum(a.role)-roleNum(b.role))||((b.mn||0)-(a.mn||0)));
 }
 
+/* flaggedRows is renderNews()'s own "Hurt, suspended or doubtful" filter, lifted out so the
+   Pitch nudge (renderNewsNudge, below) can name the same players rather than keeping a
+   second copy of "what counts as flagged" -- exactly the two functions the design record
+   names as the row's only legitimate source of a subject: this one, and riskRows() above.
+   A player qualifies on FPL's own availability figure OR a reported news item; the nudge's
+   own FPL-flag clause narrows further, to availability alone, because that is what
+   `.card .newsflag` actually fires on (see cardHtml) -- a reported item with no
+   availability drop lights no corner glyph, so citing it as "the ! on his card" would be
+   wrong. */
+function flaggedRows(){
+  return P.filter(p=>(p.availability!==undefined&&p.availability<1)||p.news);
+}
+
 /* One row shape for every source: [ who says so, and when ][ what happened ]. The third
    column (.nact) is documented in v2.css but has no caller in v1 -- nothing on this tab is
    the reader's to adjudicate -- so it is never emitted here. */
@@ -1944,8 +1957,16 @@ const allGoodHtml=`<p class="nallgood"><span class="g" aria-hidden="true">
     <span class="t-row">All fifteen are nailed starters this week.</span>
     <span class="t-meta">Rare. Enjoy it.</span></span></p>`;
 /* The press feed's shape, one specimen row so it can be judged -- not the live thing. One
-   badge, no prose about what is or is not wired up (NOTES.md §3). */
-const pressPanelHtml=`<div class="notyet nypanel">
+   badge, no prose about what is or is not wired up (NOTES.md §3).
+
+   pressPanelHtml is a FUNCTION, not the const it used to be, because its foot now carries
+   the one signup ask -- see newsAskFootHtml's own comment for why that block, and not this
+   panel's headline or its specimen row, is what changed here. Both stay exactly the copy
+   they shipped with: the headline was never the over-promising line ("we'll notify you when
+   your striker is named on the bench") that landing.html carried and 69ac868 fixed -- that
+   line never existed here, so there is nothing to correct on this tab. */
+function pressPanelHtml(){
+  return `<div class="notyet nypanel">
   <div class="nyhead">
     <span class="pill soon">Coming soon</span>
     <span class="t-row">Team news, press conferences and leaked lineups, read as they land</span>
@@ -1954,14 +1975,16 @@ const pressPanelHtml=`<div class="notyet nypanel">
     ${nrow({chip:'Press',chipClass:'press',when:'',who:'A player in your fifteen',club:'',
       text:'Who said it, when they said it, and what it did to his number.'})}
   </div>
+  ${newsAskFootHtml()}
 </div>`;
+}
 
 function renderNews(){
   // Config-sourced only ("team news we've read"). A session lock or leave-out is the
   // reader's own and is drawn on the pitch page's Your instructions panel instead.
   const read=OV.filter(o=>!o.session).sort((a,b)=>(b.needsCheck-a.needsCheck)||(b.age-a.age));
   const stale=read.filter(o=>o.needsCheck);
-  const flagged=P.filter(p=>(p.availability!==undefined&&p.availability<1)||p.news);
+  const flagged=flaggedRows();
   const risk=riskRows();
 
   const checkedEl=document.getElementById('newsChecked');
@@ -2017,7 +2040,14 @@ function renderNews(){
     allGoodHtml);
 
   const pressEl=document.getElementById('news-press');
-  if(pressEl) pressEl.innerHTML=pressPanelHtml;
+  if(pressEl){
+    pressEl.innerHTML=pressPanelHtml();
+    const notNow=document.getElementById('newsAskNotNow');
+    if(notNow) notNow.onclick=()=>{ declineNewsAsk(); renderNews(); };
+    if(window.wireGateForms) window.wireGateForms(pressEl);
+  }
+
+  renderBackstory();
 
   document.querySelectorAll('.ntext.clamp').forEach(t=>t.onclick=()=>t.classList.toggle('clamp'));
 
@@ -2028,6 +2058,291 @@ function renderNews(){
   const need=stale.length+flagged.filter(p=>(p.availability===undefined?1:p.availability)<1).length;
   const newsCount=document.getElementById('newsCount');
   if(newsCount){ newsCount.hidden=need===0; newsCount.textContent=need; }
+}
+
+/* ============================================================
+   THE ONE SIGNUP, ASKED FROM TWO PLACES
+
+   The News tab's coming-soon panel and the Pitch tab's news nudge (below) both offer the
+   same email ask, posting to the same relative /gate, reading the same fpl_gate cookie.
+   They are one signup with two mounts, and this section is the ONE place that answers "has
+   this reader already given an address" -- neither renderer keeps its own copy of that
+   fact, which is what stops them from ever disagreeing.
+   ============================================================ */
+
+/* NEEDS_SIGNUP mirrors withSignups' own armband-signups meta tag (cmd/armband/webroutes.go):
+   "1" exactly when a signup store is configured AND this request carries no signup cookie
+   yet -- read once, because the tag is static for the life of this document. Flipped to
+   false the moment gate.js reports a successful POST from EITHER mount, via the
+   armband:signedup event below, so submitting on the Pitch answers the News tab's own ask
+   and vice versa with no second implementation of the check anywhere in this file.
+
+   JUST_SIGNED_UP is the state neither the cookie nor the meta tag can carry within a single
+   page load: the moment right after a successful submission, when the tick and "You're on
+   the list" belong on screen. It is never persisted and always starts false -- a fresh
+   load already has NEEDS_SIGNUP=false from the cookie by then, and the design record is
+   explicit that the tick is a property of THIS VISIT, not a standing state: "the row is
+   gone on the next one." */
+let NEEDS_SIGNUP=(document.querySelector('meta[name="armband-signups"]')||{}).content==='1';
+let JUST_SIGNED_UP=false;
+
+/* NUDGE_DISMISSED_KEY and nudgeJustAnswered together decide whether the Pitch row's OWN
+   tick is still owed this visit even though the row is retired for every visit after it --
+   see renderNewsNudge's comment for the three writers and why "retired" and "show the tick
+   once more" are not a contradiction. */
+let nudgeJustAnswered=false;
+
+document.addEventListener('armband:signedup', (e)=>{
+  NEEDS_SIGNUP=false;
+  JUST_SIGNED_UP=true;
+  if(e.target && e.target.closest && e.target.closest('#pitch-newsnudge')){
+    nudgeJustAnswered=true;
+    dismissNudge();
+  }
+  renderNews();
+  renderNewsNudge();
+});
+
+/* NEWS_ASK_DECLINED_KEY backs the News panel's "Not now": client-side only, no request, and
+   it collapses the ASK alone -- the coming-soon panel itself stays, exactly as the design
+   record specifies. Wrapped in try/catch like OV_CACHE_KEY, so a reader with storage
+   disabled sees the ask every visit rather than a thrown error. */
+const NEWS_ASK_DECLINED_KEY='fpl_news_ask_declined';
+function newsAskDeclined(){
+  try{ return localStorage.getItem(NEWS_ASK_DECLINED_KEY)==='1'; }
+  catch(e){ return false; }
+}
+function declineNewsAsk(){
+  try{ localStorage.setItem(NEWS_ASK_DECLINED_KEY,'1'); }catch(e){}
+}
+
+/* newsAskFootHtml is the foot of the coming-soon panel: the form when there is something to
+   gain by asking, the tick when this visit just answered it (from either mount), or nothing
+   at all -- no disabled control standing in for either state. */
+function newsAskFootHtml(){
+  if(JUST_SIGNED_UP){
+    return `<div class="askdone">
+      <span class="tick" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 12.5l5 5L20 6.5"/></svg></span>
+      <span class="t-body">You’re on the list. We’ll email you once, when notifications go live.</span>
+    </div>`;
+  }
+  if(NEEDS_SIGNUP && !newsAskDeclined()){
+    return `<div class="nyask">
+      <span class="askcopy">
+        <span class="t-label">Want the heads-up?</span>
+        <span class="t-meta">No card, no FPL login, and the app stays open either way.</span>
+      </span>
+      <form class="gatecard" data-gate="/gate">
+        <input type="email" placeholder="you@email.com" aria-label="Email address" required>
+        <button class="btn primary sm" type="submit">Tell me when it lands</button>
+        <button class="btn sm ghost notnow" type="button" id="newsAskNotNow">Not now</button>
+        <div class="done t-body" hidden></div>
+      </form>
+    </div>`;
+  }
+  return '';
+}
+
+/* ============================================================
+   THE BACKSTORY BAND
+   The landing page's three real leaks and its hinge ("when it is news, we read it" / "when
+   it is not even news, we model it"), migrated into the News tab as context rather than a
+   toll -- see the design record for why this content moved off the page a reader now
+   never has to visit. Dismissible with "Hide" (a button, never a corner ✕ -- this tab's own
+   no-fake-controls rule), and collapses PERMANENTLY to a one-line strip -- BAND_HIDDEN_KEY,
+   its own localStorage key, distinct from the Pitch nudge's NUDGE_DISMISSED_KEY: hiding this
+   band explains nothing the nudge does not also explain on its own tab, and dismissing the
+   nudge has not read the three paragraphs a reader may still want. Wrapped in try/catch
+   like OV_CACHE_KEY: a reader with storage disabled sees the band every visit rather than a
+   thrown error. */
+const BAND_HIDDEN_KEY='fpl_news_band_hidden';
+function bandHidden(){
+  try{ return localStorage.getItem(BAND_HIDDEN_KEY)==='1'; }
+  catch(e){ return false; }
+}
+function hideBand(){
+  try{ localStorage.setItem(BAND_HIDDEN_KEY,'1'); }catch(e){}
+}
+function backstoryRow(chip,when,bodyHtml){
+  return `<div class="nrow">
+    <div class="nsrc"><span class="chip">${esc(chip)}</span><span class="when t-meta">${esc(when)}</span></div>
+    <div class="nbody"><p class="t-body">${bodyHtml}</p></div>
+  </div>`;
+}
+function renderBackstory(){
+  const el=document.getElementById('news-backstory');
+  if(!el) return;
+  if(bandHidden()){
+    el.innerHTML=`<div class="backstrip">
+      <span class="t-label">Why this tab exists</span>
+      <span class="t-meta">Three real weeks somebody else knew about first</span>
+      <span class="spacer"></span>
+      <span class="arw" aria-hidden="true">▸</span>
+    </div>`;
+    return;
+  }
+  el.innerHTML=`<div class="ngroup backstory">
+    <div class="ngrouphead">
+      <span class="t-label">Why this tab exists</span>
+      <span class="sp"></span>
+      <span class="t-meta">Three real weeks somebody else knew about first</span>
+      <button class="hidebtn" type="button" id="hideBandBtn">Hide</button>
+    </div>
+    ${backstoryRow('The telly','any Saturday',
+      '<b>We’ve all been there.</b> Three o’clock, telly on: your captain is on the bench. '+
+      'Everyone in your mini-league knew. Nobody’s job was to tell you.')}
+    ${backstoryRow('His dad','Dec 2023',
+      'The real update on Erling Haaland’s foot was his own father selling him on FPL. '+
+      'He could have just benched him.')}
+    ${backstoryRow('His barber','Apr 2026',
+      'Chelsea’s team news came out of a barbershop — a photo mid-trim, Palmer and João '+
+      'Pedro both out, the FPL accounts tagged so nobody would miss it.')}
+    <p class="t-row claimline">We don’t know the barber. We do follow his Twitter.</p>
+    <div class="halves">
+      <div class="half">
+        <span class="t-label">When it is news, we read it</span>
+        <p class="t-body">None of that was a secret — posted, reported, passed round
+          mini-leagues. You weren’t looking, because looking isn’t your job. When something
+          moves, we tell the model, with the source and the date, and your numbers change
+          before the deadline rather than after it.</p>
+      </div>
+      <div class="half">
+        <span class="t-label">When it is not even news, we model it</span>
+        <p class="t-body"><b>And plenty of weeks nobody leaks anything.</b> He’s fourth
+          choice at a club with a Thursday night in Europe; he’s the one rested at 3-0 on
+          the hour. Nothing is announced, no flag appears, and he costs you the week just
+          the same. That half is modelled — every player marked Nailed down to Fringe,
+          before you pick.</p>
+      </div>
+    </div>
+    <div class="leakfoot">
+      <span class="t-meta">All three really happened, and all three were public. · Six
+        seasons of real football, replayed in full, sit behind the numbers on the other
+        two tabs.</span>
+    </div>
+  </div>`;
+  const hideBtn=document.getElementById('hideBandBtn');
+  if(hideBtn) hideBtn.onclick=()=>{ hideBand(); renderBackstory(); };
+}
+
+/* ============================================================
+   THE PITCH NUDGE
+   One row at the head of the turf card, naming two real players from the reader's own
+   fifteen -- one FPL flagged, one only the model doubts -- so a visitor who never opens
+   News still learns the tab exists and why it is about THEIR squad. It is a legend for the
+   amber .newsflag glyph and role-chip dot already on the cards below, never an invented
+   third definition of "worth mentioning": its two subjects come from flaggedRows() and
+   riskRows(), the exact functions the News tab itself draws from.
+   ============================================================ */
+
+/* NUDGE_DISMISSED_KEY has THREE writers, all asserting the same fact -- this reader has
+   done what the row was for -- and none of them undo it: Dismiss, arriving at the News tab
+   by any route (setView, below), and the row's own ask succeeding. Wrapped in try/catch
+   like OV_CACHE_KEY. */
+const NUDGE_DISMISSED_KEY='fpl_news_nudge_dismissed';
+function nudgeDismissed(){
+  try{ return localStorage.getItem(NUDGE_DISMISSED_KEY)==='1'; }
+  catch(e){ return false; }
+}
+function dismissNudge(){
+  try{ localStorage.setItem(NUDGE_DISMISSED_KEY,'1'); }catch(e){}
+}
+
+/* Ephemeral render state: whether the primary button has already expanded the inline email
+   field. Never persisted -- a fresh load always starts collapsed. */
+let nudgeExpanded=false;
+
+function renderNewsNudge(){
+  const el=document.getElementById('pitch-newsnudge');
+  if(!el) return;
+  /* dismissed AND NOT the row's own just-answered visit: the one override that lets a
+     PERMANENTLY retired row still show its tick for the rest of the visit that retired it
+     -- see nudgeJustAnswered's comment above. Every other dismissal (Dismiss, or a News
+     visit) clears the row immediately, with no tick, because no signup happened on that
+     path. */
+  if(nudgeDismissed() && !nudgeJustAnswered){ el.innerHTML=''; return; }
+
+  // The two subjects, chosen by the two functions the News tab itself uses -- no third
+  // definition of "worth mentioning" is introduced here.
+  const flagSubject=flaggedRows().find(p=>p.availability!==undefined&&p.availability<1);
+  const riskSubject=riskRows().find(p=>p!==flagSubject && !p.news &&
+    (p.availability===undefined||p.availability>=1));
+  if(!flagSubject && !riskSubject){ el.innerHTML=''; return; }
+
+  const clauses=[];
+  if(flagSubject){
+    const av=flagSubject.availability;
+    clauses.push(av===0
+      ? `<b>${esc(flagSubject.n)}</b> is ruled out — that one is FPL’s own ruling, and it is the ! on his card.`
+      : `<b>${esc(flagSubject.n)}</b> is ${Math.round(av*100)}% fit — that one is FPL’s own ruling, and it is the ! on his card.`);
+  }
+  if(riskSubject){
+    clauses.push(`<b>${esc(riskSubject.n)}</b> carries no flag at all and we still don’t have him starting: nobody reported that, we modelled it.`);
+  }
+  const both=!!(flagSubject && riskSubject);
+  const headline=both ? 'Two kinds of bad news, and both are on your fifteen'
+    : flagSubject ? 'FPL flagged one of your fifteen, and it’s more than a stat'
+    : 'The model doubts one of your fifteen, and nobody said why';
+  const seeLabel=both ? 'See both on News' : 'See him on News';
+  const tail=both ? 'Both are on News' : 'He’s on News';
+
+  let actionsHtml;
+  if(nudgeJustAnswered){
+    actionsHtml=`<span class="rowdone">
+        <span class="tick" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 12.5l5 5L20 6.5"/></svg></span>
+        <span class="t-body">You’re on the list. We’ll email you once, when notifications go live.</span>
+      </span>
+      <button class="btn primary sm seenews" type="button" id="nudgeSeeNews">${esc(seeLabel)} <span class="arw" aria-hidden="true">→</span></button>
+      <button class="btn sm dismiss" type="button" id="nudgeDismiss">Dismiss</button>`;
+  } else if(NEEDS_SIGNUP && nudgeExpanded){
+    actionsHtml=`<div class="nyask">
+        <form class="gatecard" data-gate="/gate">
+          <input type="email" placeholder="you@email.com" aria-label="Email address" required>
+          <button class="btn primary sm" type="submit">Notify me</button>
+          <div class="done t-body" hidden></div>
+        </form>
+      </div>
+      <button class="btn sm seenews" type="button" id="nudgeSeeNews">${esc(seeLabel)} <span class="arw" aria-hidden="true">→</span></button>
+      <span class="spacer"></span>
+      <button class="btn sm dismiss" type="button" id="nudgeDismiss">Dismiss</button>`;
+  } else if(NEEDS_SIGNUP){
+    actionsHtml=`<button class="btn primary sm" type="button" id="nudgeAsk">Get this heads-up automatically next time</button>
+      <button class="btn sm seenews" type="button" id="nudgeSeeNews">${esc(seeLabel)} <span class="arw" aria-hidden="true">→</span></button>
+      <span class="spacer"></span>
+      <button class="btn sm dismiss" type="button" id="nudgeDismiss">Dismiss</button>`;
+  } else {
+    // No armband-signups on this document -- no store, or this browser already answered
+    // before this visit. The ask is governed by the meta tag alone, exactly like the News
+    // panel's: "See both on News" is the primary and the only action beside Dismiss.
+    actionsHtml=`<button class="btn primary sm seenews" type="button" id="nudgeSeeNews">${esc(seeLabel)} <span class="arw" aria-hidden="true">→</span></button>
+      <button class="btn sm dismiss" type="button" id="nudgeDismiss">Dismiss</button>`;
+  }
+
+  const govText=nudgeJustAnswered
+    ? 'Still not built. We won’t catch everything.'
+    : 'Not built yet. One email when it lands — after that the heads-up comes to you '+
+      'instead. We won’t catch everything.';
+
+  el.innerHTML=`<div class="newsnudge">
+    <span class="glyph" aria-hidden="true">!</span>
+    <div class="nncopy">
+      <span class="t-label warnc">${esc(headline)}</span>
+      <p class="t-body">${clauses.join(' ')} ${esc(tail)}, with what we read and when we read it.</p>
+      <div class="nnacts">${actionsHtml}</div>
+      <div class="nngov">
+        <span class="pill soon">Coming soon</span>
+        <span class="t-meta">${esc(govText)}</span>
+      </div>
+    </div>
+  </div>`;
+
+  const ask=document.getElementById('nudgeAsk');
+  if(ask) ask.onclick=()=>{ nudgeExpanded=true; renderNewsNudge(); };
+  const see=document.getElementById('nudgeSeeNews');
+  if(see) see.onclick=()=>setView('news');
+  const dis=document.getElementById('nudgeDismiss');
+  if(dis) dis.onclick=()=>{ dismissNudge(); renderNewsNudge(); };
+  if(window.wireGateForms) window.wireGateForms(el);
 }
 
 /* ============================================================
@@ -2046,6 +2361,14 @@ const BACK_TO={pitch:'the pitch', players:'the players', news:'the news'};
 
 function setView(v, push){
   if(!VIEWS.includes(v)) v='pitch';
+  if(v==='news'){
+    // Arriving on News, by ANY route -- the nav, the tab bar, a #news link, or the Pitch
+    // nudge's own "See both on News" -- retires the nudge for good. No tick here: unlike
+    // the row's own ask succeeding, nothing was signed up on this path, so there is nothing
+    // to confirm, only something to stop repeating.
+    dismissNudge();
+    renderNewsNudge();
+  }
   S.view=v;
   VIEWS.forEach(x=> document.getElementById('view-'+x).hidden = x!==v);
   document.querySelectorAll('[data-view]').forEach(b=>
@@ -2101,7 +2424,7 @@ function renderHouseTeam(){
   </div>`;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderHouseTeam();}
+function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderHouseTeam();}
 
 /* boot fetches the state and draws once.
 

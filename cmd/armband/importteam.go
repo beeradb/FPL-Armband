@@ -84,15 +84,7 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. The soft preview gate, the same check /app itself applies. It is not an
-	// authorisation boundary (see hasGatePass's own doc comment), but the ordinary path
-	// runs through the landing form, and this route should not be a side door around it.
-	if s.gated() && !s.hasGatePass(r) {
-		http.Error(w, "sign up first", http.StatusForbidden)
-		return
-	}
-
-	// 5. The gameweek gate, BEFORE any parsing and BEFORE any network call — a closed
+	// 4. The gameweek gate, BEFORE any parsing and BEFORE any network call — a closed
 	// window means there is nothing to import regardless of what the reader typed, so
 	// there is no reason to validate their input or spend an FPL round trip finding
 	// that out. See importWindow's own doc comment for what "open" means.
@@ -104,7 +96,7 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 6. Parse the body and validate the id's SHAPE. Still no network call: a
+	// 5. Parse the body and validate the id's SHAPE. Still no network call: a
 	// malformed id is refused before FPL is ever asked about it.
 	var req struct {
 		Entry any `json:"entry"`
@@ -121,7 +113,7 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 7. The FPL fetches happen here, BEFORE the render lock is taken.
+	// 6. The FPL fetches happen here, BEFORE the render lock is taken.
 	//
 	// s.mu serialises every render on this server — see lockRender's own comment — and
 	// a render already takes real time. Holding it across two outbound HTTP calls to
@@ -163,7 +155,7 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 8. Map every pick's season-scoped element id to the player's PERMANENT code.
+	// 7. Map every pick's season-scoped element id to the player's PERMANENT code.
 	// This codebase keys everything downstream — session.Squad included — on the code,
 	// never the element id, because ids are reassigned every summer. A pick that fails
 	// to resolve refuses the WHOLE import rather than storing fourteen players and
@@ -208,10 +200,10 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 9. Build the new session, preserving standing corrections and replacing the team.
+	// 8. Build the new session, preserving standing corrections and replacing the team.
 	in := s.readValidSession(r).fromImport(id, squad, xi, bench, captain, vice)
 
-	// 10. Run it through the SAME validator every other session write goes through —
+	// 9. Run it through the SAME validator every other session write goes through —
 	// see saveSession's own comment. It should always pass for a freshly-fetched FPL
 	// squad; running it anyway keeps one single statement of what a storable session
 	// is, rather than a second belief about it living here.
@@ -222,7 +214,7 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 11. The render lock, taken only now — see step 7's comment for why it could not
+	// 10. The render lock, taken only now — see step 6's comment for why it could not
 	// be taken any earlier.
 	defer s.lockRender("import")()
 
@@ -234,7 +226,7 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 12. The cookie is written only AFTER the state build has succeeded — see
+	// 11. The cookie is written only AFTER the state build has succeeded — see
 	// saveSession's own comment on why the other order is a defect: it would store an
 	// HttpOnly cookie the page has no way to clear, for a session that cannot render.
 	//
@@ -248,7 +240,7 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
 		return
 	}
-	// 13. The document itself.
+	// 12. The document itself.
 	writeState(w, stateBody)
 }
 

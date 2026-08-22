@@ -21,7 +21,7 @@ import (
 // none: whatever an injection opens, it permits.
 func TestTheDocumentsCarryAPolicyThatForbidsInlineScript(t *testing.T) {
 	s := &squadServer{}
-	for _, path := range []string{"/", "/app"} {
+	for _, path := range []string{"/", "/about"} {
 		csp := get(t, s, path).Header().Get("Content-Security-Policy")
 		if csp == "" {
 			t.Errorf("GET %s carries no Content-Security-Policy", path)
@@ -44,7 +44,7 @@ func TestTheDocumentsCarryAPolicyThatForbidsInlineScript(t *testing.T) {
 		} else if strings.Contains(script, "unsafe-inline") || strings.Contains(script, "unsafe-eval") {
 			t.Errorf("GET %s: script-src is %q. A policy that permits inline script permits "+
 				"whatever an injected string opens, which is most of the value gone — and "+
-				"it is why app.js and landing.js are separate files.", path, script)
+				"it is why app.js and gate.js are separate files.", path, script)
 		}
 
 		// connect-src is the one directive that differs by document, so it is
@@ -61,13 +61,13 @@ func TestTheDocumentsCarryAPolicyThatForbidsInlineScript(t *testing.T) {
 		}
 
 		// ⚠️ The APPLICATION's connect-src must stay exactly 'self'. That is the
-		// directive this whole test is written around: /app renders FPL's prose and
-		// player names by innerHTML, so it is the document an injected string could
-		// ride into, and 'self' is what stops such a string sending the squad
-		// anywhere. The landing page renders nothing untrusted and carries the one
-		// named peer its signup form posts to.
+		// directive this whole test is written around: the app (now served at "/")
+		// renders FPL's prose and player names by innerHTML, so it is the document an
+		// injected string could ride into, and 'self' is what stops such a string
+		// sending the squad anywhere. The landing page (/about) renders nothing
+		// untrusted and carries the one named peer its signup form posts to.
 		want := "'self'"
-		if path == "/" {
+		if path == routeAbout {
 			want = "'self' " + signupOrigin
 		}
 		if got := directives["connect-src"]; got != want {
@@ -108,25 +108,25 @@ func TestTheAssetRouteIsNotAFileBrowser(t *testing.T) {
 }
 
 // TestGA4WidensOnlyTheLandingPagesCSPWhenConfigured is the test a reviewer checks first,
-// per the plan this implements: /app's CSP must be provably unchanged by ARMBAND_GA4_ID,
-// in every case, configured or not. /app is the page that renders FPL's prose and player
-// names by innerHTML, and connect-src 'self' is what stops an injected string from
-// exfiltrating the reader's squad if escaping ever fails somewhere — GA4 must never be
-// able to move that boundary.
+// per the plan this implements: the app's CSP (served at "/" now) must be provably
+// unchanged by ARMBAND_GA4_ID, in every case, configured or not. The app is the page that
+// renders FPL's prose and player names by innerHTML, and connect-src 'self' is what stops
+// an injected string from exfiltrating the reader's squad if escaping ever fails somewhere
+// — GA4 must never be able to move that boundary.
 func TestGA4WidensOnlyTheLandingPagesCSPWhenConfigured(t *testing.T) {
 	s := &squadServer{}
 
-	baselineLanding := get(t, s, "/").Header().Get("Content-Security-Policy")
-	baselineApp := get(t, s, "/app").Header().Get("Content-Security-Policy")
+	baselineApp := get(t, s, "/").Header().Get("Content-Security-Policy")
+	baselineLanding := get(t, s, routeAbout).Header().Get("Content-Security-Policy")
 
 	t.Setenv("ARMBAND_GA4_ID", "G-TESTID123")
 
-	widenedLanding := get(t, s, "/").Header().Get("Content-Security-Policy")
-	widenedApp := get(t, s, "/app").Header().Get("Content-Security-Policy")
+	widenedApp := get(t, s, "/").Header().Get("Content-Security-Policy")
+	widenedLanding := get(t, s, routeAbout).Header().Get("Content-Security-Policy")
 
-	// The one assertion that matters most: /app is BYTE-IDENTICAL, configured or not.
+	// The one assertion that matters most: the app is BYTE-IDENTICAL, configured or not.
 	if widenedApp != baselineApp {
-		t.Fatalf("/app's CSP changed when ARMBAND_GA4_ID was set.\nbefore: %s\nafter:  %s",
+		t.Fatalf("the app's CSP changed when ARMBAND_GA4_ID was set.\nbefore: %s\nafter:  %s",
 			baselineApp, widenedApp)
 	}
 
@@ -181,7 +181,7 @@ func TestGA4WidensOnlyTheLandingPagesCSPWhenConfigured(t *testing.T) {
 	// Unset again — a leftover widening after the env var is cleared would mean the
 	// policy is not actually reading it live.
 	t.Setenv("ARMBAND_GA4_ID", "")
-	restoredLanding := get(t, s, "/").Header().Get("Content-Security-Policy")
+	restoredLanding := get(t, s, routeAbout).Header().Get("Content-Security-Policy")
 	if restoredLanding != baselineLanding {
 		t.Errorf("landing CSP with ARMBAND_GA4_ID unset again is %q, want the original %q",
 			restoredLanding, baselineLanding)

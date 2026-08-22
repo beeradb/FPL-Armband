@@ -9,10 +9,23 @@
 <link rel="apple-touch-icon" href="/assets/icon-180.png">
 <link rel="manifest" href="/assets/site.webmanifest">
 <meta name="theme-color" content="#070B10">
-<!-- No og: tags here: this page sits behind an email gate and should not be presented as a shareable destination. -->
+<!-- Still no og: tags here, but not for the old reason -- there is no gate left to sit
+     behind. Two reasons stand in its place. First, a preview crawler would be describing
+     the WRONG thing: a shared link opens the reader's own session, whatever they last
+     dragged, locked, or imported, not a fixed pitch a card image could usefully summarise
+     -- landing.html is the fixed, shareable pitch, and it carries the full og:/twitter:
+     set already. Second, this document's Content-Security-Policy is deliberately the
+     tighter one (connect-src 'self', no signupOrigin -- see connectSrcFor's doc comment in
+     cmd/armband/webroutes.go), because it renders FPL's prose and player names by
+     innerHTML; adding a crawler-facing feature here is one more reason for someone to
+     widen that policy later; landing.html renders nothing untrusted, and this page does. -->
 <!-- The write token, filled in by the server per request. Empty in the embedded file,
      so a copy of this document taken off disk carries no capability. -->
 <meta name="armband-token" content="">
+<!-- Whether the client should offer an email ask, filled in by the server per request.
+     Empty in the embedded file, so a copy of this document taken off disk, or a build where
+     the fill never runs, asks for nothing. -->
+<meta name="armband-signups" content="">
 <link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/assets/armband.css">
 </head>
@@ -117,6 +130,17 @@
         <button class="btn sm" id="optimise">Optimise</button>
       </span>
     </div>
+
+    <!-- The news nudge: a legend for the amber .newsflag and role-chip markers already on
+         the cards below, not an advertisement for a tab that has nothing on it. Rendered by
+         renderNewsNudge() (app.js), which names its two players from flaggedRows() and
+         riskRows() -- the SAME functions renderNews() draws the News tab's own groups from
+         -- so it can never name a player the News tab itself does not. Absent when the
+         fifteen has no such player, and permanently retired (localStorage) the moment it is
+         dismissed, its own ask is answered, or the News tab is opened by any route -- see
+         NUDGE_DISMISSED_KEY's comment for why those three writers share one key. -->
+    <div id="pitch-newsnudge"></div>
+
     <div class="squadsource dim" id="squadsource"></div>
 
     <div class="pitch" id="pitch">
@@ -328,6 +352,16 @@
        the top and earns all of it. -->
   <div id="news-press"></div>
 
+  <!-- The backstory band: the migrated pitch from landing.html's own hero, at in-app
+       density -- three real weeks somebody else knew about first, then the tab's own hinge
+       ("when it is news, we read it" / "when it is not even news, we model it"). Rendered
+       by renderBackstory() (app.js). Dismissible with "Hide" (never a corner ✕, matching
+       this tab's own no-fake-controls rule) and collapses PERMANENTLY to a one-line strip
+       -- BAND_HIDDEN_KEY, its own localStorage key, distinct from the Pitch nudge's: hiding
+       this explains nothing the nudge does not also explain, and dismissing the nudge has
+       not read three paragraphs the reader may still want. -->
+  <div id="news-backstory"></div>
+
   <div id="news-flagged"></div>
   <div id="news-read"></div>
   <div id="news-risk"></div>
@@ -367,6 +401,7 @@
   <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 </div>
 
+<script src="/assets/gate.js" defer></script>
 <script src="/assets/app.js" defer></script>
 </body>
 </html>

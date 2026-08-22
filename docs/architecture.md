@@ -229,11 +229,14 @@ everything they reference, under `/assets/`. The split is what stops the applica
 two front doors.
 
 The two documents also carry two different Content-Security-Policy directives, on purpose:
-`/app` renders FPL's prose and player names by innerHTML, so its `connect-src` stays
-`'self'` under any configuration, while the landing page's may widen. `ARMBAND_GA4_ID`, if
-set, widens the landing page's policy alone — never `/app`'s — to load GA4 from
-`analytics.js`; `cmd/armband/webroutes.go`'s `connectSrcFor`/`scriptSrcFor` enforce the
-split, each refusing to widen for any page but "landing".
+the application (served at `/`, the front door) renders FPL's prose and player names by
+innerHTML, so its `connect-src` stays `'self'` under any configuration, while the landing
+page (`/about`) may widen. `ARMBAND_GA4_ID`, if set, widens the landing page's policy
+alone — never the application's — to load GA4 from `analytics.js`;
+`cmd/armband/webroutes.go`'s `connectSrcFor`/`scriptSrcFor` enforce the split, each
+refusing to widen for any page but "landing". `/app` still resolves — a 302 to `/`, kept
+for bookmarks and shared links from before the application became the root, and not a 301
+because whether `/app` should exist at all is still an open, reversible question.
 
 ### The supporting packages
 
@@ -251,7 +254,7 @@ is where a number *came from*.
 | `internal/wayback` | the Internet Archive's CDX index and raw-payload endpoints. The only other package that does network I/O, deliberately separate from `internal/fpl` because its results are an immutable record rather than a cache — see [backfill.md](backfill.md) |
 | `internal/backfill` | recovers the same point-in-time team news for **finished** seasons from archived crawls of `bootstrap-static`. Selection is the last crawl strictly before each deadline, never the nearest, and nothing is stored that cannot prove from its own payload that it predates its deadline |
 | `internal/snapshot` | renders the dated model-and-harness accuracy record. It **reads** inference and never computes it; `TestThisPackageDoesNotComputeInference` fails if it grows a copy |
-| `internal/signup` | the addresses the landing page's gate collects, in Postgres. The only package that **collects** personal data rather than archiving what FPL publishes, and the only one that talks to a database. It has **no read side** — nothing in the application ever lists what it has collected, because nothing has a reason to. No store is opened unless `ARMBAND_SIGNUPS_DSN` is set, which is a deployment setting rather than a local one; with none configured `/gate` **refuses with a 503** rather than accepting and discarding, so a deployment that lost its database URL cannot tell readers they signed up. Address validation runs either way. The landing page posts to the live site from wherever it is served, so one address lands in one list |
+| `internal/signup` | the addresses the site's gate forms collect, in Postgres — the landing page's own ask plus the two in-app asks on the News and Pitch tabs, all three sharing one endpoint. The only package that **collects** personal data rather than archiving what FPL publishes, and the only one that talks to a database. It has **no read side** — nothing in the application ever lists what it has collected, because nothing has a reason to. No store is opened unless `ARMBAND_SIGNUPS_DSN` is set, which is a deployment setting rather than a local one; with none configured `/gate` **refuses with a 503** rather than accepting and discarding, so a deployment that lost its database URL cannot tell readers they signed up. Address validation runs either way. The landing page posts to the live site from wherever it is served, so one address lands in one list |
 
 ---
 

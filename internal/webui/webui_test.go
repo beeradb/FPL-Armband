@@ -92,11 +92,20 @@ var externalOrigins = []string{
 	"https://github.com/beeradb/FPL-Armband",
 }
 
-// anchorHref and metaContent find the two places an allowlisted origin may appear. They
-// are deliberately narrow: an <a> element's href, and a <meta> element's content.
+// anchorHref, metaContent and dataGate find the three places an allowlisted origin may
+// appear. They are deliberately narrow: an <a> element's href, a <meta> element's content,
+// and a gate form's data-gate. dataGate is the odd one in with the other two rather than
+// with a plain subresource: gate.js reads it and does exactly one explicit, script-driven
+// fetch to it (see gate.js's own doc comment) — a NAVIGATION the page's own code chooses to
+// make, not something the embedded webview loads on parse the way <img src> or <link
+// href> would. The old landing.js carried this same origin as a JS string constant, which
+// this scan never saw at all; moving it onto the form's markup (so one attribute serves
+// three configurations rather than three copies of a fetch — see the design record) made
+// it visible here for the first time, and it belongs on the allowlist path, not blocked.
 var (
 	anchorHref  = regexp.MustCompile(`(?i)<a\b[^>]*?\shref="([^"]*)"`)
 	metaContent = regexp.MustCompile(`(?i)<meta\b[^>]*?\scontent="([^"]*)"`)
+	dataGate    = regexp.MustCompile(`(?i)\sdata-gate="([^"]*)"`)
 )
 
 func scannable(body []byte) string {
@@ -130,10 +139,11 @@ func originAllowed(ref string) bool {
 func scanExternal(raw []byte) (badOrigins, loads []string) {
 	body := scannable(raw)
 
-	// Anchors and meta values are checked against the allowlist and then REMOVED, so that
-	// whatever survives to externalRef below is a genuine subresource. Removing them is
-	// what keeps the remaining scan absolute rather than advisory.
-	for _, re := range []*regexp.Regexp{anchorHref, metaContent} {
+	// Anchors, meta values and data-gate attributes are checked against the allowlist and
+	// then REMOVED, so that whatever survives to externalRef below is a genuine
+	// subresource. Removing them is what keeps the remaining scan absolute rather than
+	// advisory.
+	for _, re := range []*regexp.Regexp{anchorHref, metaContent, dataGate} {
 		for _, m := range re.FindAllStringSubmatch(body, -1) {
 			if externalRef.MatchString(m[1]) && !originAllowed(m[1]) {
 				badOrigins = append(badOrigins, m[1])
@@ -196,6 +206,13 @@ func TestTheExternalHostGuardStillFiresOnASubresource(t *testing.T) {
 			`<meta property="og:image" content="https://fplarmband.com/assets/og-image.png">` +
 			`<a href="https://github.com/beeradb/FPL-Armband">GitHub</a>` +
 			`<a href="/privacy">Privacy</a>`,
+	}, {
+		name:       "a data-gate naming an unlisted origin is caught",
+		doc:        `<form class="gatecard" data-gate="https://evil.example.com/gate">`,
+		wantOrigin: true,
+	}, {
+		name: "the real gate form's data-gate passes",
+		doc:  `<form class="gatecard" data-gate="https://fplarmband.com/gate">`,
 	}, {
 		name: "a comment mentioning an origin is not a reference",
 		doc:  `<!-- see https://ogp.me/ for why these are absolute -->`,

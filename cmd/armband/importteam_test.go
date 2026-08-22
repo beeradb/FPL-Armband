@@ -138,16 +138,6 @@ func TestImportRejectsCrossOriginWithoutAToken(t *testing.T) {
 	}
 }
 
-func TestImportRefusesWhenTheGateIsClosed(t *testing.T) {
-	s := fixtureServer(t)
-	openImportWindow(s, 1, 2)
-	s.signups = &recordingStore{}
-	w := putImport(t, s, "1234567", nil, false)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("PUT /api/import with the preview gate closed answered %d, want 403", w.Code)
-	}
-}
-
 // TestImportRefusesBeforeGW1HasBeenPlayed pins that a closed import window is checked
 // BEFORE any parsing or network call: fetchEntry is set to fail the test if it is ever
 // called at all, so this fails loudly if the handler ever reaches the network path with
