@@ -177,7 +177,7 @@ func partialGameweekEngine(t *testing.T) (*Engine, *fpl.Element) {
 		// Event.Finished is set anywhere, which is what GameweeksPlayed() reads.
 		// That is the live GW1 gap: this fixture is done while the gameweek it
 		// belongs to is not.
-		{ID: 1, Event: &gw1, TeamH: 1, TeamA: 2, Started: true, Finished: true},
+		{ID: 1, Event: &gw1, TeamH: 1, TeamA: 2, Started: true, Finished: true, FinishedProvisional: true},
 	}
 	e := NewEngineFull(b, fx, DefaultWeights(), Congestion{}, RoleRisk{})
 	return e, &e.Boot.Elements[1]
@@ -267,6 +267,101 @@ func TestMinutesOverrideSurvivesThePriorsBlend(t *testing.T) {
 	}
 	if m.RotationRisk != "nailed" {
 		t.Errorf("rotation_risk = %q with an 88-minute override in force, want nailed", m.RotationRisk)
+	}
+}
+
+// TestMinutesEvidenceIsTheClubsOwnMatches guards the general-population sibling
+// of TestMinutesOverrideSurvivesThePriorsBlend: a player with NO override at
+// all, who simply has a real prior season AND a real appearance already on the
+// board for his own club this season.
+//
+// blendRatesCode's current/prior mix used n = GameweeksPlayed() as the evidence
+// count for MinutesPerMatch and StartShare. During the same multi-day gap the
+// other two fixes (#39, #40, both today) address — SeasonHasStarted true,
+// GameweeksPlayed still 0 because no gameweek has fully finished — that meant
+// EVERY player was blended at n == 0, regardless of how many matches his own
+// club had actually played: w = 0/(0+k) = 0, so MinutesPerMatch and StartShare
+// came back as exactly last season's rate, discarding a real ninety-minute
+// appearance already on record. Left unfixed alongside the other two because it
+// degrades toward the prior rather than exploding to a raw value — bounded, not
+// silent.
+func TestMinutesEvidenceIsTheClubsOwnMatches(t *testing.T) {
+	e, _ := partialGameweekEngine(t)
+	established := &e.Boot.Elements[0]
+	if e.GameweeksPlayed() != 0 || !e.SeasonHasStarted() {
+		t.Fatalf("setup: GameweeksPlayed=%d SeasonHasStarted=%v, want 0/true",
+			e.GameweeksPlayed(), e.SeasonHasStarted())
+	}
+	if got := e.TeamMatchesStarted(established.Team); got != 1 {
+		t.Fatalf("setup: TeamMatchesStarted(established's club) = %d, want 1 — "+
+			"this test needs a player whose OWN club has already played", got)
+	}
+
+	// A thin backup season last year — 630 minutes across 38, the same shape as
+	// the Kinsky incident's prior.
+	e.Priors = fakePriors{established.Code: {Minutes: 630, Starts: 7, XG: 1, XA: 1, XGC: 10, DefCon: 5}}
+	// But his club's one match so far this season, he played the full ninety —
+	// real, current-season evidence that his role is not what it was, and no
+	// standing override asserts it for him.
+	established.Minutes, established.Starts = 90, 1
+
+	m := e.Metrics(established)
+
+	priorOnly := 630.0 / GameweeksPerSeason // what n == 0 (the bug) reports
+	if m.ExpectedMinutes <= priorOnly+5 {
+		t.Errorf("expected minutes %.1f is barely above the pure-prior figure %.1f; "+
+			"a 90-minute appearance already on record for this club's one match is "+
+			"not moving the estimate, so the blend is still keyed on GameweeksPlayed "+
+			"(0) rather than this club's own TeamMatchesStarted (1)",
+			m.ExpectedMinutes, priorOnly)
+	}
+	// And it must not be anywhere near the full 90 either — one match is thin
+	// evidence against a real 38-game prior season, and BlendMinutesK exists to
+	// shrink exactly this.
+	if m.ExpectedMinutes > 50 {
+		t.Errorf("expected minutes %.1f overweights a single match against a real "+
+			"prior season", m.ExpectedMinutes)
+	}
+}
+
+// TestMinutesEvidenceIgnoresAMatchStillInProgress guards the sibling mistake to the one
+// above, at a finer grain: a fixture that has KICKED OFF but has not yet locked in its
+// final numbers is not a match's worth of evidence, it is a partial one. el.Minutes for
+// a club mid-fixture is whatever the live match has accumulated so far — a nailed
+// starter's 47 minutes into his 90, not his eventual total — and TeamMatchesStarted
+// alone would count that as "1 match played", blending the partial figure in as if it
+// were complete. TeamMatchesFinished must answer 0 here, leaving the blend on the prior
+// until the match's own stats are final.
+//
+// This gates on FinishedProvisional, not Finished — see the field's own comment on
+// fpl.Fixture and TeamMatchesFinished's. Finished lags full time by many hours live,
+// so a test built on it would prove the wrong thing.
+func TestMinutesEvidenceIgnoresAMatchStillInProgress(t *testing.T) {
+	e, _ := partialGameweekEngine(t)
+	established := &e.Boot.Elements[0]
+	// Overwrite the shared fixture: kicked off, still being played, so its numbers
+	// are not final yet — Finished stays whatever the fixture literal set it to,
+	// deliberately, since TeamMatchesFinished must not be reading that field.
+	e.Fixtures[0].FinishedProvisional = false
+	if got := e.TeamMatchesStarted(established.Team); got != 1 {
+		t.Fatalf("setup: TeamMatchesStarted = %d, want 1 (the match has kicked off)", got)
+	}
+	if got := e.TeamMatchesFinished(established.Team); got != 0 {
+		t.Fatalf("TeamMatchesFinished = %d, want 0 — the match's numbers are not final yet", got)
+	}
+
+	e.Priors = fakePriors{established.Code: {Minutes: 630, Starts: 7, XG: 1, XA: 1, XGC: 10, DefCon: 5}}
+	// A live snapshot mid-match: 47 minutes so far, not a completed 90.
+	established.Minutes, established.Starts = 47, 1
+
+	m := e.Metrics(established)
+
+	priorOnly := 630.0 / GameweeksPerSeason
+	if m.ExpectedMinutes > priorOnly+5 {
+		t.Errorf("expected minutes %.1f moved away from the pure-prior figure %.1f while "+
+			"the match is still live; a partial in-match snapshot must not count as a "+
+			"completed match of evidence until TeamMatchesFinished says it is one",
+			m.ExpectedMinutes, priorOnly)
 	}
 }
 

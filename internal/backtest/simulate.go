@@ -265,8 +265,17 @@ func playedFixtures(all []fpl.Fixture, through int) []fpl.Fixture {
 			// build leaves Started at its zero value on purpose; this is the
 			// point-in-time layer that is allowed an opinion about what has played.
 			f.Started = true
+			// FinishedProvisional and Finished disagree live (see the comment on
+			// Fixture) only during the administrative lag between full time and
+			// FPL's later confirmation — a state the archive has no way to
+			// represent at all, since a replayed gameweek is either fully in the
+			// past or entirely hidden. Mirror Finished so analysis.TeamMatchesFinished
+			// reads a replayed match as done the moment its score is known, same
+			// as every other point-in-time field here.
+			f.FinishedProvisional = f.Finished
 		} else {
 			f.Finished = false
+			f.FinishedProvisional = false
 			f.Started = false
 			f.TeamHScore, f.TeamAScore = nil, nil
 		}

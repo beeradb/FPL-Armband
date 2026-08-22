@@ -418,18 +418,29 @@ type Element struct {
 }
 
 // Fixture is one match from /api/fixtures/.
+//
+// Finished and FinishedProvisional are not the same signal. Verified live against
+// the production API, 2026-08-22: a fixture with a locked-in final score and its
+// bonus points already posted in each player's stats can still read
+// Finished == false for 16+ hours after full time — Finished tracks some later,
+// unpredictably-delayed administrative confirmation, not the final whistle.
+// FinishedProvisional flips at full time, once the match's own numbers (goals,
+// bonus, defensive contributions) are locked in. Anywhere a caller needs "this
+// match's stats are final and safe to treat as a completed unit of evidence",
+// that is FinishedProvisional, not Finished.
 type Fixture struct {
-	ID              int        `json:"id"`
-	Event           *int       `json:"event"`
-	KickoffTime     *time.Time `json:"kickoff_time"`
-	Finished        bool       `json:"finished"`
-	Started         bool       `json:"started"`
-	TeamH           int        `json:"team_h"`
-	TeamA           int        `json:"team_a"`
-	TeamHScore      *int       `json:"team_h_score"`
-	TeamAScore      *int       `json:"team_a_score"`
-	TeamHDifficulty int        `json:"team_h_difficulty"`
-	TeamADifficulty int        `json:"team_a_difficulty"`
+	ID                  int        `json:"id"`
+	Event               *int       `json:"event"`
+	KickoffTime         *time.Time `json:"kickoff_time"`
+	Finished            bool       `json:"finished"`
+	FinishedProvisional bool       `json:"finished_provisional"`
+	Started             bool       `json:"started"`
+	TeamH               int        `json:"team_h"`
+	TeamA               int        `json:"team_a"`
+	TeamHScore          *int       `json:"team_h_score"`
+	TeamAScore          *int       `json:"team_a_score"`
+	TeamHDifficulty     int        `json:"team_h_difficulty"`
+	TeamADifficulty     int        `json:"team_a_difficulty"`
 }
 
 // ElementSummary is /api/element-summary/{id}/.

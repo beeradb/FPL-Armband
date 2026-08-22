@@ -402,8 +402,9 @@ func (e *Engine) blendRates(el *fpl.Element, m PlayerMetrics) blend {
 // parameter on the one implementation rather than a second copy of it.
 func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int) blend {
 	played := e.GameweeksPlayed()
-	minsPerMatch := float64(el.Minutes) / float64(e.matchesAvailable(el))
-	startShare := float64(el.Starts) / float64(e.matchesAvailable(el))
+	avail := e.matchesAvailable(el)
+	minsPerMatch := float64(el.Minutes) / float64(avail)
+	startShare := float64(el.Starts) / float64(avail)
 
 	// Minutes are a statement about the present, not the season. A player who
 	// lost his place six weeks ago still reads as a starter on the season
@@ -525,8 +526,60 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 		return w*cur + (1-w)*prior
 	}
 
-	// Minutes are judged per match, so the evidence is matches played.
-	n := float64(played)
+	// Minutes are judged per match, so the evidence is matches played — but the
+	// matches THIS PLAYER'S CLUB has played, not the league-wide GameweeksPlayed.
+	// That distinction is TeamMatchesStarted's whole point (see its own comment):
+	// a Premier League gameweek spans Friday to Monday, GameweeksPlayed stays 0
+	// for the entire span until the LAST fixture in it finishes, and FPL does not
+	// wait — it resets a player's aggregates the instant his own club kicks off.
+	//
+	// n used to be GameweeksPlayed, which is the same broken quantity #40's
+	// incident report named without changing: "blended that already-corrected
+	// figure straight back toward his prior with weight n/(n+k), n =
+	// GameweeksPlayed()". #40 worked around it downstream, by reasserting a
+	// standing override after the mix ran; it left n itself, and therefore
+	// every player with NO override, still wrong. During the gap — a club
+	// that has already played, while some gameweek fixture elsewhere has not
+	// — n was 0 for every one of that club's players regardless of how much
+	// football they actually had on record, so w = n/(n+k) stayed at 0 and
+	// MinutesPerMatch/StartShare came back as exactly last season's rate,
+	// discarding real evidence that a player's role has already changed this
+	// season — a transfer, a new manager, form already diverging from last
+	// year's pattern.
+	//
+	// This is TeamMatchesFinished(el.Team), NOT TeamMatchesStarted, and NOT
+	// avail (matchesAvailable) above. Two distinct failure modes on two
+	// sides of the same fix:
+	//
+	// avail is a per-90 RATE DENOMINATOR, so it falls back to the full
+	// pre-season 38 whenever this club itself has not yet kicked off, on the
+	// correct assumption that a truly pre-season el.Minutes is a 38-match
+	// season total. That fallback is wrong read as an EVIDENCE COUNT:
+	// mid-gap, a club that has not yet played its own fixture has
+	// el.Minutes == 0 (FPL has already zeroed the whole league's aggregates
+	// the moment SeasonHasStarted, not per club — confirmed live, contrary
+	// to TeamMatchesStarted's own comment, which describes only the
+	// opposite disagreement), and avail's 38-fallback then read that genuine
+	// zero as "38 matches of evidence he doesn't play", collapsing
+	// MinutesPerMatch to a sliver of his prior rate for every player at a
+	// club that simply had not kicked off yet.
+	//
+	// TeamMatchesStarted has no such fallback and fixes that side, but it
+	// introduces the opposite mistake at the boundary: a fixture that has
+	// KICKED OFF but not yet finished counts as a full match, and
+	// el.Minutes for that club is whatever the LIVE match has accumulated
+	// so far — a nailed starter's 47 minutes into his 90, not his eventual
+	// total. Dividing that partial figure by "1 match played" and blending
+	// it in with real weight understates his true rate for as long as the
+	// match is live, then silently corrects itself once the match's numbers
+	// are final — a smaller-grained version of exactly the mistake this
+	// whole fix exists to remove: counting an event before it has produced
+	// the evidence it is being asked to stand for. TeamMatchesFinished has
+	// no such window: a fixture counts once its score and stats are locked
+	// in (gated on FinishedProvisional, not Finished — see that field's own
+	// comment: Finished itself lags full time by many hours live, which
+	// would silently reintroduce a worse version of this same staleness).
+	n := float64(e.TeamMatchesFinished(el.Team))
 	priorPerMatch := float64(p.Minutes) / GameweeksPerSeason
 	priorStarts := float64(p.Starts) / GameweeksPerSeason
 	b.MinutesPerMatch = mix(b.MinutesPerMatch, priorPerMatch, n, e.Weights.BlendMinutesK)
