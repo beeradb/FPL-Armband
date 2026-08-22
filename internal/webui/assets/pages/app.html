@@ -143,6 +143,49 @@
 
     <div class="squadsource dim" id="squadsource"></div>
 
+    <!-- Import panel: the thing #squadsource's one action button opens. It used to be a
+         card that only ever showed once, stranded on the Players tab where nobody browsing
+         the market was thinking about provenance. It lives here now because "where did this
+         fifteen come from" and "how do I change it" are one question, and #squadsource is
+         where the first half already gets answered -- see that element's own comment. One
+         panel, two states, both drawn by renderImportCard() in app.js: first-run (no entry
+         imported yet, whether or not the reader has skipped) and "change team" (an entry is
+         already on record). hydrate() auto-opens it for first-run only; every other opening
+         goes through openImportCard(), which #squadsource's button calls. -->
+    <div class="importcard" id="importCard">
+      <div class="panel" style="padding:14px 13px">
+        <h3 id="importHeading" style="margin:0 0 8px 0;font-size:15px;font-weight:600;color:var(--ink)">Already picked your team?</h3>
+        <p style="margin:0 0 12px 0;font-size:13px;color:var(--ink2);line-height:1.5">Pull in your real fifteen and plan Gameweek <span id="importNextGw">—</span> from where you actually are.</p>
+
+        <label style="display:block;margin-bottom:10px">
+          <span style="display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--label);margin-bottom:6px">Your FPL Team ID</span>
+          <input type="text" id="importTeamId" placeholder="1234567" inputmode="numeric" autocomplete="off" spellcheck="false" style="width:100%;padding:8px 10px;border-radius:var(--r-sm);background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-size:13px;font-family:var(--mono)">
+        </label>
+
+        <details style="margin-bottom:10px;font-size:12px;color:var(--ink3)">
+          <summary style="cursor:pointer;color:var(--ink2);margin-bottom:6px">Where do I find it?</summary>
+          <div style="padding:8px;background:var(--panel2);border-radius:var(--r-sm);line-height:1.6">
+            <p style="margin:0 0 6px 0">On the FPL site, open <strong>Points</strong>. Your Team ID is the number in the address bar between <code style="font-family:var(--mono);font-size:11px;color:var(--ink);">/entry/</code> and <code style="font-family:var(--mono);font-size:11px;color:var(--ink);">/event/</code>:</p>
+            <p style="margin:0;font-family:var(--mono);font-size:11px;color:var(--ink3);word-break:break-all"><code>fantasy.premierleague.com/entry/<strong style="color:var(--ink)">1234567</strong>/event/<span id="importExampleGw">—</span></code></p>
+            <p style="margin:6px 0 0 0">Paste the whole address if that's easier — we'll pull the number out.</p>
+          </div>
+        </details>
+
+        <p style="margin:0 0 12px 0;font-size:12px;color:var(--ink3)">A Team ID is public and it is not a login. We will never ask for your FPL password.</p>
+
+        <div id="importError" style="display:none;padding:8px 10px;margin-bottom:10px;background:var(--bad-lo);border:1px solid #7A4A5A;border-radius:var(--r-sm);color:var(--bad);font-size:12px"></div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="importSubmit" class="btn primary sm" style="flex:1;min-width:120px">Import my team</button>
+          <!-- Label, class and handler are all rewritten by renderImportCard(): "Start
+               fresh instead" (plain) on first run, "Cancel" (.ghost) once an entry exists --
+               see renderImportCard()'s comment for why the two states need different words
+               and different weight, not just different words. -->
+          <button id="importSkip" class="btn sm" style="flex:1;min-width:120px">Start fresh instead</button>
+        </div>
+      </div>
+    </div>
+
     <div class="pitch" id="pitch">
       <div class="sixyard"></div><div class="spot"></div>
       <div class="line" data-pos="GKP"></div>
@@ -209,37 +252,6 @@
     <b style="color:var(--ink)">Gain is the comparison a transfer actually has to win</b> — the gap to the
     <em>weakest starter you already own in that position</em>, not a league rank.
     <span class="dim" id="benchLegend"></span>
-  </div>
-
-  <!-- Import card: dismissible initial offer to import a team by ID -->
-  <div class="importcard" id="importCard">
-    <div class="panel" style="padding:14px 13px">
-      <h3 style="margin:0 0 8px 0;font-size:15px;font-weight:600;color:var(--ink)">Already picked your team?</h3>
-      <p style="margin:0 0 12px 0;font-size:13px;color:var(--ink2);line-height:1.5">Pull in your real fifteen and plan Gameweek <span id="importNextGw">—</span> from where you actually are.</p>
-
-      <label style="display:block;margin-bottom:10px">
-        <span style="display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--label);margin-bottom:6px">Your FPL Team ID</span>
-        <input type="text" id="importTeamId" placeholder="1234567" inputmode="numeric" autocomplete="off" spellcheck="false" style="width:100%;padding:8px 10px;border-radius:var(--r-sm);background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-size:13px;font-family:var(--mono)">
-      </label>
-
-      <details style="margin-bottom:10px;font-size:12px;color:var(--ink3)">
-        <summary style="cursor:pointer;color:var(--ink2);margin-bottom:6px">Where do I find it?</summary>
-        <div style="padding:8px;background:var(--panel2);border-radius:var(--r-sm);line-height:1.6">
-          <p style="margin:0 0 6px 0">On the FPL site, open <strong>Points</strong>. Your Team ID is the number in the address bar between <code style="font-family:var(--mono);font-size:11px;color:var(--ink);">/entry/</code> and <code style="font-family:var(--mono);font-size:11px;color:var(--ink);">/event/</code>:</p>
-          <p style="margin:0;font-family:var(--mono);font-size:11px;color:var(--ink3);word-break:break-all"><code>fantasy.premierleague.com/entry/<strong style="color:var(--ink)">1234567</strong>/event/<span id="importExampleGw">—</span></code></p>
-          <p style="margin:6px 0 0 0">Paste the whole address if that's easier — we'll pull the number out.</p>
-        </div>
-      </details>
-
-      <p style="margin:0 0 12px 0;font-size:12px;color:var(--ink3)">A Team ID is public and it is not a login. We will never ask for your FPL password.</p>
-
-      <div id="importError" style="display:none;padding:8px 10px;margin-bottom:10px;background:var(--bad-lo);border:1px solid #7A4A5A;border-radius:var(--r-sm);color:var(--bad);font-size:12px"></div>
-
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="importSubmit" class="btn primary sm" style="flex:1;min-width:120px">Import my team</button>
-        <button id="importSkip" class="btn sm" style="flex:1;min-width:120px">Start fresh instead</button>
-      </div>
-    </div>
   </div>
 
   <div class="toolbar">
