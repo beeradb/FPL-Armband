@@ -19,10 +19,10 @@ Every expensive failure in this project's history is a provenance failure rather
 
 | | |
 |---|---|
-| snapshot taken | 2026-08-22 16:33 EDT |
-| commit | `d0fcd865b50c` |
+| snapshot taken | 2026-08-22 16:43 EDT |
+| commit | `083d0689be07` |
 | cells file | `not supplied` |
-| model file | `/tmp/model.csv` |
+| model file | `/tmp/model2.csv` |
 
 ### Operator notes
 
@@ -327,13 +327,13 @@ The predictor comparison for minutes, points and expected goals **is now runnabl
 
 ## Change since the previous snapshot
 
-Compared against `2026-08-22-c317e90`.
+Compared against `2026-08-22-d0fcd86`.
 
 ### Figures that moved
 
 | figure | previous | now | change |
 |---|---:|---:|---:|
-| `stamp.commit` | c317e90877e2 | d0fcd865b50c | — |
+| `stamp.commit` | d0fcd865b50c | 083d0689be07 | — |
 
 **Attributing a movement.** Check the constants fingerprint rows first. A figure that moved while the fingerprint held means the code changed and no setting did — a scoring fix, a harness fix, or a bug. A figure that moved *with* the fingerprint means a setting changed, and the constants diff below names which.
 
