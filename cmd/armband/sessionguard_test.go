@@ -68,20 +68,20 @@ func TestASecondSaveDoesNotResurrectADismissedOverride(t *testing.T) {
 // TestThePageDoesNotHandOutTheWriteTokenToAnyCaller.
 //
 // The token has to reach the page — the client puts it on every write — and a document is
-// readable by anything that can make a request. Without a gate, any local process could
-// curl /app, lift the token out of the meta tag, and drive the write path; under -persist
-// that writes a standing override into config.json which then binds every future agent run.
-// The loopback bind and the Host check do not help, because that attacker is not a browser.
+// readable by anything that can make a request. Any local process could curl "/", lift the
+// token out of the meta tag, and drive the write path; under -persist that writes a standing
+// override into config.json which then binds every future agent run. The loopback bind and
+// the Host check do not help, because that attacker is not a browser.
 func TestThePageDoesNotHandOutTheWriteTokenToAnyCaller(t *testing.T) {
 	s := fixtureServer(t)
 
 	// A caller who never presented the token gets the shell.
-	plain := get(t, s, routeApp)
+	plain := get(t, s, routeLanding)
 	if plain.Code != http.StatusOK {
-		t.Fatalf("GET /app answered %d", plain.Code)
+		t.Fatalf("GET / answered %d", plain.Code)
 	}
 	if strings.Contains(plain.Body.String(), s.token) {
-		t.Error("GET /app handed the write token to a caller that never presented it. " +
+		t.Error("GET / handed the write token to a caller that never presented it. " +
 			"Any local process can read it and drive the write path.")
 	}
 
@@ -104,7 +104,7 @@ func TestThePageDoesNotHandOutTheWriteTokenToAnyCaller(t *testing.T) {
 	}
 
 	// And with it, the page carries the token.
-	req2 := httptest.NewRequest("GET", routeApp, nil)
+	req2 := httptest.NewRequest("GET", routeLanding, nil)
 	req2.Host = "127.0.0.1:8080"
 	req2.AddCookie(auth)
 	w2 := httptest.NewRecorder()

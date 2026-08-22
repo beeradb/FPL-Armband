@@ -143,24 +143,14 @@ func TestTheApplicationIsServedOnItsOwnRoutes(t *testing.T) {
 	for _, tc := range []struct {
 		path, wantType, wantBody string
 	}{
-		// Proof that the LANDING page was served rather than the app shell.
+		// Proof that the APP shell was served, now that "/" is the front door.
 		//
-		// ⚠️ Pin a CONTIGUOUS fragment. The headline carries a highlight span —
-		// today `Pick eleven who’ll <span class="u">play.</span>` — which splits
-		// the sentence, so the obvious assertion fails against a page that is
-		// perfectly correct.
-		//
-		// ⚠️ And do not pin the headline at all. This assertion has now been
-		// broken FOUR times by copy moving underneath it ("See the working",
-		// "See why.", "make the case", and the news-led rewrite that retired
-		// that line entirely). A headline is the most-edited string on the page,
-		// which makes it the worst available sentinel.
-		//
-		// The gate's button is pinned instead: it is landing-only — it appears
-		// nowhere in app.html — it carries no span, and it survived a whole
-		// redesign untouched because it is a control rather than an argument.
-		{"/", "text/html", "Claim my armband"},
-		{"/app", "text/html", "FPL Armband"},
+		// "GW1 deadline" is app-only -- it appears nowhere in landing.html -- and it
+		// survived every redesign so far because it is a live label rather than an
+		// argument. See routeAbout's own case below for the landing document's
+		// sentinel, moved with it off "/".
+		{"/", "text/html", "GW1 deadline"},
+		{"/about", "text/html", "Claim my armband"},
 		{"/assets/armband.css", "text/css", "--band"},
 		{"/assets/fonts.css", "text/css", "@font-face"},
 		{"/assets/fonts/inter-latin.woff2", "font/woff2", ""},
@@ -186,7 +176,7 @@ func TestTheApplicationIsServedOnItsOwnRoutes(t *testing.T) {
 // the reader has, and the token gate cannot see that a click did not come from him.
 func TestTheDocumentsRefuseToBeFramed(t *testing.T) {
 	s := &squadServer{}
-	for _, path := range []string{"/", "/app"} {
+	for _, path := range []string{"/", "/about"} {
 		w := get(t, s, path)
 		if got := w.Header().Get("X-Frame-Options"); got != "DENY" {
 			t.Errorf("GET %s answered X-Frame-Options %q, want DENY", path, got)
@@ -284,12 +274,12 @@ func TestTheGateRecordsWhatItAccepts(t *testing.T) {
 		// The cookie rides with the successful write and nowhere else.
 		var gate *http.Cookie
 		for _, c := range w.Result().Cookies() {
-			if c.Name == gateCookieName {
+			if c.Name == signupCookieName {
 				gate = c
 			}
 		}
 		if gate == nil {
-			t.Fatalf("%s /gate set no %s cookie", method, gateCookieName)
+			t.Fatalf("%s /gate set no %s cookie", method, signupCookieName)
 		}
 		if !gate.HttpOnly || gate.SameSite != http.SameSiteStrictMode {
 			t.Errorf("the gate cookie is HttpOnly=%v SameSite=%v; want true and Strict",
@@ -321,7 +311,7 @@ func TestTheGateRefusesWhenTheWriteFails(t *testing.T) {
 		t.Errorf("/gate answered %d over a failed write, want 500", w.Code)
 	}
 	for _, c := range w.Result().Cookies() {
-		if c.Name == gateCookieName {
+		if c.Name == signupCookieName {
 			t.Error("/gate set the gate cookie over a failed write, so the reader " +
 				"is marked as having signed up when nothing was recorded")
 		}
@@ -360,7 +350,7 @@ func TestTheGateRefusesWhenNoStoreIsConfigured(t *testing.T) {
 				"written.", method, w.Code)
 		}
 		for _, c := range w.Result().Cookies() {
-			if c.Name == gateCookieName {
+			if c.Name == signupCookieName {
 				t.Errorf("%s /gate set the gate cookie with no store, marking a "+
 					"reader as signed up when nothing was recorded", method)
 			}
@@ -737,7 +727,7 @@ func TestTheSignupOriginIsSpelledOnceInEffect(t *testing.T) {
 // that the page can actually reach what it names.
 func TestThePolicyPermitsTheGateItShips(t *testing.T) {
 	s := &squadServer{}
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", routeAbout, nil)
 	req.Host = "127.0.0.1:8080"
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, req)
@@ -756,8 +746,9 @@ func TestThePolicyPermitsTheGateItShips(t *testing.T) {
 
 	// The mirror, and the half with the power: a check that the landing page CAN
 	// reach the origin proves nothing about whether the application was widened
-	// alongside it. /app holds the squad and must reach nothing but itself.
-	req = httptest.NewRequest("GET", "/app", nil)
+	// alongside it. The app (now served at "/") holds the squad and must reach
+	// nothing but itself.
+	req = httptest.NewRequest("GET", routeLanding, nil)
 	req.Host = "127.0.0.1:8080"
 	w = httptest.NewRecorder()
 	s.ServeHTTP(w, req)
@@ -768,76 +759,63 @@ func TestThePolicyPermitsTheGateItShips(t *testing.T) {
 	}
 }
 
-// TestTheGateHasNoWayAround pins the two redirects that make the preview gate a gate,
-// and the one condition under which it is not enforced at all.
-//
-// # What broke without it
-//
-// The landing page carried an "I have access →" link straight to /app, and the cookie
-// gated nothing, so the form was decorative: anyone could skip it and the page said so.
-// Both halves are gone. The two documents now answer each other.
-//
-// # Why the local case is in the same test
-//
-// A local `armband serve` has no signup store, so its gate answers 503 and the cookie can
-// never be obtained. Enforcing there would lock an operator out of their own tool behind a
-// form that cannot succeed — a failure nobody would see until they were offline. It is
-// pinned beside the enforced cases because the two are one decision.
-func TestTheGateHasNoWayAround(t *testing.T) {
-	withCookie := func(r *http.Request) *http.Request {
-		r.AddCookie(&http.Cookie{Name: gateCookieName, Value: "1"})
-		return r
-	}
-
+// TestTheAppIsOpenRegardlessOfSignupState pins the registration wall's removal: "/" serves
+// the application unconditionally, and no combination of a configured signup store or a
+// present/absent signup cookie changes that -- there is no longer a form to be sent to or
+// away from. /app is kept only as a redirect to "/", for the same reason regardless of
+// state: any link or bookmark made during the gated era still resolves rather than 404ing.
+func TestTheAppIsOpenRegardlessOfSignupState(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		gated    bool
-		path     string
-		cookie   bool
-		wantCode int
-		wantLoc  string
+		name   string
+		store  bool
+		cookie bool
 	}{
-		{"a stranger is sent to the form", true, routeApp, false, http.StatusSeeOther, routeLanding},
-		{"a reader who signed up gets the app", true, routeApp, true, http.StatusOK, ""},
-		{"and is not shown the form again", true, routeLanding, true, http.StatusSeeOther, routeApp},
-		{"a stranger sees the form", true, routeLanding, false, http.StatusOK, ""},
-		{"locally the app is open", false, routeApp, false, http.StatusOK, ""},
-		{"locally the form is not forced", false, routeLanding, false, http.StatusOK, ""},
+		{"no store, no cookie", false, false},
+		{"a configured store, no cookie", true, false},
+		{"a configured store and the cookie", true, true},
+		{"the cookie with no store configured", false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := fixtureServer(t)
-			if tc.gated {
+			if tc.store {
 				s.signups = &recordingStore{}
 			}
-			req := httptest.NewRequest("GET", tc.path, nil)
+			req := httptest.NewRequest("GET", routeLanding, nil)
 			req.Host = "localhost"
 			if tc.cookie {
-				req = withCookie(req)
+				req.AddCookie(&http.Cookie{Name: signupCookieName, Value: "1"})
 			}
 			w := httptest.NewRecorder()
 			s.ServeHTTP(w, req)
-
-			if w.Code != tc.wantCode {
-				t.Fatalf("GET %s answered %d, want %d", tc.path, w.Code, tc.wantCode)
+			if w.Code != http.StatusOK {
+				t.Errorf("GET / answered %d, want 200 -- the app is open regardless of "+
+					"signup state", w.Code)
 			}
-			if got := w.Header().Get("Location"); got != tc.wantLoc {
-				t.Errorf("GET %s redirected to %q, want %q", tc.path, got, tc.wantLoc)
+
+			req2 := httptest.NewRequest("GET", routeApp, nil)
+			req2.Host = "localhost"
+			w2 := httptest.NewRecorder()
+			s.ServeHTTP(w2, req2)
+			if w2.Code != http.StatusFound {
+				t.Errorf("GET /app answered %d, want 302", w2.Code)
+			}
+			if got := w2.Header().Get("Location"); got != routeLanding {
+				t.Errorf("GET /app redirected to %q, want %q", got, routeLanding)
 			}
 		})
 	}
 }
 
-// TestTheLandingPageOffersNoWayPastTheForm pins the absence of the bypass link.
-//
-// Deleting a link is the kind of change that gets undone by a later edit restoring "a way
-// in for people who already signed up" — which is what the cookie is for. The redirect
-// above already does that job, invisibly and without a second entry point.
-func TestTheLandingPageOffersNoWayPastTheForm(t *testing.T) {
+// TestTheAboutPageOffersNoWayPastTheForm pins the absence of the bypass link on the
+// marketing/gate document, now served at /about rather than "/". Deleting a link is the
+// kind of change a later edit undoes by restoring "a way in for people who already signed
+// up" -- there is no need for one: the app itself is reachable directly, from anywhere.
+func TestTheAboutPageOffersNoWayPastTheForm(t *testing.T) {
 	s := &squadServer{signups: &recordingStore{}}
-	body := get(t, s, routeLanding).Body.String()
+	body := get(t, s, routeAbout).Body.String()
 	for _, banned := range []string{"I have access", `href="/app"`} {
 		if strings.Contains(body, banned) {
-			t.Errorf("the landing page still contains %q, which skips the gate", banned)
+			t.Errorf("the about page still contains %q, which skips the gate", banned)
 		}
 	}
 }
@@ -857,7 +835,7 @@ func TestGA4MetaTagFillsForBothAuthedAndAnonymousLandingRequests(t *testing.T) {
 
 	// Anonymous: no ?t= and no cookie, so servePage takes the !authed branch — the
 	// case that matters most here.
-	anon := get(t, s, routeLanding)
+	anon := get(t, s, routeAbout)
 	if !strings.Contains(anon.Body.String(), want) {
 		t.Errorf("an UNAUTHENTICATED landing-page response does not carry the filled "+
 			"GA4 meta tag %q", want)
@@ -866,7 +844,7 @@ func TestGA4MetaTagFillsForBothAuthedAndAnonymousLandingRequests(t *testing.T) {
 	// Authed: the token in the query string, the way a reader following the printed
 	// URL arrives. This must ALSO carry the tag, since withToken runs on top of the
 	// already-filled body rather than instead of it.
-	req := httptest.NewRequest("GET", routeLanding+"?t=tok", nil)
+	req := httptest.NewRequest("GET", routeAbout+"?t=tok", nil)
 	req.Host = "127.0.0.1:8080"
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, req)
@@ -881,7 +859,7 @@ func TestGA4MetaTagFillsForBothAuthedAndAnonymousLandingRequests(t *testing.T) {
 // placeholder must ship untouched.
 func TestGA4MetaTagStaysEmptyWithoutTheEnvVar(t *testing.T) {
 	s := &squadServer{}
-	body := get(t, s, routeLanding).Body.String()
+	body := get(t, s, routeAbout).Body.String()
 	if !strings.Contains(body, `<meta name="armband-ga4" content="">`) {
 		t.Error("the landing page's GA4 meta tag is not the empty placeholder with " +
 			"ARMBAND_GA4_ID unset")
@@ -890,13 +868,14 @@ func TestGA4MetaTagStaysEmptyWithoutTheEnvVar(t *testing.T) {
 
 // TestGA4MetaTagNeverAppearsOnTheApplicationPage. app.html carries no placeholder for
 // this tag at all, and withGA4 is only ever invoked for name == "landing" — this pins
-// both facts against the served bytes rather than trusting the source.
+// both facts against the served bytes rather than trusting the source. The application is
+// served at "/" now; routeApp is only a redirect and never reaches servePage at all.
 func TestGA4MetaTagNeverAppearsOnTheApplicationPage(t *testing.T) {
 	s := &squadServer{}
 	t.Setenv("ARMBAND_GA4_ID", "G-TESTID123")
-	body := get(t, s, routeApp).Body.String()
+	body := get(t, s, routeLanding).Body.String()
 	if strings.Contains(body, "armband-ga4") {
-		t.Error("/app's body mentions armband-ga4; that tag is landing-only and must " +
-			"never appear on the page that renders FPL's prose by innerHTML")
+		t.Error("the app page's body mentions armband-ga4; that tag is landing-only and " +
+			"must never appear on the page that renders FPL's prose by innerHTML")
 	}
 }

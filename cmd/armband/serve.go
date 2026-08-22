@@ -301,24 +301,25 @@ func (s *squadServer) routeFor(path string) (http.Handler, string) {
 	}
 	switch path {
 	case routeLanding:
+		// The app itself is the front door now: no email, no redirect, nothing to pass
+		// through first. See routeApp and routeAbout below for where the two routes
+		// this used to arbitrate between now live.
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// A reader who has been through the form does not need to see it again.
-			if s.gated() && s.hasGatePass(r) {
-				http.Redirect(w, r, routeApp, http.StatusSeeOther)
-				return
-			}
-			s.servePage(w, r, "landing")
-		}), "landing"
-	case routeApp:
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// ...and one who has not does not get past it. There is no third way
-			// in: the "I have access" link that used to offer one is deleted.
-			if s.gated() && !s.hasGatePass(r) {
-				http.Redirect(w, r, routeLanding, http.StatusSeeOther)
-				return
-			}
 			s.servePage(w, r, "app")
 		}), "app"
+	case routeApp:
+		// /app is kept as a redirect rather than deleted -- every link and bookmark
+		// anyone has made to it during the gated era still resolves. 302, not 301: a
+		// 301 gets cached by browsers indefinitely, and whether /app should exist at
+		// all past this transition is a genuinely open, reversible question the
+		// product owner has not settled.
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, routeLanding, http.StatusFound)
+		}), "app-redirect"
+	case routeAbout:
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s.servePage(w, r, "landing")
+		}), "about"
 	case routeGate:
 		return http.HandlerFunc(s.gate), "gate"
 	case routeState:
@@ -528,7 +529,9 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 	// the override.
 	ret := r.PostFormValue("ret")
 	if !safeRetPath(ret) {
-		ret = routeApp
+		// routeLanding, not routeApp: the tool now lives at "/", and routeApp is only
+		// a redirect there.
+		ret = routeLanding
 	}
 	http.Redirect(w, r, ret, http.StatusSeeOther)
 }

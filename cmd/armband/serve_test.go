@@ -207,20 +207,19 @@ func TestTheActionsWriteAndLiftOverridesByPermanentCode(t *testing.T) {
 		}
 	}
 
-	// An off-site ret is refused; the reader lands on the application. The
-	// fallback used to be the root with the token on it, which is now the landing
-	// page -- a reader who had just locked a player would have been bounced out to
-	// the marketing hero.
+	// An off-site ret is refused; the reader lands on the application. The fallback is
+	// routeLanding, "/" -- that is where the tool itself lives now that the registration
+	// wall is gone, and routeApp is only a redirect there.
 	w = postAction(t, s, url.Values{"t": {"tok"}, "a": {"boot"}, "c": {code},
 		"ret": {"//evil.example"}})
-	if loc := w.Header().Get("Location"); loc != routeApp {
+	if loc := w.Header().Get("Location"); loc != routeLanding {
 		t.Errorf("an off-site ret was honoured: %q", loc)
 	}
 	// A backslash ret is the same attack: browsers read "/\\" as the authority
 	// delimiter, so it must be refused too.
 	w = postAction(t, s, url.Values{"t": {"tok"}, "a": {"boot"}, "c": {code},
 		"ret": {`/\evil.example`}})
-	if loc := w.Header().Get("Location"); loc != routeApp {
+	if loc := w.Header().Get("Location"); loc != routeLanding {
 		t.Errorf("a backslash ret was honoured: %q", loc)
 	}
 }
