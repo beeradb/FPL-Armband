@@ -406,10 +406,27 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   during the live GW1 gap** — `SeasonHasStarted()` true, `GameweeksPlayed()` still 0, a span of
   days — where it answers a pre-season 38 that is false for every club: FPL zeroes the whole
   league at the first kickoff, and within the gap some clubs have a completed match and some have
-  not begun. Four shipped bugs came from following this line literally (#39, #40, #42, and the
-  squad pool's minutes floor). Per club there: `matchesAvailable` for a rate DENOMINATOR,
-  `minutesFloorWindow` for a sample-size THRESHOLD, `TeamMatchesFinished` for an evidence COUNT
-  — never `TeamMatchesStarted` for the last two, since a live match's minutes are still climbing.
+  not begun. `GameweeksPlayed()>0` and `SeasonHasStarted()` are two implementations of one
+  question and agree all season except this gap — six shipped bugs came from using the former
+  where the latter was meant (#39, #40, #42, the squad pool's minutes floor, `bonusEvidence`,
+  `squadPriceGameweek`). Use the shared `inLiveGameweekGap()` predicate, whose doc comment routes
+  every call site to one of three classes: `matchesAvailable` for a rate DENOMINATOR (per-club
+  `TeamMatchesStarted`, only when `>0`), `minutesFloorWindow`/the minutes-evidence mix for a
+  sample-size THRESHOLD or evidence COUNT (per-club `TeamMatchesFinished`, always including 0 —
+  never `TeamMatchesStarted` there, a live match's minutes are still climbing), and
+  `bonusEvidence`/`AssemblyBudget` for aggregate PROVENANCE (`SeasonHasStarted()` alone, no
+  per-club signal — the quantity itself, e.g. `el.Minutes`, already carries per-player evidence).
+  ⚠️ **Two of these bugs cancelled each other out, and fixing one exposed the other as a live
+  production incident.** `AssemblyBudget`'s gate and `run()`'s squad-price-fetch gate both used
+  `GameweeksPlayed()==0` for the same "has this manager bought anything" question; fixing the
+  first alone (correctly) turned the second's dormant nil `Bank`/`SquadValue` into a hard 500 for
+  the real production entry, deployed and rolled back within minutes. **A fix in this family is
+  only proven by exercising the live gap end to end, not by `go test` on the changed function
+  alone** — grep every other reader of the two raw predicates before shipping one fix among them.
+  Pinned by `TestTheMinutesFloorScalesOnTheClubsOwnMatches`,
+  `TestTheBonusScheduleReadsAPlayedMatchDuringTheGap`,
+  `TestSquadPriceGameweekTracksEveryGameweeksOwnGap`. →
+  **a-boolean-asked-two-ways-drifts-like-a-copied-number**
 - **Every per-90 rate must go through `blendFor`, counting stats included.**
   `TestCountingStatsGoThroughTheBlend`.
 - **A player with no prior is not a player with no uncertainty.** `shrinkToLeague` pulls rates
