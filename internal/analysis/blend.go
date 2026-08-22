@@ -444,7 +444,15 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 	if e.Priors == nil {
 		return b
 	}
-	if played == 0 {
+	if !e.SeasonHasStarted() {
+		// Not played == 0 — see SeasonHasStarted's own comment. GameweeksPlayed
+		// stays 0 for the whole multi-day span between a gameweek's first
+		// kickoff and its last final whistle, so a club that has already played
+		// took this branch too, returning a debutant with no prior completely
+		// raw instead of through shrinkToLeague below. Third instance of
+		// 1a6f0a3's defect, this time in the blend rather than the
+		// prior-loading gate.
+		//
 		// Pre-season there is nothing to blend against — FPL's totals *are*
 		// last season. But the prior may be a better summary of last season
 		// than last season is: with PriorHalfLife set, a thin year has older
