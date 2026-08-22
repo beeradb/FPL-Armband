@@ -195,17 +195,20 @@ const corroboratingMatches = 2.0
 // on its own, to count as corroborating evidence rather than a bare estimate.
 //
 // Asserted, not measured, and read off this project's own override history
-// rather than picked from nothing: as of 2026-08-19, every override in
-// config.json sits at exactly one of two values, and the value itself is
-// where the override-setter's own confidence already lives — free text can
-// say "not a nailed one" (Tzolis, Thomas, Isak, each set to 75) or "a nailed
-// Premier League keeper" / "nailed starter, not a fringe player" (Kinsky at
-// 88, van Ewijk and Mosquera at 85), but RosterOverride carries no field a
-// program can read that distinction from, and this project does not parse
-// free-text reasoning. The floor sits strictly between the two clusters
-// actually observed (75 hedged, 85-88 confident), so it changes no override
-// written to date; it does not generalise beyond the seven overrides it was
-// read from, and should be revisited once more exist.
+// rather than picked from nothing. As of 2026-08-19 config.json holds eight
+// minutes overrides; two (J.Timber at 15, Konsa at 0) are short-term absences
+// nowhere near either cluster and say nothing about "nailed" one way or the
+// other. Of the six that DO assert or hedge a nailed-type judgement, every one
+// sits at exactly one of two values, and the value itself is where the
+// override-setter's own confidence already lives — free text can say "not a
+// nailed one" (Tzolis, Thomas, Isak, each set to 75) or "a nailed Premier
+// League keeper" / "nailed starter, not a fringe player" (Kinsky at 88, van
+// Ewijk and Mosquera at 85), but RosterOverride carries no field a program can
+// read that distinction from, and this project does not parse free-text
+// reasoning. The floor sits strictly between the two clusters actually
+// observed (75 hedged, 85-88 confident), so it changes no override written to
+// date; it does not generalise beyond the six overrides it was read from, and
+// should be revisited once more exist.
 const nailedOverrideFloor = 80.0
 
 // minutesCorroborated reports whether m's expected-minutes estimate has more
