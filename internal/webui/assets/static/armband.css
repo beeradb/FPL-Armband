@@ -831,20 +831,6 @@ button{font-family:inherit;color:inherit;}
 }
 @media (max-width:720px){.sortpill{display:flex;align-items:center;gap:6px;}}
 
-/* Import card -- initial offer and permanent affordance to import a team by ID */
-.importcard{margin:14px 0 10px;}
-.importcard[hidden]{display:none;}
-.importcard input{font-family:var(--mono);}
-.importcard input:focus{outline:2px solid var(--band);outline-offset:2px;background:var(--panel2);}
-.importcard details summary{user-select:none;}
-.importcard details summary:hover{color:var(--ink);}
-.importcard code{color:var(--ink);background:var(--panel3);padding:2px 4px;border-radius:3px;}
-.importcard .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);}
-.importcard .btn:hover{background:var(--panel3);border-color:var(--line2);}
-.importcard .btn.primary{background:var(--band);border-color:var(--band);color:#fff;}
-.importcard .btn.primary:hover{background:#4064FF;border-color:#4064FF;}
-.importcard .btn:disabled{opacity:.4;cursor:not-allowed;}
-
 .ptable{width:100%;border-collapse:collapse;font-size:13px;}
 .ptable th{
   position:sticky;top:0;background:var(--bg2);text-align:left;padding:0;
@@ -1186,12 +1172,51 @@ body.saving{cursor:progress;}
   font-size:13px;line-height:1.45;box-shadow:var(--shadow);
 }
 
-/* Where the fifteen came from: the model's best, a varied opening, or the reader's own
-   saved team. Quiet, because it is context rather than a number. */
-.squadsource{font-size:11.5px;padding:0 2px 8px;font-family:var(--mono);}
+/* Where the fifteen came from: the model's best, a varied opening, the reader's own saved
+   team, or -- once the import window is open -- what they imported. Quiet, because it is
+   context rather than a number; flex row rather than plain text now that renderSquadSource()
+   appends a real <button> for the one action this line can offer (see its own comment for
+   the four states). Wraps rather than truncating at narrow widths, so the button is never
+   the thing that gets clipped -- it drops to its own line instead, under the "imported from
+   FPL team N · GWn" text, which is the longest of the four strings this line ever shows. */
+.squadsource{
+  font-size:11.5px;padding:0 2px 8px;font-family:var(--mono);
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+}
+/* button{font-family:inherit} (global) would otherwise set this in the surrounding line's
+   monospace -- every other button on the page inherits the UI font because nothing above it
+   in the tree sets --mono, and this is the one spot that does. */
+.squadsource .btn{font-family:var(--ui);}
+
+/* Import panel -- moved here from the Players tab. It used to be a one-shot card that
+   vanished for good the moment an entry was on record; now #squadsource's button reopens
+   it as "Change team", so the [hidden] toggle and the input/detail styling below are shared
+   between the two states rather than belonging to a single dismissible offer. */
+.importcard{margin:14px 0 10px;}
+.importcard[hidden]{display:none;}
+.importcard input{font-family:var(--mono);}
+.importcard input:focus{outline:2px solid var(--band);outline-offset:2px;background:var(--panel2);}
+.importcard details summary{user-select:none;}
+.importcard details summary:hover{color:var(--ink);}
+.importcard code{color:var(--ink);background:var(--panel3);padding:2px 4px;border-radius:3px;}
+.importcard .btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);}
+.importcard .btn:hover{background:var(--panel3);border-color:var(--line2);}
+.importcard .btn.primary{background:var(--band);border-color:var(--band);color:#fff;}
+.importcard .btn.primary:hover{background:#4064FF;border-color:#4064FF;}
+/* Cancel is .ghost only in the "change team" state (renderImportCard() adds the class at
+   runtime). Without this, .importcard .btn's own panel2 background above would win over the
+   global .btn.ghost rule on specificity -- both are two classes, and this file comes later --
+   leaving Cancel looking exactly as heavy as Switch to this team next to it. */
+.importcard .btn.ghost{background:transparent;}
+.importcard .btn:disabled{opacity:.4;cursor:not-allowed;}
 
 @media (max-width:720px){
   .toast{bottom:calc(64px + env(safe-area-inset-bottom,0px));}
+  /* At 390px the longest line this element ever shows -- "imported from FPL team 1234567 ·
+     GW38" -- is wider than the column, so the button already wraps under it via the flex
+     rule above; this only tightens the gap so the wrapped button doesn't read as a second,
+     unrelated row. */
+  .squadsource{gap:6px 8px;}
 }
 
 

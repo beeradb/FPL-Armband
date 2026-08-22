@@ -305,11 +305,24 @@ function hydrate(st){
      model's answer to the same fifteen. */
   PENDING.squad=(sq.players||[]).map(p=>p.code).filter(Boolean);
 
-  /* Import state: handle the team ID import affordance. */
+  /* Import panel: auto-open covers exactly one transition, the same one this card has
+     always auto-opened for -- the import window is live, nothing has been imported, and
+     the reader has not said "start fresh". It must NOT also close the panel whenever
+     imp.entry is set: that was safe while entry-set had no button back into the card, but
+     "Change team" now reopens this same element with imp.entry already true, and every
+     other pitch action (a lock, a bench drag) round-trips through this same hydrate. If
+     entry-set forced the panel shut here, a reader mid-edit on a new Team ID would watch
+     it vanish under an unrelated save. Closing after a real change is handled at the
+     place that caused the change: skipImport() leans on this hydrate running post-save
+     (see its own comment), and importTeam() closes the panel itself on success. */
   const card=document.getElementById('importCard');
   if(card){
-    if(!imp.open || imp.skipped || imp.entry) card.hidden=true;
-    else card.hidden=false;
+    if(imp.open && !imp.entry && !imp.skipped){
+      card.hidden=false;
+      renderImportCard(imp);
+    } else if(!imp.open || imp.skipped){
+      card.hidden=true;
+    }
   }
   /* Fill in the gameweek placeholders in the import card. */
   const nextGwEl=document.getElementById('importNextGw');
@@ -2403,17 +2416,52 @@ addEventListener('hashchange',()=>setView(location.hash.slice(1), false));
 /* ============================================================
    BOOT
    ============================================================ */
-/* Where this fifteen came from, said plainly.
+/* Where this fifteen came from, said plainly -- and, once the import window is open, the
+ * one control for changing it.
  *
  * The opening squad is deliberately varied rather than the model's single best, so a reader
  * looking at it deserves to know which of the two they have -- otherwise the tool appears to
- * be recommending something it is not. */
+ * be recommending something it is not. That was this element's whole job until the import
+ * card grew a second life: "where did this come from" and "how do I change it" turned out to
+ * be one question, not two, so the card that used to live alone on the Players tab now opens
+ * from a button appended right here. Four states, crossed against STATE.import (imp) and the
+ * existing S.saved/S.optimised:
+ *
+ *   !imp.open                      -- unchanged: the three-way text, no button
+ *   open, no entry, not skipped    -- "a suggested fifteen — not yours yet" + Import (primary)
+ *   open, skipped, no entry        -- the three-way text again + Import (ghost)
+ *   open, entry set                -- "imported from FPL team N · GWn" + Change team (ghost)
+ *
+ * The button is appended inside this element rather than placed beside it so the sentence
+ * and its verb can never drift apart at a width where one of them wraps. */
 function renderSquadSource(){
   const el=document.getElementById('squadsource');
   if(!el) return;
-  el.textContent = S.saved ? 'your saved team'
-    : S.optimised ? "our best fifteen"
+  const imp=STATE.import||{};
+  const openingText = S.saved ? 'your saved team'
+    : S.optimised ? 'our best fifteen'
     : 'a strong opening fifteen — press Optimise for the model’s best';
+
+  let text, btnLabel=null, btnClass='ghost';
+  if(!imp.open){
+    text=openingText;
+  } else if(imp.entry){
+    text=`imported from FPL team ${imp.entry} · GW${imp.event}`;
+    btnLabel='Change team';
+  } else if(imp.skipped){
+    text=openingText;
+    btnLabel='Import your team';
+  } else {
+    text='a suggested fifteen — not yours yet';
+    btnLabel='Import your team'; btnClass='primary';
+  }
+
+  el.innerHTML = esc(text) + (btnLabel
+    ? ` <button class="btn sm ${btnClass}" id="squadSourceAction">${esc(btnLabel)}</button>`
+    : '');
+  const actionBtn=document.getElementById('squadSourceAction');
+  if(actionBtn) actionBtn.onclick=()=>openImportCard();
+
   const opt=document.getElementById('optimise');
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
@@ -2518,22 +2566,82 @@ if(resetBtn) resetBtn.onclick=()=>{
   });
 };
 
-/* Import card: wire up the import and skip buttons */
+/* Import panel: wire up the submit button and the Team ID field. The other button --
+ * Start fresh instead / Cancel, depending on state -- is wired by renderImportCard()
+ * itself, below, because which function it calls is part of what makes the two states
+ * different, not a fixed handler the states share. */
 const importSubmitBtn=document.getElementById('importSubmit');
-const importSkipBtn=document.getElementById('importSkip');
 const importTeamIdInput=document.getElementById('importTeamId');
 const importErrorDiv=document.getElementById('importError');
 
 if(importSubmitBtn){
   importSubmitBtn.onclick=()=>importTeam();
 }
-if(importSkipBtn){
-  importSkipBtn.onclick=()=>skipImport();
-}
 if(importTeamIdInput){
   importTeamIdInput.addEventListener('keypress', e=>{
     if(e.key==='Enter') importTeam();
   });
+}
+
+/* renderImportCard draws the panel's two states, keyed on whether an entry is already on
+ * record -- not on imp.skipped, so the "Import your team" ghost button on #squadsource
+ * (offered again after a skip) reopens the ordinary first-run copy rather than inventing a
+ * third state nobody designed.
+ *
+ * Change team drops "Start fresh instead" on purpose. Once an entry exists, "fresh" has two
+ * readings -- forget the link but keep this fifteen, or throw the squad away and go back to
+ * the model's optimum -- and a button that could mean either is worse than no button. The
+ * reader already has both actions unambiguously available: type a different Team ID, or
+ * edit the squad by hand on the pitch right there. The import is not a lock: imp.entry only
+ * records provenance, the fifteen itself is session-stored player codes and freely editable
+ * afterwards, and nothing re-imports on reload -- so there is nothing here to "escape". */
+function renderImportCard(imp){
+  const heading=document.getElementById('importHeading');
+  const submit=document.getElementById('importSubmit');
+  const cancel=document.getElementById('importSkip');
+  const input=document.getElementById('importTeamId');
+  if(!heading||!submit||!cancel||!input) return;
+  if(imp.entry){
+    heading.textContent='Change team';
+    submit.textContent='Switch to this team';
+    cancel.textContent='Cancel';
+    cancel.classList.add('ghost');
+    cancel.onclick=()=>closeImportCard();
+    input.value=imp.entry;
+  } else {
+    heading.textContent='Already picked your team?';
+    submit.textContent='Import my team';
+    cancel.textContent='Start fresh instead';
+    cancel.classList.remove('ghost');
+    cancel.onclick=()=>skipImport();
+    input.value='';
+  }
+}
+
+/* openImportCard is #squadsource's action button's whole job: draw whichever state
+ * applies right now and show the panel. Only the "change team" state also focuses and
+ * selects the field -- first run has nothing worth pre-selecting, and stealing focus on
+ * its own auto-open (handled in hydrate(), not here) would yank the page down to the
+ * pitch the instant it loads. */
+function openImportCard(){
+  const card=document.getElementById('importCard');
+  if(!card) return;
+  const imp=STATE.import||{};
+  renderImportCard(imp);
+  card.hidden=false;
+  if(imp.entry){
+    const input=document.getElementById('importTeamId');
+    if(input){ input.focus(); input.select(); }
+  }
+}
+
+/* closeImportCard is Cancel's entire job in the "change team" state: hide the panel,
+ * clear any stale error from a previous attempt, change nothing else. No save, no
+ * mutation -- PENDING and the server are never touched. */
+function closeImportCard(){
+  const card=document.getElementById('importCard');
+  if(card) card.hidden=true;
+  if(importErrorDiv) importErrorDiv.style.display='none';
 }
 
 function importTeam(){
@@ -2564,12 +2672,22 @@ function importTeam(){
     .then(st=>{
       hydrate(st);
       renderAll();
-      document.getElementById('importCard').hidden=true;
+      /* hydrate's own auto-open rule never re-closes this: imp.entry is set the instant
+         this response lands, which is exactly the state that rule leaves alone (see its
+         comment). Whichever job the panel was open for -- first import or a change -- is
+         done, so close it here, directly. */
+      closeImportCard();
       const eventNum=st.import?.event||'your';
       notify(`Imported your Gameweek ${eventNum} fifteen.`);
     })
     .catch(err=>{
       showImportError(err.message);
+    })
+    .finally(()=>{
+      /* Runs on both paths, unlike the old success/failure split: on failure the reader
+         needs the button back to retry, and on success renderImportCard() will overwrite
+         this label the next time the panel opens anyway, so there is nothing to protect by
+         treating the two paths differently. */
       importSubmitBtn.disabled=false;
       importSubmitBtn.textContent=originalLabel;
     });
