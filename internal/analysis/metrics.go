@@ -2248,14 +2248,21 @@ func (e *Engine) TeamMatchesStarted(teamID int) int {
 // divide by "matches played" to produce a per-match RATE — el.Minutes for a club mid-fixture
 // is whatever the live match has accumulated so far (a nailed player's 47 minutes into his
 // 90), and treating that as a complete match understates a starter's true rate for as long
-// as the match is live, then silently corrects itself the moment the whistle blows. The
-// gap this closes is smaller than the one TeamMatchesStarted itself closes (minutes,
+// as the match is live, then silently corrects itself once the match's numbers are final.
+// The gap this closes is smaller than the one TeamMatchesStarted itself closes (minutes,
 // not gameweeks, of staleness) but it is the same class of mistake: counting an event
 // before it has actually produced the evidence it is being asked to stand for.
+//
+// This gates on fpl.Fixture.FinishedProvisional, NOT Finished — see that field's own
+// comment. Confirmed live: Finished can stay false for 16+ hours after full time even
+// with the match's score and bonus points already locked in, which would silently
+// reintroduce a worse version of the exact staleness this function exists to remove.
+// FinishedProvisional flips at full time, when the numbers this function's callers
+// depend on actually become final.
 func (e *Engine) TeamMatchesFinished(teamID int) int {
 	n := 0
 	for _, f := range e.Fixtures {
-		if f.Finished && (f.TeamH == teamID || f.TeamA == teamID) {
+		if f.FinishedProvisional && (f.TeamH == teamID || f.TeamA == teamID) {
 			n++
 		}
 	}

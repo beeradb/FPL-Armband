@@ -571,12 +571,14 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 	// so far — a nailed starter's 47 minutes into his 90, not his eventual
 	// total. Dividing that partial figure by "1 match played" and blending
 	// it in with real weight understates his true rate for as long as the
-	// match is live, then silently corrects itself the moment the whistle
-	// blows — a smaller-grained version of exactly the mistake this whole
-	// fix exists to remove: counting an event before it has produced the
-	// evidence it is being asked to stand for. TeamMatchesFinished has no
-	// such window: a fixture counts only once it is actually over, so
-	// el.Minutes attributed to it is always a completed match's worth.
+	// match is live, then silently corrects itself once the match's numbers
+	// are final — a smaller-grained version of exactly the mistake this
+	// whole fix exists to remove: counting an event before it has produced
+	// the evidence it is being asked to stand for. TeamMatchesFinished has
+	// no such window: a fixture counts once its score and stats are locked
+	// in (gated on FinishedProvisional, not Finished — see that field's own
+	// comment: Finished itself lags full time by many hours live, which
+	// would silently reintroduce a worse version of this same staleness).
 	n := float64(e.TeamMatchesFinished(el.Team))
 	priorPerMatch := float64(p.Minutes) / GameweeksPerSeason
 	priorStarts := float64(p.Starts) / GameweeksPerSeason

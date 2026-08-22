@@ -177,7 +177,7 @@ func partialGameweekEngine(t *testing.T) (*Engine, *fpl.Element) {
 		// Event.Finished is set anywhere, which is what GameweeksPlayed() reads.
 		// That is the live GW1 gap: this fixture is done while the gameweek it
 		// belongs to is not.
-		{ID: 1, Event: &gw1, TeamH: 1, TeamA: 2, Started: true, Finished: true},
+		{ID: 1, Event: &gw1, TeamH: 1, TeamA: 2, Started: true, Finished: true, FinishedProvisional: true},
 	}
 	e := NewEngineFull(b, fx, DefaultWeights(), Congestion{}, RoleRisk{})
 	return e, &e.Boot.Elements[1]
@@ -325,22 +325,29 @@ func TestMinutesEvidenceIsTheClubsOwnMatches(t *testing.T) {
 }
 
 // TestMinutesEvidenceIgnoresAMatchStillInProgress guards the sibling mistake to the one
-// above, at a finer grain: a fixture that has KICKED OFF but not yet finished is not a
-// match's worth of evidence, it is a partial one. el.Minutes for a club mid-fixture is
-// whatever the live match has accumulated so far — a nailed starter's 47 minutes into his
-// 90, not his eventual total — and TeamMatchesStarted alone would count that as "1 match
-// played", blending the partial figure in as if it were complete. TeamMatchesFinished must
-// answer 0 here, leaving the blend on the prior until the whistle actually blows.
+// above, at a finer grain: a fixture that has KICKED OFF but has not yet locked in its
+// final numbers is not a match's worth of evidence, it is a partial one. el.Minutes for
+// a club mid-fixture is whatever the live match has accumulated so far — a nailed
+// starter's 47 minutes into his 90, not his eventual total — and TeamMatchesStarted
+// alone would count that as "1 match played", blending the partial figure in as if it
+// were complete. TeamMatchesFinished must answer 0 here, leaving the blend on the prior
+// until the match's own stats are final.
+//
+// This gates on FinishedProvisional, not Finished — see the field's own comment on
+// fpl.Fixture and TeamMatchesFinished's. Finished lags full time by many hours live,
+// so a test built on it would prove the wrong thing.
 func TestMinutesEvidenceIgnoresAMatchStillInProgress(t *testing.T) {
 	e, _ := partialGameweekEngine(t)
 	established := &e.Boot.Elements[0]
-	// Overwrite the shared fixture's Finished flag: kicked off, still being played.
-	e.Fixtures[0].Finished = false
+	// Overwrite the shared fixture: kicked off, still being played, so its numbers
+	// are not final yet — Finished stays whatever the fixture literal set it to,
+	// deliberately, since TeamMatchesFinished must not be reading that field.
+	e.Fixtures[0].FinishedProvisional = false
 	if got := e.TeamMatchesStarted(established.Team); got != 1 {
 		t.Fatalf("setup: TeamMatchesStarted = %d, want 1 (the match has kicked off)", got)
 	}
 	if got := e.TeamMatchesFinished(established.Team); got != 0 {
-		t.Fatalf("TeamMatchesFinished = %d, want 0 — the match is still in progress", got)
+		t.Fatalf("TeamMatchesFinished = %d, want 0 — the match's numbers are not final yet", got)
 	}
 
 	e.Priors = fakePriors{established.Code: {Minutes: 630, Starts: 7, XG: 1, XA: 1, XGC: 10, DefCon: 5}}
