@@ -189,12 +189,21 @@
 
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button id="importSubmit" class="btn primary sm" style="flex:1;min-width:120px">Import my team</button>
-          <!-- Label, class and handler are all rewritten by renderImportCard(): "Start
-               fresh instead" (plain) on first run, "Cancel" (.ghost) once an entry exists --
-               see renderImportCard()'s comment for why the two states need different words
-               and different weight, not just different words. -->
-          <button id="importSkip" class="btn sm" style="flex:1;min-width:120px">Start fresh instead</button>
+          <!-- Label, class and handler are all rewritten by renderImportCard(): "Not now"
+               (plain) on first run, "Cancel" (.ghost) once an entry exists -- see
+               renderImportCard()'s comment for why the two states need different words and
+               different weight, not just different words. "Not now" replaced "Start fresh
+               instead" 2026-08-22: the old label read as a squad-building choice, not as a
+               way out, so a reader scanning for a dismissal did not find one. -->
+          <button id="importSkip" class="btn sm" style="flex:1;min-width:120px">Not now</button>
         </div>
+        <!-- Reversibility has to be STATED, not merely available -- shown only in the
+             first-run state (renderImportCard() toggles `hidden`). Without this line a
+             reader has to guess that "Not now" is undoable, and the safe guess is to leave
+             the panel sitting there rather than risk losing the offer. The "Change team"
+             state needs no such reassurance: it is reopened from a permanent button on
+             #squadsource, so its own presence already proves it comes back. 2026-08-22. -->
+        <p id="importReassure" style="margin:8px 0 0 0;font-size:12px;color:var(--ink3)">You can import any time — the button stays on the pitch.</p>
       </div>
     </div>
 
@@ -234,6 +243,27 @@
   <div class="why instr" style="margin-top:0">
     <h3>Your instructions <span class="dim" id="instrCount"></span></h3>
     <div id="instrbody"></div>
+  </div>
+
+  <!-- News callout: a POINTER to the News tab, not a third email capture -- there is
+       already a signup on this same screen (#pitch-newsnudge, above the pitch) and another
+       on the News tab's own panel (pressPanelHtml's newsAskFootHtml). This block is static
+       markup; renderNewsCallout() (app.js) only ever toggles its `hidden` attribute, and it
+       hides this whenever #pitch-newsnudge has drawn something -- that nudge is the
+       stronger ask, because it names a player from THIS fifteen, and two news asks visible
+       at once is one too many. See THE PITCH NUDGE in app.js for that comparison.
+
+       Copy is deliberately effort, not delivery: "we read the news and tell the model" is
+       true today; "Alerts aren't live yet -- we're building them" states intent without
+       promising a message will arrive. pressPanelHtml's own comment records that
+       landing.html once carried "we'll notify you when your striker is named on the
+       bench" -- a specific promise about a specific event this product cannot honour --
+       and commit 69ac868 had to fix it. Do not reintroduce that register here. 2026-08-22. -->
+  <div class="newscallout" id="pitch-newscallout" hidden>
+    <span class="k">News</span>
+    <p>We read the football news and tell the model before the deadline — with the source and the date.</p>
+    <p class="dim">Alerts aren’t live yet — we’re building them.</p>
+    <button class="btn sm ghost" data-view="news">See what we’ve caught →</button>
   </div>
 
   <div class="storenote">
