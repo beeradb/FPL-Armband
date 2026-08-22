@@ -1,6 +1,18 @@
-import json, gzip, glob, collections, statistics
-CAP = '/home/bbowman.guest/fpl/.claude/worktrees/prior-blend-experiment/data/captures/'
-CACHE = '/home/bbowman.guest/fpl/.cache/fpl/backtest-v8-%s.json'
+import json, gzip, glob, collections, statistics, os
+
+# Paths come from the environment, with a repo-relative default for repo content and a
+# home-relative one for build products. They used to be absolute paths into one
+# machine's home directory, which made this script unrunnable by anybody else and put a
+# private filesystem layout into a public repository.
+#
+# The captures default to the ones this repo already tracks. The original pointed into a
+# throwaway worktree named prior-blend-experiment, which held the same data.
+CAP = os.environ.get('FLAGCAL_CAPTURES', 'data/captures').rstrip('/') + '/'
+# The backtest cache is a build product rather than repo content, so it stays outside the
+# tree. %s is the season.
+CACHE = os.environ.get(
+    'FLAGCAL_CACHE',
+    os.path.join(os.path.expanduser('~'), '.cache', 'fpl', 'backtest-v8-%s.json'))
 SEASONS = ['2021-22', '2022-23', '2023-24', '2024-25', '2025-26']  # cached archive seasons
 
 # 1. flags: season -> gw -> code -> (chance, status)

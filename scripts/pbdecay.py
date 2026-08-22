@@ -1,6 +1,17 @@
-import csv, collections, sys
+import csv, collections, sys, os
 
-path = '/home/bbowman.guest/.claude/jobs/5ac0c3b1/tmp/pb-gated.csv'
+# The gated per-player CSV this reads is a RUN ARTEFACT, not repo content, so there is no
+# sensible default and the caller must say where it is:
+#
+#     python3 scripts/pbdecay.py <pb-gated.csv>          # or PBDECAY_CSV=<path>
+#
+# ⚠️ It used to be an absolute path into an agent job's temp directory
+# (~/.claude/jobs/<id>/tmp/pb-gated.csv). That directory is ephemeral and is long gone, so
+# the script had been DEAD as well as machine-specific. Failing loudly with usage beats
+# defaulting to a path that silently does not exist.
+path = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('PBDECAY_CSV')
+if not path:
+    sys.exit('usage: pbdecay.py <pb-gated.csv>   (or set PBDECAY_CSV)')
 POP = 'the case, injury shaped: he played some of last season'
 SHIPPED = 'shipped: prior_half_life 0'
 ARM = 'prior_half_life 1'
