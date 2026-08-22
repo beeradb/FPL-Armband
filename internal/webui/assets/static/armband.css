@@ -983,12 +983,39 @@ button{font-family:inherit;color:inherit;}
 .field .hint{font-size:11px;color:var(--ink3);margin-top:5px;}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 
+/* news callout -------------------------------------------------
+   A pointer to the News tab, sitting in .pitchside between .why.instr and .storenote
+   (app.html). Built from the same primitives as its neighbours rather than new tokens:
+   .why's own bordered-panel look for the block, .k for the eyebrow label, .dim for the
+   status line's reduced weight, .btn.sm.ghost for the action -- so it reads as part of
+   this column rather than a new kind of thing in it. Visibility only, not content, is
+   renderNewsCallout()'s job (app.js); see that function's comment for why. 2026-08-22. */
+.newscallout{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:12px 13px;display:flex;flex-direction:column;gap:6px;
+}
+.newscallout p{margin:0;font-size:12.5px;color:var(--ink2);line-height:1.5;}
+/* The "alerts aren't live yet" status line sits at the SAME weight (font-size) as the
+   sentence above it, only quieter in colour (.dim) -- a status note, not a second offer
+   competing with the first sentence for attention. */
+.newscallout .btn{align-self:flex-start;margin-top:2px;}
+
 /* storage note ------------------------------------------------ */
 .storenote{
-  display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink3);
+  /* align-items:flex-start, not center: the shield is a flex item beside THREE lines of
+     text, and center puts it at the block's vertical midpoint -- floating beside the
+     middle line instead of sitting with the first. Found 2026-08-22 from a screenshot
+     review: the shield read as a stray dot, for a second reason below. */
+  display:flex;align-items:flex-start;gap:7px;font-size:11.5px;color:var(--ink3);
   padding:8px 11px;background:var(--panel2);border:1px solid var(--line);
   border-radius:var(--r-sm);margin-top:12px;
 }
+/* flex:none stops the shrink: a bare <svg> flex item with no flex declaration shrinks
+   below its own 13x13 intrinsic size against three lines of text, which is what actually
+   made it look like a dot rather than a shield -- align-items alone would not have fixed
+   it. margin-top:1px sets it on the first line's optical baseline once align-items above
+   stops centering it. 2026-08-22. */
+.storenote svg{flex:none;margin-top:1px;}
 
 /* ============================================================
    RESPONSIVE — mobile is the primary target

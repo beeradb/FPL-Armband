@@ -320,7 +320,14 @@ function hydrate(st){
     if(imp.open && !imp.entry && !imp.skipped){
       card.hidden=false;
       renderImportCard(imp);
-    } else if(!imp.open || imp.skipped){
+    /* !imp.open still closes unconditionally, and must: a shut import window is not the
+       reader's preference, it is the feature being off. But imp.skipped alone must NOT --
+       imp.skipped stays true forever once set, so without the importPanelOpenedByReader
+       exception a reader who dismissed the first-run offer, then reopened it from
+       #squadsource's ghost button and started typing, would watch it vanish under the next
+       unrelated save (a lock, a bench drag, a chip toggle). Found 2026-08-22; see
+       importPanelOpenedByReader's own comment for the full story. */
+    } else if(!imp.open || (imp.skipped && !importPanelOpenedByReader)){
       card.hidden=true;
     }
   }
@@ -2117,6 +2124,7 @@ document.addEventListener('armband:signedup', (e)=>{
   }
   renderNews();
   renderNewsNudge();
+  renderNewsCallout();  // this signup can dismiss the pitch nudge above -- keep the callout in step
 });
 
 /* NEWS_ASK_DECLINED_KEY backs the News panel's "Not now": client-side only, no request, and
@@ -2308,9 +2316,35 @@ function renderNewsNudge(){
     clauses.push(`<b>${esc(riskSubject.n)}</b> carries no flag at all and we still don’t have him starting: nobody reported that, we modelled it.`);
   }
   const both=!!(flagSubject && riskSubject);
+  /* The riskSubject-only headline used to read "...and nobody said why", which lands as
+     "you were not told" -- inside a panel that is, at that moment, telling them. Two
+     redrafts were also rejected before this one: "...and nobody else has reported it"
+     implied this product IS a reporter and just got there first, which overstates what it
+     does (it reads and aggregates other people's reporting, it does not break news
+     itself); "No news on one of your fifteen, and the model still doubts him" was accurate
+     but flat.
+
+     ⚠️ PLACEHOLDER as of 2026-08-22 -- "Psst… we have reason to doubt one of your fifteen
+     starts" is a copywriter draft, not final copy; the owner has left the exact words
+     open. Kept as one string in one ternary branch on purpose, so it stays a one-line swap
+     when the real copy lands -- do not spread it across a template or split it into
+     fragments. Whoever swaps it must still satisfy the three constraints that are
+     properties of the SITUATION, not of this wording, and survive any future redraft too:
+       1. No claim about who reports -- this product reads team news, it does not break it.
+          Both earlier drafts above were rejected on exactly this ground.
+       2. No promise of a notification or alert (see commit 69ac868 and pressPanelHtml's
+          own comment on the landing-page line it had to fix).
+       3. No specific points figure, rank, or probability -- the model's doubt here is a
+          ROLE BAND (roleNum 3, rotation risk), not a percentage.
+     It should still agree with the body clause below ("nobody reported that, we modelled
+     it"). "Psst…" is also a deliberate departure from this app's own "serious, no banter"
+     voice (app.html/team.html) -- the owner's call, made with that convention pointed out
+     to them, to make the reader feel let in on something -- so do not "restore" it to the
+     house register as a drive-by fix if it survives. If replaced, real ellipsis (…),
+     matching 'Reading your team…' elsewhere in this file -- not three periods. */
   const headline=both ? 'Two kinds of bad news, and both are on your fifteen'
     : flagSubject ? 'FPL flagged one of your fifteen, and it’s more than a stat'
-    : 'The model doubts one of your fifteen, and nobody said why';
+    : 'Psst… we have reason to doubt one of your fifteen starts';
   const seeLabel=both ? 'See both on News' : 'See him on News';
   const tail=both ? 'Both are on News' : 'He’s on News';
 
@@ -2369,8 +2403,31 @@ function renderNewsNudge(){
   const see=document.getElementById('nudgeSeeNews');
   if(see) see.onclick=()=>setView('news');
   const dis=document.getElementById('nudgeDismiss');
-  if(dis) dis.onclick=()=>{ dismissNudge(); renderNewsNudge(); };
+  /* Dismiss is the one interaction on this row that can turn #pitch-newsnudge from
+     present to empty without a save() round-trip (S.armLock etc all end in
+     hydrate()+renderAll(), which already calls renderNewsCallout() below -- this click
+     does not). Pair the call here or the News callout stays hidden, un-shown, until
+     something unrelated re-renders the page. */
+  if(dis) dis.onclick=()=>{ dismissNudge(); renderNewsNudge(); renderNewsCallout(); };
   if(window.wireGateForms) window.wireGateForms(el);
+}
+
+/* renderNewsCallout decides only VISIBILITY -- the callout's markup (app.html) is static,
+   so there is nothing here to build. It reads #pitch-newsnudge's own rendered output
+   rather than re-deriving nudgeDismissed()/flagSubject/riskSubject a second time: two news
+   asks on one screen is one too many, and the nudge is the stronger ask because it names a
+   player from THIS fifteen (see THE PITCH NUDGE above) -- so the callout shows only when
+   the nudge has nothing to say.
+
+   Call it everywhere renderNewsNudge() is called, not only from renderAll(): the nudge can
+   flip from present to empty (Dismiss, arriving on News) or empty to present (a fresh
+   hydrate) at any of those call sites, and a callout that only synced on the next full
+   render would sit visibly wrong until one happened. 2026-08-22. */
+function renderNewsCallout(){
+  const el=document.getElementById('pitch-newscallout');
+  const nudge=document.getElementById('pitch-newsnudge');
+  if(!el) return;
+  el.hidden=!!(nudge && nudge.innerHTML.trim());
 }
 
 /* ============================================================
@@ -2396,6 +2453,7 @@ function setView(v, push){
     // to confirm, only something to stop repeating.
     dismissNudge();
     renderNewsNudge();
+    renderNewsCallout();  // the nudge just went empty -- the callout must be ready to show when the reader goes back to Pitch
   }
   S.view=v;
   VIEWS.forEach(x=> document.getElementById('view-'+x).hidden = x!==v);
@@ -2500,7 +2558,7 @@ function renderHouseTeam(){
   </div>`;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderHouseTeam();}
+function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderNewsCallout();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderHouseTeam();}
 
 /* boot fetches the state and draws once.
 
@@ -2613,6 +2671,7 @@ function renderImportCard(imp){
   const submit=document.getElementById('importSubmit');
   const cancel=document.getElementById('importSkip');
   const input=document.getElementById('importTeamId');
+  const reassure=document.getElementById('importReassure');
   if(!heading||!submit||!cancel||!input) return;
   if(imp.entry){
     heading.textContent='Change team';
@@ -2621,15 +2680,35 @@ function renderImportCard(imp){
     cancel.classList.add('ghost');
     cancel.onclick=()=>closeImportCard();
     input.value=imp.entry;
+    /* No reassurance line here: it exists to state that dismissing is undoable, and this
+       state was never dismissed to reach -- it opened from #squadsource's own permanent
+       "Change team" button, whose presence already proves it comes back. */
+    if(reassure) reassure.hidden=true;
   } else {
     heading.textContent='Already picked your team?';
     submit.textContent='Import my team';
-    cancel.textContent='Start fresh instead';
+    /* "Not now", not "Start fresh instead" -- see the comment on this button in app.html.
+       skipImport() is unchanged underneath; only the word changed. */
+    cancel.textContent='Not now';
     cancel.classList.remove('ghost');
     cancel.onclick=()=>skipImport();
     input.value='';
+    if(reassure) reassure.hidden=false;
   }
 }
+
+/* importPanelOpenedByReader records that the READER, not hydrate()'s own auto-open rule,
+ * is why this panel is on screen right now -- set by openImportCard(), cleared by
+ * closeImportCard(). It exists for exactly one bug, found 2026-08-22: a reader who
+ * dismisses the first-run offer ("Not now" -> skipImport() -> imp.skipped=true), then
+ * presses the "Import your team" ghost button on #squadsource to reopen it, was watching
+ * the panel slam shut the instant anything else round-tripped through hydrate -- locking a
+ * player, dragging the bench, toggling a chip -- because hydrate's closing clause read
+ * `imp.skipped` alone, and imp.skipped stays true forever once set. This flag is the
+ * difference between "the reader dismissed the panel" and "the reader is using the panel
+ * they just reopened despite having dismissed it once before". See hydrate()'s own comment
+ * for the other half of the fix. */
+let importPanelOpenedByReader=false;
 
 /* openImportCard is #squadsource's action button's whole job: draw whichever state
  * applies right now and show the panel. Only the "change team" state also focuses and
@@ -2642,6 +2721,7 @@ function openImportCard(){
   const imp=STATE.import||{};
   renderImportCard(imp);
   card.hidden=false;
+  importPanelOpenedByReader=true;
   if(imp.entry){
     const input=document.getElementById('importTeamId');
     if(input){ input.focus(); input.select(); }
@@ -2650,11 +2730,14 @@ function openImportCard(){
 
 /* closeImportCard is Cancel's entire job in the "change team" state: hide the panel,
  * clear any stale error from a previous attempt, change nothing else. No save, no
- * mutation -- PENDING and the server are never touched. */
+ * mutation -- PENDING and the server are never touched. It is also importTeam()'s success
+ * path (both states) and the one place importPanelOpenedByReader is cleared, so a panel
+ * closed for any reason stops overriding hydrate's imp.skipped check. */
 function closeImportCard(){
   const card=document.getElementById('importCard');
   if(card) card.hidden=true;
   if(importErrorDiv) importErrorDiv.style.display='none';
+  importPanelOpenedByReader=false;
 }
 
 function importTeam(){
