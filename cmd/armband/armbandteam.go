@@ -61,17 +61,32 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	houseEntry, houseHistory := houseTeamSources(r.Context(), s.client, s.cfg.EntryID)
-	houseLive, houseMatchStatus := houseLiveSources(r.Context(), s.client, s.engine.Boot, event)
+	houseLive, houseMatchStatus, resultState := houseLiveSources(r.Context(), s.client, s.engine.Boot, event)
+
+	// event is nil for a season with no closed gameweek yet (see latestClosedEvent) --
+	// resultEvent/eventAverage then stay zero, which HouseTeam's own omitempty tags
+	// already treat as "nothing to report", the same honest absence buildHouseTeam
+	// gives every other figure it has no data for.
+	var resultEvent, eventAverage int
+	if event != nil {
+		resultEvent = event.ID
+		eventAverage = event.AverageScore
+	}
+
 	st, err := viewmodel.Build(viewmodel.Input{
-		Page:             b.Page,
-		Boot:             s.engine.Boot,
-		Cfg:              *s.cfg,
-		Now:              now,
-		Chips:            s.cfg.Chips,
-		HouseEntry:       houseEntry,
-		HouseHistory:     houseHistory,
-		HouseLive:        houseLive,
-		HouseMatchStatus: houseMatchStatus,
+		Page:              b.Page,
+		Boot:              s.engine.Boot,
+		Cfg:               *s.cfg,
+		Now:               now,
+		Chips:             s.cfg.Chips,
+		HouseEntry:        houseEntry,
+		HouseHistory:      houseHistory,
+		HouseLive:         houseLive,
+		HouseMatchStatus:  houseMatchStatus,
+		HouseMultiplier:   arrange.Mult,
+		HouseResultEvent:  resultEvent,
+		HouseResultState:  resultState,
+		HouseEventAverage: eventAverage,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "serve: armband-team: %v\n", err)
@@ -115,21 +130,28 @@ func latestClosedEvent(boot *fpl.Bootstrap, now time.Time) *fpl.Event {
 	return best
 }
 
-// houseLiveSources fetches the current gameweek's live per-player stats and every club's
-// match status for it. Both come from an always-fresh fetch (fpl.Client.Live,
-// fpl.Client.FixturesLive), never the memoised Client.Bootstrap/Client.Fixtures the rest
-// of this process uses -- a live score that only updates when the pod restarts is not
-// live. A nil event (a fetch failure finding it, or a season with no closed gameweek yet)
-// answers (nil, nil): viewmodel.buildHouseTeam then leaves every player's
-// MatchStatus/DefCon/Saves at their zero value, which is the honest answer to "what
-// happened in a gameweek that has not started or does not exist".
+// houseLiveSources fetches the current gameweek's live per-player stats, every club's
+// match status for it, and the gameweek's own overall state. All three come from an
+// always-fresh fetch (fpl.Client.Live, fpl.Client.FixturesLive), never the memoised
+// Client.Bootstrap/Client.Fixtures the rest of this process uses -- a live score that
+// only updates when the pod restarts is not live. A nil event (a fetch failure finding
+// it, or a season with no closed gameweek yet) answers (nil, nil, ""): viewmodel.
+// buildHouseTeam then leaves every player's MatchStatus/DefCon/Saves at their zero value,
+// which is the honest answer to "what happened in a gameweek that has not started or
+// does not exist".
 //
 // Takes the event rather than finding it itself: armbandTeamState finds it once
 // (latestClosedEvent) and hands it to both this and houseRealPicks, so the two agree on
 // which gameweek's live stats belong beside which gameweek's real fifteen.
-func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstrap, event *fpl.Event) (*fpl.EventLive, map[string]string) {
+//
+// The returned state is computed HERE, not left to the client, because it is exactly the
+// class of derivation viewmodel.Import's own comment forbids: the fifteen players on the
+// pitch may not cover all twenty clubs in a gameweek, so a client inferring "is this
+// gameweek over" from their match_status fields alone could reach the wrong answer for a
+// club nobody on the squad plays for.
+func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstrap, event *fpl.Event) (*fpl.EventLive, map[string]string, string) {
 	if client == nil || boot == nil || event == nil {
-		return nil, nil
+		return nil, nil, ""
 	}
 	live, err := client.Live(ctx, event.ID)
 	if err != nil {
@@ -137,13 +159,20 @@ func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstr
 	}
 	fixtures, err := client.FixturesLive(ctx)
 	if err != nil {
-		return live, nil
+		return live, nil, ""
 	}
 	idToShort := make(map[int]string, len(boot.Teams))
 	for _, t := range boot.Teams {
 		idToShort[t.ID] = t.ShortName
 	}
 	status := make(map[string]string, len(boot.Teams))
+	// resultState starts empty (nothing seen yet) and is set to "final" or "live" by
+	// the first matching fixture, then only ever downgraded from "final" to "live" --
+	// never the other way, so one fixture still in progress is enough to keep the
+	// whole gameweek "live". f.Finished (not FinishedProvisional) is the bar, because
+	// FPL sets Finished only after bonus is applied -- "final" here means the scores
+	// on this page will not move again, matching HouseTeam.ResultState's own contract.
+	resultState := ""
 	for _, f := range fixtures {
 		if f.Event == nil || *f.Event != event.ID {
 			continue
@@ -161,8 +190,15 @@ func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstr
 		if away := idToShort[f.TeamA]; away != "" {
 			status[away] = s
 		}
+		if f.Finished {
+			if resultState == "" {
+				resultState = "final"
+			}
+		} else {
+			resultState = "live"
+		}
 	}
-	return live, status
+	return live, status, resultState
 }
 
 // houseRealPicks fetches the house account's actual squad for the most recently closed
@@ -217,6 +253,7 @@ func picksToFixed(boot *fpl.Bootstrap, picks *fpl.EntryPicks) ([]int, arrangemen
 
 	var squad, xi, bench []int
 	var captain, vice int
+	mult := make(map[int]int, len(sorted))
 	for _, p := range sorted {
 		code, ok := byElement[p.Element]
 		if !ok {
@@ -234,9 +271,12 @@ func picksToFixed(boot *fpl.Bootstrap, picks *fpl.EntryPicks) ([]int, arrangemen
 		if p.IsViceCaptain {
 			vice = code
 		}
+		// Keyed by code, same as everything else here -- see arrangement.Mult's own
+		// comment for why the results page needs this at all.
+		mult[code] = p.Multiplier
 	}
 	if len(squad) != 15 {
 		return nil, arrangement{}
 	}
-	return squad, arrangement{XI: xi, Bench: bench, Captain: captain, Vice: vice}
+	return squad, arrangement{XI: xi, Bench: bench, Captain: captain, Vice: vice, Mult: mult}
 }

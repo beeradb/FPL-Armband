@@ -2111,10 +2111,11 @@ body.saving{cursor:progress;}
    config.EntryID is the site's own live FPL squad, run through this exact pipeline. Lives
    on the dedicated /armband-team page (team.html/team.js) ONLY -- never inside /app, which
    is the interactive builder and must not share a document with a page that is always the
-   same fifteen for everyone. States what it actually scored last week (a fact, plain ink)
-   and what this week's eleven is projected to return (Squad.Expected, --acc -- the same
-   number the interactive score bug would show for this squad, never a second computation
-   of it). No sparkline: two numbers and a name is the whole job. */
+   same fifteen for everyone. A scoreboard for one COMPLETED gameweek, not a projection --
+   points arrive, nothing here is a prediction. What it actually scored (plain ink, a fact)
+   plus the context that makes a bare total mean something: the field average, this week's
+   rank, a hit if one was taken, season rank last. No sparkline: a name and a handful of
+   numbers is the whole job. */
 .houseteam{margin-bottom:10px;}
 .houseteamrow{
   display:flex;align-items:center;gap:14px;padding:10px 16px;
@@ -2124,13 +2125,33 @@ body.saving{cursor:progress;}
 .houseteamrow .htbadge{
   font-family:var(--display);font-weight:800;font-size:13px;color:var(--ink);white-space:nowrap;
 }
+/* .htgw names the gameweek once, at the head of the row, for the whole row -- the .k
+   labels beside it no longer carry a GW-number prefix of their own. The status word
+   (Final/Live) is what lets a saved copy of this page say whether the numbers had
+   settled when it was taken -- the same "no unsettled assertion" rule that governs the
+   provisional asterisk on a results card, applied to the page as a whole. */
+.houseteamrow .htgw{
+  font-family:var(--display);font-weight:800;font-size:15px;color:var(--ink);
+  display:flex;align-items:baseline;gap:7px;white-space:nowrap;
+}
+.houseteamrow .htgw i{
+  font-family:var(--mono);font-style:normal;font-size:10px;font-weight:500;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--label);
+}
 .houseteamrow .htstat{display:flex;flex-direction:column;gap:1px;padding:0 12px;border-left:1px solid var(--line);}
 .houseteamrow .htstat .v{font-family:var(--mono);font-weight:700;font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums;}
-.houseteamrow .htstat .v.acc{color:var(--acc);}
+.houseteamrow .htstat .v.sec{color:var(--ink3);} /* the average -- somebody else's number */
+.houseteamrow .htstat .v.bad{color:var(--bad);} /* the hit -- rendered as the negative it is */
 .houseteamrow .htstat .k{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--label);}
 @media (max-width:640px){
-  .houseteamrow{gap:0;padding:8px 12px;}
+  .houseteamrow{gap:6px 0;padding:8px 12px;}
   .houseteamrow .htstat{padding:0 8px;}
+  /* Removed rather than shrunk: the top bar already says "FPL Armband" forty pixels
+     above this row, and deleting it frees the space the row's own numbers need at this
+     width -- the system's standing rule for narrow screens is "remove contents, never
+     shrink type". */
+  .houseteamrow .htbadge{display:none;}
+  .houseteamrow .htgw{padding-right:10px;}
 }
 
 /* --- /armband-team, the spectator page ---------------------------
@@ -2138,7 +2159,7 @@ body.saving{cursor:progress;}
    .houseteamrow above for the identity strip -- everything else here is new, because a
    spectator card is deliberately a SMALLER vocabulary than the interactive .card: no
    lock/leave-out icons, no role band, no reliability meter. Opponent (the same .fxr glyph
-   the interactive ribbon uses) and this season's counting stats instead. */
+   the interactive ribbon uses) and this gameweek's actual return instead. */
 .teamwrap{max-width:900px;padding-top:20px;}
 .teamintro{max-width:56ch;margin-bottom:20px;}
 .teamintro h1{margin:4px 0 8px;}
@@ -2160,8 +2181,23 @@ body.saving{cursor:progress;}
 .tpband.v{background:var(--panel3);color:var(--ink2);}
 .tpbody{padding:6px 7px;}
 .tpname{font-family:var(--ui);font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.tpmeta{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-bottom:4px;}
-.tpopp{margin-bottom:5px;display:flex;align-items:center;}
+/* A long name runs under the band chip (C/3×/V) otherwise -- reserve its width whenever
+   the chip actually renders (team.js drives .iscap/.isvc off the same condition as the
+   chip itself, not off static captain/vice identity, so this never reserves space nothing
+   is drawn into). */
+.tpcard.iscap .tpname, .tpcard.isvc .tpname{padding-right:17px;}
+
+/* Club code and opponent chip share one line -- saves a whole 12px row, which is what
+   pays for the points figure below, and "MUN @HUL" reads as a fixture the way two
+   stacked lines never did. */
+.tpmeta{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+.tpclub{font-family:var(--mono);font-size:10px;color:var(--ink3);}
+.tpopp{display:inline-flex;align-items:center;}
+/* .fdr i (shared with the interactive ribbon) is width:15px/display:grid, which a
+   three-letter club code overflows -- this rule is more specific by source order, not by
+   selector weight (.tpopp i and .fdr i tie on specificity), so it must stay BELOW .fdr i
+   in the file to keep winning. */
+.tpopp i{width:auto;min-width:0;height:13px;padding:0 3px;border-radius:3px;}
 /* The broadcast-red dot is a universal "this is live" convention independent of this
    system's own three channels, so it borrows --bad rather than minting a fourth colour --
    the two meanings do not collide in practice, since one sits on the opponent chip and the
@@ -2173,19 +2209,92 @@ body.saving{cursor:progress;}
 .tplive{display:inline-flex;align-items:center;margin-left:4px;}
 .tplive::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--bad);}
 
-.tpstats{display:flex;gap:6px;flex-wrap:wrap;}
-.tpstat{font-family:var(--mono);font-size:10px;color:var(--ink3);display:flex;align-items:center;gap:2px;}
-.tpstat b{font-family:var(--mono);font-weight:700;font-size:11px;color:var(--ink);}
-/* DC's verdict is all-or-nothing, same as the rule it reads (analysis.DefConThreshold) --
-   green once the bar for his position is cleared, red until it is, never a gradient
-   between them. Absent entirely before his match kicks off; see team.js's statRow. */
-.tpstat.tpdc.ok, .tpstat.tpdc.ok b{color:var(--acc);}
-.tpstat.tpdc.no, .tpstat.tpdc.no b{color:var(--bad);}
+/* The points slot. 20px is on the system's declared scale and IDENTICAL at 390px -- the
+   mobile card sheds contents, never type size, so TestMobileTypeIsNeverSmallerThanDesktopType
+   is satisfied by construction. --ink, not --acc: green means "the model's own number"
+   everywhere in this product (see the identity-strip comment above), and this is a result,
+   not a prediction -- so a fact stays plain ink even at this weight. */
+.tppts{display:flex;align-items:baseline;gap:5px;margin:1px 0 4px;}
+.tppts b{
+  font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:-.03em;
+  color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;
+}
+.tppts b.neg{color:var(--bad);} /* a red card or an own goal -- never a plain 0 */
+.tpcard.bench .tppts b{color:var(--ink3);} /* a real number that did not count */
+
+/* The bonus token: part of the number above it, so it lives on .tppts's own line, never
+   in .tpbadges -- bonus is already inside the points figure, and a badge beside 1G/DC
+   would read as a fourth thing that ADDS to that figure rather than being part of it.
+   Grey, not a valence colour, for the same reason: it is bookkeeping on a number already
+   stated, not a fourth achievement. */
+.tpbon{font-family:var(--mono);font-size:10px;font-weight:500;color:var(--ink3);}
+/* The provisional marker attaches to the NUMBER, not to a bonus slot -- during a live
+   match the whole total is still moving, not merely its bonus component, so marking the
+   quantity that is provisional is the accurate choice. */
+.tpprov{font-family:var(--mono);font-style:normal;font-size:10px;color:var(--ink3);
+        align-self:flex-start;line-height:1;}
+
+/* The two non-numeric states. "To play" and "DNP" are different STRINGS, not different
+   shades of one string -- colour alone is too weak a carrier for the pair most damaging
+   to confuse. line-height:1.9 makes the slot occupy the same vertical space a 20px
+   numeral does, so the pitch row does not jump the instant a match kicks off. */
+.tpstate{
+  font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;line-height:1.9;
+}
+.tpcard .tpstate{color:var(--label);}    /* "to play" -- nothing is known yet */
+.tpcard.dnp .tpstate{color:var(--ink3);} /* DNP -- known, and the answer is "no minutes" */
+
+/* The recessed DNP card. --bg2 sits BELOW --panel, so the card reads as recessed rather
+   than dimmed -- not opacity, which would move every foreground colour on the card at
+   once and put the contrast guard's runs somewhere nothing in this system has measured.
+   The club bar goes to --line2 because a bright club stripe is a claim of participation;
+   together with the missing number and the DNP tag, three independent marks separate this
+   from a played card that scored zero, which is a different card. */
+.tpcard.dnp{background:var(--bg2);}
+.tpcard.dnp .tpbar{background:var(--line2)!important;}
+
+/* The badge row. One rule for the whole vocabulary: a badge renders iff FPL paid or
+   docked points for that event and the count is non-zero -- see team.js's badgeHtml for
+   the per-badge derivations (SV's threshold of 3, GC's of 2, why CS excludes forwards, why
+   DC loses its count and its red once a match is finished). Bare text, not pills: a pill
+   costs ~8px of padding each, and at 67px of card width that is the difference between one
+   badge row and three. min-height:14px reserves the row's rhythm even when it is empty, so
+   a clean card is not shorter than a busy one in the same pitch row -- .line{align-items:
+   stretch} (below) is what makes that rhythm hold across a whole row of mixed cards. */
+.tpbadges{display:flex;flex-wrap:wrap;gap:3px 6px;min-height:14px;align-items:center;}
+.tpbadge{
+  font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.02em;
+  display:inline-flex;align-items:center;gap:1px;color:var(--ink3);white-space:nowrap;
+}
+.tpbadge b{font-family:var(--mono);font-weight:700;font-size:11px;color:inherit;}
+.tpbadge.pos{color:var(--acc);}   /* 11.09:1 on --panel */
+.tpbadge.neg{color:var(--bad);}   /*  5.60:1 */
+.tpbadge.warn{color:var(--warn);} /*  9.86:1 */
+.tpbadge.pend{color:var(--ink3);} /*  6.69:1 — the live, not-yet-cleared DC count only */
 
 .teambench{margin-top:14px;}
+/* The number every FPL manager looks for after a big bench score. Renders iff > 0, the
+   same honest-absence rule as everything else on this page. */
+.teambench .k + .teambenchpts{
+  font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:8px;
+}
 .teambenchrow{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
 .teambenchrow .tpcard{flex:none;}
 
+/* 390px. Desktop already fits: 5×112 + 4×7 = 588px ≤ .line's 600px cap, so it is untouched
+   above. At 390px the OLD fixed .tpcard{width:88px} overflowed .pitch's 350px content box
+   by 106px (5×88 + 4×4 gap = 456), visible in the committed mobile golden as the midfield
+   row bleeding past the turf with Rice clipped at the edge. This replaces the fixed width
+   with the same flex-to-fit mechanism .card already uses at this breakpoint: five cards
+   compute to (350-16)/5 = 66.8px, capped at 78px on wider phones. The bench is exactly
+   four every week, so a 4-up grid fits it without a scroller and overflow-x:auto goes away
+   rather than staying as an unused escape hatch. */
 @media (max-width:640px){
-  .tpcard{width:88px;}
+  .tpcard{width:auto;flex:1 1 0;min-width:0;max-width:78px;}
+  .tpbody{padding:5px 4px;}
+  .tpmeta{gap:4px;}
+  .teambenchrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;overflow:visible;}
+  .teambenchrow .tpcard{flex:none;width:auto;max-width:none;}
 }
+.line{align-items:stretch;}

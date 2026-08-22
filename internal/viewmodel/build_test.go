@@ -316,15 +316,23 @@ func TestHouseTeamIsAbsentWithoutAnEntry(t *testing.T) {
 	}
 }
 
-// TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails pins the bug an earlier version
-// of this function had: samplePage sets Squad.ExpectedPoints to 17.78 (the score bug, this
-// squad's actual arrangement) and Weeks[0].Expected to 52.3 (the rail's OWN best-XI pick
-// for GW1, computed independent of this squad — see WeekView.Expected's doc comment).
-// Those two numbers deliberately differ in this fixture, exactly as they do in production
-// the moment a squad's captain or XI is not the model's own choice. CurrentProjected must
-// be the FIRST number, or the footer contradicts the tab it sits under.
-func TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails(t *testing.T) {
+// TestHouseTeamResultFieldsAreCarriedNotDerived replaces
+// TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails, deleted with it: CurrentEvent and
+// CurrentProjected are gone from the contract (see HouseTeam's own comment — pairing the
+// rail's Current gameweek with the score bug's Squad.Expected was routinely labelling one
+// week's projection next to another week's actual eleven), so there is no longer a "which
+// number comes first" invariant to pin.
+//
+// What replaces it: ResultEvent/ResultState/EventAverage must be exactly what the caller
+// (armbandTeamState, via latestClosedEvent and houseLiveSources) hands in through Input,
+// never recomputed from Boot or Gameweeks here — this package has no license to decide
+// which gameweek is being described, the same rule Import's own comment states. This
+// fixture's Boot carries a DIFFERENT current gameweek (GW1, IsNext) from the ResultEvent
+// Input asserts (GW2) specifically so a Build that fell back to deriving it from Boot
+// would be caught rather than passing by accident.
+func TestHouseTeamResultFieldsAreCarriedNotDerived(t *testing.T) {
 	rank := 412311
+	gwRank := 88214
 	history := &fpl.EntryHistory{Current: []struct {
 		Event              int  `json:"event"`
 		Points             int  `json:"points"`
@@ -337,7 +345,7 @@ func TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails(t *testing.T) {
 		EventTransfersCost int  `json:"event_transfers_cost"`
 		PointsOnBench      int  `json:"points_on_bench"`
 	}{
-		{Event: 1, Points: 62},
+		{Event: 2, Points: 62, Rank: &gwRank, EventTransfersCost: 4, PointsOnBench: 8},
 	}}
 	s, err := Build(Input{
 		Page: samplePage(),
@@ -351,7 +359,10 @@ func TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails(t *testing.T) {
 			SummaryOverallPoints: 236,
 			SummaryOverallRank:   rank,
 		},
-		HouseHistory: history,
+		HouseHistory:      history,
+		HouseResultEvent:  2,
+		HouseResultState:  "final",
+		HouseEventAverage: 56,
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -359,23 +370,69 @@ func TestHouseTeamProjectedIsTheScoreBugsFigureNotTheRails(t *testing.T) {
 	if s.HouseTeam == nil {
 		t.Fatal("HouseTeam is nil, want a value — HouseEntry was given")
 	}
-	if s.HouseTeam.CurrentEvent != 1 {
-		t.Errorf("CurrentEvent = %d, want 1", s.HouseTeam.CurrentEvent)
+	if s.HouseTeam.ResultEvent != 2 {
+		t.Errorf("ResultEvent = %d, want 2 (Input's, not Boot's IsNext GW1)", s.HouseTeam.ResultEvent)
 	}
-	if s.HouseTeam.CurrentProjected != s.Squad.Expected {
-		t.Errorf("CurrentProjected = %v, want %v — the score bug's own Squad.Expected",
-			s.HouseTeam.CurrentProjected, s.Squad.Expected)
+	if s.HouseTeam.ResultState != "final" {
+		t.Errorf("ResultState = %q, want %q — carried from Input, not derived here", s.HouseTeam.ResultState, "final")
 	}
-	if s.HouseTeam.CurrentProjected == s.Gameweeks[0].Projected {
-		t.Fatalf("CurrentProjected (%v) equals the rail's Gameweek.Projected — this fixture "+
-			"sets them to different values on purpose so this test cannot pass by accident",
-			s.HouseTeam.CurrentProjected)
+	if s.HouseTeam.EventAverage != 56 {
+		t.Errorf("EventAverage = %d, want 56", s.HouseTeam.EventAverage)
 	}
 	if s.HouseTeam.OverallPoints != 236 || s.HouseTeam.OverallRank != rank {
 		t.Errorf("OverallPoints/OverallRank = %d/%d, want 236/%d", s.HouseTeam.OverallPoints, s.HouseTeam.OverallRank, rank)
 	}
-	if len(s.HouseTeam.History) != 1 || s.HouseTeam.History[0].Event != 1 || s.HouseTeam.History[0].Points != 62 {
-		t.Errorf("History = %+v, want [{1 62}]", s.HouseTeam.History)
+	if len(s.HouseTeam.History) != 1 {
+		t.Fatalf("History = %+v, want one entry", s.HouseTeam.History)
+	}
+	got := s.HouseTeam.History[0]
+	if got.Event != 2 || got.Points != 62 {
+		t.Errorf("History[0] Event/Points = %d/%d, want 2/62", got.Event, got.Points)
+	}
+	if got.Rank == nil || *got.Rank != gwRank {
+		t.Errorf("History[0].Rank = %v, want a pointer to %d", got.Rank, gwRank)
+	}
+	if got.Hit != 4 {
+		t.Errorf("History[0].Hit = %d, want 4 (EventTransfersCost)", got.Hit)
+	}
+	if got.BenchPoints != 8 {
+		t.Errorf("History[0].BenchPoints = %d, want 8 (PointsOnBench)", got.BenchPoints)
+	}
+}
+
+// TestHouseTeamMultiplierIsKeyedByCodeNotID pins the plumbing gotcha the redesign
+// introduced: HouseMultiplier arrives keyed by permanent CODE, the same keyspace
+// arrangement.Mult/XI/Bench/Captain already use (see picksToFixed), while every other
+// lookup inside buildHouseTeam — byID, live.ByID — is keyed by element ID. samplePage's
+// Codes map gives Haaland ID 3 and Code 333, deliberately different numbers, so a
+// buildHouseTeam that reads multiplier[p.ID] instead of multiplier[p.Code] finds nothing
+// and this test catches it: every card would render at multiplier 0, i.e. as bench.
+func TestHouseTeamMultiplierIsKeyedByCodeNotID(t *testing.T) {
+	s, err := Build(Input{
+		Page: samplePage(),
+		Boot: &fpl.Bootstrap{Events: []fpl.Event{
+			{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), IsNext: true},
+		}},
+		Cfg:        config.Config{},
+		Now:        pinned,
+		HouseEntry: &fpl.Entry{SummaryOverallPoints: 236},
+		// Keyed by CODE (333 = Haaland, 222 = Kadıoğlu — see samplePage's Codes map),
+		// not by the IDs (3, 2) those same players carry.
+		HouseMultiplier: map[int]int{333: 2, 222: 1},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	byID := map[int]TeamPlayer{}
+	for _, p := range s.HouseTeam.XI {
+		byID[p.ID] = p
+	}
+	if got := byID[3].Multiplier; got != 2 {
+		t.Errorf("Haaland (id 3, code 333) Multiplier = %d, want 2 — captain. "+
+			"A result of 0 means the lookup used p.ID instead of p.Code.", got)
+	}
+	if got := byID[2].Multiplier; got != 1 {
+		t.Errorf("Kadıoğlu (id 2, code 222) Multiplier = %d, want 1", got)
 	}
 }
 

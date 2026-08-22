@@ -117,6 +117,7 @@ var contrastScreens = []struct {
 	path    string
 }{
 	{"landing", "gameweek-one", "/?probe=1"},
+	{"armband-team", "gameweek-one", "/armband-team?probe=1"},
 	{"pitch", "gameweek-one", "/app?probe=1#pitch"},
 	{"players", "gameweek-one", "/app?probe=1#players"},
 	{"news", "gameweek-one", "/app?probe=1#news"},
