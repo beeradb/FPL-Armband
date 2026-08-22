@@ -292,11 +292,29 @@ func run() error {
 	case cfg.EntryID == 0:
 		engine.Budget = analysis.AssumedBudget(
 			"No entry_id in config.json, so there is no squad to price.")
-	case played == 0:
-		// Nothing has been bought, so market price is the selling price.
+	case !engine.SeasonHasStarted():
+		// Genuinely pre-season: nothing has been bought yet, so market price
+		// is the selling price. Gated on SeasonHasStarted, not
+		// played == 0 — the same distinction AssemblyBudget's own pre-season
+		// case draws, and for the same reason: this is an account-wide fact
+		// ("has this manager bought anything yet"), and GameweeksPlayed()
+		// stays 0 for days after the season's first ball is kicked, which is
+		// exactly the gap the next case exists for.
 		engine.Budget = analysis.VerifiedBudget()
 	default:
-		sp, err := client.SquadPrices(ctx, cfg.EntryID, played)
+		// through is the gameweek to price this squad's picks against. Once
+		// one has FINISHED, its own number is exact. During the live gap —
+		// the season has started but played is still 0, because no gameweek
+		// has FINISHED yet — a gameweek is nonetheless under way and its
+		// picks are already locked in at the deadline that has passed, so
+		// pricing against it is exactly as valid; GameweeksPlayed() cannot
+		// see that gameweek, but FPL's own is_current flag (CurrentEvent())
+		// can. Skipping this and falling through to VerifiedBudget(), as this
+		// switch used to, leaves engine.Bank/SquadValue nil for the whole
+		// gap — which AssemblyBudget (correctly, since #45) now reports as a
+		// hard error rather than papering over with an assumed £100m.
+		through := squadPriceGameweek(played, engine.Boot.CurrentEvent())
+		sp, err := client.SquadPrices(ctx, cfg.EntryID, through)
 		switch {
 		case err != nil:
 			// The error is deliberately NOT interpolated. Every failure from the FPL
@@ -1122,6 +1140,32 @@ func fromGW(next *fpl.Event) int {
 		return 1
 	}
 	return next.ID
+}
+
+// squadPriceGameweek is which gameweek to price an entry's squad against:
+// the last one that has FINISHED (played), or, during the live gap — played
+// is 0 but a gameweek is under way — the one FPL currently flags as current
+// (is_current on Bootstrap.Events, surfaced as Bootstrap.CurrentEvent()).
+// played alone cannot tell "nothing has happened yet" apart from "a
+// gameweek is live and its picks are already locked in"; that is exactly
+// the GameweeksPlayed()-vs-SeasonHasStarted() defect family this project has
+// hit five times already, here needing a concrete gameweek number rather
+// than a boolean.
+//
+// Returns 0 when neither answers (played is 0 and there is no current
+// event either — reachable only once the season has genuinely ended and
+// FPL has un-flagged every event as current, or between seasons). 0 is not
+// a valid gameweek: it flows into SquadPrices's own through < 1 refusal, the
+// same branch an unreachable API takes, which is the right place for a
+// state that should not arise while the season is live.
+func squadPriceGameweek(played int, cur *fpl.Event) int {
+	if played > 0 {
+		return played
+	}
+	if cur != nil {
+		return cur.ID
+	}
+	return 0
 }
 
 func mustParse(s string) time.Time {
