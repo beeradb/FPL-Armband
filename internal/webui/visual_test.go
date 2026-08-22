@@ -101,7 +101,7 @@ func serve(t *testing.T, fixture string) *httptest.Server {
 	})
 	// /armband-team is a separate document from /app on purpose (see
 	// cmd/armband/webroutes.go's routeArmbandTeam comment) -- its data happens to come
-	// from the same fixture file here only because HouseTeam already rides along in
+	// from the same fixture file here only because Results already rides along in
 	// State for this test's convenience; the real server builds it from an entirely
 	// different, session-less path (armbandTeamState).
 	mux.HandleFunc("/api/armband-team", func(w http.ResponseWriter, r *http.Request) {
@@ -196,6 +196,27 @@ var shots = []shot{
 	{"armband-team-desktop", "gameweek-one", "/armband-team", desktop(1400)},
 	{"armband-team-mobile", "gameweek-one", "/armband-team", mobile(2200)},
 
+	// The team-import control, on the Pitch where it now lives.
+	//
+	// ⚠️ Until 2026-08-22 this feature had NO shot at any width, in either of its
+	// positions, and the `import-offered` fixture that exists precisely to render it was
+	// referenced only by statefixture_test.go's decode check. So the one screen a new
+	// reader is most likely to meet first was the one screen the visual suite could not
+	// see. It is also invisible in the `gameweek-one` shots and always was, for a reason
+	// worth stating so nobody "fixes" it there: that fixture's import window is CLOSED,
+	// so the panel renders hidden and a diff of those shots proves nothing about this
+	// control either way.
+	//
+	// Two fixtures because the control has two states a screenshot can hold still, and
+	// they are the two the design turns on: the offer (panel auto-open, no entry on
+	// record) and the aftermath (entry on record, panel shut, #squadsource carrying the
+	// provenance line and its "Change team" button). The third state — the change panel
+	// actually open — needs a click, and there is no deep link for it the way there is
+	// for the replacement picker, so it is deliberately not shot rather than shot wrong.
+	{"import-offered-desktop", "import-offered", "/app#pitch", desktop(1800)},
+	{"import-offered-mobile", "import-offered", "/app#pitch", mobile(2200)},
+	{"import-imported-desktop", "import-imported", "/app#pitch", desktop(1700)},
+
 	// The states live data will not hand you on demand, and which are therefore the most
 	// likely to be broken and the least likely to be looked at.
 	{"edges-pitch-desktop", "edges", "/app#pitch", desktop(1700)},
@@ -209,6 +230,10 @@ var shots = []shot{
 	// sheet becomes a bottom sheet and the staged bar has to stay reachable.
 	{"picker-desktop", "gameweek-one", "/app#replace-542", desktop(1500)},
 	{"picker-mobile", "gameweek-one", "/app#replace-542", mobile(1700)},
+
+	// The rotation-risk nudge headline, rendered when no player is flagged but one player
+	// carries rotation risk with no news. The third headline had no coverage until this fixture.
+	{"rotation-risk-desktop", "rotation-risk", "/app#pitch", desktop(1700)},
 
 	// ---- and the same screens at a height a real device actually has -------
 	//

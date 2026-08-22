@@ -59,6 +59,11 @@ const (
 	routeArmbandTeamState = "/api/armband-team"
 	// routeImport is the team-ID import write path. See importteam.go.
 	routeImport = "/api/import"
+	// routeResults is the on-demand per-gameweek results read for the SESSION's own
+	// imported entry — the results document buildResults assembles, generalised off
+	// armbandTeamState's config.EntryID path to any reader who has imported a team. See
+	// results.go.
+	routeResults = "/api/results"
 	// routeMetrics serves this process's own Prometheus metrics — the
 	// staleness signal behind internal/fpl.Client's deliberate stale-fallback,
 	// plus the HTTP and pipeline-timing series alongside it. See metrics.go's
@@ -103,6 +108,20 @@ const signupOrigin = "https://fplarmband.com"
 //
 // Two documents, two policies, and the difference is one entry on one directive. If a third
 // document ever appears, this stops being a switch and starts being a table.
+//
+// ⚠️ THE FPL API CANNOT BE ADDED HERE, AND THE REASON IS NOT THE ONE ABOVE. The paragraph
+// above is an XSS argument, which invites the reading that a sufficiently careful case
+// could justify letting the browser call fantasy.premierleague.com directly and save the
+// server a round trip. It could not, because the browser would be refused anyway:
+//
+//	curl -sI -H 'Origin: https://fplarmband.com' \
+//	  https://fantasy.premierleague.com/api/bootstrap-static/
+//
+// answers 200 with NO Access-Control-Allow-Origin of any kind, and additionally
+// cross-origin-resource-policy: same-origin. Measured 2026-08-22. So a fetch from the page
+// completes and the response is then withheld from it — widening this directive buys a
+// broken feature and a weaker policy, in that order. Anything the client needs from FPL is
+// proxied by this server; GET /api/results is the pattern.
 //
 // ga4 adds a second, independent exception to the same directive, and it is ALWAYS false
 // for page != "landing" -- checked inside this function, not only by the caller, so a
@@ -628,10 +647,10 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 		NewsReadChecked: newsReadChecked(cfg, now),
 		OverrideEffects: b.OverrideEffects,
 		Import:          buildImport(s.engine.Boot.Events, sess),
-		// No HouseEntry/HouseHistory here on purpose: this is the interactive builder's
-		// document, and the house team's own record has nothing to do with a reader's
-		// session. It is fetched only by armbandTeamState, for the dedicated /armband-team
-		// page — see that function.
+		// No Entry/History here on purpose: this is the interactive builder's
+		// document, and a manager's record has nothing to do with building it. It is
+		// fetched only by the two results documents — armbandTeamState for
+		// /armband-team, apiResults for GET /api/results — see those functions.
 	})
 	if err != nil {
 		// Build's only failure is a number encoding/json would refuse. Naming the field

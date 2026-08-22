@@ -75,23 +75,57 @@ type Input struct {
 	// played any more than it may compute any other model quantity. See State.Import.
 	Import Import
 
-	// HouseEntry and HouseHistory are the site's own FPL manager record — config.EntryID's
-	// Entry and History, fetched by the caller as an ordinary cached client call, exactly
-	// like Boot. Nil when EntryID is unset or the fetch failed; Build then leaves
-	// State.HouseTeam nil rather than showing a partial or stale figure. See State.HouseTeam.
-	HouseEntry   *fpl.Entry
-	HouseHistory *fpl.EntryHistory
+	// Entry and History are the FPL manager record buildResults describes — either
+	// config.EntryID's (armbandTeamState, the site's own spectator page) or a reader's own
+	// imported session.Entry (GET /api/results) — fetched by the caller as an ordinary
+	// cached client call, exactly like Boot. This package has no license to know which of
+	// the two it was handed; see buildResults's own comment. Nil when the entry id is
+	// unset or the fetch failed; Build then leaves State.Results nil rather than showing a
+	// partial or stale figure. See State.Results.
+	Entry   *fpl.Entry
+	History *fpl.EntryHistory
 
-	// HouseLive is Boot.CurrentEvent()'s live per-player stats (fpl.Client.Live),
-	// nil before a season has a current gameweek or if the fetch failed.
-	// HouseMatchStatus is "scheduled"/"live"/"finished" per club short name for
-	// that same gameweek, computed by the caller from a freshly-fetched fixture
-	// list (fpl.Client.FixturesLive — NOT Client.Fixtures, which memoises for the
-	// life of the process and would answer a stale "has this kicked off yet" for
-	// as long as the pod runs). This package may not fetch either itself; it only
-	// arranges what the caller already fetched, same as HouseEntry/HouseHistory.
-	HouseLive        *fpl.EventLive
-	HouseMatchStatus map[string]string
+	// Live is the ONE gameweek's live per-player stats (fpl.Client.Live), nil before that
+	// gameweek has a fixture kicked off or if the fetch failed. MatchStatus is
+	// "scheduled"/"live"/"fulltime"/"finished" per club short name for that same gameweek,
+	// computed by the caller from a freshly-fetched fixture list (fpl.Client.FixturesLive
+	// — NOT Client.Fixtures, which memoises for the life of the process and would answer a
+	// stale "has this kicked off yet" for as long as the pod runs). This package may not
+	// fetch either itself; it only arranges what the caller already fetched, same as
+	// Entry/History.
+	Live        *fpl.EventLive
+	MatchStatus map[string]string
+
+	// Opponent is ResultEvent's own fixture per club short name — computed by
+	// the caller, in houseLiveSources, from the SAME freshly-fetched fixture list
+	// that already decides MatchStatus, so the two always describe the same
+	// match. This package may not fall back to a player's own forward-looking
+	// Fixtures[0] for this: that list is anchored on the model's NEXT planning
+	// gameweek (see analysis.Engine's own fromEvent) and drops ResultEvent's own
+	// fixture the moment its deadline has passed, which is what silently swapped in
+	// next week's opponent beside this week's counting stats — see
+	// TeamPlayer.Opponent's own comment. A club absent from this map had no fixture
+	// in ResultEvent (a blank gameweek) and TeamPlayer.Opponent stays nil for it.
+	Opponent map[string]Fixture
+
+	// Multiplier is this gameweek's pick multiplier, keyed by permanent code —
+	// the SAME keyspace armbandteam.picksToFixed already uses for arrangement's
+	// XI/Bench/Captain/Vice, because element ids are reassigned every summer and code
+	// is what survives that. buildResults looks it up via the already-resolved
+	// Player.Code rather than re-deriving anything: getting this keying wrong (id
+	// instead of code) silently zeroes every multiplier and renders the whole pitch
+	// as bench.
+	Multiplier map[int]int
+
+	// ResultEvent/ResultState/EventAverage describe the ONE gameweek
+	// the result is about — event.ID and event.AverageScore for the event the caller
+	// chose (latestClosedEvent, or the requested ?gw=), and the "live"/"final" state
+	// houseLiveSources computed from the fixture list it already holds. This package may
+	// not decide any of the three itself, for the same reason Import may not decide
+	// whether a gameweek has been played — see Import's own comment.
+	ResultEvent  int
+	ResultState  string
+	EventAverage int
 }
 
 // Build translates an assembled page into the client contract.
@@ -126,8 +160,9 @@ func Build(in Input) (*State, error) {
 
 	s.Squad = buildSquad(p)
 	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips, in.Now, in.Import.Entry != 0)
-	s.HouseTeam = buildHouseTeam(s.Squad, s.Gameweeks, in.HouseEntry, in.HouseHistory, in.Boot,
-		in.HouseLive, in.HouseMatchStatus)
+	s.Results = buildResults(s.Squad, in.Entry, in.History, in.Boot,
+		in.Live, in.MatchStatus, in.Opponent, in.Multiplier,
+		in.ResultEvent, in.ResultState, in.EventAverage)
 	s.Market = buildMarket(p)
 	s.Overrides = buildOverrides(p)
 	s.News = buildNews(s, in)
@@ -293,38 +328,48 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 	return out
 }
 
-// buildHouseTeam arranges the site's own manager record into the footer's contract.
+// buildResults arranges ONE entry's manager record into the results page's contract — the
+// site's own (armbandTeamState, config.EntryID) or a reader's own imported squad
+// (GET /api/results, session.Entry). It takes plain data — a squad, an entry, live stats,
+// which gameweek — and assembles a result; it has no branch on and no way to know which of
+// the two callers reached it, the same rule this package's own comment states for every
+// other field. If a difference between the two callers ever needs expressing, it is
+// expressed by the CALLER — which entry id it fetched with — never by a parameter this
+// function switches on.
 //
-// CurrentProjected is sq.Expected — the exact figure the score bug already shows for this
-// same build — not the current week's Gameweek.Projected. The two are NOT the same
-// quantity: Gameweek.Projected is WeekView's own best-XI-and-captain for that week
-// (analysis/weekview.go), computed independent of this squad's actual arrangement, and it
-// diverges from the score bug the moment a reader (or the house account itself) locks,
-// leaves out, or captains someone other than the model's own pick — which the house
-// account's real squad does. Reusing sq.Expected is what keeps the promise "never a second
-// computation" honest rather than merely close.
-func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.EntryHistory, boot *fpl.Bootstrap,
-	live *fpl.EventLive, matchStatus map[string]string) *HouseTeam {
+// resultEvent/resultState/eventAverage all come from the caller (armbandTeamState or the
+// results route, both via a chosen event and houseLiveSources) rather than being found
+// here: this package may not decide which gameweek is being described or whether it has
+// finished, the same rule Import's own comment states for the import affordance. This used
+// to instead look up "the gameweek the rail marks Current" out of gws and pair it with
+// sq.Expected — a different gameweek from the one the pitch and live stats actually
+// describe the moment a deadline has passed but the rail has not rolled over. Removing gws
+// (no longer used here at all) removes the temptation to reach for it again.
+func buildResults(sq Squad, entry *fpl.Entry, history *fpl.EntryHistory, boot *fpl.Bootstrap,
+	live *fpl.EventLive, matchStatus map[string]string, opponent map[string]Fixture, multiplier map[int]int,
+	resultEvent int, resultState string, eventAverage int) *Results {
 	if entry == nil {
 		return nil
 	}
-	ht := &HouseTeam{
-		OverallPoints:    entry.SummaryOverallPoints,
-		OverallRank:      entry.SummaryOverallRank,
-		CurrentProjected: sq.Expected,
-		Formation:        sq.Formation,
-		Captain:          sq.Captain,
-		Vice:             sq.Vice,
-	}
-	for _, gw := range gws {
-		if gw.Current {
-			ht.CurrentEvent = gw.Number
-			break
-		}
+	res := &Results{
+		OverallPoints: entry.SummaryOverallPoints,
+		OverallRank:   entry.SummaryOverallRank,
+		ResultEvent:   resultEvent,
+		ResultState:   resultState,
+		EventAverage:  eventAverage,
+		Formation:     sq.Formation,
+		Captain:       sq.Captain,
+		Vice:          sq.Vice,
 	}
 	if history != nil {
 		for _, gw := range history.Current {
-			ht.History = append(ht.History, HouseResult{Event: gw.Event, Points: gw.Points})
+			res.History = append(res.History, Result{
+				Event:       gw.Event,
+				Points:      gw.Points,
+				Rank:        gw.Rank,
+				Hit:         gw.EventTransfersCost,
+				BenchPoints: gw.PointsOnBench,
+			})
 		}
 	}
 
@@ -338,27 +383,69 @@ func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.Ent
 			return TeamPlayer{}, false
 		}
 		tp := TeamPlayer{ID: p.ID, Name: p.Name, Club: p.Club, Pos: p.Pos, Price: p.Price}
-		if len(p.Fixtures) > 0 {
-			f := p.Fixtures[0]
+		// Opponent comes from the caller's ResultEvent-keyed map, NOT p.Fixtures[0] —
+		// that field is the model's forward-looking fixture window (see
+		// Input.Opponent's own comment) and index 0 stopped being ResultEvent's
+		// fixture the moment its deadline passed. A club absent from the map had no
+		// fixture in ResultEvent (a blank gameweek); leave Opponent nil rather than
+		// falling back to the model's list, which is exactly what produced the bug.
+		if f, ok := opponent[p.Club]; ok {
 			tp.Opponent = &f
 		}
 		tp.MatchStatus = matchStatus[p.Club]
+		// multiplier is keyed by permanent code (see Input.Multiplier's own
+		// comment), the same keyspace Player.Code already carries — looked up via
+		// p.Code, NOT p.ID. Using p.ID here is the exact mistake that silently zeroes
+		// every multiplier and renders the whole pitch as bench, because element ids
+		// and codes are different numbers for the same player.
+		tp.Multiplier = multiplier[p.Code]
 
 		stats := live.ByID(p.ID)
 		if stats == nil {
 			return tp, true
 		}
-		// Goals/assists/clean sheets are an honest "as of now" at every status —
-		// zero before kickoff is correct, not merely a placeholder for it.
+		// An honest "as of now" at every status — zero before kickoff is correct, not
+		// merely a placeholder for it.
+		tp.Minutes = stats.Minutes
+		tp.Points = stats.TotalPoints
+		tp.Bonus = stats.Bonus
 		tp.Goals = stats.GoalsScored
 		tp.Assists = stats.Assists
 		tp.CleanSheets = stats.CleanSheets
+		tp.GoalsConceded = stats.GoalsConceded
+		tp.YellowCards = stats.YellowCards
+		tp.RedCards = stats.RedCards
+		tp.OwnGoals = stats.OwnGoals
+		tp.PenaltiesSaved = stats.PenaltiesSaved
+		tp.PenaltiesMissed = stats.PenaltiesMissed
 
 		// DefCon/Saves stay nil before kickoff on purpose: "did he clear the bar"
 		// has no honest answer yet, and a red pill on a match that has not
 		// started would read as a verdict rather than an absence of one.
-		if tp.MatchStatus != "live" && tp.MatchStatus != "finished" {
+		//
+		// ⚠️ "fulltime" MUST stay in this list alongside "live" and "finished" --
+		// this is the highest-risk line in the 2026-08-22 three-way status change.
+		// FPL locks in DefCon and saves the moment FinishedProvisional flips (see
+		// fpl.Fixture's own comment: "the match's own numbers ... are locked in"),
+		// not at Finished, so gating on "finished" alone would silently strip
+		// DefCon and saves from every ended-but-unsettled match -- a regression in
+		// the OPPOSITE direction from the live-dot/asterisk bug this change fixes.
+		// TestResultsFulltimeStillGetsDefConAndSaves pins it.
+		if tp.MatchStatus != "live" && tp.MatchStatus != "finished" && tp.MatchStatus != "fulltime" {
 			return tp, true
+		}
+		// The hover breakdown (see TeamPlayer.Breakdown's own comment) needs the
+		// real element_type -- goal and clean-sheet values are position-priced --
+		// the same lookup DefConReached below already needs, done once here so
+		// neither has to look the element up twice.
+		var pos int
+		if boot != nil {
+			if el := boot.ElementByID(p.ID); el != nil {
+				pos = el.ElementType
+			}
+		}
+		if pos != 0 {
+			tp.Breakdown = scoreBreakdown(pos, *stats, tp.Points, tp.Multiplier)
 		}
 		if p.Pos == "GKP" {
 			saves := stats.Saves
@@ -367,25 +454,45 @@ func buildHouseTeam(sq Squad, gws []Gameweek, entry *fpl.Entry, history *fpl.Ent
 		}
 		dc := stats.DefensiveContribution
 		tp.DefCon = &dc
-		if boot != nil {
-			if el := boot.ElementByID(p.ID); el != nil {
-				reached := dc >= analysis.DefConThreshold(el.ElementType)
-				tp.DefConReached = &reached
-			}
+		if pos != 0 {
+			reached := dc >= analysis.DefConThreshold(pos)
+			tp.DefConReached = &reached
 		}
 		return tp, true
 	}
 	for _, id := range sq.XI {
 		if tp, ok := teamPlayer(id); ok {
-			ht.XI = append(ht.XI, tp)
+			res.XI = append(res.XI, tp)
 		}
 	}
 	for _, id := range sq.Bench {
 		if tp, ok := teamPlayer(id); ok {
-			ht.Bench = append(ht.Bench, tp)
+			res.Bench = append(res.Bench, tp)
 		}
 	}
-	return ht
+	// LivePoints only while ResultState is "live" -- see its own doc comment for why
+	// EntryHistory's Points is not usable yet at that state. XI and Bench together,
+	// never just XI, because a benched player's Multiplier is already 0 and adding him
+	// changes nothing -- a separate "bench excluded" branch would be a second rule for
+	// a fact the multiplier already carries.
+	if resultState == "live" {
+		var hit int
+		for _, h := range res.History {
+			if h.Event == resultEvent {
+				hit = h.Hit
+				break
+			}
+		}
+		var sum int
+		for _, p := range res.XI {
+			sum += p.Points * p.Multiplier
+		}
+		for _, p := range res.Bench {
+			sum += p.Points * p.Multiplier
+		}
+		res.LivePoints = sum - hit
+	}
+	return res
 }
 
 // buildChipWindow reports the chip window this gameweek falls in, or nil when

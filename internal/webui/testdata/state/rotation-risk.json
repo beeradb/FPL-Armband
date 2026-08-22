@@ -881,7 +881,7 @@
         "xp": 3.5780677079656504,
         "per90": 4.531814929276636,
         "minutes": 71.60526315789474,
-        "role": "likely starter",
+        "role": "rotation risk",
         "reliability": 0.7514118585009091,
         "start_share": 0.7894736842105263,
         "ownership": 28.1,
@@ -1259,7 +1259,7 @@
         "player": {
           "id": 542,
           "code": 484420,
-          "name": "E.Le Fée",
+          "name": "E.Le F\u00e9e",
           "club": "SUN",
           "pos": "MID",
           "price": 6,
@@ -1317,7 +1317,7 @@
         "player": {
           "id": 165,
           "code": 475168,
-          "name": "João Pedro",
+          "name": "Jo\u00e3o Pedro",
           "club": "CHE",
           "pos": "FWD",
           "price": 7.5,
@@ -1607,7 +1607,7 @@
         "player": {
           "id": 388,
           "code": 209036,
-          "name": "Guéhi",
+          "name": "Gu\u00e9hi",
           "club": "MCI",
           "pos": "DEF",
           "price": 6,
@@ -2477,7 +2477,7 @@
         "player": {
           "id": 113,
           "code": 231416,
-          "name": "F.Kadıoğlu",
+          "name": "F.Kad\u0131o\u011flu",
           "club": "BHA",
           "pos": "DEF",
           "price": 4.5,
@@ -3347,7 +3347,7 @@
         "player": {
           "id": 471,
           "code": 227444,
-          "name": "Milenković",
+          "name": "Milenkovi\u0107",
           "club": "NFO",
           "pos": "DEF",
           "price": 5.5,
@@ -3579,7 +3579,7 @@
         "player": {
           "id": 25,
           "code": 224117,
-          "name": "Gyökeres",
+          "name": "Gy\u00f6keres",
           "club": "ARS",
           "pos": "FWD",
           "price": 7.5,
@@ -3695,7 +3695,7 @@
         "player": {
           "id": 57,
           "code": 457569,
-          "name": "Petrović",
+          "name": "Petrovi\u0107",
           "club": "BOU",
           "pos": "GKP",
           "price": 4.5,
@@ -4595,7 +4595,7 @@
   "blind": [
     "Transfer news, press conferences, tactical changes, a player who has just lost his place.",
     "New signings from abroad, who carry no Premier League data at all.",
-    "The difference between \"injured for three months\" and \"not picked\" — both show as low expected minutes, so check minutes-per-start to tell them apart.",
+    "The difference between \"injured for three months\" and \"not picked\" \u2014 both show as low expected minutes, so check minutes-per-start to tell them apart.",
     "Whether a club is still in a competition. That list is hand-maintained and goes stale the moment a club is knocked out."
   ],
   "policy": {

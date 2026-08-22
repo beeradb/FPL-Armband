@@ -42,6 +42,15 @@ var fixtureNames = []string{
 	"gameweek-one",   // an ordinary pre-season state, generated from a real run
 	"edges",          // the states real data will not hand you on demand
 	"import-offered", // the team-ID import affordance offered, from GW2 onward
+	// The same state with an entry already on record. Derived from import-offered by
+	// setting one field, because that one field IS the change under test: an entry turns
+	// #squadsource from an offer into a provenance line carrying "Change team". Holding
+	// everything else identical is what makes a diff between the two shots readable.
+	"import-imported",
+	// A fixture that reaches the third headline in renderNewsNudge, the rotation-risk nudge.
+	// No flagged players, one rotation-risk player with no news: derived from gameweek-one
+	// by changing Calvert-Lewin's role to "rotation risk".
+	"rotation-risk",
 }
 
 // loadState reads one fixture and fails loudly if it does not decode into the contract.

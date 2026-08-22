@@ -152,3 +152,31 @@ func TestHouseRealPicksIsInertWithNoEntryOrEvent(t *testing.T) {
 		t.Errorf("got fixed=%v arr=%+v with no closed event yet, want the honest empty fallback", fixed, arr)
 	}
 }
+
+// TestFixtureMatchStatusThreeWay pins the 2026-08-22 defect: a match that has ended is
+// not "in progress". FPL's own /api/fixtures/?event=1, read live 2026-08-22, showed five
+// of six fixtures Started=true, FinishedProvisional=true, Finished=false — played out,
+// score locked in, bonus not yet applied — and the pre-fix two-way switch (Finished vs
+// Started) reported every one of them "live", putting a live dot and a "provisional
+// bonus" asterisk on matches that had already finished. The "live, genuinely in
+// progress" case below is the one real fixture from that read (BRE v TOT) that stayed
+// genuinely in progress.
+func TestFixtureMatchStatusThreeWay(t *testing.T) {
+	cases := []struct {
+		name string
+		f    fpl.Fixture
+		want string
+	}{
+		{"fulltime, unsettled", fpl.Fixture{Started: true, FinishedProvisional: true, Finished: false}, "fulltime"},
+		{"finished, settled", fpl.Fixture{Started: true, FinishedProvisional: true, Finished: true}, "finished"},
+		{"live, genuinely in progress", fpl.Fixture{Started: true, FinishedProvisional: false, Finished: false}, "live"},
+		{"not yet kicked off", fpl.Fixture{Started: false, FinishedProvisional: false, Finished: false}, "scheduled"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := fixtureMatchStatus(c.f); got != c.want {
+				t.Errorf("fixtureMatchStatus(%+v) = %q, want %q", c.f, got, c.want)
+			}
+		})
+	}
+}
