@@ -326,7 +326,7 @@ func TestTheGateRefusesWhenTheWriteFails(t *testing.T) {
 // re-shipping the bug it was written to remove.
 //
 // The tempting behaviour is to accept and discard, as this route did before there was
-// anywhere to put an address. But 204 means "recorded" to landing.js, so a deployment that
+// anywhere to put an address. But 204 means "recorded" to gate.js, so a deployment that
 // had lost its database URL — a misspelled env var, an empty Secret — would tell every
 // reader they had signed up, forever, while the table stayed empty and nothing failed.
 // That is the original defect with a database behind it.
@@ -684,41 +684,54 @@ func TestTheGateEchoesOnlyLoopbackOrigins(t *testing.T) {
 
 // TestTheSignupOriginIsSpelledOnceInEffect pins the two spellings equal.
 //
-// signupOrigin enters the Content-Security-Policy; landing.js is where the fetch actually
-// goes. One quantity with two implementations is this project's signature failure, and
-// this pair fails particularly quietly: changing one leaves a page whose own policy blocks
-// its only control, which no build and no other test would notice.
+// signupOrigin enters the Content-Security-Policy here. Since gate.js was extracted to
+// serve the landing page's forms AND the in-app asks from one fetch (see its own doc
+// comment), there is no longer a per-page URL constant in script for a second spelling to
+// drift from — the destination moved to landing.html's own markup, a data-gate attribute
+// on each of its two gate forms, which is where this test now looks. One quantity with two
+// implementations is this project's signature failure, and this pair fails particularly
+// quietly: changing one leaves a page whose own policy blocks its only control, which no
+// build and no other test would notice.
 func TestTheSignupOriginIsSpelledOnceInEffect(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "internal", "webui", "assets",
-		"static", "landing.js"))
+	landing, err := os.ReadFile(filepath.Join("..", "..", "internal", "webui", "assets",
+		"pages", "landing.html"))
 	if err != nil {
-		t.Fatalf("reading landing.js: %v", err)
+		t.Fatalf("reading landing.html: %v", err)
+	}
+	html := string(landing)
+
+	// The whole URL, built from BOTH constants rather than spelled here. routeGate is
+	// what the mux actually serves, so renaming the route without touching the markup
+	// fails this test instead of silently 404ing every submission.
+	want := `data-gate="` + signupOrigin + routeGate + `"`
+	if n := strings.Count(html, want); n != 2 {
+		t.Errorf("landing.html carries %s on %d of its gate forms, want 2 -- so the "+
+			"Content-Security-Policy built from signupOrigin does not describe where "+
+			"both forms post", want, n)
+	}
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", "internal", "webui", "assets",
+		"static", "gate.js"))
+	if err != nil {
+		t.Fatalf("reading gate.js: %v", err)
 	}
 	js := string(raw)
 
-	// The whole URL, built from BOTH constants rather than spelled here. routeGate is
-	// what the mux actually serves, so renaming the route without touching the script
-	// fails this test instead of silently 404ing every submission.
-	want := "'" + signupOrigin + routeGate + "'"
-	if !strings.Contains(js, want) {
-		t.Errorf("landing.js does not name %s, so the Content-Security-Policy built "+
-			"from signupOrigin does not describe where the page posts", want)
-	}
 	// ⚠️ Containment is not use. A previous version of this test asserted only that the
-	// URL APPEARED in the file, which would pass with the constant left assigned and
-	// dead beside a fetch that had been reverted to a relative '/gate' — the exact
-	// regression the absolute URL exists to prevent, and it would put a local reader's
-	// address in a local list nobody collects. So the fetch must be the thing that
-	// takes it.
-	if !strings.Contains(js, "fetch(GATE,") {
-		t.Error("landing.js does not fetch(GATE, ...), so the constant it declares " +
-			"may be dead and the submission going somewhere else")
+	// URL APPEARED in the file, which would pass with a constant left assigned and dead
+	// beside a fetch that had been reverted to a hardcoded relative '/gate' — the exact
+	// regression the data-gate attribute exists to prevent, and it would put a local
+	// reader's address in a local list nobody collects. So the fetch must be the thing
+	// that reads the form's own attribute, not a copy of it.
+	if !strings.Contains(js, "form.dataset.gate") {
+		t.Error("gate.js does not read form.dataset.gate, so a hardcoded URL may have " +
+			"crept back in and the destination on the form may be dead")
 	}
-	// And nothing else may be fetched from the landing page. A second destination
-	// would be blocked by connect-src at runtime, which is a broken page rather than
-	// a failing test — so it is caught here.
+	// And nothing else may be fetched from either page. A second destination would be
+	// blocked by connect-src at runtime, which is a broken page rather than a failing
+	// test — so it is caught here.
 	if n := strings.Count(js, "fetch("); n != 1 {
-		t.Errorf("landing.js makes %d fetch calls, want exactly 1", n)
+		t.Errorf("gate.js makes %d fetch calls, want exactly 1", n)
 	}
 }
 

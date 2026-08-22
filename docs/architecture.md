@@ -229,11 +229,14 @@ everything they reference, under `/assets/`. The split is what stops the applica
 two front doors.
 
 The two documents also carry two different Content-Security-Policy directives, on purpose:
-`/app` renders FPL's prose and player names by innerHTML, so its `connect-src` stays
-`'self'` under any configuration, while the landing page's may widen. `ARMBAND_GA4_ID`, if
-set, widens the landing page's policy alone — never `/app`'s — to load GA4 from
-`analytics.js`; `cmd/armband/webroutes.go`'s `connectSrcFor`/`scriptSrcFor` enforce the
-split, each refusing to widen for any page but "landing".
+the application (served at `/`, the front door) renders FPL's prose and player names by
+innerHTML, so its `connect-src` stays `'self'` under any configuration, while the landing
+page (`/about`) may widen. `ARMBAND_GA4_ID`, if set, widens the landing page's policy
+alone — never the application's — to load GA4 from `analytics.js`;
+`cmd/armband/webroutes.go`'s `connectSrcFor`/`scriptSrcFor` enforce the split, each
+refusing to widen for any page but "landing". `/app` still resolves — a 302 to `/`, kept
+for bookmarks and shared links from before the application became the root, and not a 301
+because reverting the move within a season is still on the table.
 
 ### The supporting packages
 

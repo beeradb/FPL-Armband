@@ -1,6 +1,6 @@
 /* GA4 loader for the landing page only. /app never references this file.
  *
- * Out of line rather than an inline bootstrap, for the same reason landing.js and app.js
+ * Out of line rather than an inline bootstrap, for the same reason gate.js and app.js
  * are: script-src 'self' has no 'unsafe-inline', so an inline <script> block would not
  * run at all under this page's Content-Security-Policy — it would just silently fail to
  * track anyone. Everything below is DOM manipulation from a file the policy already

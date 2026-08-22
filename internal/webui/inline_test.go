@@ -55,6 +55,10 @@ func TestNoPageCarriesInlineScript(t *testing.T) {
 // no method, and no name on the input — so the reader saw "check your inbox" and nothing
 // was ever sent. A server-side test of an endpoint says nothing about whether anything
 // calls it.
+//
+// The script is gate.js now, not landing.js: the same fetch is shared by the landing page
+// and the in-app asks (the News tab's coming-soon panel, the Pitch tab's news nudge), so it
+// moved to a name that does not claim to belong to one page.
 func TestTheLandingFormCanActuallyReachTheGate(t *testing.T) {
 	landing, err := Page("landing")
 	if err != nil {
@@ -63,15 +67,20 @@ func TestTheLandingFormCanActuallyReachTheGate(t *testing.T) {
 	if !strings.Contains(string(landing), "form class=\"gatecard\"") {
 		t.Fatal("the landing page has no gate form; this test is looking at the wrong page")
 	}
-
-	js, err := readStatic("landing.js")
-	if err != nil {
-		t.Fatalf("the landing page's script is not embedded: %v", err)
+	if !strings.Contains(string(landing), `data-gate="https://fplarmband.com/gate"`) {
+		t.Fatal("the landing page's gate form carries no data-gate destination; " +
+			"gate.js has nowhere to post the address")
 	}
-	for _, want := range []string{"/gate", "input.name = 'email'", "POST"} {
+
+	js, err := readStatic("gate.js")
+	if err != nil {
+		t.Fatalf("gate.js is not embedded: %v", err)
+	}
+	for _, want := range []string{"form.dataset.gate", "input.name = 'email'", "POST"} {
 		if !strings.Contains(js, want) {
-			t.Errorf("landing.js does not mention %q. The handler reads a form field named "+
-				"email and answers a POST; a script missing any of that submits nowhere.", want)
+			t.Errorf("gate.js does not mention %q. The handler reads a form field named "+
+				"email and answers a POST, and the destination comes from the form's own "+
+				"data-gate attribute; a script missing any of that submits nowhere.", want)
 		}
 	}
 }

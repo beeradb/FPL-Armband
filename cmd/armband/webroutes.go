@@ -85,8 +85,9 @@ const (
 // cross-origin locally, which is what the CORS echo in allowGateOrigin is for.
 //
 // ⚠️ This value is spelled TWICE: here, where it enters the Content-Security-Policy, and
-// in assets/static/landing.js, where the fetch actually goes. One quantity with two
-// implementations is this project's signature failure, so the two are pinned equal by
+// on landing.html's gate forms' data-gate attribute, where assets/static/gate.js reads it
+// to decide where the fetch actually goes. One quantity with two implementations is this
+// project's signature failure, so the two are pinned equal by
 // TestTheSignupOriginIsSpelledOnceInEffect. A change here without the other is a page
 // whose own policy blocks its only control.
 const signupOrigin = "https://fplarmband.com"
@@ -217,7 +218,7 @@ func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name str
 	// anywhere if it did.
 	//
 	// script-src has no 'unsafe-inline'. That is the whole point, and it is why app.js and
-	// landing.js are separate files rather than inline blocks -- a policy that permits
+	// gate.js are separate files rather than inline blocks -- a policy that permits
 	// inline script permits whatever an injection manages to open, which is most of the
 	// value gone.
 	//
@@ -399,7 +400,7 @@ func (s *squadServer) gate(w http.ResponseWriter, r *http.Request) {
 	//
 	// The temptation is to accept and discard, as this route did before there was
 	// anywhere to put an address. That is precisely the bug the change removed: 204
-	// means "recorded" to landing.js, so a deployment that had lost its database URL —
+	// means "recorded" to gate.js, so a deployment that had lost its database URL —
 	// a misspelled env var, an empty Secret — would tell every reader they had signed
 	// up, forever, while the table stayed empty and nothing failed. A 503 is loud, and
 	// it costs nothing locally because the local landing page posts to the live site

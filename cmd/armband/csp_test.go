@@ -44,7 +44,7 @@ func TestTheDocumentsCarryAPolicyThatForbidsInlineScript(t *testing.T) {
 		} else if strings.Contains(script, "unsafe-inline") || strings.Contains(script, "unsafe-eval") {
 			t.Errorf("GET %s: script-src is %q. A policy that permits inline script permits "+
 				"whatever an injected string opens, which is most of the value gone — and "+
-				"it is why app.js and landing.js are separate files.", path, script)
+				"it is why app.js and gate.js are separate files.", path, script)
 		}
 
 		// connect-src is the one directive that differs by document, so it is
