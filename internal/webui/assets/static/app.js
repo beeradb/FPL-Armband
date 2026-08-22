@@ -2335,10 +2335,18 @@ function renderNewsNudge(){
      whose effect depends on TONE loses that effect here, so copy for this slot has to do
      its work through CONTENT. Check a slot's type role before writing for it.
 
-     The line below keeps the insider feeling that way instead: "looks fine" is what
+     The line below keeps the insider feeling that way instead: "isn't flagged" is what
      everyone else can see, "we doubt he starts" is what only this tool is saying. It also
      survives uppercase, and it makes no comparison to anyone -- which is what both
      rejected drafts got wrong.
+
+     ⚠️ "isn't flagged" replaced "looks fine" on the owner's instruction, 2026-08-22, and
+     the difference is not stylistic. THIS ROW'S TRIGGER IS THE ABSENCE OF AN FPL FLAG --
+     flaggedRows() must find nobody with availability < 1 for the else branch to be
+     reached at all -- so "isn't flagged" states the actual precondition, while "looks
+     fine" was the tool volunteering a judgement about a player it is in the same breath
+     doubting. It also now says exactly what the body clause below says ("carries no flag
+     at all"), where the previous wording said something adjacent to it.
 
      Kept as one string in one ternary branch on purpose, so it stays a one-line swap --
      do not spread it across a template or split it into fragments. Whoever swaps it must
@@ -2357,7 +2365,7 @@ function renderNewsNudge(){
      CONTRADICTION, and a full stop is the honest join for that. */
   const headline=both ? 'Two kinds of bad news, and both are on your fifteen'
     : flagSubject ? 'FPL flagged one of your fifteen, and it’s more than a stat'
-    : 'One of your fifteen looks fine. We doubt he starts.';
+    : 'One of your fifteen isn’t flagged. We doubt he starts.';
   const seeLabel=both ? 'See both on News' : 'See him on News';
   const tail=both ? 'Both are on News' : 'He’s on News';
 
