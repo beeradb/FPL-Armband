@@ -2331,13 +2331,15 @@ func (e *Engine) ScaledMinMinutes(seasonTotal int) int {
 // club's TeamMatchesStarted only in the one case those two disagree: DataWindow
 // still reads a full pre-season 38 (GameweeksPlayed is 0 — no gameweek has
 // FINISHED), while his club has already kicked off at least one live match, so
-// the aggregate really does cover just that much. Outside that gap
-// TeamMatchesStarted is 0 for data sources that never populate Fixture.Started
-// at all — a backtest's synthetic fixtures among them — and must not override
-// a real, non-preseason DataWindow: doing so once divided a synthetic GW7
-// ever-present's accumulated minutes by 38 instead of 7, landing every player
-// in the "fringe" band regardless of how much of the season had actually been
-// played. See TestPointInTimeMarksGameweeksFinished.
+// the aggregate really does cover just that much. In a backtest this only
+// arises at through==38 (PointInTimeWith sets GameweeksPlayed==through
+// otherwise); playedFixtures now sets Fixture.Started there too, so
+// TeamMatchesStarted agrees with window and the override is a no-op — not
+// because it is unconditionally zero, as before that fix. It must still not
+// fire against a real, non-preseason DataWindow: doing so once divided a
+// synthetic GW7 ever-present's accumulated minutes by 38 instead of 7,
+// landing every player in the "fringe" band regardless of how much of the
+// season had actually been played. See TestPointInTimeMarksGameweeksFinished.
 func (e *Engine) matchesAvailable(el *fpl.Element) int {
 	window := e.DataWindow()
 	if window == GameweeksPerSeason {

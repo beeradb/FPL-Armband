@@ -19,10 +19,10 @@ Every expensive failure in this project's history is a provenance failure rather
 
 | | |
 |---|---|
-| snapshot taken | 2026-08-22 01:06 EDT |
-| commit | `e7b82d7d5d4a` — **working tree was dirty**, so this commit alone does not identify the code that ran |
+| snapshot taken | 2026-08-22 01:22 EDT |
+| commit | `4f2f17c05d93` |
 | cells file | `not supplied` |
-| model file | `/tmp/fplagent_model_snapshot.csv` |
+| model file | `/tmp/model.csv` |
 
 ### Operator notes
 
@@ -327,13 +327,14 @@ The predictor comparison for minutes, points and expected goals **is now runnabl
 
 ## Change since the previous snapshot
 
-Compared against `2026-08-21-1a6f0a3`.
+Compared against `2026-08-22-e7b82d7`.
 
 ### Figures that moved
 
 | figure | previous | now | change |
 |---|---:|---:|---:|
-| `stamp.commit` | 1a6f0a31b93c | e7b82d7d5d4a | — |
+| `stamp.commit` | e7b82d7d5d4a | 4f2f17c05d93 | — |
+| `stamp.dirty` | true | false | — |
 
 **Attributing a movement.** Check the constants fingerprint rows first. A figure that moved while the fingerprint held means the code changed and no setting did — a scoring fix, a harness fix, or a bug. A figure that moved *with* the fingerprint means a setting changed, and the constants diff below names which.
 
