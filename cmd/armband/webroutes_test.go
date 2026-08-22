@@ -819,6 +819,101 @@ func TestTheAppIsOpenRegardlessOfSignupState(t *testing.T) {
 	}
 }
 
+// TestTheSignupAskMetaTagReflectsSignupState pins withSignups' actual output, not just the
+// status codes TestTheAppIsOpenRegardlessOfSignupState already covers. The entire
+// signup-ask UI -- the News tab panel foot, the Pitch tab nudge -- gates on the client
+// reading this tag's content, so a wiring mistake here (the wrong condition, or the fill
+// landing on the wrong document) would ship a client that either nags someone who already
+// signed up or never asks anyone at all, and no status-code assertion would catch it.
+//
+// It also pins the other half of servePage's call site: "app" is name == "app" gated, so
+// /about -- which carries its own gate form already -- must never carry this tag, in any
+// of the three states below.
+func TestTheSignupAskMetaTagReflectsSignupState(t *testing.T) {
+	const (
+		filled = `<meta name="armband-signups" content="1">`
+		empty  = `<meta name="armband-signups" content="">`
+	)
+	for _, tc := range []struct {
+		name       string
+		store      bool
+		cookie     bool
+		wantFilled bool
+	}{
+		{"no store configured", false, false, false},
+		{"a configured store, no signup cookie", true, false, true},
+		{"a configured store and the signup cookie", true, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := fixtureServer(t)
+			if tc.store {
+				s.signups = &recordingStore{}
+			}
+
+			appReq := httptest.NewRequest("GET", routeLanding, nil)
+			appReq.Host = "127.0.0.1:8080"
+			if tc.cookie {
+				appReq.AddCookie(&http.Cookie{Name: signupCookieName, Value: "1"})
+			}
+			appW := httptest.NewRecorder()
+			s.ServeHTTP(appW, appReq)
+			appBody := appW.Body.String()
+
+			if tc.wantFilled {
+				if !strings.Contains(appBody, filled) {
+					t.Errorf("GET / with %s does not carry %q", tc.name, filled)
+				}
+				if strings.Contains(appBody, empty) {
+					t.Errorf("GET / with %s carries the UNFILLED tag %q as well as the filled one", tc.name, empty)
+				}
+			} else {
+				if strings.Contains(appBody, filled) {
+					t.Errorf("GET / with %s carries the FILLED tag %q -- nothing to gain by asking", tc.name, filled)
+				}
+				// The "don't ask" cases -- no store, and a signed-up cookie -- must
+				// produce identical output: the client-side code cannot tell them
+				// apart and is not supposed to try.
+				if !strings.Contains(appBody, empty) {
+					t.Errorf("GET / with %s does not carry the unfilled tag %q", tc.name, empty)
+				}
+			}
+
+			// /about never carries this tag at all, regardless of store or cookie
+			// state -- it has its own gate form and asking twice would be one page
+			// doubling up on itself. See withSignups' own doc comment.
+			aboutReq := httptest.NewRequest("GET", routeAbout, nil)
+			aboutReq.Host = "127.0.0.1:8080"
+			if tc.cookie {
+				aboutReq.AddCookie(&http.Cookie{Name: signupCookieName, Value: "1"})
+			}
+			aboutW := httptest.NewRecorder()
+			s.ServeHTTP(aboutW, aboutReq)
+			aboutBody := aboutW.Body.String()
+			if strings.Contains(aboutBody, filled) || strings.Contains(aboutBody, empty) {
+				t.Errorf("GET /about with %s carries the armband-signups meta tag at all -- "+
+					"servePage must only fill this for name == \"app\"", tc.name)
+			}
+		})
+	}
+}
+
+// TestTheAppRouteSetsVaryCookie pins the fix for the caching mismatch instruments.go warns
+// about: the deployment caches "/" at the edge for 60 seconds, and since withSignups makes
+// the app document's body depend on the signup cookie, the origin must say so with a Vary
+// header or a cache in front of this process could serve one visitor's filled-or-empty meta
+// tag to the next visitor with different cookie state. /about's body never depends on the
+// cookie, so it must carry no such header.
+func TestTheAppRouteSetsVaryCookie(t *testing.T) {
+	s := fixtureServer(t)
+	if got := get(t, s, routeLanding).Header().Get("Vary"); got != "Cookie" {
+		t.Errorf("GET / answered Vary %q, want %q", got, "Cookie")
+	}
+	if got := get(t, s, routeAbout).Header().Get("Vary"); got != "" {
+		t.Errorf("GET /about answered Vary %q, want no Vary header -- its body does not "+
+			"depend on the signup cookie", got)
+	}
+}
+
 // TestTheAboutPageOffersNoWayPastTheForm pins the absence of the bypass link on the
 // marketing/gate document, now served at /about rather than "/". Deleting a link is the
 // kind of change a later edit undoes by restoring "a way in for people who already signed

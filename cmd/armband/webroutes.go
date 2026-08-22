@@ -268,6 +268,13 @@ func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name str
 	// exists to reach. See withSignups' own comment for what it fills and why "landing"
 	// never gets a call: that document carries its own gate form already.
 	if name == "app" {
+		// withSignups makes these body bytes depend on the request's signup cookie, so a
+		// cache sitting in front of this process (the deployment caches "/" for 60s --
+		// see instruments.go's comment on httpRequests) must not serve one visitor's
+		// filled-or-empty meta tag to the next visitor with different cookie state. Vary
+		// is scoped to this branch, not set for every page: /about's body never depends
+		// on the cookie, so it carries no Vary and stays as cacheable as before.
+		w.Header().Set("Vary", "Cookie")
 		body = s.withSignups(r, body)
 	}
 	s.grantAuth(w, r)
