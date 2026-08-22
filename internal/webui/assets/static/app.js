@@ -2324,12 +2324,26 @@ function renderNewsNudge(){
      itself); "No news on one of your fifteen, and the model still doubts him" was accurate
      but flat.
 
-     ⚠️ PLACEHOLDER as of 2026-08-22 -- "Psst… we have reason to doubt one of your fifteen
-     starts" is a copywriter draft, not final copy; the owner has left the exact words
-     open. Kept as one string in one ternary branch on purpose, so it stays a one-line swap
-     when the real copy lands -- do not spread it across a template or split it into
-     fragments. Whoever swaps it must still satisfy the three constraints that are
-     properties of the SITUATION, not of this wording, and survive any future redraft too:
+     ⚠️ THE DECIDING CONSTRAINT ON THIS SLOT IS TYPOGRAPHIC, NOT EDITORIAL, and it is
+     the reason an insider-whisper draft was rejected on 2026-08-22 after being asked for.
+     This headline renders as <span class="t-label warnc"> (see the template below), and
+     .t-label is var(--mono) at 10px, weight 500, letter-spacing .1em, TEXT-TRANSFORM:
+     UPPERCASE. So "Psst… we have reason to doubt one of your fifteen starts" does not
+     ship as a lowered voice; it ships as "PSST… WE HAVE REASON TO DOUBT…" in the same
+     10px letterspaced mono caps as MINUTES and FORMATION, and reads as a machine emitting
+     a field called PSST. A slot with no lowercase cannot carry a lowered voice: any copy
+     whose effect depends on TONE loses that effect here, so copy for this slot has to do
+     its work through CONTENT. Check a slot's type role before writing for it.
+
+     The line below keeps the insider feeling that way instead: "looks fine" is what
+     everyone else can see, "we doubt he starts" is what only this tool is saying. It also
+     survives uppercase, and it makes no comparison to anyone -- which is what both
+     rejected drafts got wrong.
+
+     Kept as one string in one ternary branch on purpose, so it stays a one-line swap --
+     do not spread it across a template or split it into fragments. Whoever swaps it must
+     still satisfy the constraints that are properties of the SITUATION, not of this
+     wording, and survive any future redraft too:
        1. No claim about who reports -- this product reads team news, it does not break it.
           Both earlier drafts above were rejected on exactly this ground.
        2. No promise of a notification or alert (see commit 69ac868 and pressPanelHtml's
@@ -2337,14 +2351,13 @@ function renderNewsNudge(){
        3. No specific points figure, rank, or probability -- the model's doubt here is a
           ROLE BAND (roleNum 3, rotation risk), not a percentage.
      It should still agree with the body clause below ("nobody reported that, we modelled
-     it"). "Psst…" is also a deliberate departure from this app's own "serious, no banter"
-     voice (app.html/team.html) -- the owner's call, made with that convention pointed out
-     to them, to make the reader feel let in on something -- so do not "restore" it to the
-     house register as a drive-by fix if it survives. If replaced, real ellipsis (…),
-     matching 'Reading your team…' elsewhere in this file -- not three periods. */
+     it"). The two-sentence hard turn is house grammar already ("Pick eleven who'll play.
+     Not eleven who might."), and it is used here deliberately rather than the siblings'
+     comma-and shape: those two join facts that are both true, while this one states a
+     CONTRADICTION, and a full stop is the honest join for that. */
   const headline=both ? 'Two kinds of bad news, and both are on your fifteen'
     : flagSubject ? 'FPL flagged one of your fifteen, and it’s more than a stat'
-    : 'Psst… we have reason to doubt one of your fifteen starts';
+    : 'One of your fifteen looks fine. We doubt he starts.';
   const seeLabel=both ? 'See both on News' : 'See him on News';
   const tail=both ? 'Both are on News' : 'He’s on News';
 

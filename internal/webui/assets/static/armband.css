@@ -2268,6 +2268,13 @@ body.saving{cursor:progress;}
 .tpstate{
   font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;
   text-transform:uppercase;line-height:1.9;
+  /* nowrap because "TO PLAY" contains the only space on the card, and at 390px it was
+     breaking there -- every bench card rendered TO / PLAY stacked, which reads as two
+     labels rather than one state and breaks the row rhythm the .tppts line-height exists
+     to hold. 11px mono at .08em is ~7.5px a character, so seven characters need ~53px
+     against the ~58px a card has inside its padding: it fits, it was simply allowed to
+     break. Caught in the armband-team-mobile golden, 2026-08-22. */
+  white-space:nowrap;
 }
 .tpcard .tpstate{color:var(--label);}    /* "to play" -- nothing is known yet */
 .tpcard.dnp .tpstate{color:var(--ink3);} /* DNP -- known, and the answer is "no minutes" */
