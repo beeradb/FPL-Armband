@@ -1904,7 +1904,10 @@ function riskRows(){
    own FPL-flag clause narrows further, to availability alone, because that is what
    `.card .newsflag` actually fires on (see cardHtml) -- a reported item with no
    availability drop lights no corner glyph, so citing it as "the ! on his card" would be
-   wrong. */
+   wrong. riskRows()'s own consumer (renderNews()'s neutral "Who may not start" list) narrows
+   nothing -- a plain list is entitled to the whole 3/4/5 range, because it isn't claiming
+   anything is surprising. The nudge's own risk clause narrows further still, to rotation
+   risk (3) alone: see the comment on riskSubject below for why. */
 function flaggedRows(){
   return P.filter(p=>(p.availability!==undefined&&p.availability<1)||p.news);
 }
@@ -2233,6 +2236,15 @@ function renderBackstory(){
    amber .newsflag glyph and role-chip dot already on the cards below, never an invented
    third definition of "worth mentioning": its two subjects come from flaggedRows() and
    riskRows(), the exact functions the News tab itself draws from.
+
+   The risk subject narrows riskRows() further, to rotation risk (roleNum 3) alone --
+   NOT the "rotation risk or worse" (3/4/5) that riskRows() itself returns for the News
+   tab's neutral list. "The model doubts him and nobody said why" is a claim of surprise:
+   true of a genuine rotation risk, false of a player who is already squad depth or fringe
+   (4/5), where nobody expected a start in the first place and the copy just states the
+   obvious in an alarmed voice. See the reported case: Woodman, an obvious backup, fell
+   through to fringe (5) here with no rotation-risk (3) player present, and the row said
+   "the model doubts him" about a player nobody was surprised by.
    ============================================================ */
 
 /* NUDGE_DISMISSED_KEY has THREE writers, all asserting the same fact -- this reader has
@@ -2263,9 +2275,12 @@ function renderNewsNudge(){
   if(nudgeDismissed() && !nudgeJustAnswered){ el.innerHTML=''; return; }
 
   // The two subjects, chosen by the two functions the News tab itself uses -- no third
-  // definition of "worth mentioning" is introduced here.
+  // definition of "worth mentioning" is introduced here. riskSubject additionally requires
+  // roleNum(p.role)===3 -- rotation risk only, never squad (4) or fringe (5): see the
+  // comment on THE PITCH NUDGE above.
   const flagSubject=flaggedRows().find(p=>p.availability!==undefined&&p.availability<1);
   const riskSubject=riskRows().find(p=>p!==flagSubject && !p.news &&
+    roleNum(p.role)===3 &&
     (p.availability===undefined||p.availability>=1));
   if(!flagSubject && !riskSubject){ el.innerHTML=''; return; }
 
