@@ -292,11 +292,29 @@ func run() error {
 	case cfg.EntryID == 0:
 		engine.Budget = analysis.AssumedBudget(
 			"No entry_id in config.json, so there is no squad to price.")
-	case played == 0:
-		// Nothing has been bought, so market price is the selling price.
+	case !engine.SeasonHasStarted():
+		// Genuinely pre-season: nothing has been bought yet, so market price
+		// is the selling price. Gated on SeasonHasStarted, not
+		// played == 0 — the same distinction AssemblyBudget's own pre-season
+		// case draws, and for the same reason: this is an account-wide fact
+		// ("has this manager bought anything yet"), and GameweeksPlayed()
+		// stays 0 for days after the season's first ball is kicked, which is
+		// exactly the gap the next case exists for.
 		engine.Budget = analysis.VerifiedBudget()
 	default:
-		sp, err := client.SquadPrices(ctx, cfg.EntryID, played)
+		// through is the gameweek to price this squad's picks against. Once
+		// one has FINISHED, its own number is exact. During the live gap —
+		// the season has started but played is still 0, because no gameweek
+		// has FINISHED yet — a gameweek is nonetheless under way and its
+		// picks are already locked in at the deadline that has passed, so
+		// pricing against it is exactly as valid; GameweeksPlayed() cannot
+		// see that gameweek, but FPL's own is_current flag (CurrentEvent())
+		// can. Skipping this and falling through to VerifiedBudget(), as this
+		// switch used to, leaves engine.Bank/SquadValue nil for the whole
+		// gap — which AssemblyBudget (correctly, since #45) now reports as a
+		// hard error rather than papering over with an assumed £100m.
+		through := squadPriceGameweek(played, engine.Boot.CurrentEvent())
+		sp, err := client.SquadPrices(ctx, cfg.EntryID, through)
 		switch {
 		case err != nil:
 			// The error is deliberately NOT interpolated. Every failure from the FPL
@@ -1124,6 +1142,45 @@ func fromGW(next *fpl.Event) int {
 	return next.ID
 }
 
+// squadPriceGameweek is which gameweek to price an entry's squad against: the
+// LATER of the last one that has FINISHED (played) and the one FPL currently
+// flags as current (is_current on Bootstrap.Events, surfaced as
+// Bootstrap.CurrentEvent()) — never just whichever one is nonzero.
+//
+// This is not only a GW1 fix. is_current tracks whose DEADLINE has passed,
+// not whose matches have FINISHED, so the same gap this function closes for
+// GW1 recurs every later gameweek too: once GW1 finishes, played becomes 1,
+// but the instant GW2's deadline passes and before GW2's own matches finish,
+// GameweeksPlayed() is still 1 while CurrentEvent().ID is 2. A transfer made
+// for GW2 is already locked in at that point. An earlier version of this
+// function preferred played whenever it was nonzero and would have priced
+// the squad against GW1's stale picks throughout every later gameweek's own
+// live gap — reproducing this incident's exact defect, silently, forever,
+// one gameweek later each time. Caught in review before merge, not caught by
+// go test: nothing in this package's live-API-backed test can see next
+// week's gap, since it only exists once next week arrives.
+//
+// Because run() builds the engine once and cmdServe reuses it for the whole
+// process's uptime, a server that keeps running across a deadline (routine —
+// this gap spans days most weeks) needs this to keep being right, not just
+// be right at startup.
+//
+// Returns 0 when neither answers (played is 0 and there is no current event
+// either — reachable only once the season has genuinely ended and FPL has
+// un-flagged every event as current, or between seasons). 0 is not a valid
+// gameweek: it flows into SquadPrices's own through < 1 refusal, the same
+// branch an unreachable API takes, which is the right place for a state that
+// should not arise while the season is live.
+func squadPriceGameweek(played int, cur *fpl.Event) int {
+	if cur != nil && cur.ID > played {
+		return cur.ID
+	}
+	if played > 0 {
+		return played
+	}
+	return 0
+}
+
 func mustParse(s string) time.Time {
 	t, err := time.Parse("2006-01-02", s)
 	if err != nil {
@@ -1365,6 +1422,11 @@ func cmdPriors(ctx context.Context, cfg config.Config, e *analysis.Engine) error
 
 	// Cross-check against the live API. Before GW1 the two describe the same
 	// thing and must agree; afterwards FPL has moved on and they cannot.
+	// Gated on SeasonHasStarted, not GameweeksPlayed()==0 — the same
+	// defect family as this file's squadPriceGameweek fix, here affecting
+	// only this report's own text: GameweeksPlayed stays 0 for days after
+	// the season's first ball is kicked, during which FPL has already
+	// overwritten last season's totals.
 	played := e.GameweeksPlayed()
 	var matched, differ, orphan int
 	for i := range e.Boot.Elements {
@@ -1383,7 +1445,7 @@ func cmdPriors(ctx context.Context, cfg config.Config, e *analysis.Engine) error
 	}
 	fmt.Printf("  matched to the current squad by player code: %d\n", matched)
 	fmt.Printf("  live players with minutes but no prior:      %d\n", orphan)
-	if played == 0 {
+	if !e.SeasonHasStarted() {
 		fmt.Printf("  disagreements with the live API:             %d", differ)
 		if matched > 0 {
 			fmt.Printf(" (%.1f%%)", float64(differ)/float64(matched)*100)
