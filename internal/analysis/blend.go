@@ -179,6 +179,81 @@ func (e *Engine) reassertMinutesOverride(el *fpl.Element, ignoreCode int, b *ble
 	}
 }
 
+// corroboratingMatches is how many matches of THIS season's own minutes are
+// enough to trust an estimate that has no real prior season behind it.
+//
+// Asserted, not measured — it is a display threshold that never reaches
+// Score, so it is not the kind of constant this project's replay harness can
+// resolve. It exists only to rule out the specific failure rotationLabel's
+// caller was built to fix: a single 90-minute cameo, divided by the one match
+// that has been available so far, reads identically to a settled starter. Two
+// matches is the minimal fix that is no longer "one match's worth of raw
+// evidence" — the exact phrase this was reported against.
+const corroboratingMatches = 2.0
+
+// nailedOverrideFloor is how confident a manual minutes override has to be,
+// on its own, to count as corroborating evidence rather than a bare estimate.
+//
+// Asserted, not measured, and read off this project's own override history
+// rather than picked from nothing: as of 2026-08-19, every override in
+// config.json sits at exactly one of two values, and the value itself is
+// where the override-setter's own confidence already lives — free text can
+// say "not a nailed one" (Tzolis, Thomas, Isak, each set to 75) or "a nailed
+// Premier League keeper" / "nailed starter, not a fringe player" (Kinsky at
+// 88, van Ewijk and Mosquera at 85), but RosterOverride carries no field a
+// program can read that distinction from, and this project does not parse
+// free-text reasoning. The floor sits strictly between the two clusters
+// actually observed (75 hedged, 85-88 confident), so it changes no override
+// written to date; it does not generalise beyond the seven overrides it was
+// read from, and should be revisited once more exist.
+const nailedOverrideFloor = 80.0
+
+// minutesCorroborated reports whether m's expected-minutes estimate has more
+// behind it than the point estimate alone — see rotationLabel, which is the
+// only caller. A flat threshold on ExpectedMinutes cannot tell a season's
+// worth of appearances from a single cameo that happened to run the full
+// ninety, and both used to read "nailed" identically.
+//
+// Corroboration exists when any of the following holds, checked independently
+// because each is sufficient on its own and none is required:
+//
+//   - a real prior Premier League season is on file (p.Minutes > 0) — the
+//     same test blendRatesCode already uses to route to shrinkToLeague,
+//     exposed here rather than re-derived, so this can never disagree with
+//     which branch actually priced the player;
+//   - enough of the CURRENT season has been played that the raw figure is not
+//     resting on one match (see corroboratingMatches);
+//   - a manual override is set, confidently enough (see nailedOverrideFloor)
+//     that it reads as an assertion of settled status rather than a hedge.
+//
+// Deliberately NOT satisfied by an override alone at any value: the reported
+// bug is exactly a hedged override (Tzolis, 75) reading "nailed" because
+// nothing distinguished "the analyst asserted a fact" from "the analyst
+// asserted a fact they themselves called not-nailed". An override is real
+// evidence, but its own value is the only place that distinction is written
+// down, so it has to clear the same bar as everyone else.
+//
+// ignoreCode suppresses el's own override, mirroring blendRatesCode's
+// ignoreCode — used by NaturalMetrics to ask what the estimate would be
+// without this player's own correction, where that correction obviously
+// cannot also stand as the evidence for it.
+func (e *Engine) minutesCorroborated(el *fpl.Element, ignoreCode int) bool {
+	if e.Priors != nil {
+		if p, ok := e.Priors.Get(el.Code); ok && p.Minutes > 0 {
+			return true
+		}
+	}
+	if n90 := float64(el.Minutes) / 90; n90 >= corroboratingMatches {
+		return true
+	}
+	if ignoreCode == 0 || el.Code != ignoreCode {
+		if v, _, ok := e.minutesOverrideFor(el.Code); ok && v >= nailedOverrideFloor {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *Engine) blendFor(el *fpl.Element, m PlayerMetrics) blend {
 	return e.blendForCode(el, m, 0)
 }
