@@ -1142,28 +1142,41 @@ func fromGW(next *fpl.Event) int {
 	return next.ID
 }
 
-// squadPriceGameweek is which gameweek to price an entry's squad against:
-// the last one that has FINISHED (played), or, during the live gap — played
-// is 0 but a gameweek is under way — the one FPL currently flags as current
-// (is_current on Bootstrap.Events, surfaced as Bootstrap.CurrentEvent()).
-// played alone cannot tell "nothing has happened yet" apart from "a
-// gameweek is live and its picks are already locked in"; that is exactly
-// the GameweeksPlayed()-vs-SeasonHasStarted() defect family this project has
-// hit five times already, here needing a concrete gameweek number rather
-// than a boolean.
+// squadPriceGameweek is which gameweek to price an entry's squad against: the
+// LATER of the last one that has FINISHED (played) and the one FPL currently
+// flags as current (is_current on Bootstrap.Events, surfaced as
+// Bootstrap.CurrentEvent()) — never just whichever one is nonzero.
 //
-// Returns 0 when neither answers (played is 0 and there is no current
-// event either — reachable only once the season has genuinely ended and
-// FPL has un-flagged every event as current, or between seasons). 0 is not
-// a valid gameweek: it flows into SquadPrices's own through < 1 refusal, the
-// same branch an unreachable API takes, which is the right place for a
-// state that should not arise while the season is live.
+// This is not only a GW1 fix. is_current tracks whose DEADLINE has passed,
+// not whose matches have FINISHED, so the same gap this function closes for
+// GW1 recurs every later gameweek too: once GW1 finishes, played becomes 1,
+// but the instant GW2's deadline passes and before GW2's own matches finish,
+// GameweeksPlayed() is still 1 while CurrentEvent().ID is 2. A transfer made
+// for GW2 is already locked in at that point. An earlier version of this
+// function preferred played whenever it was nonzero and would have priced
+// the squad against GW1's stale picks throughout every later gameweek's own
+// live gap — reproducing this incident's exact defect, silently, forever,
+// one gameweek later each time. Caught in review before merge, not caught by
+// go test: nothing in this package's live-API-backed test can see next
+// week's gap, since it only exists once next week arrives.
+//
+// Because run() builds the engine once and cmdServe reuses it for the whole
+// process's uptime, a server that keeps running across a deadline (routine —
+// this gap spans days most weeks) needs this to keep being right, not just
+// be right at startup.
+//
+// Returns 0 when neither answers (played is 0 and there is no current event
+// either — reachable only once the season has genuinely ended and FPL has
+// un-flagged every event as current, or between seasons). 0 is not a valid
+// gameweek: it flows into SquadPrices's own through < 1 refusal, the same
+// branch an unreachable API takes, which is the right place for a state that
+// should not arise while the season is live.
 func squadPriceGameweek(played int, cur *fpl.Event) int {
+	if cur != nil && cur.ID > played {
+		return cur.ID
+	}
 	if played > 0 {
 		return played
-	}
-	if cur != nil {
-		return cur.ID
 	}
 	return 0
 }
@@ -1409,6 +1422,11 @@ func cmdPriors(ctx context.Context, cfg config.Config, e *analysis.Engine) error
 
 	// Cross-check against the live API. Before GW1 the two describe the same
 	// thing and must agree; afterwards FPL has moved on and they cannot.
+	// Gated on SeasonHasStarted, not GameweeksPlayed()==0 — the same
+	// defect family as this file's squadPriceGameweek fix, here affecting
+	// only this report's own text: GameweeksPlayed stays 0 for days after
+	// the season's first ball is kicked, during which FPL has already
+	// overwritten last season's totals.
 	played := e.GameweeksPlayed()
 	var matched, differ, orphan int
 	for i := range e.Boot.Elements {
@@ -1427,7 +1445,7 @@ func cmdPriors(ctx context.Context, cfg config.Config, e *analysis.Engine) error
 	}
 	fmt.Printf("  matched to the current squad by player code: %d\n", matched)
 	fmt.Printf("  live players with minutes but no prior:      %d\n", orphan)
-	if played == 0 {
+	if !e.SeasonHasStarted() {
 		fmt.Printf("  disagreements with the live API:             %d", differ)
 		if matched > 0 {
 			fmt.Printf(" (%.1f%%)", float64(differ)/float64(matched)*100)
