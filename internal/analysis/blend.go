@@ -657,10 +657,13 @@ func defCon90(el *fpl.Element) float64 {
 // shrinkToLeague pulls a player with no prior toward his position's league-wide
 // rates, using the same weighting as an ordinary blend.
 //
-// Minutes are deliberately left alone. Ninety minutes in one appearance really
-// does mean ninety minutes when he plays, and the minutes-reliability term
-// already handles the uncertainty about whether he plays again. It is the
-// counting stats that explode when divided by a fraction of a season.
+// Minutes are deliberately left alone here — this only shrinks the counting-stat
+// rates that explode when divided by a fraction of a season. That is not the same
+// as minutes carrying no sample-size uncertainty: MinutesRating (reliabilityFrom)
+// is a bare function of the point estimate, with no term for how many matches it
+// rests on, so a one-match debutant's 90 minutes reads there as fully reliable.
+// Whether minutes themselves should shrink toward a league prior is measured and
+// open, not resolved — see AGENTS.md's scoring-model entries.
 func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	base, ok := e.leagueRates[el.ElementType]
 	if !ok {
