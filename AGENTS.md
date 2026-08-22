@@ -402,7 +402,14 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   path is unguarded** (`PreSeasonWith` unfiltered; behind `FPL_MAGNITUDE`, latent not live).
   **Unfixed.**
 - **FPL's aggregates reset at GW1, so the denominator must follow.** Use `Engine.DataWindow()`,
-  never the constant 38. `TestDataWindowTracksTheSeason`.
+  never the constant 38. `TestDataWindowTracksTheSeason`. ⚠️ **`DataWindow` alone is not enough
+  during the live GW1 gap** — `SeasonHasStarted()` true, `GameweeksPlayed()` still 0, a span of
+  days — where it answers a pre-season 38 that is false for every club: FPL zeroes the whole
+  league at the first kickoff, and within the gap some clubs have a completed match and some have
+  not begun. Four shipped bugs came from following this line literally (#39, #40, #42, and the
+  squad pool's minutes floor). Per club there: `matchesAvailable` for a rate DENOMINATOR,
+  `minutesFloorWindow` for a sample-size THRESHOLD, `TeamMatchesFinished` for an evidence COUNT
+  — never `TeamMatchesStarted` for the last two, since a live match's minutes are still climbing.
 - **Every per-90 rate must go through `blendFor`, counting stats included.**
   `TestCountingStatsGoThroughTheBlend`.
 - **A player with no prior is not a player with no uncertainty.** `shrinkToLeague` pulls rates
