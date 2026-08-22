@@ -1692,11 +1692,12 @@ func (t *Toolbox) rosterSets() (lock, start, exclude []int, notes []string) {
 }
 
 type setPlayerStatusInput struct {
-	Player  string   `json:"player" jsonschema:"description=Player name or id."`
-	Minutes *float64 `json:"expected_minutes,omitempty" jsonschema:"description=With mode 'minutes': what he actually plays per gameweek. 90 for a nailed starter the data understates, 0 for someone out."`
-	Mode    string   `json:"mode" jsonschema:"description=PREFER 'minutes'. One of: minutes (correct the expected-minutes figure and let the model re-decide - the right tool when the number is wrong, e.g. a returning injury or a promoted-club starter), start (must be in the STARTING ELEVEN - use when the squad is built around him), lock (must be in the squad but may be benched - use for a cheap enabler you need available), exclude (never picked or bought), confirm (re-verified against the news, still applies - optionally with an updated reason or until_gameweek), clear (remove any override)."`
-	Reason  string   `json:"reason" jsonschema:"description=Why. Shown back on every future run so a reader can tell when it no longer applies."`
-	Until   int      `json:"until_gameweek,omitempty" jsonschema:"description=Gameweek this lapses after. Omit for indefinite, which is reported as needing review every run."`
+	Player    string   `json:"player" jsonschema:"description=Player name or id."`
+	Minutes   *float64 `json:"expected_minutes,omitempty" jsonschema:"description=With mode 'minutes': what he actually plays per gameweek. 90 for a nailed starter the data understates, 0 for someone out."`
+	Mode      string   `json:"mode" jsonschema:"description=PREFER 'minutes'. One of: minutes (correct the expected-minutes figure and let the model re-decide - the right tool when the number is wrong, e.g. a returning injury or a promoted-club starter), start (must be in the STARTING ELEVEN - use when the squad is built around him), lock (must be in the squad but may be benched - use for a cheap enabler you need available), exclude (never picked or bought), confirm (re-verified against the news, still applies - optionally with an updated reason or until_gameweek), clear (remove any override)."`
+	Reason    string   `json:"reason" jsonschema:"description=Why. Shown back on every future run so a reader can tell when it no longer applies."`
+	Until     int      `json:"until_gameweek,omitempty" jsonschema:"description=Gameweek this lapses after. Omit for indefinite, which is reported as needing review every run."`
+	Confirmed bool     `json:"confirmed,omitempty" jsonschema:"description=With mode 'minutes' ONLY: set true when you are asserting this as SETTLED FACT rather than a hedge - e.g. a confirmed starting role, a nailed-on new signing, an announced long-term injury with no return in doubt. Leave false for anything you would describe as provisional, a prediction, a first start, or a 'rather than a nailed X' judgement call - a false here reads as an honest 'not yet established' and is the safer default. This is the ONLY thing that lets the rotation_risk label read 'nailed'; the expected_minutes value alone no longer decides it, because a high number and genuine confidence are different claims."`
 }
 
 func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
@@ -1751,7 +1752,7 @@ func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
 				return cfg.Roster.Set(mode, config.RosterOverride{
 					Code: el.Code, Name: name, Reason: in.Reason,
 					SetOn: now, LastChecked: now, UntilGameweek: in.Until,
-					ExpectedMinutes: in.Minutes,
+					ExpectedMinutes: in.Minutes, Confirmed: in.Confirmed,
 				})
 			}); err != nil {
 				return errResult("%v", err)
@@ -1767,7 +1768,7 @@ func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
 			// prompt actively asks for, and Go does not let a program recover
 			// from that.
 			if mode == "minutes" {
-				t.Engine.SetMinutesOverride(el.Code, *in.Minutes, in.Until)
+				t.Engine.SetMinutesOverride(el.Code, *in.Minutes, in.Until, in.Confirmed)
 			} else if mode == "clear" {
 				t.Engine.ClearMinutesOverride(el.Code)
 			}

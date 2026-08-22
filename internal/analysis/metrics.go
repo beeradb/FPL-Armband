@@ -1324,7 +1324,19 @@ type Engine struct {
 	// another run's expiry.
 	MinutesOverrideUntil map[int]int
 
-	// overrideMu guards MinutesOverride and MinutesOverrideUntil.
+	// MinutesOverrideConfirmed marks which minutes corrections the analyst has
+	// explicitly asserted as settled fact, as against a bare hedge — see
+	// config.RosterOverride.Confirmed and Engine.minutesCorroborated, the only
+	// reader. Absent (the map's zero value for a code) reads as false, which is
+	// the correct "nobody vouched for this" default for a player with no
+	// override at all, same as one with an unconfirmed override.
+	//
+	// Guarded by overrideMu, like the other two: it is set alongside
+	// MinutesOverride and must never be read under a separate lock from it.
+	MinutesOverrideConfirmed map[int]bool
+
+	// overrideMu guards MinutesOverride, MinutesOverrideUntil and
+	// MinutesOverrideConfirmed.
 	//
 	// Copy-on-write, matching SetCompetitionWindows: a writer builds a new map
 	// and swaps it, so a reader holding the previous one is never looking at a
@@ -3122,7 +3134,11 @@ func itoa(i int) string {
 // Copy-on-write rather than a mutex around each access: a writer clones, edits
 // and swaps, so a reader that already holds a map is safe without holding a
 // lock for the whole of a scoring pass.
-func (e *Engine) SetMinutesOverride(code int, minutes float64, until int) {
+//
+// confirmed carries config.RosterOverride.Confirmed through: whether the
+// analyst asserted this as settled fact rather than a hedge. See
+// Engine.minutesCorroborated, the only reader.
+func (e *Engine) SetMinutesOverride(code int, minutes float64, until int, confirmed bool) {
 	e.overrideMu.Lock()
 	defer e.overrideMu.Unlock()
 
@@ -3143,6 +3159,13 @@ func (e *Engine) SetMinutesOverride(code int, minutes float64, until int) {
 		delete(ends, code)
 	}
 	e.MinutesOverrideUntil = ends
+
+	confs := make(map[int]bool, len(e.MinutesOverrideConfirmed)+1)
+	for k, v := range e.MinutesOverrideConfirmed {
+		confs[k] = v
+	}
+	confs[code] = confirmed
+	e.MinutesOverrideConfirmed = confs
 }
 
 // ClearMinutesOverride removes a player's correction, if any.
@@ -3168,6 +3191,15 @@ func (e *Engine) ClearMinutesOverride(code int) {
 		}
 		e.MinutesOverrideUntil = ends
 	}
+	if _, ok := e.MinutesOverrideConfirmed[code]; ok {
+		confs := make(map[int]bool, len(e.MinutesOverrideConfirmed))
+		for k, v := range e.MinutesOverrideConfirmed {
+			if k != code {
+				confs[k] = v
+			}
+		}
+		e.MinutesOverrideConfirmed = confs
+	}
 }
 
 // minutesOverrideFor reads a player's correction and its expiry together.
@@ -3181,6 +3213,18 @@ func (e *Engine) minutesOverrideFor(code int) (mins float64, until int, ok bool)
 	mins, ok = e.MinutesOverride[code]
 	until = e.MinutesOverrideUntil[code]
 	return mins, until, ok
+}
+
+// minutesOverrideConfirmed reports whether code's minutes override, if any,
+// has been explicitly asserted as settled fact — see
+// config.RosterOverride.Confirmed. False for a player with no override at
+// all, which is the same "nothing asserted" answer as an override that
+// exists but was never confirmed; the caller (Engine.minutesCorroborated)
+// already gates on minutesOverrideFor's own ok before asking this.
+func (e *Engine) minutesOverrideConfirmed(code int) bool {
+	e.overrideMu.RLock()
+	defer e.overrideMu.RUnlock()
+	return e.MinutesOverrideConfirmed[code]
 }
 
 // hasMinutesOverrides reports whether any correction is installed.

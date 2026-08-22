@@ -532,7 +532,7 @@ week's run would either re-derive it or silently not.
 ```jsonc
 "roster": {
   "minutes": [ { "player_code": 118748, "player": "Isak", "reason": "…",
-                 "set_on": "2026-08-09", "expected_minutes": 85 } ],
+                 "set_on": "2026-08-09", "expected_minutes": 85, "confirmed": true } ],
   "exclude": [ … ],
   "lock":    [ … ],
   "teams":   [ { "team": "ARS", "xgc_factor": 1.15, "reason": "…", "set_on": "…" } ]
@@ -541,10 +541,22 @@ week's run would either re-derive it or silently not.
 
 | List | What it does |
 |---|---|
-| `minutes` | **Prefer this one.** Replaces the model's expected-minutes figure and constrains nothing, so the optimiser can still decline the player — which is information rather than an obstacle. Setting 0 also subsumes most exclusions. |
+| `minutes` | **Prefer this one.** Replaces the model's expected-minutes figure and constrains nothing, so the optimiser can still decline the player — which is information rather than an obstacle. Setting 0 also subsumes most exclusions. `confirmed: true` additionally asserts this as settled fact rather than a prediction — see below. |
 | `exclude` | Must not appear in any squad, and must not be bought by any transfer. |
 | `lock` | Must appear in every squad and must not be sold. `must_start` raises that from "in the fifteen" to "in the eleven". |
 | `teams` | Corrects a **club's** expected goals conceded by a multiplier, for the case a per-player override cannot express: a back line that lost the player it was built around. |
+
+**`confirmed` is a separate claim from the minutes number itself, and it is the only thing that
+lets the "nailed" rotation-risk label apply to a manually-set player.** A high `expected_minutes`
+value says what he plays; `confirmed` says whether that figure is settled fact — a done deal,
+an announced role — or your own best guess for a situation that could still change. Leave it
+`false` (or omit it) for a first start, a provisional lineup prediction, or anything you would
+describe as "probably" rather than "confirmed": that reads as "likely starter" rather than
+"nailed", which is the honest label for a real but not yet certain forecast. This replaced an
+earlier version of the mechanism that read confidence off the expected-minutes value alone
+(anything 80 or above counted as confident) — which broke the moment an override asserted a high
+number while its own reasoning hedged it, so the number and the confidence are now two separate
+facts you set independently.
 
 Four properties are load-bearing, and each fixes a bug this project actually shipped:
 

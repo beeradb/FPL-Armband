@@ -67,6 +67,30 @@ type RosterOverride struct {
 	// pickable again while still injured. Neither shows up unless something
 	// tracks how long it has been since anyone looked.
 	LastChecked string `json:"last_checked,omitempty"`
+
+	// Confirmed is the analyst's own assertion that this minutes override is
+	// settled fact — a nailed starter — rather than a hedge. It exists because
+	// the field it replaces was never a field at all: engine.minutesCorroborated
+	// used to infer confidence from ExpectedMinutes' own magnitude (>= 80), on
+	// the theory that a hedged override and a confident one cluster at
+	// different values. They did, for the six overrides that theory was read
+	// off — until Tzolis shipped at 82 with a reason that reads "Set to 82
+	// rather than a nailed 85 as this is still only his second competitive
+	// appearance for the club": an explicit hedge, at a value the floor still
+	// waved through, because nothing in RosterOverride let the model tell "82,
+	// asserted as settled" from "82, hedged". A magnitude can never carry that
+	// distinction; only the analyst writing the override can, which is what
+	// this field is for.
+	//
+	// Zero (false, the Go default) means "not stated" — the honest reading
+	// for an override nobody has explicitly vouched for, including Tzolis'
+	// own. It does NOT carry an "omitempty" tag, deliberately: every override
+	// this program itself saves must write true or false explicitly, so a
+	// freshly-written entry can never again be confused with one that predates
+	// this field. See config.Load's one-time backfill for the transitional
+	// case — a config.json written before this field existed, where an absent
+	// key must not silently read the same as an analyst who looked and said no.
+	Confirmed bool `json:"confirmed"`
 }
 
 // CheckAge is how many days since the reason was last verified. It returns -1

@@ -323,6 +323,7 @@ func (e *Engine) engineAtHorizon(gw, horizon int) *Engine {
 	wk.Recent = e.Recent
 	wk.MinutesOverride = e.MinutesOverride
 	wk.MinutesOverrideUntil = e.MinutesOverrideUntil
+	wk.MinutesOverrideConfirmed = e.MinutesOverrideConfirmed
 	wk.TeamXGCFactor = e.TeamXGCFactor
 	wk.TeamForm = e.TeamForm
 	wk.SellPrices = e.SellPrices

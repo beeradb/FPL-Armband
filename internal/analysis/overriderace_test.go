@@ -56,7 +56,7 @@ func TestMinutesOverridesSurviveConcurrentWritesAndReads(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			e.SetMinutesOverride(code, 75, 12)
+			e.SetMinutesOverride(code, 75, 12, false)
 		}()
 	}
 
@@ -109,7 +109,7 @@ func TestMinutesOverridesSurviveConcurrentWritesAndReads(t *testing.T) {
 func TestMinutesOverrideAndItsExpiryAreReadTogether(t *testing.T) {
 	e := &Engine{}
 
-	e.SetMinutesOverride(1234, 75, 12)
+	e.SetMinutesOverride(1234, 75, 12, false)
 	mins, until, ok := e.minutesOverrideFor(1234)
 	if !ok || mins != 75 || until != 12 {
 		t.Fatalf("got (%v, %v, %v), want (75, 12, true)", mins, until, ok)
@@ -118,7 +118,7 @@ func TestMinutesOverrideAndItsExpiryAreReadTogether(t *testing.T) {
 	// An indefinite override must clear any previous expiry rather than
 	// inheriting it — "he is out until GW12" followed by "he plays 80 minutes,
 	// indefinitely" must not keep prorating to GW12.
-	e.SetMinutesOverride(1234, 80, 0)
+	e.SetMinutesOverride(1234, 80, 0, false)
 	mins, until, ok = e.minutesOverrideFor(1234)
 	if !ok || mins != 80 || until != 0 {
 		t.Errorf("got (%v, %v, %v), want (80, 0, true) — a stale expiry survived an "+

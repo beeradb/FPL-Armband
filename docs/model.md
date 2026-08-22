@@ -510,13 +510,25 @@ else in this document:
 
 ⚠️ **"nailed" is no longer the number alone.** Since 2026-08-22 the top band additionally
 requires the estimate to be corroborated — a real prior Premier League season on record, enough
-of the current season already played, or a manual minutes override confident enough to read as
-an assertion of settled status rather than a hedge (`Engine.minutesCorroborated`,
-`internal/analysis/blend.go`). A player who clears 75 on a single unshrunk cameo, or on an
-override its own author called "a starter today, not a nailed one", now reports "likely starter"
-instead. This changes no figure above — it is a label change, not a scoring one, and the table's
-points are keyed to `expected_minutes_per_gw` itself — but it does mean "nailed" and "≥75" are no
-longer the same test.
+of the current season already played, or a manual minutes override the analyst who set it has
+explicitly marked `confirmed` (`config.RosterOverride.Confirmed`, checked by
+`Engine.minutesCorroborated` in `internal/analysis/blend.go`). A player who clears 75 on a single
+unshrunk cameo now reports "likely starter" instead. This changes no figure above — it is a label
+change, not a scoring one, and the table's points are keyed to `expected_minutes_per_gw` itself —
+but it does mean "nailed" and "≥75" are no longer the same test.
+>
+> The corroboration check first shipped gating the override case on the override's own
+> *magnitude* — >= 80 read as confident — rather than on an explicit field, because
+> `RosterOverride` did not have one yet. That was measured against the six overrides on file at
+> the time and held for all six, but it could not survive contact with a seventh: Tzolis shipped
+> in the live 2026-27 config at 82 with a reason that itself reads "Set to 82 rather than a nailed
+> 85 as this is still only his second competitive appearance for the club" — an explicit hedge, at
+> a value the floor still waved through, because a number cannot carry the distinction between
+> "asserted as settled" and "hedged, but happens to be high." `Confirmed` replaces the floor
+> outright: the deleted constant (`nailedOverrideFloor`) never generalised past the six overrides
+> it was read from, and this is that failure. An override with no explicit `Confirmed: true` reads
+> as uncorroborated regardless of its own value, permanently — there is no fallback to the old
+> magnitude test.
 
 Drawn to scale, that right-hand column is the steepest relationship in this document — the fall
 accelerates down the bands, and a nailed starter is worth nearly ten fringe players:

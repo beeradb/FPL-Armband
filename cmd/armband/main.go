@@ -558,6 +558,9 @@ func applyMinutesOverrides(cfg config.Config, e *analysis.Engine, gw int) []stri
 	if e.MinutesOverrideUntil == nil {
 		e.MinutesOverrideUntil = map[int]int{}
 	}
+	if e.MinutesOverrideConfirmed == nil {
+		e.MinutesOverrideConfirmed = map[int]bool{}
+	}
 
 	// ⚠️ The engine's overrides are REPLACED, not added to.
 	//
@@ -599,8 +602,12 @@ func applyMinutesOverrides(cfg config.Config, e *analysis.Engine, gw int) []stri
 			continue
 		}
 		e.MinutesOverride[o.Code] = *o.ExpectedMinutes
+		e.MinutesOverrideConfirmed[o.Code] = o.Confirmed
 		note := fmt.Sprintf("minutes set to %.0f for %s — %s",
 			*o.ExpectedMinutes, o.Name, o.Reason)
+		if o.Confirmed {
+			note += " [confirmed]"
+		}
 		// A return date makes the override a claim about specific gameweeks, so
 		// it is prorated across the horizon rather than applied to all of it.
 		if o.UntilGameweek > 0 {
