@@ -610,9 +610,18 @@ const (
 
 // PlayerMetrics is the derived view of a player the agent reasons over.
 type PlayerMetrics struct {
-	ID       int     `json:"id"`
-	Name     string  `json:"name"`
-	Team     string  `json:"team"`
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Team string `json:"team"`
+	// TeamID is the club's numeric bootstrap id, the key every per-club engine
+	// method takes. Team above is the display short code and cannot be one:
+	// resolving it back through the bootstrap at each call site is a lookup
+	// three consumers would each have written their own copy of.
+	//
+	// Deliberately not serialised. Tool output is replayed on every later API
+	// call, so a field the agent never reasons over is paid for repeatedly; the
+	// short code is what a reader wants and it is already here.
+	TeamID   int     `json:"-"`
 	Position string  `json:"position"`
 	Price    float64 `json:"price_m"`
 
@@ -1702,6 +1711,7 @@ func (e *Engine) metricsIgnoring(el *fpl.Element, ignoreCode int) PlayerMetrics 
 		ID:       el.ID,
 		Name:     el.WebName,
 		Team:     teamName,
+		TeamID:   el.Team,
 		Position: e.Boot.PositionShort(el.ElementType),
 		Price:    el.PriceM(),
 
@@ -2330,8 +2340,41 @@ func (e *Engine) DataWindow() int {
 	return GameweeksPerSeason
 }
 
-// ScaledMinMinutes converts a minutes floor written as a SEASON TOTAL into the
-// figure to compare against the aggregates available right now.
+// minutesFloorWindow is how many matches of RECORDED, FINAL football a given
+// club's players have behind them in FPL's current aggregates — the window a
+// season-total minutes floor has to be scaled to before it can be compared
+// against `el.Minutes`.
+//
+// It is DataWindow everywhere except the one window DataWindow cannot describe:
+// SeasonHasStarted true while GameweeksPlayed is still 0, the multi-day span
+// between a gameweek's first kickoff and its last final whistle. There
+// DataWindow answers a full pre-season 38 for everyone, and that is false for
+// everyone — FPL zeroes the whole league's aggregates the moment the season's
+// first ball is kicked, so nobody is carrying last season's total any more.
+// Which is why the fallback is per CLUB and not season-wide: within that span
+// some clubs have a completed match on the board and some have not kicked off
+// at all, in the same fetch.
+//
+// This is TeamMatchesFinished, NOT TeamMatchesStarted — the same distinction
+// blend.go draws for the priors blend, for the same reason. A fixture that has
+// kicked off but not finished has produced a PARTIAL minutes count (a starter's
+// 47 minutes into his 90), so counting it as a full match's worth of evidence
+// screens out players on a figure that is still climbing. Zero is the right
+// answer for a club whose match is in progress or has not begun: there is no
+// sample, so a sample-size test cannot be applied at all. That leaves the floor
+// inert for those clubs during the gap, which is correct — the expected-minutes
+// floor (cutByExpectedMinutes, read off SettledMinutes, which blend.go backs
+// with the prior season) is what carries the screening there.
+func (e *Engine) minutesFloorWindow(teamID int) int {
+	if e.SeasonHasStarted() && e.GameweeksPlayed() == 0 {
+		return e.TeamMatchesFinished(teamID)
+	}
+	return e.DataWindow()
+}
+
+// ScaledMinMinutesFor converts a minutes floor written as a SEASON TOTAL into the
+// figure to compare against the aggregates available right now for one club's
+// players.
 //
 // # Why this is a function and not three tokens at each call site
 //
@@ -2344,8 +2387,20 @@ func (e *Engine) DataWindow() int {
 // is one quantity with two implementations of exactly the shape this record
 // catalogues. `TestDataWindowTracksTheSeason` pins `DataWindow`; it does not pin the
 // scaling, so a caller could have kept the window and dropped the divisor.
-func (e *Engine) ScaledMinMinutes(seasonTotal int) int {
-	return seasonTotal * e.DataWindow() / GameweeksPerSeason
+//
+// # Why it takes a club
+//
+// It used to take only the season total, and read DataWindow directly. That made
+// it wrong for the entire live GW1 gap and it shipped: on 2026-08-22 the site's
+// optimal squad left £28.5m of £100m unspent and started a 0.14 pts/gw fringe
+// midfielder, because DataWindow answered 38, the floor stayed at its unscaled
+// 600, and every player in the game failed it against a fresh-season minutes
+// count. What survived the pool was only the two exempt populations — anyone with
+// a standing minutes override, and anyone priced at or below BenchFodderPrice.
+// The optimiser then built the best legal squad it could out of that, which is
+// why the symptom looked like a solver defect and was not one.
+func (e *Engine) ScaledMinMinutesFor(teamID, seasonTotal int) int {
+	return seasonTotal * e.minutesFloorWindow(teamID) / GameweeksPerSeason
 }
 
 // matchesAvailable is the denominator for minutes and starts: the league

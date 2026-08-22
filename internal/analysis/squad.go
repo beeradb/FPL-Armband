@@ -470,7 +470,32 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 
 	// Scale the minutes floor to the data window: it is written as a season
 	// total, but early in a season the aggregates only cover a few matches.
-	minMinutes := e.scaledMinMinutes(req)
+	//
+	// Per CLUB, not once for the whole pool. During the live GW1 gap — the
+	// season kicked off, no gameweek finished yet — two clubs are not on the
+	// same clock, so there is no single window that is true of everybody. See
+	// Engine.minutesFloorWindow. Memoised rather than resolved per candidate
+	// because the window walks the fixture list: twenty lookups instead of six
+	// hundred, for the same answer.
+	//
+	// Memoised ON DEMAND, and not pre-filled from `e.Boot.Teams`, which is what
+	// this was first written as. A pre-filled map answers a club it has never
+	// heard of with Go's zero value, and a floor of zero is not a conservative
+	// default — `clearsMinutesFloor` reads it as "any minutes at all clears
+	// this", so the screen would be silently OFF for that club's whole squad.
+	// That is the same failure direction as the bug this function exists to fix,
+	// arriving through the repair. `Boot.Teams` and `Boot.Elements` come from one
+	// payload so the miss should be unreachable, which is exactly why it would
+	// not be noticed.
+	minMinutes := map[int]int{}
+	floorFor := func(teamID int) int {
+		if v, ok := minMinutes[teamID]; ok {
+			return v
+		}
+		v := e.scaledMinMinutesFor(teamID, req)
+		minMinutes[teamID] = v
+		return v
+	}
 
 	// Build the candidate pool.
 	all := e.AllMetrics()
@@ -552,7 +577,7 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 		// would have offered them the following week, which is the recorded
 		// "an override the transfer search ignores is worse than no override"
 		// failure with the two solvers swapped.
-		if !reachesExpectedMinutesCut(m, minMinutes, fodderPrice,
+		if !reachesExpectedMinutesCut(m, floorFor(m.TeamID), fodderPrice,
 			overridden[m.ID], req.IncludeUnavailable) {
 			continue
 		}
@@ -1759,12 +1784,16 @@ func resolvedFodderPrice(req OptimizeRequest) float64 {
 	return BenchFodderPrice
 }
 
-// It forwards to the exported ScaledMinMinutes rather than repeating the
+// It forwards to the exported ScaledMinMinutesFor rather than repeating the
 // expression, because `internal/agent` needs the same scaling and cannot reach an
 // unexported method — that second copy is what B4 was about. Taking the request is
 // this caller's convenience; the arithmetic has one home.
-func (e *Engine) scaledMinMinutes(req OptimizeRequest) int {
-	return e.ScaledMinMinutes(req.MinMinutes)
+//
+// The club is not this caller's convenience: the window the floor scales to is
+// per club during the live GW1 gap, so a floor resolved without one is wrong for
+// most of the league for several days a season. See Engine.minutesFloorWindow.
+func (e *Engine) scaledMinMinutesFor(teamID int, req OptimizeRequest) int {
+	return e.ScaledMinMinutesFor(teamID, req.MinMinutes)
 }
 
 // reachesExpectedMinutesCut reports whether m survives the two screens Optimize
@@ -1812,6 +1841,6 @@ func (e *Engine) ReachesExpectedMinutesCut(m PlayerMetrics, req OptimizeRequest)
 			break
 		}
 	}
-	return reachesExpectedMinutesCut(m, e.scaledMinMinutes(req),
+	return reachesExpectedMinutesCut(m, e.scaledMinMinutesFor(m.TeamID, req),
 		resolvedFodderPrice(req), overridden, req.IncludeUnavailable)
 }

@@ -12,6 +12,20 @@ import "testing"
 // per-player prices rather than a budget total.
 func TestPriceOverrideReshapesTheSquad(t *testing.T) {
 	e := testEngine(t)
+	// This test's whole premise is that the budget BINDS: repricing the best
+	// player upward only forces him out if the money he now costs was buying
+	// something. During the live GW1 gap this package's engines cannot load a
+	// prior season (see skipDuringLiveGW1Gap), so every player at a club that has
+	// not kicked off scores exactly zero, there is very little in the field worth
+	// paying for, and the optimiser leaves £12m in the bank — at which point a
+	// £6.0m rise on the best defender in the pool costs nothing and he correctly
+	// stays.
+	//
+	// It used to pass in that window, and for a bad reason: the pool was gutted
+	// down to bench fodder by the unscaled minutes floor, so `best` was a £4.0m
+	// body who left the pool ALTOGETHER once the reprice took him past
+	// BenchFodderPrice. The assertion held because the bug held.
+	skipDuringLiveGW1Gap(t, e)
 	req := OptimizeRequest{
 		Budget: DefaultBudget, MinMinutes: 600, MinExpectedMinutes: 55,
 		BenchWeight: DefaultBenchWeight,
