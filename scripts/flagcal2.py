@@ -1,4 +1,12 @@
-exec(open('/home/bbowman.guest/.claude/jobs/5ac0c3b1/tmp/flagcal.py').read())
+# This script is stage 2: it reuses stage 1's bindings (SEASONS, g, ...) rather than
+# recomputing them, which is why it execs the file instead of importing it.
+#
+# ⚠️ It used to exec an absolute path into an agent job's temp directory
+# (~/.claude/jobs/<id>/tmp/flagcal.py). That directory is ephemeral and is long gone, so
+# this script had been DEAD as well as machine-specific — it could not run for its own
+# author either. It now execs its sibling, which is the same file, tracked.
+import os
+exec(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'flagcal.py')).read())
 
 print('\n--- does it replicate? mean realised ratio by season ---')
 print('%-6s %s' % ('flag', ''.join('%10s' % s for s in SEASONS)))

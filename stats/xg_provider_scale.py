@@ -46,9 +46,17 @@ import csv
 import glob
 import json
 import math
+import os
 
 SB_CSV = "stats/statsbomb_pl1516_shots.csv"
-UNDERSTAT = "/home/bbowman.guest/.cache/fplagent/understat/player-*.json"
+# The scraped provider files are a local cache, not repo content, so this is
+# home-relative with an environment override — matching SB_CSV above, which is
+# repo-relative because that file IS tracked. It used to name one machine's home
+# directory outright, which put a private filesystem layout in a public repository and
+# made the script unrunnable anywhere else.
+UNDERSTAT = os.environ.get(
+    "UNDERSTAT_GLOB",
+    os.path.join(os.path.expanduser("~"), ".cache", "fplagent", "understat", "player-*.json"))
 SEASON = "2015"
 
 # The two providers spell one club differently. Verified against both team lists —

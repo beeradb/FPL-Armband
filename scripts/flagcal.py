@@ -1,6 +1,21 @@
-import json, gzip, glob, collections, statistics
-CAP = '/home/bbowman.guest/fpl/.claude/worktrees/prior-blend-experiment/data/captures/'
-CACHE = '/home/bbowman.guest/fpl/.cache/fpl/backtest-v8-%s.json'
+import json, gzip, glob, collections, statistics, os
+
+# Paths come from the environment, with a repo-relative default for repo content and a
+# home-relative one for build products. They used to be absolute paths into one
+# machine's home directory, which made this script unrunnable by anybody else and put a
+# private filesystem layout into a public repository.
+#
+# The captures default to the ones this repo already tracks. The original pointed into a
+# throwaway worktree named prior-blend-experiment, which held the same data.
+CAP = os.environ.get('FLAGCAL_CAPTURES', 'data/captures').rstrip('/') + '/'
+# The backtest cache is repo-relative, NOT a home cache. %s is the season.
+#
+# ⚠️ This defaulted to ~/.cache/fpl/ for one commit and that was wrong — it broke the
+# script. The path it replaced was `/home/<user>/fpl/.cache/fpl/...`, where `fpl` is the
+# CHECKOUT DIRECTORY, so `.cache/` sits inside the working tree and never in $HOME.
+# Reading a home directory out of an absolute path is easy to get backwards; the giveaway
+# is that the segment after the user is a repo name.
+CACHE = os.environ.get('FLAGCAL_CACHE', '.cache/fpl/backtest-v8-%s.json')
 SEASONS = ['2021-22', '2022-23', '2023-24', '2024-25', '2025-26']  # cached archive seasons
 
 # 1. flags: season -> gw -> code -> (chance, status)
