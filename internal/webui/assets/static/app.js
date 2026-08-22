@@ -2353,7 +2353,16 @@ function renderNewsNudge(){
     // used to need is gone -- and so is the "! on his card" it pointed at: the corner
     // glyph carries the figure itself now, not a bare "!" (cardHtml).
     const av=flagSubject.availability;
-    clauses.push(`<b>${esc(flagSubject.n)}</b> is ${Math.round(av*100)}% fit — that one is FPL’s own ruling, and it is the ${Math.round(av*100)}% on his card.`);
+    /* ⚠️ QUOTE FPL'S OWN NOTE. The sentence this replaced said only "is 75% fit", which is
+       the one fact the reader can already see on his card -- so the row spent its best line
+       restating a badge and never gave the actual reason ("Knock - 75% chance of playing").
+       The note is why a reader opens this at all. Same fallback string the News tab and the
+       player sheet already use for a flag FPL has not explained, so all three surfaces say
+       one thing rather than three.
+       ⚠️ esc() is not optional: p.news is FPL-supplied prose heading for innerHTML, which
+       is the exact path this document's tighter connect-src exists to contain. */
+    const note=flagSubject.news||'FPL hasn’t said why.';
+    clauses.push(`<b>${esc(flagSubject.n)}</b> — ${esc(note)} That is FPL’s own note, and the ${Math.round(av*100)}% on his card.`);
   }
   if(riskSubject){
     clauses.push(`<b>${esc(riskSubject.n)}</b> carries no flag at all and we still don’t have him starting: nobody reported that, we modelled it.`);
@@ -2461,10 +2470,21 @@ function renderNewsNudge(){
       <button class="btn sm dismiss" type="button" id="nudgeDismiss">Dismiss</button>`;
   }
 
+  /* ⚠️ NO HEDGING HERE, on the owner's instruction, 2026-08-22. This read "Not built yet"
+     / "Still not built" and closed with "We won't catch everything" — three apologies in
+     two lines, next to a COMING SOON badge that already says the only true thing about
+     timing. A reader deciding whether to leave an address does not need the product to
+     talk itself down first.
+     ⚠️ The caveat was not deleted, it was left where it belongs: the News tab's own header
+     still says "We won't catch everything. What we do catch is below, with where it came
+     from." That is the surface making the claim, so that is the surface that qualifies it.
+     ⚠️ This is NOT licence to promise a notification. "One email when it lands" is a
+     launch announcement this product can honour; "we'll tell you when your striker is
+     benched" is the per-event promise commit 69ac868 had to remove from landing.html. The
+     difference is whether the sentence can be kept. */
   const govText=nudgeJustAnswered
-    ? 'Still not built. We won’t catch everything.'
-    : 'Not built yet. One email when it lands — after that the heads-up comes to you '+
-      'instead. We won’t catch everything.';
+    ? 'Then the heads-up comes to you.'
+    : 'One email when it lands, then the heads-up comes to you.';
 
   el.innerHTML=`<div class="newsnudge">
     <span class="glyph" aria-hidden="true">!</span>
