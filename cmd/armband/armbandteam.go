@@ -61,7 +61,7 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	houseEntry, houseHistory := houseTeamSources(r.Context(), s.client, s.cfg.EntryID)
-	houseLive, houseMatchStatus, resultState := houseLiveSources(r.Context(), s.client, s.engine.Boot, event)
+	houseLive, houseMatchStatus, houseOpponent, resultState := houseLiveSources(r.Context(), s.client, s.engine.Boot, event)
 
 	// event is nil for a season with no closed gameweek yet (see latestClosedEvent) --
 	// resultEvent/eventAverage then stay zero, which HouseTeam's own omitempty tags
@@ -83,6 +83,7 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 		HouseHistory:      houseHistory,
 		HouseLive:         houseLive,
 		HouseMatchStatus:  houseMatchStatus,
+		HouseOpponent:     houseOpponent,
 		HouseMultiplier:   arrange.Mult,
 		HouseResultEvent:  resultEvent,
 		HouseResultState:  resultState,
@@ -131,14 +132,14 @@ func latestClosedEvent(boot *fpl.Bootstrap, now time.Time) *fpl.Event {
 }
 
 // houseLiveSources fetches the current gameweek's live per-player stats, every club's
-// match status for it, and the gameweek's own overall state. All three come from an
-// always-fresh fetch (fpl.Client.Live, fpl.Client.FixturesLive), never the memoised
-// Client.Bootstrap/Client.Fixtures the rest of this process uses -- a live score that
-// only updates when the pod restarts is not live. A nil event (a fetch failure finding
-// it, or a season with no closed gameweek yet) answers (nil, nil, ""): viewmodel.
-// buildHouseTeam then leaves every player's MatchStatus/DefCon/Saves at their zero value,
-// which is the honest answer to "what happened in a gameweek that has not started or
-// does not exist".
+// match status for it, every club's own fixture in it, and the gameweek's own overall
+// state. All come from an always-fresh fetch (fpl.Client.Live, fpl.Client.FixturesLive),
+// never the memoised Client.Bootstrap/Client.Fixtures the rest of this process uses -- a
+// live score that only updates when the pod restarts is not live. A nil event (a fetch
+// failure finding it, or a season with no closed gameweek yet) answers (nil, nil, nil,
+// ""): viewmodel.buildHouseTeam then leaves every player's MatchStatus/Opponent/DefCon/
+// Saves at their zero value, which is the honest answer to "what happened in a gameweek
+// that has not started or does not exist".
 //
 // Takes the event rather than finding it itself: armbandTeamState finds it once
 // (latestClosedEvent) and hands it to both this and houseRealPicks, so the two agree on
@@ -148,10 +149,13 @@ func latestClosedEvent(boot *fpl.Bootstrap, now time.Time) *fpl.Event {
 // class of derivation viewmodel.Import's own comment forbids: the fifteen players on the
 // pitch may not cover all twenty clubs in a gameweek, so a client inferring "is this
 // gameweek over" from their match_status fields alone could reach the wrong answer for a
-// club nobody on the squad plays for.
-func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstrap, event *fpl.Event) (*fpl.EventLive, map[string]string, string) {
+// club nobody on the squad plays for. The opponent map is computed here for the SAME
+// reason Input.HouseOpponent gives for not letting viewmodel fall back to a player's own
+// forward-looking Fixtures[0]: only this function already holds ResultEvent's own fixture
+// list, fetched fresh, to answer "who did this club actually play".
+func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstrap, event *fpl.Event) (*fpl.EventLive, map[string]string, map[string]viewmodel.Fixture, string) {
 	if client == nil || boot == nil || event == nil {
-		return nil, nil, ""
+		return nil, nil, nil, ""
 	}
 	live, err := client.Live(ctx, event.ID)
 	if err != nil {
@@ -159,13 +163,30 @@ func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstr
 	}
 	fixtures, err := client.FixturesLive(ctx)
 	if err != nil {
-		return live, nil, ""
+		return live, nil, nil, ""
 	}
 	idToShort := make(map[int]string, len(boot.Teams))
 	for _, t := range boot.Teams {
 		idToShort[t.ID] = t.ShortName
 	}
 	status := make(map[string]string, len(boot.Teams))
+	opponent := make(map[string]viewmodel.Fixture, len(boot.Teams))
+	// kickoff tracks the KickoffTime opponent[club] currently reflects, so a genuine
+	// double gameweek (two fixtures for one club inside the same event) keeps the
+	// earlier kickoff rather than whichever fixture the API happened to list last --
+	// this page draws one opponent chip, not two (see TeamPlayer.Opponent's own
+	// comment).
+	kickoff := make(map[string]*time.Time, len(boot.Teams))
+	setOpponent := func(club string, fx viewmodel.Fixture, at *time.Time) {
+		if club == "" {
+			return
+		}
+		if prev, seen := kickoff[club]; seen && prev != nil && (at == nil || at.After(*prev)) {
+			return
+		}
+		opponent[club] = fx
+		kickoff[club] = at
+	}
 	// resultState starts empty (nothing seen yet) and is set to "final" or "live" by
 	// the first matching fixture, then only ever downgraded from "final" to "live" --
 	// never the other way, so one fixture still in progress is enough to keep the
@@ -184,12 +205,16 @@ func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstr
 		case f.Started:
 			s = "live"
 		}
-		if home := idToShort[f.TeamH]; home != "" {
+		home := idToShort[f.TeamH]
+		away := idToShort[f.TeamA]
+		if home != "" {
 			status[home] = s
 		}
-		if away := idToShort[f.TeamA]; away != "" {
+		if away != "" {
 			status[away] = s
 		}
+		setOpponent(home, viewmodel.Fixture{Gameweek: event.ID, Opponent: away, Home: true, Difficulty: f.TeamHDifficulty}, f.KickoffTime)
+		setOpponent(away, viewmodel.Fixture{Gameweek: event.ID, Opponent: home, Home: false, Difficulty: f.TeamADifficulty}, f.KickoffTime)
 		if f.Finished {
 			if resultState == "" {
 				resultState = "final"
@@ -198,7 +223,7 @@ func houseLiveSources(ctx context.Context, client *fpl.Client, boot *fpl.Bootstr
 			resultState = "live"
 		}
 	}
-	return live, status, resultState
+	return live, status, opponent, resultState
 }
 
 // houseRealPicks fetches the house account's actual squad for the most recently closed

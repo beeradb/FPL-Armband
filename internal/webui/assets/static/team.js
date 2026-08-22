@@ -248,8 +248,17 @@ function houseTeamHtml(ht){
     const word = ht.result_state === 'live' ? 'Live' : ht.result_state === 'final' ? 'Final' : '';
     cells.push(`<span class="htgw">Gameweek ${ht.result_event}${word ? ` <i>${esc(word)}</i>` : ''}</span>`);
   }
+  // Points reads live_points while the gameweek is still being played and
+  // history[last].points once FPL has settled it -- FPL itself reports 0 for
+  // history[last].points until scoring finishes, which is exactly the state a reader
+  // is most likely to check this page in (see viewmodel.HouseTeam.LivePoints's own
+  // comment; this script sums neither figure, it only picks which server-decided one
+  // to show). One cell, one meaning, two sources depending on whether FPL has
+  // settled. The LIVE/FINAL chip above already tells the reader which one they are
+  // looking at, so this cell carries no second label for it.
   if(last){
-    cells.push(`<span class="htstat"><span class="v">${last.points}</span><span class="k">Points</span></span>`);
+    const pts = ht.result_state === 'live' ? ht.live_points : last.points;
+    cells.push(`<span class="htstat"><span class="v">${pts}</span><span class="k">Points</span></span>`);
   }
   if(ht.event_average > 0){
     cells.push(`<span class="htstat"><span class="v sec">${ht.event_average}</span><span class="k">Average</span></span>`);

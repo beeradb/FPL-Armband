@@ -121,6 +121,30 @@ type HouseTeam struct {
 	// the fielded eleven returned, not a projection.
 	History []HouseResult `json:"history,omitempty"`
 
+	// LivePoints is this gameweek's score summed from the squad while the gameweek is
+	// still being played, and it is set ONLY while ResultState is "live".
+	//
+	// It exists because FPL's own EntryHistory reports Points: 0 for a gameweek it has
+	// not finished scoring, so the figure this page's headline is actually about does
+	// not exist yet in the place the finished-gameweek figure comes from. Showing that
+	// 0 above eleven cards that each show points is the defect this replaces (caught
+	// live 2026-08-22, result_state "live", history[last].points 0 against an XI
+	// visibly scoring).
+	//
+	// Summed as Points * Multiplier over XI and Bench together, minus the gameweek's
+	// transfer-hit cost (HouseResult.Hit) so the live figure and the settled figure
+	// mean the same thing: a benched player's multiplier is 0, so the bench
+	// contributes nothing without needing a second rule, and the captain's double is
+	// already carried by his own multiplier.
+	//
+	// ⚠️ It does NOT model auto-substitutions, and it cannot: FPL applies those after
+	// the gameweek finishes, so during play there is no fact to report. A starter who
+	// ends on zero minutes is worth zero here and may be worth more once FPL settles.
+	// That makes this a floor, not a forecast, which is the honest shape for a live
+	// figure — the LIVE chip beside the gameweek name already tells the reader the
+	// number is still moving, so this field carries no second label for it.
+	LivePoints int `json:"live_points,omitempty"`
+
 	// Formation, Captain and Vice describe the same fifteen XI/Bench name, by ID — the
 	// dedicated /armband-team page's own pitch, entirely separate from Squad above. It
 	// exists because that page is a spectator view, not the interactive builder: no
@@ -163,9 +187,20 @@ type TeamPlayer struct {
 	Pos   string  `json:"pos"`
 	Price float64 `json:"price"`
 
-	// Opponent is the next upcoming fixture, nil when none is scheduled (a blank
-	// gameweek). The same Fixture shape the interactive builder uses, so the client's
-	// existing home/away-glyph and difficulty-colour logic needs no second copy.
+	// Opponent is the fixture the club actually played in ResultEvent -- the gameweek
+	// this page reports on -- never the model's forward-looking "next fixture". They
+	// diverge the moment ResultEvent's own deadline has passed: the model's fixture
+	// window is anchored on the NEXT planning gameweek (see analysis.Engine's own
+	// fromEvent), so during and after a live gameweek the upcoming fixture is a
+	// DIFFERENT match from the one that earned the goals, assists and points on this
+	// same card, under a header naming the gameweek that was actually played (found
+	// live 2026-08-22: ResultEvent 1, opponent chip showing GW2's fixture). Computed
+	// server-side in cmd/armband.houseLiveSources from the same fixture list that
+	// decides MatchStatus, so the chip and liveDot beside it always describe the same
+	// match. Nil when the club had no fixture in ResultEvent (a blank gameweek) --
+	// never a fallback to the next one, which is exactly what produced the bug. On a
+	// genuine double gameweek, the earlier kickoff wins; this page draws one chip, not
+	// two.
 	Opponent *Fixture `json:"opponent,omitempty"`
 
 	// MatchStatus is his club's fixture in the gameweek this page is showing:
