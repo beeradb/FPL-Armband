@@ -22,6 +22,7 @@ func TestNoPremiumSquadBeatsTheOptimum(t *testing.T) {
 		t.Skip("re-solves the squad once per premium")
 	}
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	skipDuringLiveGW1Gap(t, e)
 
 	free, err := e.Optimize(OptimizeRequest{Budget: DefaultBudget})
 	if err != nil {
