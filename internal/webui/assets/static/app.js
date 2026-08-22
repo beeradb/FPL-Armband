@@ -2475,9 +2475,19 @@ function renderNewsNudge(){
      two lines, next to a COMING SOON badge that already says the only true thing about
      timing. A reader deciding whether to leave an address does not need the product to
      talk itself down first.
-     ⚠️ The caveat was not deleted, it was left where it belongs: the News tab's own header
-     still says "We won't catch everything. What we do catch is below, with where it came
-     from." That is the surface making the claim, so that is the surface that qualifies it.
+     ⚠️ CORRECTED the same day, and the correction is the more useful half. This comment
+     first defended keeping "We won't catch everything" on the News tab, on the grounds
+     that the surface making a claim should qualify it. The owner's answer: the COMING SOON
+     badge IS the caveat, and it should be the only one. The line was standing in three
+     places — here, the News tab header, and twice on the landing page — so one limitation
+     was being made in three wordings across two documents, and a reader met it as three
+     separate things to reconcile. All three were removed.
+     ⚠️ The rule this belongs to, stated by the owner and worth more than this line:
+     DO THE RIGHT THING ONCE, in copy exactly as in code. Saying a fact a second way does
+     not reinforce it; it spends the reader's attention on working out whether the second
+     statement is the same fact or a new one. landing.html already carried this rule in a
+     comment ("The single Coming soon badge at the head of this card is the whole label")
+     and was breaking it on the adjacent line.
      ⚠️ This is NOT licence to promise a notification. "One email when it lands" is a
      launch announcement this product can honour; "we'll tell you when your striker is
      benched" is the per-event promise commit 69ac868 had to remove from landing.html. The
