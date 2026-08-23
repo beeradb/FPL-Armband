@@ -201,6 +201,16 @@ func (e *Engine) WeekViews(squad []PlayerMetrics, n int) []WeekView {
 				builder := wk
 				if chip == "Wildcard" {
 					builder = e.engineAtHorizon(gw, e.Weights.Horizon)
+					// FPL allows one chip per gameweek, so a wildcard can never
+					// *be* the bench boost week — it prepares for the one right
+					// after it, which is the sequence the chip is actually used
+					// in. Telling the rebuild so makes it optimise all fifteen
+					// rather than the ordinary amortised bench weighting; a
+					// boost further out is left to that amortised weighting.
+					// Matches the replay's `playWildcard`, which sets the same
+					// field from `cfg.plays(slotBenchBoost, gw+1)` — one
+					// quantity, kept to one meaning across both paths.
+					req.BenchBoost = e.Chips.Plays(SlotBenchBoost, gw+1)
 				} else {
 					req.ExcludeIDs = wk.ElementsWithoutFixtures()
 				}
