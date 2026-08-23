@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -587,7 +588,8 @@ func briefOptimal(b *strings.Builder, cfg config.Config, e *analysis.Engine) ([]
 	}
 
 	b.WriteString("---\n\n## Model-optimal squad\n\n")
-	fmt.Fprintf(b, "A multi-dimensional knapsack under FPL's rules, not a recommendation. "+
+	fmt.Fprintf(b, "The best fifteen the model can build under FPL's rules, not a "+
+		"recommendation. "+
 		"Critique it: it cannot see team news, and it optimises a number. "+
 		"Built with £%.1fm (%s). Once the season is running that is the wildcard "+
 		"budget, so this is the fifteen a chip could buy rather than anything "+
@@ -617,6 +619,8 @@ func briefOptimal(b *strings.Builder, cfg config.Config, e *analysis.Engine) ([]
 	fmt.Fprintf(b, "Captain %s, vice %s.\n\n", sq.Captain.Name, sq.ViceCaptain.Name)
 
 	briefSquadTable(b, sq)
+
+	briefWhyThisFifteen(b, e.AllMetrics(), e.Weights.Horizon, sq)
 
 	b.WriteString("### Best available by position\n\n")
 	all := e.AllMetrics()
@@ -843,4 +847,143 @@ func briefResearch(b *strings.Builder, e *analysis.Engine, squad []analysis.Play
 		}
 		b.WriteString("\n")
 	}
+}
+
+// briefWhyThisFifteen says why the optimiser landed on this squad, in terms a reader
+// can act on: what fixed its shape, and what it would take to do better.
+//
+// # Everything here is derived from the objective the optimiser actually used
+//
+// That is the whole constraint on this section, and it is not a style preference. A
+// "why" written as prose beside a search that did not use it is a rationalisation,
+// and this project has already deleted a panel for being one — `app.js` records the
+// Brief tab going for holding "a verdict that was never wired through: it said so,
+// and pointed at the CLI". So both claims below come from re-running RankSwaps, the
+// same search the transfer policy runs, rather than from describing the result.
+//
+// # Why the unaffordable swap is the line worth printing
+//
+// "Nothing improves it" is true of every optimum and tells a reader nothing he can
+// do anything about. What the budget actually cost him is the best player he cannot
+// reach and the cash he would need — so that is stated with a name and a number.
+//
+// # Why RankSwaps is run twice
+//
+// Once at the real bank and once with money no object. RankSwaps prunes on three
+// things — a candidate who does not outscore the man he replaces, one who cannot be
+// paid for, and one who would break the three-per-club limit. Only the middle prune
+// differs between the two runs, so a swap that appears with money no object and not
+// at the real bank is blocked by cash and by nothing else. That is what licenses the
+// wording; without the second run the section could not tell a reader whether money
+// or the club limit was in his way, and guessing between them is exactly the kind of
+// unearned claim the section is supposed to avoid.
+func briefWhyThisFifteen(b *strings.Builder, pool []analysis.PlayerMetrics, horizon int,
+	sq *analysis.Squad) {
+	b.WriteString("### Why this fifteen\n\n")
+
+	if tenthsOf(sq.Remaining) == 0 {
+		b.WriteString("- **The budget is spent**, with nothing left over.\n")
+	} else {
+		fmt.Fprintf(b, "- **£%.1fm left over** after fifteen players.\n", sq.Remaining)
+	}
+
+	var full []string
+	for club, n := range sq.ClubCounts {
+		if n >= analysis.MaxPerClub {
+			full = append(full, club)
+		}
+	}
+	sort.Strings(full)
+	if len(full) > 0 {
+		fmt.Fprintf(b, "- **%s %s full** — %d players each, the most the rules allow, "+
+			"so nobody else from %s could come in.\n",
+			joinAnd(full), plural(len(full), "is", "are"), analysis.MaxPerClub,
+			plural(len(full), "that club", "those clubs"))
+	}
+
+	fmt.Fprintf(b, "- **Picked to score well over the next %d gameweeks**, not just the "+
+		"next one. A good run over those weeks counts for more here than one big "+
+		"fixture.\n\n", horizon)
+
+	// The same search the transfer policy runs, pointed at the squad just built. A
+	// freshly built squad has been bought at market, so its sell prices are its buy
+	// prices and the bank is simply what the optimiser did not spend.
+	state := analysis.NewSquadState(sq.Players)
+	// State the sell prices rather than leaning on RankSwaps' fallback for a missing
+	// one, which is unexported and so cannot be reused for the shortfall arithmetic
+	// below. This squad was just bought at market, so what it raises IS what it cost —
+	// the half-of-any-rise rule has had no rise to act on yet. Setting them here keeps
+	// the search and the shortfall reading one set of numbers instead of two.
+	state.Sell = make(map[int]int, len(sq.Players))
+	for _, p := range sq.Players {
+		state.Sell[p.ID] = tenthsOf(p.Price)
+	}
+	bank := tenthsOf(sq.Remaining)
+	affordable := analysis.RankSwaps(state, pool, bank)
+	atAnyPrice := analysis.RankSwaps(state, pool, unlimitedBank)
+
+	if len(affordable) > 0 {
+		// Not expected, and reported rather than swallowed. The optimiser searches the
+		// whole fifteen and this searches one swap at a time, so a hit here means the
+		// wider search stopped short of something the narrower one can see.
+		s := affordable[0]
+		fmt.Fprintf(b, "⚠️ **A swap you can afford would improve this squad**, which means "+
+			"the search that built it stopped short. %s out, %s in, worth %+.2f points a "+
+			"gameweek. Worth reporting.\n\n", s.Out.Name, s.In.Name, s.Gain)
+	} else {
+		b.WriteString("**Nothing you can afford would improve it.** Every player who would " +
+			"score more than someone here, in the same position, costs more than the money " +
+			"left over.\n\n")
+	}
+
+	best, shortfall, found := nearestMiss(state, atAnyPrice, bank)
+	if !found {
+		b.WriteString("**And no money would help.** There is nobody outside this fifteen " +
+			"who would improve it one-for-one at any price.\n\n")
+		return
+	}
+	fmt.Fprintf(b, "**The nearest miss.** %s out, %s in, worth %+.2f points a gameweek — "+
+		"but you would need £%.1fm more than you have.\n\n",
+		best.Out.Name, best.In.Name, best.Gain, float64(shortfall)/10)
+}
+
+// unlimitedBank is a bank no transfer can exhaust, in tenths of a million. The whole
+// player pool costs less than this, so it removes the money prune from RankSwaps
+// without removing the club-limit one.
+const unlimitedBank = 1 << 20
+
+func tenthsOf(m float64) int { return int(math.Round(m * 10)) }
+
+// joinAnd renders a list the way a sentence needs it: "A", "A and B", "A, B and C".
+// strings.Join with " and " produced "COV and HUL and IPS", which is what prompted this.
+func joinAnd(xs []string) string {
+	switch len(xs) {
+	case 0:
+		return ""
+	case 1:
+		return xs[0]
+	}
+	return strings.Join(xs[:len(xs)-1], ", ") + " and " + xs[len(xs)-1]
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
+// nearestMiss picks the best improving swap the reader cannot pay for, and says by
+// how much. swaps must be the money-no-object ranking; bank is what he really has.
+//
+// RankSwaps returns its result sorted by gain, so the first entry that fails on money
+// is the best one that does, and the scan stops there.
+func nearestMiss(s analysis.SquadState, swaps []analysis.Swap, bank int) (analysis.Swap, int, bool) {
+	for _, sw := range swaps {
+		short := tenthsOf(sw.In.Price) - s.Sell[sw.Out.ID] - bank
+		if short > 0 {
+			return sw, short, true
+		}
+	}
+	return analysis.Swap{}, 0, false
 }

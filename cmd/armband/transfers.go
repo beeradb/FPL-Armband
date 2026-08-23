@@ -67,7 +67,20 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// one says "act next week with two transfers", the other says "your squad is
 	// fine". Printed only when the rule was actually consulted, so a user who has
 	// not switched it on is not told about a decision nobody made.
-	if board.Consulted {
+	// The verdict in words, before the arithmetic that produced it. A reader deciding
+	// whether to open FPL at all needs "act or hold" first; the two package values
+	// underneath are what make it checkable rather than assertable.
+	outcome := board.outcome()
+	if outcome == outcomeBank || outcome == outcomeNothing {
+		fmt.Printf("\n  %s\n", "We'd recommend a hold.")
+	}
+	// The banking rule's own reasoning — but not when it had nothing to weigh and the
+	// hold above came from an empty board instead. The rule's "not banking" means it
+	// did not fire; printed under "we'd recommend a hold" it reads as a flat
+	// contradiction of the line above it, because the two use "hold" and "bank" in
+	// different senses. Suppressed only in that one combination, so a week where the
+	// rule genuinely weighed a choice still shows its arithmetic.
+	if board.Consulted && !(outcome == outcomeNothing && !board.Advice.Weighed()) {
 		fmt.Printf("\n  %s\n", bankLine(board.Advice))
 	}
 
@@ -77,16 +90,25 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// A banked week names what it declined — "wait" is only actionable if you know
 	// what you are waiting to afford — but as a declined option rather than as a
 	// recommendation, and no team sheet is drawn for a move nobody is making.
-	switch board.outcome() {
+	switch outcome {
 	case outcomeBank:
+		// A declined week still names what it declined, because "wait" is only
+		// actionable if you know what you are waiting to afford. Offered as the
+		// alternative to the recommendation rather than as the recommendation.
 		if len(plans) > 0 {
-			fmt.Printf("\n  %s\n    %s  %s\n", dim("declined this week"),
-				dim(fmt.Sprintf("%+.2f pts/gw", plans[0].GainPerGW)), movesLine(plans[0]))
+			fmt.Printf("\n  %s\n", dim("But if you must make a move, the best on the board:"))
+			printPlanLines(topPlans(plans, 3))
 		}
 		fmt.Println()
 		return nil
 	case outcomeNothing:
-		present.Moves(os.Stdout, analysis.Plan{}, theme)
+		// Distinct from the case above and the difference matters: there the rule
+		// weighed a real move and preferred waiting, here there is no move to weigh.
+		// Collapsing them would offer a reader alternatives that do not exist.
+		fmt.Printf("  %s\n", dim("Nothing on the board would improve this squad, so there "+
+			"is no move to offer even if you wanted one."))
+		fmt.Printf("  %s\n\n", dim("Banking the transfer is a first-class outcome and "+
+			"usually the right one."))
 		return nil
 	}
 
@@ -97,12 +119,12 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	present.Squad(os.Stdout, planSquad(best), theme,
 		fmt.Sprintf("The eleven this would field in GW%d", board.GW))
 
-	if len(plans) > 1 {
-		fmt.Printf("\n  %s\n", dim("also considered"))
-		for _, p := range plans[1:] {
-			fmt.Printf("    %s  %s\n",
-				dim(fmt.Sprintf("%+.2f pts/gw", p.GainPerGW)), movesLine(p))
-		}
+	// Two runners-up, not every plan the search kept. Three moves is what a reader can
+	// actually hold in his head against each other, and printing eight buries the one
+	// that was recommended.
+	if rest := topPlans(plans, 3)[1:]; len(rest) > 0 {
+		fmt.Printf("\n  %s\n", dim("The next best:"))
+		printPlanLines(rest)
 		fmt.Println()
 	}
 
@@ -613,4 +635,21 @@ func heldIDs(st analysis.SquadState) []int {
 		out = append(out, p.ID)
 	}
 	return out
+}
+
+// topPlans returns at most n plans, already ranked by BuildPlans.
+func topPlans(plans []analysis.Plan, n int) []analysis.Plan {
+	if len(plans) < n {
+		return plans
+	}
+	return plans[:n]
+}
+
+// printPlanLines renders plans as one scannable line each: what it is worth, then
+// what it does. The gain leads because it is the column a reader compares on.
+func printPlanLines(plans []analysis.Plan) {
+	for _, p := range plans {
+		fmt.Printf("    %s  %s\n",
+			dim(fmt.Sprintf("%+.2f pts/gw", p.GainPerGW)), movesLine(p))
+	}
 }
