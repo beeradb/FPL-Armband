@@ -337,6 +337,8 @@ func (s *squadServer) routeFor(path string) (http.Handler, string) {
 		return http.HandlerFunc(s.importTeam), "import"
 	case routeResults:
 		return http.HandlerFunc(s.apiResults), "results"
+	case routeTransfers:
+		return http.HandlerFunc(s.apiTransfers), "transfers"
 	case routeMetrics:
 		return http.HandlerFunc(s.metrics), "metrics"
 	case "/action":

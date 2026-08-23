@@ -328,7 +328,7 @@ func TestFreeTransfersAreNotFree(t *testing.T) {
 	// a paid transfer stays strictly higher than for a free one.
 	if cost >= HitCost {
 		t.Errorf("a free transfer is charged %.1f against a hit's %.1f; it must be cheaper, "+
-			"or there is never a reason to prefer the free one", cost, HitCost)
+			"or there is never a reason to prefer the free one", cost, float64(HitCost))
 	}
 }
 
@@ -344,7 +344,7 @@ func TestChargingFourForAFreeTransferIsTooMuch(t *testing.T) {
 	if config.Default().Review.FreeTransferValue >= HitCost {
 		t.Errorf("free transfer valued at %.1f, at or above a hit's %.1f — measured at 4 the "+
 			"replay scored 2073 against 2091 for charging nothing",
-			config.Default().Review.FreeTransferValue, HitCost)
+			config.Default().Review.FreeTransferValue, float64(HitCost))
 	}
 	if v := config.Default().Review.FreeTransferValue; v <= 0 {
 		t.Errorf("free transfer valued at %.1f; zero reproduces the churning policy", v)

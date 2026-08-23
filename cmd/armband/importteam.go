@@ -201,7 +201,19 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 8. Build the new session, preserving standing corrections and replacing the team.
-	in := s.readValidSession(r).fromImport(id, squad, xi, bench, captain, vice)
+	//
+	// The transfer baseline is the same squad, at the gameweek just imported — UNLESS this
+	// week was a Free Hit. FPL hands the permanent squad back the following week, so a
+	// baseline captured on a free-hit fifteen would diff against a squad the reader will
+	// not own by then, and every one of the fifteen would read as a transfer. The fifteen
+	// is still imported — it is genuinely what is on the pitch this week, and planning it
+	// is legitimate — only the baseline is withheld. See session.Base's own doc comment.
+	freeHit := picks.ActiveChip != nil && *picks.ActiveChip == "freehit"
+	base, baseEvent := squad, importEvent
+	if freeHit {
+		base, baseEvent = nil, 0
+	}
+	in := s.readValidSession(r).fromImport(id, squad, xi, bench, captain, vice, base, baseEvent)
 
 	// 9. Run it through the SAME validator every other session write goes through —
 	// see saveSession's own comment. It should always pass for a freshly-fetched FPL
@@ -214,11 +226,16 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 9.5. The free-transfer allowance, resolved here for the same reason step 6's fetches
+	// are: it is one more outbound FPL call, and s.freeTransfersFor must never run under
+	// s.mu. See that method's own comment.
+	free, freeErr := s.freeTransfersFor(r.Context(), in)
+
 	// 10. The render lock, taken only now — see step 6's comment for why it could not
 	// be taken any earlier.
 	defer s.lockRender("import")()
 
-	stateBody, err := s.buildState(r, in)
+	stateBody, err := s.buildState(r, in, free, freeErr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "serve: import: %v\n", err)
 		http.Error(w, "the squad could not be built just now — try reloading",

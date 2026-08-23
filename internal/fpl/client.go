@@ -765,6 +765,12 @@ func (c *Client) History(ctx context.Context, entryID int) (*EntryHistory, error
 // MaxBankedTransfers is the FPL cap on saved free transfers.
 const MaxBankedTransfers = 5
 
+// HitCost is what a transfer beyond the free ones costs, in points. FPL's rule, so it
+// lives beside the rest of the transfer-allowance facts rather than in internal/analysis
+// or internal/backtest — both of which import this package already and neither of which
+// owns the rule.
+const HitCost = 4
+
 // UnlimitedTransfers is returned when no gameweek has been scored yet. Before
 // the first deadline a manager is still assembling the initial squad and may
 // make as many changes as they like, so any finite number is wrong — and "1" is

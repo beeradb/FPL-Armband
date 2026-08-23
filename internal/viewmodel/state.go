@@ -81,6 +81,67 @@ type State struct {
 	// on GET /api/results). Nil when there is no entry to describe, since there is then no
 	// real team to show. See Results.
 	Results *Results `json:"results,omitempty"`
+
+	// Transfers is what has changed since the reader's imported baseline, and what it
+	// would cost at FPL. Present only when the session carries an imported entry
+	// (session.Entry != 0); absent otherwise, which is how the client knows there is
+	// nothing to draw. See Transfers.
+	Transfers *Transfers `json:"transfers,omitempty"`
+}
+
+// Transfers is the transfer bar and panel's whole state: the free-transfer allowance, what
+// the reader's current pitch has changed against the fifteen they imported, and what that
+// would cost at FPL if they made it for real. Built in cmd/armband's buildState, from
+// session.Base/session.Squad and one FPL history read — see that function's own comment.
+//
+// A transfer is position-matched diff(Base, Squad), out-for-in, computed from two lists of
+// permanent codes already in the session cookie: no network call, no search, and no opinion
+// about whether a move is a good idea — that is Suggest's job (GET /api/transfers), which
+// this type has nothing to do with.
+type Transfers struct {
+	// Free is fpl.FreeTransfers' reconstruction, or fpl.UnlimitedTransfers (-1) before
+	// the first deadline. Never a guess of 1 — see FreeTransfers' own doc comment for why
+	// guessing low is the expensive direction.
+	Free int `json:"free"`
+	// FreeUnknown is set when the history read failed. The count and the cost are then
+	// both withheld and the reason is said out loud, per this project's own rule that a
+	// capability which vanishes quietly is the failure being prevented.
+	FreeUnknown bool `json:"free_unknown,omitempty"`
+
+	// Moves is Squad against Base, position-matched, out-for-in. Absent when there is
+	// nothing to diff against (NoBaseline) or the diff is not trustworthy (BaselineStale).
+	Moves []Move `json:"moves,omitempty"`
+	// Hits is max(0, len(Moves)-Free), zero when Free is unlimited or unknown.
+	Hits int `json:"hits,omitempty"`
+	// Cost is Hits * fpl.HitCost.
+	Cost int `json:"cost,omitempty"`
+
+	// BaseEvent is the gameweek Base was fetched for.
+	BaseEvent int `json:"base_event,omitempty"`
+	// BaselineStale: FPL's current event has moved past BaseEvent, so the reader's real
+	// squad may have changed and this diff describes a week that is over. The count and
+	// cost are withheld rather than shown against a baseline this build no longer trusts.
+	BaselineStale bool `json:"baseline_stale,omitempty"`
+	// NoBaseline: nothing on record to diff against.
+	NoBaseline bool `json:"no_baseline,omitempty"`
+	// FreeHitBase says NoBaseline is because the imported week was a free hit, which is a
+	// different sentence from "you have not imported".
+	FreeHitBase bool `json:"free_hit_base,omitempty"`
+}
+
+// Move is one player leaving and one arriving, either from the reader's own baseline diff
+// (Transfers.Moves) or from a suggested plan (GET /api/transfers). Every field is already
+// resolved for display — the client renders it and computes nothing.
+type Move struct {
+	Pos      string  `json:"pos"`
+	OutCode  int     `json:"out_code"`
+	OutName  string  `json:"out_name"`
+	OutClub  string  `json:"out_club"`
+	OutPrice float64 `json:"out_price"`
+	InCode   int     `json:"in_code"`
+	InName   string  `json:"in_name"`
+	InClub   string  `json:"in_club"`
+	InPrice  float64 `json:"in_price"`
 }
 
 // Results is one entry's actual gameweek result — /armband-team's whole document for the
@@ -822,4 +883,13 @@ type Session struct {
 	// Optimised reports that the fifteen is the model's best rather than a varied opening
 	// squad. It drives whether the Optimize control reads as available or as already done.
 	Optimised bool `json:"optimised"`
+
+	// Base and BaseEvent round-trip session.Base/session.BaseEvent — the transfer
+	// baseline — the same way Locked/Blocked/Chips/Dismissed round-trip the reader's
+	// other corrections. PUT /api/session decodes straight into a fresh session{}, so a
+	// save that omitted these would silently erase an already-imported baseline on the
+	// very next unrelated save. See session.Base's own doc comment for what the fifteen
+	// is and Transfers.BaseEvent for the gameweek it was fetched for.
+	Base      []int `json:"base,omitempty"`
+	BaseEvent int   `json:"basegw,omitempty"`
 }

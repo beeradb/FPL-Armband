@@ -64,6 +64,10 @@ const (
 	// armbandTeamState's config.EntryID path to any reader who has imported a team. See
 	// results.go.
 	routeResults = "/api/results"
+	// routeTransfers is the on-demand transfer-suggestion read for the SESSION's own
+	// imported entry and current pitch — GET only, no CSRF token, computed fresh on every
+	// request. See apitransfers.go.
+	routeTransfers = "/api/transfers"
 	// routeMetrics serves this process's own Prometheus metrics — the
 	// staleness signal behind internal/fpl.Client's deliberate stale-fallback,
 	// plus the HTTP and pipeline-timing series alongside it. See metrics.go's
@@ -562,22 +566,26 @@ func (s *squadServer) hasSignedUp(r *http.Request) bool {
 // straight optimum rather than a varied squad -- a fine answer to "what does the model
 // think", and not a store.
 func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
+	sess := s.readValidSession(r)
+	// The free-transfer allowance needs one FPL round trip, resolved BEFORE the render
+	// lock — see freeTransfersFor's own comment for why that ordering may not move.
+	free, freeErr := s.freeTransfersFor(r.Context(), sess)
+
 	defer s.lockRender("state")()
 
-	sess := s.readValidSession(r)
 	if sess.Seed == 0 && !sess.Optimised && s.authed(r) {
 		sess.Seed = s.nextSeed()
 		if err := sess.write(w); err != nil {
 			fmt.Fprintf(os.Stderr, "serve: storing the session seed: %v\n", err)
 		}
 	}
-	s.answerState(w, r, sess)
+	s.answerState(w, r, sess, free, freeErr)
 }
 
 // answerState builds and writes the document for a session. Shared by the read and the
 // write route so the two cannot disagree about what the state IS.
-func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess session) {
-	body, err := s.buildState(r, sess)
+func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess session, free int, freeErr error) {
+	body, err := s.buildState(r, sess, free, freeErr)
 	if err != nil {
 		// The full error is for whoever is running the server -- a viewmodel marshal
 		// failure like "State.Squad.Players[3].XP is NaN, which encoding/json cannot
@@ -600,8 +608,35 @@ func writeState(w http.ResponseWriter, body []byte) {
 	_, _ = w.Write(body)
 }
 
+// freeTransfersFor resolves the free-transfer allowance for a session's imported entry, or
+// fpl.UnlimitedTransfers when there is nothing to resolve (no imported entry, or the read
+// failed — see fpl.FreeTransfers' own doc comment for why an unknown allowance answers
+// unlimited rather than a guess of 1). A non-nil error means the read failed and the caller
+// should carry that forward as State.Transfers.FreeUnknown, rather than silently treating
+// it the same as "before GW1".
+//
+// It is a method squadServer's three buildState callers (state, saveSession, importTeam)
+// each invoke BEFORE taking the render lock, and buildState itself takes the resolved
+// answer as a parameter rather than calling this. buildState runs under s.mu, this makes an
+// outbound FPL call, and importTeam's own step 6 states the rule this exists to keep
+// visible: holding the render lock across an outbound call would stall every OTHER
+// visitor's render behind this one's network latency.
+func (s *squadServer) freeTransfersFor(ctx context.Context, sess session) (int, error) {
+	if sess.Entry == 0 || s.client == nil {
+		return fpl.UnlimitedTransfers, nil
+	}
+	h, err := s.client.History(ctx, sess.Entry)
+	if err != nil {
+		return fpl.UnlimitedTransfers, err
+	}
+	return fpl.FreeTransfers(h), nil
+}
+
 // buildState produces the document for a session, or an error naming what went wrong.
-func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) {
+//
+// free/freeErr are the free-transfer allowance, resolved by the caller via
+// freeTransfersFor BEFORE the render lock — see that method's own comment.
+func (s *squadServer) buildState(r *http.Request, sess session, free int, freeErr error) ([]byte, error) {
 	cfg := s.effectiveCfgFrom(sess)
 	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, pageOpts{
 		Weeks:     s.weeks,
@@ -657,9 +692,129 @@ func (s *squadServer) buildState(r *http.Request, sess session) ([]byte, error) 
 		// beats letting the encoder fail into a half-written 200 the client would parse.
 		return nil, err
 	}
+	// Present only for a reader with an imported entry — absent otherwise, which is how
+	// the client knows there is nothing to draw. See viewmodel.Transfers' own comment.
+	if sess.Entry != 0 {
+		st.Transfers = buildTransfersBlock(s.engine, sess, free, freeErr)
+	}
 	// Marshalled here rather than streamed, so a failure is an error a caller can answer
 	// with a status instead of a truncated body.
 	return json.Marshal(st)
+}
+
+// buildTransfersBlock assembles State.Transfers for a session with an imported entry: the
+// free-transfer allowance the caller already resolved, and Squad diffed against Base — see
+// session.Base's own doc comment for what the two lists are.
+func buildTransfersBlock(e *analysis.Engine, sess session, free int, freeErr error) *viewmodel.Transfers {
+	t := &viewmodel.Transfers{
+		Free:        free,
+		FreeUnknown: freeErr != nil,
+		BaseEvent:   sess.BaseEvent,
+	}
+	if len(sess.Base) == 0 {
+		// The only path today that imports a squad and leaves Base empty is a free-hit
+		// import (importTeam step 8) — a cookie written before this field existed would
+		// read the same way and self-heals on the reader's next import. Both read as "no
+		// baseline"; free-hit is the only cause this build can name with any confidence.
+		t.NoBaseline = true
+		t.FreeHitBase = true
+		return t
+	}
+	// FPL's current event has moved past the week Base was fetched for: the reader's
+	// real squad may have changed since, and this diff would describe a week that is
+	// over rather than what they actually hold. The count and cost are withheld rather
+	// than shown against a baseline this build no longer trusts — see session.Base's own
+	// doc comment. importWindow is a pure function over the bootstrap's events, so this
+	// costs no network call.
+	importEvent, _, _ := importWindow(e.Boot.Events)
+	if importEvent > sess.BaseEvent {
+		t.BaselineStale = true
+		return t
+	}
+	t.Moves = diffSquadAgainstBase(e, sess.Base, sess.Squad)
+	// Hits/Cost are zero when Free is unlimited (nothing to overspend) or unknown (no
+	// allowance to compare against) — see viewmodel.Transfers.Hits' own comment.
+	if free != fpl.UnlimitedTransfers && !t.FreeUnknown {
+		if hits := len(t.Moves) - free; hits > 0 {
+			t.Hits = hits
+			t.Cost = hits * fpl.HitCost
+		}
+	}
+	return t
+}
+
+// diffSquadAgainstBase is a transfer: position-matched Squad against Base, out-for-in.
+//
+// Both lists are already permanent player codes — session.Base and session.Squad — so this
+// is arithmetic over two []int, not a search: group what left by position, group what
+// arrived by position, and pair them off within each position. That pairing always exhausts
+// both sides, because Base and Squad are each a legal fifteen (2 GKP/5 DEF/5 MID/3 FWD —
+// validateSession enforces it on write), so the count leaving a position always equals the
+// count arriving in it.
+//
+// Not internal/backtest.diffSquads, which is a different type over []PlayerMetrics and
+// stranded in the replay harness — see the design note this implements for why exporting it
+// would be a worse fit than this small, separate function.
+func diffSquadAgainstBase(e *analysis.Engine, base, squad []int) []viewmodel.Move {
+	inSquad, inBase := map[int]bool{}, map[int]bool{}
+	for _, c := range squad {
+		inSquad[c] = true
+	}
+	for _, c := range base {
+		inBase[c] = true
+	}
+
+	metrics := func(code int) (analysis.PlayerMetrics, bool) {
+		el := e.Boot.ElementByCode(code)
+		if el == nil {
+			return analysis.PlayerMetrics{}, false
+		}
+		return e.Metrics(el), true
+	}
+	byPosition := func(codes []int) map[string][]int {
+		m := map[string][]int{}
+		for _, c := range codes {
+			if pm, ok := metrics(c); ok {
+				m[pm.Position] = append(m[pm.Position], c)
+			}
+		}
+		return m
+	}
+
+	var outCodes, inCodes []int
+	for _, c := range base {
+		if !inSquad[c] {
+			outCodes = append(outCodes, c)
+		}
+	}
+	for _, c := range squad {
+		if !inBase[c] {
+			inCodes = append(inCodes, c)
+		}
+	}
+	outByPos, inByPos := byPosition(outCodes), byPosition(inCodes)
+
+	var moves []viewmodel.Move
+	for _, pos := range []string{"GKP", "DEF", "MID", "FWD"} {
+		out, in := outByPos[pos], inByPos[pos]
+		n := len(out)
+		if len(in) < n {
+			n = len(in)
+		}
+		for i := 0; i < n; i++ {
+			om, oOK := metrics(out[i])
+			im, iOK := metrics(in[i])
+			if !oOK || !iOK {
+				continue
+			}
+			moves = append(moves, viewmodel.Move{
+				Pos:     pos,
+				OutCode: out[i], OutName: om.Name, OutClub: om.Team, OutPrice: om.Price,
+				InCode: in[i], InName: im.Name, InClub: im.Team, InPrice: im.Price,
+			})
+		}
+	}
+	return moves
 }
 
 // houseTeamSources fetches the site's own manager record for the footer widget —
@@ -788,8 +943,6 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defer s.lockRender("session")()
-
 	var in session
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		http.Error(w, "unreadable session: "+err.Error(), http.StatusBadRequest)
@@ -807,6 +960,14 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// The free-transfer allowance, resolved BEFORE the render lock — decoding and
+	// validating the body above need neither the lock nor the network, so this is the
+	// earliest point `in.Entry` is known. See freeTransfersFor's own comment for why the
+	// FPL call may not happen under s.mu.
+	free, freeErr := s.freeTransfersFor(r.Context(), in)
+
+	defer s.lockRender("session")()
 
 	// Under -persist the corrections leave the session and enter the file.
 	//
@@ -836,7 +997,7 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 	// every later request rebuilds from it and fails the same way, and the reader has to
 	// open devtools to recover. /action already gets this right and says so: the change is
 	// saved before it is adopted, and a failure leaves everything as it was.
-	body, err := s.buildState(r, in)
+	body, err := s.buildState(r, in, free, freeErr)
 	if err != nil {
 		// Same reasoning as answerState: log the Go error, tell the reader only that
 		// the save did not land.
@@ -962,6 +1123,10 @@ func (s *squadServer) validateSession(in session) error {
 	for name, group := range map[string][]int{
 		"squad": in.Squad, "xi": in.XI, "bench": in.Bench,
 		"lock": in.Lock, "exclude": in.Exclude, "dismissed": in.Dismissed,
+		// Base is a code list arriving from a cookie a hand-crafted PUT /api/session
+		// could set to anything, same as every other list here — see this function's
+		// own doc comment on why Entry gets the same re-check treatment.
+		"base": in.Base,
 	} {
 		if len(group) > maxList {
 			return fmt.Errorf("%s carries %d players, which is more than any squad has", name, len(group))

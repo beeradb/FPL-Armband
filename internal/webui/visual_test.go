@@ -217,6 +217,15 @@ var shots = []shot{
 	{"import-offered-mobile", "import-offered", "/app#pitch", mobile(2200)},
 	{"import-imported-desktop", "import-imported", "/app#pitch", desktop(1700)},
 
+	// The transfer bar and panel's three states — see statefixture_test.go's fixtureNames
+	// for what each derived fixture holds. Desktop and mobile for the two-transfers case,
+	// which is the one shot with actual rows in #transferpanel; the other two only ever
+	// print a sentence in #transferbar, so one width each is enough to catch a collapse.
+	{"transfers-none-desktop", "import-transfers-none", "/app#pitch", desktop(1700)},
+	{"transfers-two-desktop", "import-transfers-two", "/app#pitch", desktop(1900)},
+	{"transfers-two-mobile", "import-transfers-two", "/app#pitch", mobile(2400)},
+	{"transfers-stale-desktop", "import-transfers-stale", "/app#pitch", desktop(1700)},
+
 	// The states live data will not hand you on demand, and which are therefore the most
 	// likely to be broken and the least likely to be looked at.
 	{"edges-pitch-desktop", "edges", "/app#pitch", desktop(1700)},

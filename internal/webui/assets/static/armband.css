@@ -768,6 +768,42 @@ button{font-family:inherit;color:inherit;}
 .instrrow .who{color:var(--ink2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .instrrow .who .club{font-family:var(--mono);font-size:10.5px;color:var(--ink3);margin-left:6px;}
 
+/* Transfer rows -- #transferpanel's OUT/IN list, drawn with .instrrow (above) rather than a
+   second row shape. The colour idiom (accent for IN, quiet + struck-through for OUT) is the
+   same one `.whyrow .swap .in/.out` already defines, but scoped under the new id instead of
+   borrowing that class: `.pitchside .whyrow` (below) carries its own grid-template-areas
+   rule for the OLD staged-transfer strip, and since #transferpanel sits in `.pitchside` too,
+   attaching `.whyrow` here would pull that unrelated layout override in with it -- the exact
+   "grep the class before adding a bare rule" lesson this codebase has already paid for once. */
+#transferpanel .swap{font-family:var(--mono);font-size:11px;}
+#transferpanel .swap .out{color:var(--ink3);text-decoration:line-through;}
+#transferpanel .swap .in{color:var(--acc);}
+#transferpanel .swap .arw{color:var(--ink3);margin:0 2px;}
+/* No #transferpanel h3 rule here -- the element carries class "why" (app.html), so .why h3
+   above already styles its heading; a second rule with the same properties would be the
+   "one quantity, two implementations" failure this codebase keeps naming. */
+
+/* The transfer bar: free transfers / made / cost, or the stale / no-baseline / free-hit
+   sentence in their place, plus Suggest transfers. Styled like #squadsource just above it
+   (same panel background, mono figures, wraps rather than clips at narrow widths) -- the two
+   are the same kind of statement, "where this fifteen came from" and "how far it has moved
+   since". Reuses .stat, the market table's own inline label+value shape, rather than a new
+   one. */
+.transferbar{
+  font-size:11.5px;padding:9px 12px;font-family:var(--mono);
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+}
+.transferbar[hidden]{display:none;}
+.transferbar .stat i.k{
+  display:block;font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink3);
+}
+.transferbar .stat{flex-direction:column;align-items:flex-start;gap:1px;}
+.transferbar .stat b{font-family:var(--mono);font-size:12.5px;}
+.transferbar .stat b.badc{color:var(--bad);}
+.transferbar .btn{font-family:var(--ui);margin-left:auto;}
+
 /* brief: two columns above 1080px so the verdict isn't a column of air */
 .briefgrid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;align-items:start;}
 @media (max-width:1080px){.briefgrid{grid-template-columns:1fr;}}
@@ -1297,6 +1333,7 @@ body.saving{cursor:progress;}
      rule above; this only tightens the gap so the wrapped button doesn't read as a second,
      unrelated row. */
   .squadsource{gap:6px 8px;}
+  .transferbar{gap:6px 10px;}
 }
 
 

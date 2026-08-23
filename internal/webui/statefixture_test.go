@@ -51,6 +51,13 @@ var fixtureNames = []string{
 	// No flagged players, one rotation-risk player with no news: derived from gameweek-one
 	// by changing Calvert-Lewin's role to "rotation risk".
 	"rotation-risk",
+	// The transfer bar/panel's three states, each derived from import-imported by adding
+	// State.Transfers -- everything else held identical, the same discipline
+	// import-imported itself follows against import-offered. See visual_test.go's shot
+	// list for what each one is for.
+	"import-transfers-none",  // imported, nothing changed since: bar shows "1 free", panel hidden
+	"import-transfers-two",   // two changes made, one free: bar shows the −4, panel shows two rows
+	"import-transfers-stale", // baseline_stale: the re-import sentence, count and cost withheld
 }
 
 // loadState reads one fixture and fails loudly if it does not decode into the contract.
