@@ -106,9 +106,15 @@ func TestBlendYieldsToTheSeason(t *testing.T) {
 // from abroad has no prior of his own, and scoring him on his own first few
 // matches is how the replay ended up paying a four-point hit for a debutant.
 //
-// His rates shrink toward his position's league-wide rates. His minutes do not:
-// ninety minutes in one appearance really does mean ninety minutes when he
-// plays, and the minutes-reliability term already prices whether he plays again.
+// His rates AND his minutes shrink toward his position's league-wide figures.
+// ⚠️ Minutes used to be left untouched here on the reasoning that ninety
+// minutes in one appearance really does mean ninety minutes when he plays,
+// and the minutes-reliability term already prices whether he plays again —
+// but MinutesRating is a bare function of these same fields with no term of
+// its own for sample size, so it inherited the identical false certainty
+// rather than pricing it. Reproduced live 2026-08-23: HUL's McBurnie and
+// Belloumi, one 90-minute debut each, projected at StartShare 1.000 and
+// dominated the wildcard/free-hit builder. See shrinkToLeague's own comment.
 func TestPriorlessPlayersShrinkToTheLeague(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
 	el := findEverPresent(t, e)
@@ -129,10 +135,17 @@ func TestPriorlessPlayersShrinkToTheLeague(t *testing.T) {
 		t.Errorf("bonus/90 is %.2f after a single three-bonus debut; the league rate "+
 			"should have pulled it well under 1", m.Bonus90)
 	}
-	// Minutes are deliberately untouched by the shrinkage.
-	if math.Abs(m.ExpectedMinutes-90) > 1 {
-		t.Errorf("expected minutes %.1f, want ~90 — shrinkage must not touch minutes",
-			m.ExpectedMinutes)
+	// The debut start is real evidence and is not discarded outright (a
+	// mid-match sub would report far less than this), only kept from being
+	// read as a guarantee of the same every week for the rest of the horizon.
+	if m.ExpectedMinutes > 85 {
+		t.Errorf("expected minutes %.1f after a single 90-minute debut with no prior — "+
+			"want it pulled below the raw 90 toward the league average, not left reading "+
+			"as a guaranteed nailed starter off one match", m.ExpectedMinutes)
+	}
+	if m.ExpectedMinutes < 20 {
+		t.Errorf("expected minutes %.1f over-corrected a real 90-minute start almost to "+
+			"nothing", m.ExpectedMinutes)
 	}
 }
 
