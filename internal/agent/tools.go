@@ -1701,11 +1701,11 @@ func (t *Toolbox) rosterSets() (lock, start, exclude []int, notes []string) {
 }
 
 type setPlayerStatusInput struct {
-	Player    string   `json:"player" jsonschema:"description=Player name or id."`
-	Minutes   *float64 `json:"expected_minutes,omitempty" jsonschema:"description=With mode 'minutes': what he actually plays per gameweek. 90 for a nailed starter the data understates, 0 for someone out."`
-	Mode      string   `json:"mode" jsonschema:"description=PREFER 'minutes'. One of: minutes (correct the expected-minutes figure and let the model re-decide - the right tool when the number is wrong, e.g. a returning injury or a promoted-club starter), start (must be in the STARTING ELEVEN - use when the squad is built around him), lock (must be in the squad but may be benched - use for a cheap enabler you need available), exclude (never picked or bought), confirm (re-verified against the news, still applies - optionally with an updated reason or until_gameweek), clear (remove any override)."`
-	Reason    string   `json:"reason" jsonschema:"description=Why. Shown back on every future run so a reader can tell when it no longer applies."`
-	Until     int      `json:"until_gameweek,omitempty" jsonschema:"description=Gameweek this lapses after. Omit for indefinite, which is reported as needing review every run."`
+	Player  string   `json:"player" jsonschema:"description=Player name or id."`
+	Minutes *float64 `json:"expected_minutes,omitempty" jsonschema:"description=With mode 'minutes': what he actually plays per gameweek. 90 for a nailed starter the data understates, 0 for someone out."`
+	Mode    string   `json:"mode" jsonschema:"description=PREFER 'minutes'. One of: minutes (correct the expected-minutes figure and let the model re-decide - the right tool when the number is wrong, e.g. a returning injury or a promoted-club starter), start (must be in the STARTING ELEVEN - use when the squad is built around him), lock (must be in the squad but may be benched - use for a cheap enabler you need available), exclude (never picked or bought), confirm (re-verified against the news, still applies - optionally with an updated reason or until_gameweek), clear (remove any override)."`
+	Reason  string   `json:"reason" jsonschema:"description=Why. Shown back on every future run so a reader can tell when it no longer applies."`
+	Until   int      `json:"until_gameweek,omitempty" jsonschema:"description=Gameweek this lapses after. Omit for indefinite, which is reported as needing review every run."`
 	// Confirmed is a pointer for the same reason Minutes is: OMITTING it must
 	// mean something different from explicitly passing false. A plain bool
 	// defaults to false when left out of a call, and mode 'minutes' is the
