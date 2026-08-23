@@ -247,6 +247,11 @@ function hydrate(st){
   GWS=(st.gameweeks||[]).map(g=>({
     gw:g.gw, deadline:g.deadline ? new Date(g.deadline) : null,
     d:g.deadline ? fmtDeadline(new Date(g.deadline)) : '',
+    /* Closed only ever arrives true for an imported reader -- buildGameweeks
+       (internal/viewmodel) drops a closed week for everyone else -- and renderRail's whole
+       job with it is to stop a tab click opening the planning surface for a week that is
+       already played and scored. See that function's own comment. */
+    closed:!!g.closed,
     chip:CHIPKEY[g.chip]||null, live:!!g.current, projected:g.projected,
     /* Which chips the competition allows THIS week, decided by the model. Gameweek one
        offers only the bench boost and the triple captain -- a wildcard buys nothing when
@@ -305,11 +310,31 @@ function hydrate(st){
      model's answer to the same fifteen. */
   PENDING.squad=(sq.players||[]).map(p=>p.code).filter(Boolean);
 
-  /* Import state: handle the team ID import affordance. */
+  /* Import panel: auto-open covers exactly one transition, the same one this card has
+     always auto-opened for -- the import window is live, nothing has been imported, and
+     the reader has not said "start fresh". It must NOT also close the panel whenever
+     imp.entry is set: that was safe while entry-set had no button back into the card, but
+     "Change team" now reopens this same element with imp.entry already true, and every
+     other pitch action (a lock, a bench drag) round-trips through this same hydrate. If
+     entry-set forced the panel shut here, a reader mid-edit on a new Team ID would watch
+     it vanish under an unrelated save. Closing after a real change is handled at the
+     place that caused the change: skipImport() leans on this hydrate running post-save
+     (see its own comment), and importTeam() closes the panel itself on success. */
   const card=document.getElementById('importCard');
   if(card){
-    if(!imp.open || imp.skipped || imp.entry) card.hidden=true;
-    else card.hidden=false;
+    if(imp.open && !imp.entry && !imp.skipped){
+      card.hidden=false;
+      renderImportCard(imp);
+    /* !imp.open still closes unconditionally, and must: a shut import window is not the
+       reader's preference, it is the feature being off. But imp.skipped alone must NOT --
+       imp.skipped stays true forever once set, so without the importPanelOpenedByReader
+       exception a reader who dismissed the first-run offer, then reopened it from
+       #squadsource's ghost button and started typing, would watch it vanish under the next
+       unrelated save (a lock, a bench drag, a chip toggle). Found 2026-08-22; see
+       importPanelOpenedByReader's own comment for the full story. */
+    } else if(!imp.open || (imp.skipped && !importPanelOpenedByReader)){
+      card.hidden=true;
+    }
   }
   /* Fill in the gameweek placeholders in the import card. */
   const nextGwEl=document.getElementById('importNextGw');
@@ -763,18 +788,33 @@ function renderRail(){
     const c=CHIPS.find(c=>c.k===g.chip);
     /* The window boundary is a fact about the calendar, so it lives on the calendar: the
        19px .chipslot already reserves per week, on the window's last week, quiet ink while
-       the pill is quiet and amber when the pill is amber. Because the rail only shows the
-       current week and the ones ahead, GW{endsGw} walks into view on its own about five
-       weeks out -- the reader meets the deadline before the alarm (NOTES.md §4). */
+       the pill is quiet and amber when the pill is amber. The rail shows the current week
+       and the ones ahead PLUS, for an imported reader, the closed weeks behind it
+       (buildGameweeks) -- so GW{endsGw} no longer always walks into view five weeks out on
+       its own; an imported reader can find it much sooner, already on screen. 2026-08-22:
+       corrected after the closed-week guard below made the old five-week claim false for
+       that reader. */
     const slot=c?`<span class="pill on">${c.ic} ${c.n}</span>`
       :(g.gw===CHIPWIN.endsGw?`<span class="wend${due?' due':''}">Chips end</span>`:'');
+    /* A closed week (g.closed) only reaches this rail at all for an imported reader --
+       buildGameweeks drops it for everyone else, see viewmodel.Gameweek.Closed's own
+       comment. This rail has nothing to open for one: every control behind a tab click --
+       Optimise, Reset, drag-to-reorder, locks, the chip control -- edits a hypothetical
+       eleven for a week that is already played and scored, and none of it can do anything
+       there. Disabled, not omitted: the reader should still see that the week happened, not
+       watch it vanish the moment they import. Showing what ACTUALLY happened that week is a
+       separate, larger piece of work (fetch GET /api/results, render results into this
+       view, hide the planning controls) and is not this guard's job -- this only stops the
+       broken state being reachable until that lands. Found 2026-08-22: the guard existed on
+       the server (viewmodel.Gameweek.Closed) with no client-side handling at all, reachable
+       the moment PUT /api/import stopped being blocked by the deployment's own 403. */
     return `<button class="gw${g.live?' live':''}" role="tab" data-gw="${g.gw}"
-      aria-selected="${g.gw===S.gw}">
-      <div class="n">GW${g.gw}${g.live?' <span class="k" style="letter-spacing:.1em">NOW</span>':''}</div>
+      aria-selected="${g.gw===S.gw}"${g.closed?' disabled title="This gameweek is already played — results for past gameweeks aren’t shown here yet."':''}>
+      <div class="n">GW${g.gw}${g.live?' <span class="k" style="letter-spacing:.1em">NOW</span>':g.closed?' <span class="k" style="letter-spacing:.1em">PAST</span>':''}</div>
       <div class="d">${g.d}</div>
       <div class="chipslot">${slot}</div>
     </button>`;}).join('');
-  el.querySelectorAll('.gw').forEach(b=>b.onclick=()=>{S.gw=+b.dataset.gw;renderAll();});
+  el.querySelectorAll('.gw').forEach(b=>{ if(!b.disabled) b.onclick=()=>{S.gw=+b.dataset.gw;renderAll();}; });
 }
 
 /* ============================================================
@@ -997,14 +1037,28 @@ function cardHtml(p,opts={}){
   /* The FPL-news glyph: an injured or suspended player looks identical to a healthy one
      everywhere else on the pitch. availability's most important value is 0 -- a ruled-out
      player, whose score is zero for that reason and no other -- so a card below 1 gets a
-     corner marker rather than just a smaller number and no reason. */
+     corner marker rather than just a smaller number and no reason.
+
+     THREE colours, not two (2026-08-22): FPL's own scale is 100/75/50/25/0, and a
+     two-colour glyph rendered 75% and 25% identically. flagCls picks the colour --
+     --flag-doubt (no modifier class) for the mildest doubt, --warn for the middle
+     severity FPL owned alone before this split, --bad for ruled out.
+
+     The glyph also carries the FIGURE ITSELF now, not a bare "!" -- "it does not have to
+     be the flags, but it should be visible... maybe a box with a 75%" (owner). OUT rather
+     than 0%, deliberately: zero isn't a probability FPL is expressing, it's a statement
+     the player cannot feature -- a different KIND of fact from the three doubts above it,
+     and rendering both in one vocabulary is exactly what this codebase avoids elsewhere
+     (the results card's four states, DefCon staying nil before kickoff). */
   const av=p.availability===undefined?1:p.availability;
+  const flagCls=av===0?'bad':av>0.5?'':'warn';
+  const flagTxt=av===0?'OUT':Math.round(av*100)+'%';
   return `<div class="card${lock?' haslock':''}${block?' hasblock':''}${S.swapFrom===p.id?' sel':''}${isC?' iscap':''}${isC&&chip==='3xc'?' tcap':''}${isV?' isvc':''}"
      draggable="true" data-id="${p.id}" style="--clubc:${CLUBC[p.club]||'#39506A'}">
     <div class="shirt">${isC?`<span class="bandc">${chip==='3xc'?'3×':'C'}</span>`:''}</div>
     ${isC?`<span class="armchip${chip==='3xc'?' tc':''}">${chip==='3xc'?'3×':'C'}</span>`:''}
     ${isV?`<span class="armchip v">V</span>`:''}
-    ${av<1?`<span class="newsflag${av===0?' bad':''}" title="${av===0?'Ruled out':Math.round(av*100)+'% fit'} — see News">!</span>`:''}
+    ${av<1?`<span class="newsflag${flagCls?' '+flagCls:''}" title="${av===0?'Ruled out':Math.round(av*100)+'% fit'} — see News">${flagTxt}</span>`:''}
     <div class="chead">
       <span class="lhs"><span class="cl">${esc(p.club)}</span></span>
       <div class="acts">
@@ -1415,14 +1469,17 @@ const FDR_WORD={1:'very easy',2:'easy',3:'even',4:'hard',5:'very hard'};
 function playerNewsRows(p){
   const rows=[];
   const av=p.availability===undefined?1:p.availability;
+  // Same three severities as the pitch card's corner glyph (cardHtml): doubt (75%, the
+  // colour --warn used to own alone), warn (50/25%), bad (ruled out).
+  const avCls=av===0?'out':av>0.5?'doubt':'fpl';
   if(p.news || av<1){
     rows.push({
       chip: av===0?'OUT':(av<1?`${Math.round(av*100)}% FIT`:'FPL'),
-      cls: av===0?'out':(av<1?'fpl':''),
+      cls: av<1?avCls:'',
       when:'FPL',
       text: p.news?p.news:'FPL hasn’t said why.',
       pill: av===0?'<span class="pill bad">He scores nothing this week</span>'
-          : av<1?`<span class="pill warn">We're counting ${Math.round(av*100)}% of his points</span>`:''
+          : av<1?`<span class="pill ${av>0.5?'doubt':'warn'}">We're counting ${Math.round(av*100)}% of his points</span>`:''
     });
   }
   if(p.ov){
@@ -1903,11 +1960,13 @@ function riskRows(){
    A player qualifies on FPL's own availability figure OR a reported news item; the nudge's
    own FPL-flag clause narrows further, to availability alone, because that is what
    `.card .newsflag` actually fires on (see cardHtml) -- a reported item with no
-   availability drop lights no corner glyph, so citing it as "the ! on his card" would be
-   wrong. riskRows()'s own consumer (renderNews()'s neutral "Who may not start" list) narrows
-   nothing -- a plain list is entitled to the whole 3/4/5 range, because it isn't claiming
-   anything is surprising. The nudge's own risk clause narrows further still, to rotation
-   risk (3) alone: see the comment on riskSubject below for why. */
+   availability drop lights no corner glyph, so pointing the reader at his card would be
+   wrong. The nudge narrows a THIRD time, to 75% only -- see flagSubject's own comment in
+   renderNewsNudge for why 50%-and-below is deliberately excluded. riskRows()'s own
+   consumer (renderNews()'s neutral "Who may not start" list) narrows nothing -- a plain
+   list is entitled to the whole 3/4/5 range, because it isn't claiming anything is
+   surprising. The nudge's own risk clause narrows further still, to rotation risk (3)
+   alone: see the comment on riskSubject below for why. */
 function flaggedRows(){
   return P.filter(p=>(p.availability!==undefined&&p.availability<1)||p.news);
 }
@@ -1994,16 +2053,26 @@ function renderNews(){
   if(checkedEl) checkedEl.textContent=NEWS.checked;
 
   const flaggedEl=document.getElementById('news-flagged');
+  // The count pill takes the WORST severity in the group, same ranking the corner glyph
+  // uses (bad > warn > doubt): OUT beats 50/25% beats 75%. A player who qualified on a
+  // news item alone, with no availability drop, falls through to the amber this pill
+  // rendered unconditionally before the three-level split -- there is no "doubt" reading
+  // for a player FPL hasn't graded at all.
   if(flaggedEl) flaggedEl.innerHTML = flagged.length ? newsGroupHtml('Hurt, suspended or doubtful',
-    `<span class="pill ${flagged.some(p=>p.availability===0)?'bad':'warn'}">${flagged.length}</span>
+    `<span class="pill ${flagged.some(p=>p.availability===0)?'bad'
+       :flagged.some(p=>p.availability!==undefined&&p.availability<1&&p.availability<=0.5)?'warn'
+       :flagged.some(p=>p.availability!==undefined&&p.availability<1)?'doubt':'warn'}">${flagged.length}</span>
      <span class="t-meta">FPL's own ruling — nothing to decide here</span>`,
     flagged.map(p=>{
       const av=p.availability===undefined?1:p.availability;
+      // Same three severities as the pitch card's corner glyph (cardHtml).
       return {
-        chip: av===0?'OUT':`${Math.round(av*100)}% FIT`, chipClass: av===0?'out':'fpl',
+        chip: av===0?'OUT':`${Math.round(av*100)}% FIT`,
+        chipClass: av===0?'out':(av<1&&av>0.5?'doubt':'fpl'),
         who:p.n, club:p.club,
         text:p.news?p.news:'FPL hasn’t said why.',
         pill: av===0?'<span class="pill bad">He scores nothing this week</span>'
+            : av<1&&av>0.5?`<span class="pill doubt">We're counting ${Math.round(av*100)}% of his points</span>`
             : `<span class="pill warn">We're counting ${Math.round(av*100)}% of his points</span>`
       };
     }), '', '') : '';
@@ -2045,8 +2114,14 @@ function renderNews(){
   const pressEl=document.getElementById('news-press');
   if(pressEl){
     pressEl.innerHTML=pressPanelHtml();
-    const notNow=document.getElementById('newsAskNotNow');
-    if(notNow) notNow.onclick=()=>{ declineNewsAsk(); renderNews(); };
+    // Scoped to pressEl, not document.getElementById: the Pitch callout mounts the SAME
+    // newsAskFootHtml() markup (renderNewsCallout, below) and both can be in the document
+    // at once, so a document-wide id lookup could pick up the wrong one's "Not now".
+    const notNow=pressEl.querySelector('#newsAskNotNow');
+    // Declining is one fact (localStorage), read by both mounts -- resync the callout too,
+    // or a reader who declines here still sees the ask on Pitch until something unrelated
+    // re-renders it.
+    if(notNow) notNow.onclick=()=>{ declineNewsAsk(); renderNews(); renderNewsCallout(); };
     if(window.wireGateForms) window.wireGateForms(pressEl);
   }
 
@@ -2104,6 +2179,7 @@ document.addEventListener('armband:signedup', (e)=>{
   }
   renderNews();
   renderNewsNudge();
+  renderNewsCallout();  // this signup can dismiss the pitch nudge above -- keep the callout in step
 });
 
 /* NEWS_ASK_DECLINED_KEY backs the News panel's "Not now": client-side only, no request, and
@@ -2278,7 +2354,20 @@ function renderNewsNudge(){
   // definition of "worth mentioning" is introduced here. riskSubject additionally requires
   // roleNum(p.role)===3 -- rotation risk only, never squad (4) or fringe (5): see the
   // comment on THE PITCH NUDGE above.
-  const flagSubject=flaggedRows().find(p=>p.availability!==undefined&&p.availability<1);
+  //
+  // flagSubject narrows further than flaggedRows() itself does: FPL's own 50%-or-below
+  // reading is "he definitely will not start" -- the card already says so plainly, in
+  // orange or red (cardHtml's three-level newsflag) -- so claiming it here as a heads-up
+  // oversells what this row knows. Per the owner, 2026-08-22: "anything 50% or below is
+  // basically FPL saying they definitely won't start. so no need to specially flag that as
+  // if we're giving them extra info." On FPL's 100/75/50/25/0 scale that leaves exactly
+  // ONE value this can ever match -- 75%, the one genuinely ambiguous reading. Do NOT
+  // widen this back to `<1` "for completeness": completeness is what oversold it before.
+  // flaggedRows() itself is UNCHANGED and still returns every one of these players -- this
+  // narrows the nudge's own subject only, never the News tab's flagged group or the nav
+  // badge count that reads it (see flaggedRows' own comment above).
+  const flagSubject=flaggedRows().find(p=>p.availability!==undefined
+    && p.availability<1 && p.availability>0.5);
   const riskSubject=riskRows().find(p=>p!==flagSubject && !p.news &&
     roleNum(p.role)===3 &&
     (p.availability===undefined||p.availability>=1));
@@ -2286,18 +2375,92 @@ function renderNewsNudge(){
 
   const clauses=[];
   if(flagSubject){
+    // Always 75% now (see the narrowing above), so the "ruled out" branch this ternary
+    // used to need is gone -- and so is the "! on his card" it pointed at: the corner
+    // glyph carries the figure itself now, not a bare "!" (cardHtml).
     const av=flagSubject.availability;
-    clauses.push(av===0
-      ? `<b>${esc(flagSubject.n)}</b> is ruled out — that one is FPL’s own ruling, and it is the ! on his card.`
-      : `<b>${esc(flagSubject.n)}</b> is ${Math.round(av*100)}% fit — that one is FPL’s own ruling, and it is the ! on his card.`);
+    /* ⚠️ QUOTE FPL'S OWN NOTE. The sentence this replaced said only "is 75% fit", which is
+       the one fact the reader can already see on his card -- so the row spent its best line
+       restating a badge and never gave the actual reason ("Knock - 75% chance of playing").
+       The note is why a reader opens this at all. Same fallback string the News tab and the
+       player sheet already use for a flag FPL has not explained, so all three surfaces say
+       one thing rather than three.
+       ⚠️ esc() is not optional: p.news is FPL-supplied prose heading for innerHTML, which
+       is the exact path this document's tighter connect-src exists to contain. */
+    const note=flagSubject.news||'FPL hasn’t said why.';
+    clauses.push(`<b>${esc(flagSubject.n)}</b> — ${esc(note)} That is FPL’s own note, and the ${Math.round(av*100)}% on his card.`);
   }
   if(riskSubject){
     clauses.push(`<b>${esc(riskSubject.n)}</b> carries no flag at all and we still don’t have him starting: nobody reported that, we modelled it.`);
   }
   const both=!!(flagSubject && riskSubject);
+  /* The riskSubject-only headline used to read "...and nobody said why", which lands as
+     "you were not told" -- inside a panel that is, at that moment, telling them. Two
+     redrafts were also rejected before this one: "...and nobody else has reported it"
+     implied this product IS a reporter and just got there first, which overstates what it
+     does (it reads and aggregates other people's reporting, it does not break news
+     itself); "No news on one of your fifteen, and the model still doubts him" was accurate
+     but flat.
+
+     ⚠️ THE DECIDING CONSTRAINT ON THIS SLOT IS TYPOGRAPHIC, NOT EDITORIAL, and it is
+     the reason an insider-whisper draft was rejected on 2026-08-22 after being asked for.
+     This headline renders as <span class="t-label warnc"> (see the template below), and
+     .t-label is var(--mono) at 10px, weight 500, letter-spacing .1em, TEXT-TRANSFORM:
+     UPPERCASE. So "Psst… we have reason to doubt one of your fifteen starts" does not
+     ship as a lowered voice; it ships as "PSST… WE HAVE REASON TO DOUBT…" in the same
+     10px letterspaced mono caps as MINUTES and FORMATION, and reads as a machine emitting
+     a field called PSST. A slot with no lowercase cannot carry a lowered voice: any copy
+     whose effect depends on TONE loses that effect here, so copy for this slot has to do
+     its work through CONTENT. Check a slot's type role before writing for it.
+
+     The line below keeps the insider feeling that way instead: "isn't flagged" is what
+     everyone else can see, "we doubt he starts" is what only this tool is saying. It also
+     survives uppercase, and it makes no comparison to anyone -- which is what both
+     rejected drafts got wrong.
+
+     ⚠️ "isn't flagged" replaced "looks fine" on the owner's instruction, 2026-08-22, and
+     the difference is not stylistic. THIS ROW'S TRIGGER IS THE ABSENCE OF AN FPL FLAG --
+     flaggedRows() must find nobody with availability < 1 for the else branch to be
+     reached at all -- so "isn't flagged" states the actual precondition, while "looks
+     fine" was the tool volunteering a judgement about a player it is in the same breath
+     doubting. It also now says exactly what the body clause below says ("carries no flag
+     at all"), where the previous wording said something adjacent to it.
+
+     Kept as one string in one ternary branch on purpose, so it stays a one-line swap --
+     do not spread it across a template or split it into fragments. Whoever swaps it must
+     still satisfy the constraints that are properties of the SITUATION, not of this
+     wording, and survive any future redraft too:
+       1. No claim about who reports -- this product reads team news, it does not break it.
+          Both earlier drafts above were rejected on exactly this ground.
+       2. No promise of a notification or alert (see commit 69ac868 and pressPanelHtml's
+          own comment on the landing-page line it had to fix).
+       3. No specific points figure, rank, or probability -- the model's doubt here is a
+          ROLE BAND (roleNum 3, rotation risk), not a percentage.
+     It should still agree with the body clause below ("nobody reported that, we modelled
+     it"). The two-sentence hard turn is house grammar already ("Pick eleven who'll play.
+     Not eleven who might."), and it is used here deliberately rather than the siblings'
+     comma-and shape: those two join facts that are both true, while this one states a
+     CONTRADICTION, and a full stop is the honest join for that. */
+  /* The flagSubject-only branch used to read "FPL flagged one of your fifteen, and it's
+     more than a stat" -- true, but vaguer than the corner glyph it points at now that the
+     glyph carries the number itself (cardHtml's three-level newsflag, above). This line
+     states the same figure the card does. "We doubt he starts" rather than the owner's
+     "we don't think he starts": chosen for parallelism with the riskSubject-only sibling
+     below, which already ends exactly that way -- a real editorial call, not a
+     transcription, and worth overruling if the owner would rather match the exact words.
+
+     It is a TEMPLATE now, not a literal, so it renders through the SAME `esc(headline)`
+     call every branch of this ternary already goes through (below) -- this file escapes
+     every interpolated value regardless of source, and a rounded percentage is no
+     exception even though it can only ever be digits. Survives uppercase (checked):
+     "LISTED AT 75% FIT. WE DOUBT HE STARTS." is 38 characters, comfortably under the ~60
+     typographic budget the constraint above documents. flagSubject is always 75% by the
+     time it gets here (see its own narrowing comment), but the figure stays computed
+     rather than hardcoded so a future change to that narrowing does not silently mismatch
+     the number it names. */
   const headline=both ? 'Two kinds of bad news, and both are on your fifteen'
-    : flagSubject ? 'FPL flagged one of your fifteen, and it’s more than a stat'
-    : 'The model doubts one of your fifteen, and nobody said why';
+    : flagSubject ? `Listed at ${Math.round(flagSubject.availability*100)}% fit. We doubt he starts.`
+    : 'One of your fifteen isn’t flagged. We doubt he starts.';
   const seeLabel=both ? 'See both on News' : 'See him on News';
   const tail=both ? 'Both are on News' : 'He’s on News';
 
@@ -2333,10 +2496,31 @@ function renderNewsNudge(){
       <button class="btn sm dismiss" type="button" id="nudgeDismiss">Dismiss</button>`;
   }
 
+  /* ⚠️ NO HEDGING HERE, on the owner's instruction, 2026-08-22. This read "Not built yet"
+     / "Still not built" and closed with "We won't catch everything" — three apologies in
+     two lines, next to a COMING SOON badge that already says the only true thing about
+     timing. A reader deciding whether to leave an address does not need the product to
+     talk itself down first.
+     ⚠️ CORRECTED the same day, and the correction is the more useful half. This comment
+     first defended keeping "We won't catch everything" on the News tab, on the grounds
+     that the surface making a claim should qualify it. The owner's answer: the COMING SOON
+     badge IS the caveat, and it should be the only one. The line was standing in three
+     places — here, the News tab header, and twice on the landing page — so one limitation
+     was being made in three wordings across two documents, and a reader met it as three
+     separate things to reconcile. All three were removed.
+     ⚠️ The rule this belongs to, stated by the owner and worth more than this line:
+     DO THE RIGHT THING ONCE, in copy exactly as in code. Saying a fact a second way does
+     not reinforce it; it spends the reader's attention on working out whether the second
+     statement is the same fact or a new one. landing.html already carried this rule in a
+     comment ("The single Coming soon badge at the head of this card is the whole label")
+     and was breaking it on the adjacent line.
+     ⚠️ This is NOT licence to promise a notification. "One email when it lands" is a
+     launch announcement this product can honour; "we'll tell you when your striker is
+     benched" is the per-event promise commit 69ac868 had to remove from landing.html. The
+     difference is whether the sentence can be kept. */
   const govText=nudgeJustAnswered
-    ? 'Still not built. We won’t catch everything.'
-    : 'Not built yet. One email when it lands — after that the heads-up comes to you '+
-      'instead. We won’t catch everything.';
+    ? 'Then the heads-up comes to you.'
+    : 'One email when it lands, then the heads-up comes to you.';
 
   el.innerHTML=`<div class="newsnudge">
     <span class="glyph" aria-hidden="true">!</span>
@@ -2356,7 +2540,56 @@ function renderNewsNudge(){
   const see=document.getElementById('nudgeSeeNews');
   if(see) see.onclick=()=>setView('news');
   const dis=document.getElementById('nudgeDismiss');
-  if(dis) dis.onclick=()=>{ dismissNudge(); renderNewsNudge(); };
+  /* Dismiss is the one interaction on this row that can turn #pitch-newsnudge from
+     present to empty without a save() round-trip (S.armLock etc all end in
+     hydrate()+renderAll(), which already calls renderNewsCallout() below -- this click
+     does not). Pair the call here or the News callout stays hidden, un-shown, until
+     something unrelated re-renders the page. */
+  if(dis) dis.onclick=()=>{ dismissNudge(); renderNewsNudge(); renderNewsCallout(); };
+  if(window.wireGateForms) window.wireGateForms(el);
+}
+
+/* renderNewsCallout decides VISIBILITY the same way it always did -- reading
+   #pitch-newsnudge's own rendered output rather than re-deriving nudgeDismissed()/
+   flagSubject/riskSubject a second time: two news asks on one screen is one too many, and
+   the nudge is the stronger ask because it names a player from THIS fifteen (see THE PITCH
+   NUDGE above) -- so the callout shows only when the nudge has nothing to say.
+
+   It now also BUILDS the markup, on the owner's staging note that a reader who has to leave
+   the pitch to sign up is a reader lost: "Coming soon" + what the thing is (unchanged copy,
+   own comment on the app.html element), then newsAskFootHtml() called DIRECTLY -- the exact
+   function pressPanelHtml calls for the News tab's own panel -- so the ask, its three
+   states, and its wiring are one implementation, not a second copy of the form that can
+   drift from the first. The "See what we've caught" link is separate: its own element,
+   below the form, wired to setView so it reads as a second, distinct affordance rather than
+   a second submit for the ask above it.
+
+   Call it everywhere renderNewsNudge() is called, not only from renderAll(): the nudge can
+   flip from present to empty (Dismiss, arriving on News) or empty to present (a fresh
+   hydrate) at any of those call sites, and a callout that only synced on the next full
+   render would sit visibly wrong until one happened. Also call it whenever the signup or
+   decline state can have changed underneath it (armband:signedup below, and the News tab's
+   own "Not now") -- the callout carries the same ask now, so it owes the same resync.
+   2026-08-22. */
+function renderNewsCallout(){
+  const el=document.getElementById('pitch-newscallout');
+  const nudge=document.getElementById('pitch-newsnudge');
+  if(!el) return;
+  const nudgeShowing=!!(nudge && nudge.innerHTML.trim());
+  el.hidden=nudgeShowing;
+  if(nudgeShowing) return;
+  el.innerHTML=`<div class="nyhead">
+      <span class="pill soon">Coming soon</span>
+      <span class="t-row">A live alerts service for breaking team news.</span>
+    </div>
+    ${newsAskFootHtml()}
+    <button class="btn sm ghost" type="button" id="calloutSeeNews">See what we’ve caught →</button>`;
+  // Scoped to el, not document.getElementById -- see the matching comment where the News
+  // tab's own panel wires the same id.
+  const notNow=el.querySelector('#newsAskNotNow');
+  if(notNow) notNow.onclick=()=>{ declineNewsAsk(); renderNews(); renderNewsCallout(); };
+  const see=el.querySelector('#calloutSeeNews');
+  if(see) see.onclick=()=>setView('news');
   if(window.wireGateForms) window.wireGateForms(el);
 }
 
@@ -2383,6 +2616,7 @@ function setView(v, push){
     // to confirm, only something to stop repeating.
     dismissNudge();
     renderNewsNudge();
+    renderNewsCallout();  // the nudge just went empty -- the callout must be ready to show when the reader goes back to Pitch
   }
   S.view=v;
   VIEWS.forEach(x=> document.getElementById('view-'+x).hidden = x!==v);
@@ -2403,43 +2637,91 @@ addEventListener('hashchange',()=>setView(location.hash.slice(1), false));
 /* ============================================================
    BOOT
    ============================================================ */
-/* Where this fifteen came from, said plainly.
+/* Where this fifteen came from, said plainly -- and, once the import window is open, the
+ * one control for changing it.
  *
  * The opening squad is deliberately varied rather than the model's single best, so a reader
  * looking at it deserves to know which of the two they have -- otherwise the tool appears to
- * be recommending something it is not. */
+ * be recommending something it is not. That was this element's whole job until the import
+ * card grew a second life: "where did this come from" and "how do I change it" turned out to
+ * be one question, not two, so the card that used to live alone on the Players tab now opens
+ * from a button appended right here. Four states, crossed against STATE.import (imp) and the
+ * existing S.saved/S.optimised:
+ *
+ *   !imp.open                      -- unchanged: the three-way text, no button
+ *   open, no entry, not skipped    -- "a suggested fifteen — not yours yet" + Import (primary)
+ *   open, skipped, no entry        -- the three-way text again + Import (ghost)
+ *   open, entry set                -- "imported from FPL team N · GWn" + Change team (ghost)
+ *
+ * The button is appended inside this element rather than placed beside it so the sentence
+ * and its verb can never drift apart at a width where one of them wraps. */
 function renderSquadSource(){
   const el=document.getElementById('squadsource');
   if(!el) return;
-  el.textContent = S.saved ? 'your saved team'
-    : S.optimised ? "our best fifteen"
+  const imp=STATE.import||{};
+  const openingText = S.saved ? 'your saved team'
+    : S.optimised ? 'our best fifteen'
     : 'a strong opening fifteen — press Optimise for the model’s best';
+
+  let text, btnLabel=null, btnClass='ghost';
+  if(!imp.open){
+    text=openingText;
+  } else if(imp.entry){
+    text=`imported from FPL team ${imp.entry} · GW${imp.event}`;
+    btnLabel='Change team';
+  } else if(imp.skipped){
+    text=openingText;
+    btnLabel='Import your team';
+  } else {
+    text='a suggested fifteen — not yours yet';
+    btnLabel='Import your team'; btnClass='primary';
+  }
+
+  el.innerHTML = esc(text) + (btnLabel
+    ? ` <button class="btn sm ${btnClass}" id="squadSourceAction">${esc(btnLabel)}</button>`
+    : '');
+  const actionBtn=document.getElementById('squadSourceAction');
+  if(actionBtn) actionBtn.onclick=()=>openImportCard();
+
   const opt=document.getElementById('optimise');
   if(opt) opt.disabled = !!S.optimised && !S.saved;
 }
 
-/* renderHouseTeam draws the identity strip above the score bug from STATE.house_team, the
+/* renderResultsStrip draws the identity strip above the score bug from STATE.results, the
    site's own FPL squad (config.EntryID) run through the identical pipeline as the
    reader's -- context for whose pitch this is, nothing else. Absent means EntryID is unset
    or the fetch failed this request -- the element is then left empty rather than shown
    half-filled, the same honest-absence rule the rest of this file follows for a missing
-   Effect or a missing fixture. */
-function renderHouseTeam(){
+   Effect or a missing fixture.
+
+   In practice STATE.results is always absent here: buildState (this page's own
+   document) deliberately never sets Entry/History, so this function only ever
+   runs its `if(!h)` branch — see buildState's own comment. Kept rather than deleted so a
+   future caller that DOES wire the fetch in gets a strip that already matches team.js's,
+   not a second implementation to keep in sync.
+
+   No projected-score cell: that used to read h.current_event/h.current_projected, both
+   removed from the viewmodel contract in the /armband-team redesign (see
+   viewmodel.Results's own comment — CurrentEvent came from the rail's Current gameweek
+   while everything else on a house-team strip comes from latestClosedEvent, routinely a
+   different week). This page already draws this squad's own projection in the score bug
+   directly below, so the cell was a second, sometimes-wrong copy of a number already on
+   screen — removing it removes both the bug and the redundancy. */
+function renderResultsStrip(){
   const el=document.getElementById('houseteam');
   if(!el) return;
-  const h=STATE.house_team;
+  const h=STATE.results;
   if(!h){ el.innerHTML=''; return; }
   const hist=h.history||[];
   const last=hist.length ? hist[hist.length-1] : null;
   el.innerHTML=`<div class="houseteamrow">
     <span class="htbadge">FPL Armband</span>
     ${last ? `<span class="htstat"><span class="v">${last.points}</span><span class="k">GW${last.event} actual</span></span>` : ''}
-    ${h.current_event ? `<span class="htstat"><span class="v acc">${(+h.current_projected).toFixed(1)}</span><span class="k">GW${h.current_event} projected</span></span>` : ''}
     ${h.overall_rank ? `<span class="htstat"><span class="v">${(+h.overall_rank).toLocaleString()}</span><span class="k">Overall rank</span></span>` : ''}
   </div>`;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderHouseTeam();}
+function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderNewsCallout();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderResultsStrip();}
 
 /* boot fetches the state and draws once.
 
@@ -2518,22 +2800,107 @@ if(resetBtn) resetBtn.onclick=()=>{
   });
 };
 
-/* Import card: wire up the import and skip buttons */
+/* Import panel: wire up the submit button and the Team ID field. The other button --
+ * Start fresh instead / Cancel, depending on state -- is wired by renderImportCard()
+ * itself, below, because which function it calls is part of what makes the two states
+ * different, not a fixed handler the states share. */
 const importSubmitBtn=document.getElementById('importSubmit');
-const importSkipBtn=document.getElementById('importSkip');
 const importTeamIdInput=document.getElementById('importTeamId');
 const importErrorDiv=document.getElementById('importError');
 
 if(importSubmitBtn){
   importSubmitBtn.onclick=()=>importTeam();
 }
-if(importSkipBtn){
-  importSkipBtn.onclick=()=>skipImport();
-}
 if(importTeamIdInput){
   importTeamIdInput.addEventListener('keypress', e=>{
     if(e.key==='Enter') importTeam();
   });
+}
+
+/* renderImportCard draws the panel's two states, keyed on whether an entry is already on
+ * record -- not on imp.skipped, so the "Import your team" ghost button on #squadsource
+ * (offered again after a skip) reopens the ordinary first-run copy rather than inventing a
+ * third state nobody designed.
+ *
+ * Change team drops "Start fresh instead" on purpose. Once an entry exists, "fresh" has two
+ * readings -- forget the link but keep this fifteen, or throw the squad away and go back to
+ * the model's optimum -- and a button that could mean either is worse than no button. The
+ * reader already has both actions unambiguously available: type a different Team ID, or
+ * edit the squad by hand on the pitch right there. The import is not a lock: imp.entry only
+ * records provenance, the fifteen itself is session-stored player codes and freely editable
+ * afterwards, and nothing re-imports on reload -- so there is nothing here to "escape". */
+function renderImportCard(imp){
+  const heading=document.getElementById('importHeading');
+  const submit=document.getElementById('importSubmit');
+  const cancel=document.getElementById('importSkip');
+  const input=document.getElementById('importTeamId');
+  const reassure=document.getElementById('importReassure');
+  if(!heading||!submit||!cancel||!input) return;
+  if(imp.entry){
+    heading.textContent='Change team';
+    submit.textContent='Switch to this team';
+    cancel.textContent='Cancel';
+    cancel.classList.add('ghost');
+    cancel.onclick=()=>closeImportCard();
+    input.value=imp.entry;
+    /* No reassurance line here: it exists to state that dismissing is undoable, and this
+       state was never dismissed to reach -- it opened from #squadsource's own permanent
+       "Change team" button, whose presence already proves it comes back. */
+    if(reassure) reassure.hidden=true;
+  } else {
+    heading.textContent='Already picked your team?';
+    submit.textContent='Import my team';
+    /* "Not now", not "Start fresh instead" -- see the comment on this button in app.html.
+       skipImport() is unchanged underneath; only the word changed. */
+    cancel.textContent='Not now';
+    cancel.classList.remove('ghost');
+    cancel.onclick=()=>skipImport();
+    input.value='';
+    if(reassure) reassure.hidden=false;
+  }
+}
+
+/* importPanelOpenedByReader records that the READER, not hydrate()'s own auto-open rule,
+ * is why this panel is on screen right now -- set by openImportCard(), cleared by
+ * closeImportCard(). It exists for exactly one bug, found 2026-08-22: a reader who
+ * dismisses the first-run offer ("Not now" -> skipImport() -> imp.skipped=true), then
+ * presses the "Import your team" ghost button on #squadsource to reopen it, was watching
+ * the panel slam shut the instant anything else round-tripped through hydrate -- locking a
+ * player, dragging the bench, toggling a chip -- because hydrate's closing clause read
+ * `imp.skipped` alone, and imp.skipped stays true forever once set. This flag is the
+ * difference between "the reader dismissed the panel" and "the reader is using the panel
+ * they just reopened despite having dismissed it once before". See hydrate()'s own comment
+ * for the other half of the fix. */
+let importPanelOpenedByReader=false;
+
+/* openImportCard is #squadsource's action button's whole job: draw whichever state
+ * applies right now and show the panel. Only the "change team" state also focuses and
+ * selects the field -- first run has nothing worth pre-selecting, and stealing focus on
+ * its own auto-open (handled in hydrate(), not here) would yank the page down to the
+ * pitch the instant it loads. */
+function openImportCard(){
+  const card=document.getElementById('importCard');
+  if(!card) return;
+  const imp=STATE.import||{};
+  renderImportCard(imp);
+  card.hidden=false;
+  importPanelOpenedByReader=true;
+  if(imp.entry){
+    const input=document.getElementById('importTeamId');
+    if(input){ input.focus(); input.select(); }
+  }
+}
+
+/* closeImportCard is Cancel's entire job in the "change team" state: hide the panel,
+ * clear any stale error from a previous attempt, change nothing else. No save, no
+ * mutation -- PENDING and the server are never touched. It is also importTeam()'s success
+ * path (both states) and the one place importPanelOpenedByReader is cleared, so a panel
+ * closed for any reason stops overriding hydrate's imp.skipped check. */
+function closeImportCard(){
+  const card=document.getElementById('importCard');
+  if(card) card.hidden=true;
+  if(importErrorDiv) importErrorDiv.style.display='none';
+  importPanelOpenedByReader=false;
 }
 
 function importTeam(){
@@ -2564,12 +2931,22 @@ function importTeam(){
     .then(st=>{
       hydrate(st);
       renderAll();
-      document.getElementById('importCard').hidden=true;
+      /* hydrate's own auto-open rule never re-closes this: imp.entry is set the instant
+         this response lands, which is exactly the state that rule leaves alone (see its
+         comment). Whichever job the panel was open for -- first import or a change -- is
+         done, so close it here, directly. */
+      closeImportCard();
       const eventNum=st.import?.event||'your';
       notify(`Imported your Gameweek ${eventNum} fifteen.`);
     })
     .catch(err=>{
       showImportError(err.message);
+    })
+    .finally(()=>{
+      /* Runs on both paths, unlike the old success/failure split: on failure the reader
+         needs the button back to retry, and on success renderImportCard() will overwrite
+         this label the next time the panel opens anyway, so there is nothing to protect by
+         treating the two paths differently. */
       importSubmitBtn.disabled=false;
       importSubmitBtn.textContent=originalLabel;
     });
@@ -2582,7 +2959,19 @@ function skipImport(){
      locks, excludes, dismissed overrides and chip placements the reader already has, and
      saveSession would store their absence as "gone" rather than "unchanged". sendSave's own
      hydrate(st) call hides the card once the server confirms noimp stuck; it must not be
-     hidden here first, or a failed save would still look like it took. */
+     hidden here first, or a failed save would still look like it took.
+
+     ⚠️ importPanelOpenedByReader must be cleared HERE, not left to closeImportCard(). Found
+     2026-08-22: #squadsource's action button calls openImportCard() in every state it
+     offers, including the first-run one where hydrate() has already auto-opened the panel --
+     so pressing it there (redundant on screen, but nothing stops it) sets the flag before
+     "Not now" is ever pressed. hydrate()'s closing clause is
+     `!imp.open || (imp.skipped && !importPanelOpenedByReader)`, and with the flag left set
+     that clause never fires: the save lands, imp.skipped goes true, and the panel stays
+     open. "Not now" is a deliberate dismissal and must beat the flag, since dismissing IS
+     the reader closing it -- pinned by
+     TestNotNowClosesThePanelEvenAfterTheReaderReopenedIt. */
+  importPanelOpenedByReader=false;
   save(p=>{ p.noimp=true; });
 }
 
@@ -2851,7 +3240,9 @@ function pickerRowBuy(p,t){
       title="${clears?'clears':'below'} the +${gateOf().toFixed(2)} gate"></span></span>
     <span class="n"><b>${esc(p.n)}</b><span class="club">${esc(p.club)}</span>
       <span class="pill xi">${xiTag}</span>
-      ${av===0?`<span class="pill bad">ruled out</span>`:av<1?`<span class="pill warn">${Math.round(av*100)}% fit</span>`:''}</span>
+      ${av===0?`<span class="pill bad">ruled out</span>`
+        :av<1&&av>0.5?`<span class="pill doubt">${Math.round(av*100)}% fit</span>`
+        :av<1?`<span class="pill warn">${Math.round(av*100)}% fit</span>`:''}</span>
     <span class="m">sells £${sellPriceOf(p).toFixed(1)}m ${roleChip(p.role,true)}
       ${gap<0?`<span class="short">needs +£${Math.abs(gap).toFixed(1)}m</span>`:''}</span>
     <span class="x"><b class="xp">${p.xp.toFixed(2)}</b>

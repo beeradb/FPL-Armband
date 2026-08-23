@@ -74,6 +74,21 @@ func TestWriteTheEdgesFixture(t *testing.T) {
 	st.Squad.Players[1].News = "Knee injury — expected back mid-October. Assessed at 25% for this round."
 	st.Squad.Players[1].Role = "fringe"
 
+	// The other two doubt levels FPL's scale carries, so a single fixture draws all THREE
+	// newsflag colours at once (2026-08-22): --flag-doubt at 75%, --warn at 25% -- 50% is
+	// the same colour as 25% (cardHtml treats 50% and 25% as one severity, per the design
+	// record), so a fourth player at 50% would add nothing new to the shot. XP is scaled by
+	// the new availability, same as the ruled-out player above -- these two started at
+	// availability 1, so the factor IS the new value.
+	st.Squad.Players[4].Availability = 0.75
+	st.Squad.Players[4].XP *= 0.75
+	st.Squad.Players[4].Status = "d"
+	st.Squad.Players[4].News = "Knock in training — assessed fit, but a late call."
+	st.Squad.Players[6].Availability = 0.25
+	st.Squad.Players[6].XP *= 0.25
+	st.Squad.Players[6].Status = "d"
+	st.Squad.Players[6].News = "Groin strain — touch and go, expected to be assessed on the day."
+
 	// A name with nowhere to go on a 68px card.
 	st.Squad.Players[2].Name = "Højbjerg-Şahin"
 	st.Squad.Players[3].Name = "Alexander-Arnold Fernández"

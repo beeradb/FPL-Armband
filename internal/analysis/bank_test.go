@@ -16,6 +16,23 @@ import "testing"
 // and the best move available must never get worse as the bank grows.
 func TestBankIsSpentAndNeverExceeded(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	// ⚠️ ADDED 2026-08-22, after this test failed on origin/main for two days without
+	// anyone owning it. roleEngine deliberately omits this guard — datawindow_test.go's
+	// own callers override the engine's state immediately afterwards, so for them the
+	// live window cannot bite. THIS test does not override, so it was exposed, and it is
+	// the only one of the thirteen guard sites that was missing.
+	//
+	// Inside the GW1 gap (SeasonHasStarted, GameweeksPlayed still 0) some clubs report
+	// fresh-season zeros while others still carry last season's totals IN THE SAME LIVE
+	// FETCH, so el.Minutes means two different things at once and a £95m squad finds no
+	// improving swap at any bank. Observed: 0 swaps at £0m, £1m, £2m and £5m alike.
+	//
+	// ⚠️ THE SERVED SITE IS NOT AFFECTED, and that was checked rather than assumed:
+	// cmd/armband wires internal/priors, which reads a fresh-season zero as "no evidence
+	// yet" instead of "scores zero". This package cannot do the same — priors imports
+	// analysis, so the reverse is a cycle. Confirmed against the live deployment while
+	// this was failing: the market carried 582 rows and a full fifteen.
+	skipDuringLiveGW1Gap(t, e)
 	// £95m, so £5m is genuinely spare rather than already committed. An
 	// optimal £100m squad has nothing to buy and would prove nothing.
 	sq, err := e.Optimize(OptimizeRequest{

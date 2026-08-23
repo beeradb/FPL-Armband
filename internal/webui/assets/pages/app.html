@@ -69,8 +69,12 @@
     <button data-view="news"     aria-selected="false">News <span class="c" id="newsCount" hidden></span></button>
     <!-- A real link, not a data-view: /armband-team is its own document (team.html),
          deliberately never a tab this SPA switches into -- see armband.css's note on
-         .navlink and cmd/armband/webroutes.go's routeArmbandTeam comment for why. -->
-    <a class="navlink" href="/armband-team">Our team →</a>
+         .navlink and cmd/armband/webroutes.go's routeArmbandTeam comment for why.
+
+         "FPL Armband's Team", not "Our team": once a reader has imported their own squad
+         onto this same screen, "our" reads as ambiguous -- their team, or the site's? The
+         brand possessive says whose. Owner review of `61388151`, 2026-08-22. -->
+    <a class="navlink" href="/armband-team">FPL Armband’s Team →</a>
   </div>
 </nav>
 
@@ -96,6 +100,81 @@
   <div class="chipscrim" id="chipscrim"></div>
 
   <div class="pitchgrid">
+  <div class="pitchcol">
+
+    <!-- Provenance row: where the fifteen came from, and the one action to change it. Lives
+         on the page ground (--panel), not on .pitchwrap's turf below -- a control reading as
+         pitch furniture is a control nobody presses. Moved off the turf 2026-08-22: it had
+         been sized down to 24px/11.5px specifically so it would stop competing with Optimise
+         in the HUD, which worked but left the first-run "Import your team" button -- the
+         primary action on an unimported screen -- too quiet to notice. Off the green is the
+         structural fix; the size restore below only works because of it. -->
+    <div class="squadsource dim" id="squadsource"></div>
+
+    <!-- Import panel: the thing #squadsource's one action button opens. It used to be a
+         card that only ever showed once, stranded on the Players tab where nobody browsing
+         the market was thinking about provenance. It lives here now because "where did this
+         fifteen come from" and "how do I change it" are one question, and #squadsource is
+         where the first half already gets answered -- see that element's own comment. One
+         panel, two states, both drawn by renderImportCard() in app.js: first-run (no entry
+         imported yet, whether or not the reader has skipped) and "change team" (an entry is
+         already on record). hydrate() auto-opens it for first-run only; every other opening
+         goes through openImportCard(), which #squadsource's button calls.
+
+         ⚠️ `hidden` HERE IS LOAD-BEARING, and it was not needed before 2026-08-22.
+         The old hydrate() closed this element on every render unless it was offering a
+         first-run import (`if(!imp.open || imp.skipped || imp.entry) card.hidden=true`),
+         so the markup's starting state was overwritten before anyone saw it. hydrate()
+         now deliberately leaves the panel ALONE in the entry-set case, so that an
+         unrelated save mid-edit cannot yank a "Change team" panel shut -- which means
+         nothing closes it on first paint, and without this attribute a reader who has
+         already imported lands on the pitch with the panel hanging open showing the
+         first-run copy. Caught by the import-imported golden, which is the shot that
+         exists because this feature had none. Closed is the default; opening is always
+         something a reader or hydrate() asks for. -->
+    <div class="importcard" id="importCard" hidden>
+      <div class="panel" style="padding:14px 13px">
+        <h3 id="importHeading" style="margin:0 0 8px 0;font-size:15px;font-weight:600;color:var(--ink)">Already picked your team?</h3>
+        <p style="margin:0 0 12px 0;font-size:13px;color:var(--ink2);line-height:1.5">Pull in your real fifteen and plan Gameweek <span id="importNextGw">—</span> from where you actually are.</p>
+
+        <label style="display:block;margin-bottom:10px">
+          <span style="display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--label);margin-bottom:6px">Your FPL Team ID</span>
+          <input type="text" id="importTeamId" placeholder="1234567" inputmode="numeric" autocomplete="off" spellcheck="false" style="width:100%;padding:8px 10px;border-radius:var(--r-sm);background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-size:13px;font-family:var(--mono)">
+        </label>
+
+        <details style="margin-bottom:10px;font-size:12px;color:var(--ink3)">
+          <summary style="cursor:pointer;color:var(--ink2);margin-bottom:6px">Where do I find it?</summary>
+          <div style="padding:8px;background:var(--panel2);border-radius:var(--r-sm);line-height:1.6">
+            <p style="margin:0 0 6px 0">On the FPL site, open <strong>Points</strong>. Your Team ID is the number in the address bar between <code style="font-family:var(--mono);font-size:11px;color:var(--ink);">/entry/</code> and <code style="font-family:var(--mono);font-size:11px;color:var(--ink);">/event/</code>:</p>
+            <p style="margin:0;font-family:var(--mono);font-size:11px;color:var(--ink3);word-break:break-all"><code>fantasy.premierleague.com/entry/<strong style="color:var(--ink)">1234567</strong>/event/<span id="importExampleGw">—</span></code></p>
+            <p style="margin:6px 0 0 0">Paste the whole address if that's easier — we'll pull the number out.</p>
+          </div>
+        </details>
+
+        <p style="margin:0 0 12px 0;font-size:12px;color:var(--ink3)">A Team ID is public and it is not a login. We will never ask for your FPL password.</p>
+
+        <div id="importError" style="display:none;padding:8px 10px;margin-bottom:10px;background:var(--bad-lo);border:1px solid #7A4A5A;border-radius:var(--r-sm);color:var(--bad);font-size:12px"></div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="importSubmit" class="btn primary sm" style="flex:1;min-width:120px">Import my team</button>
+          <!-- Label, class and handler are all rewritten by renderImportCard(): "Not now"
+               (plain) on first run, "Cancel" (.ghost) once an entry exists -- see
+               renderImportCard()'s comment for why the two states need different words and
+               different weight, not just different words. "Not now" replaced "Start fresh
+               instead" 2026-08-22: the old label read as a squad-building choice, not as a
+               way out, so a reader scanning for a dismissal did not find one. -->
+          <button id="importSkip" class="btn sm" style="flex:1;min-width:120px">Not now</button>
+        </div>
+        <!-- Reversibility has to be STATED, not merely available -- shown only in the
+             first-run state (renderImportCard() toggles `hidden`). Without this line a
+             reader has to guess that "Not now" is undoable, and the safe guess is to leave
+             the panel sitting there rather than risk losing the offer. The "Change team"
+             state needs no such reassurance: it is reopened from a permanent button on
+             #squadsource, so its own presence already proves it comes back. 2026-08-22. -->
+        <p id="importReassure" style="margin:8px 0 0 0;font-size:12px;color:var(--ink3)">You can import any time — the button stays on the pitch.</p>
+      </div>
+    </div>
+
   <div class="pitchwrap">
     <div class="pitchhud" id="pitchhud">
       <span class="k">Formation</span>
@@ -141,8 +220,6 @@
          NUDGE_DISMISSED_KEY's comment for why those three writers share one key. -->
     <div id="pitch-newsnudge"></div>
 
-    <div class="squadsource dim" id="squadsource"></div>
-
     <div class="pitch" id="pitch">
       <div class="sixyard"></div><div class="spot"></div>
       <div class="line" data-pos="GKP"></div>
@@ -169,14 +246,48 @@
       </div>
       <div class="benchrow" id="benchrow"></div>
     </div>
-  </div>
+  </div><!-- /pitchwrap -->
+  </div><!-- /pitchcol -->
 
   <div class="pitchside">
+  <!-- News callout: the SECOND mount of the one signup ask, plus a plain pointer to the
+       News tab -- not a third capture. Staging review, 2026-08-22, the owner's own words:
+       "we need to collect emails right on that page... We will lose people if we make them
+       bounce around." Before this it was a pointer only, on the reasoning that
+       #pitch-newsnudge (above the pitch) already asks and a third ask here would be one too
+       many -- that reasoning still holds, which is why this callout still cedes to the
+       nudge (renderNewsCallout() hides this whenever #pitch-newsnudge has drawn something)
+       rather than the two ever showing together. What changed is that THIS mount, not the
+       nudge, is now the one that asks when the nudge has nothing to say -- so a reader who
+       never triggers the nudge (nothing flagged or doubtful on their fifteen) is no longer
+       sent to another tab just to leave an address.
+
+       Built entirely by renderNewsCallout() (app.js) -- this element ships empty. It calls
+       newsAskFootHtml() directly, the SAME function the News tab's own panel calls
+       (pressPanelHtml), so the ask, its three states (open / just signed up / declined) and
+       its wiring exist in exactly one place, not a copy that can drift from it. The
+       "See what we've caught →" link is the second, separate control this callout still
+       owns -- its own element, worded and placed below the form so it reads as its own
+       affordance, not a second submit for the ask above it.
+
+       Reuses pressPanelHtml's own .notyet/.nyhead/.pill.soon shape (armband.css) rather than
+       inventing a third "coming soon" look -- .pill.soon's own comment there names it the
+       one Coming soon badge, shared by the landing page's later card and the News tab's own
+       press panel, so a callout with a different badge would be exactly the fourth variant
+       that comment rules out.
+
+       Still inside 69ac868's line: "Coming soon" plus what the thing IS, never a promise
+       about a specific event ("we'll tell you when your striker is benched"). The one
+       sentence in the header names no event and commits to no delivery date; the ask below
+       it (newsAskFootHtml's own copy) is about the mechanics of signing up, not a second
+       description of what the service is -- say it once. -->
+  <div class="notyet" id="pitch-newscallout" hidden></div>
+
   <!-- YOUR INSTRUCTIONS: replaces the formations rail. Everything acting on the fifteen
        that a human decided, in the reader's own voice and removable in place. Split into
        what THIS session set (Remove is a real deletion) and what the settings file already
        carries for a player in the squad (Ignore only suppresses it — see News, view-news). -->
-  <div class="why instr" style="margin-top:0">
+  <div class="why instr">
     <h3>Your instructions <span class="dim" id="instrCount"></span></h3>
     <div id="instrbody"></div>
   </div>
@@ -209,37 +320,6 @@
     <b style="color:var(--ink)">Gain is the comparison a transfer actually has to win</b> — the gap to the
     <em>weakest starter you already own in that position</em>, not a league rank.
     <span class="dim" id="benchLegend"></span>
-  </div>
-
-  <!-- Import card: dismissible initial offer to import a team by ID -->
-  <div class="importcard" id="importCard">
-    <div class="panel" style="padding:14px 13px">
-      <h3 style="margin:0 0 8px 0;font-size:15px;font-weight:600;color:var(--ink)">Already picked your team?</h3>
-      <p style="margin:0 0 12px 0;font-size:13px;color:var(--ink2);line-height:1.5">Pull in your real fifteen and plan Gameweek <span id="importNextGw">—</span> from where you actually are.</p>
-
-      <label style="display:block;margin-bottom:10px">
-        <span style="display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--label);margin-bottom:6px">Your FPL Team ID</span>
-        <input type="text" id="importTeamId" placeholder="1234567" inputmode="numeric" autocomplete="off" spellcheck="false" style="width:100%;padding:8px 10px;border-radius:var(--r-sm);background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-size:13px;font-family:var(--mono)">
-      </label>
-
-      <details style="margin-bottom:10px;font-size:12px;color:var(--ink3)">
-        <summary style="cursor:pointer;color:var(--ink2);margin-bottom:6px">Where do I find it?</summary>
-        <div style="padding:8px;background:var(--panel2);border-radius:var(--r-sm);line-height:1.6">
-          <p style="margin:0 0 6px 0">On the FPL site, open <strong>Points</strong>. Your Team ID is the number in the address bar between <code style="font-family:var(--mono);font-size:11px;color:var(--ink);">/entry/</code> and <code style="font-family:var(--mono);font-size:11px;color:var(--ink);">/event/</code>:</p>
-          <p style="margin:0;font-family:var(--mono);font-size:11px;color:var(--ink3);word-break:break-all"><code>fantasy.premierleague.com/entry/<strong style="color:var(--ink)">1234567</strong>/event/<span id="importExampleGw">—</span></code></p>
-          <p style="margin:6px 0 0 0">Paste the whole address if that's easier — we'll pull the number out.</p>
-        </div>
-      </details>
-
-      <p style="margin:0 0 12px 0;font-size:12px;color:var(--ink3)">A Team ID is public and it is not a login. We will never ask for your FPL password.</p>
-
-      <div id="importError" style="display:none;padding:8px 10px;margin-bottom:10px;background:var(--bad-lo);border:1px solid #7A4A5A;border-radius:var(--r-sm);color:var(--bad);font-size:12px"></div>
-
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="importSubmit" class="btn primary sm" style="flex:1;min-width:120px">Import my team</button>
-        <button id="importSkip" class="btn sm" style="flex:1;min-width:120px">Start fresh instead</button>
-      </div>
-    </div>
   </div>
 
   <div class="toolbar">
@@ -339,8 +419,7 @@
       <p class="t-lede tight">Most weeks nobody you own is injured, and someone still isn’t playing.</p>
       <p class="t-body">We read the football news. When something changes what a player is
         likely to do, we tell the model — with the source and the date — and your numbers
-        move before the deadline. We won't catch everything. What we do catch is below,
-        with where it came from.</p>
+        move before the deadline. What we catch is below, with where it came from.</p>
       <span class="nfresh"><span class="t-meta" id="newsChecked"></span></span>
     </div>
   </div>
@@ -381,9 +460,15 @@
   <!-- A real link to /armband-team's own document, in the tabbar's fourth column --
        reserved since the bar's own grid-template-columns:repeat(4,1fr) predates this,
        from before Brief was removed (see internal/viewmodel/state.go and ROLLOUT.md's
-       note on the stale /app#brief golden). -->
+       note on the stale /app#brief golden).
+
+       "The team", not "Our team" -- same fix as the desktop .navlink (see its own
+       comment), but not the full "FPL Armband's Team": this column is ~85px at the 10px
+       this bar renders at, next to three single-word siblings, and that phrase wraps
+       ungracefully at this width. "The" still drops the possessive that read as the
+       reader's own squad; the destination disambiguates the rest once tapped. -->
   <a href="/armband-team">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/><circle cx="12" cy="11" r="2.4"/></svg>Our team</a>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z"/><circle cx="12" cy="11" r="2.4"/></svg>The team</a>
 </nav>
 
 <!-- ===================== PLAYER SHEET ===================== -->

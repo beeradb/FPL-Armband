@@ -583,13 +583,29 @@ type LiveElement struct {
 // response carries many more fields (BPS, ICT, expected goals...); only what the
 // spectator team page draws is parsed here, matching this package's practice
 // elsewhere of not carrying a field nothing reads.
+//
+// BPS is deliberately NOT one of them, even though the results card renders a bonus
+// figure. Bonus is the settled points FPL has already awarded; a live BPS standing
+// would mean this package grouping every player in a fixture, ranking BPS and handling
+// ties itself -- a second implementation of something FPL already publishes, that can
+// flip between two loads of the same match. The card shows a provisional marker instead
+// once a fixture is underway (see viewmodel.TeamPlayer.Bonus and the client's
+// cardState), never a computed-here bonus standing that could be wrong.
 type LiveStats struct {
 	Minutes               int `json:"minutes"`
+	TotalPoints           int `json:"total_points"`
 	GoalsScored           int `json:"goals_scored"`
 	Assists               int `json:"assists"`
 	CleanSheets           int `json:"clean_sheets"`
+	GoalsConceded         int `json:"goals_conceded"`
 	Saves                 int `json:"saves"`
 	DefensiveContribution int `json:"defensive_contribution"`
+	Bonus                 int `json:"bonus"`
+	YellowCards           int `json:"yellow_cards"`
+	RedCards              int `json:"red_cards"`
+	OwnGoals              int `json:"own_goals"`
+	PenaltiesSaved        int `json:"penalties_saved"`
+	PenaltiesMissed       int `json:"penalties_missed"`
 }
 
 // ByID looks up one player's live stats for this gameweek, nil if he is not in

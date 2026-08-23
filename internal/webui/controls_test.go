@@ -495,6 +495,153 @@ const probeLeftOutUndoClicks = `(function(){
   window.addEventListener('load', clickBlock);
 })();`
 
+// TestNotNowClosesThePanelEvenAfterTheReaderReopenedIt pins the second defect in the import
+// panel's open/close state machine (the first was the panel hanging open on first paint for
+// an already-imported reader, fixed by the `hidden` attribute on #importCard in app.html).
+//
+// # The defect
+//
+// importPanelOpenedByReader is set by openImportCard() and is meant to stop hydrate() from
+// yanking a "Change team" panel shut under an unrelated save while the reader is mid-edit.
+// But #squadsource's own action button calls openImportCard() in EVERY state, including the
+// first-run one where the panel is already open by hydrate()'s own auto-open rule -- so a
+// reader who presses that button even once (redundant while the panel is already showing,
+// but nothing stops it) sets the flag, and nothing ever clears it except closeImportCard().
+// skipImport() does not call closeImportCard() -- it relies on hydrate()'s closing clause,
+// `else if(!imp.open || (imp.skipped && !importPanelOpenedByReader))`, and that clause is
+// suppressed by the same flag. So "Not now" saves imp.skipped=true, the save round-trips,
+// and the panel stays open anyway: a deliberate dismissal loses to a protection meant for an
+// entirely different case.
+//
+// # Why this is a browser test
+//
+// The break is in which of two conditions on a boolean flag wins, entirely in client-side
+// state that a Go test against the endpoint cannot see -- the server-side save behaves
+// correctly throughout (session.ImportSkipped round-trips fine). Only a real click sequence
+// in a real document exercises the flag.
+func TestNotNowClosesThePanelEvenAfterTheReaderReopenedIt(t *testing.T) {
+	browser := browsertest.Find(t)
+
+	base, err := os.ReadFile(filepath.Join("testdata", "state", "import-offered.json"))
+	if err != nil {
+		t.Fatalf("reading the state fixture: %v", err)
+	}
+
+	var mu sync.Mutex
+	skipped := false
+
+	buildDoc := func() []byte {
+		var doc map[string]any
+		if err := json.Unmarshal(base, &doc); err != nil {
+			t.Fatalf("re-parsing the fixture: %v", err)
+		}
+		imp := doc["import"].(map[string]any)
+		imp["skipped"] = skipped
+		out, err := json.Marshal(doc)
+		if err != nil {
+			t.Fatalf("marshalling the fixture: %v", err)
+		}
+		return out
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/assets/", webui.StaticHandler("/assets/"))
+	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		doc := buildDoc()
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(doc)
+	})
+	mux.HandleFunc("/api/session", func(w http.ResponseWriter, r *http.Request) {
+		var got map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		if noimp, _ := got["noimp"].(bool); noimp {
+			skipped = true
+		}
+		doc := buildDoc()
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(doc)
+	})
+	mux.HandleFunc("/probe.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		_, _ = w.Write([]byte(probeNotNowAfterReopen))
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		page, err := webui.Page("app")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		page = append(page, []byte(`<script src="/probe.js"></script>`)...)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(page)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app")
+	report := between(dom, "PROBE:", ":END")
+	if report == "" {
+		t.Fatalf("the probe never reported, so nothing was clicked and this test asserts "+
+			"nothing. DOM was %d bytes", len(dom))
+	}
+	if !strings.HasPrefix(report, "ok ") {
+		t.Fatalf("the probe could not run: %s", report)
+	}
+	if strings.Contains(report, "hidden=false") {
+		t.Fatalf("pressing \"Not now\" after the reader had pressed #squadsource's own "+
+			"action button (which the panel's first-run state also offers) left the import "+
+			"panel open. Probe: %s -- \"Not now\" is a deliberate dismissal and must beat "+
+			"importPanelOpenedByReader, the protection meant for a reopened \"Change team\" "+
+			"panel, not a first-run one that was already showing.", report)
+	}
+}
+
+// probeNotNowAfterReopen drives #squadsource's action button (setting
+// importPanelOpenedByReader, exactly as pressing it in the already-open first-run state
+// does) and then "Not now", and reports whether the import panel is hidden once the save
+// has round-tripped.
+const probeNotNowAfterReopen = `(function(){
+  function report(msg){
+    var el=document.createElement('div');
+    el.id='probe';
+    el.textContent='PROBE:'+msg+':END';
+    document.body.appendChild(el);
+  }
+  var tries=0;
+  function clickReopen(){
+    var btn=document.getElementById('squadSourceAction');
+    if(!btn){
+      if(++tries>100){ report('no squadsource action button after '+tries+' tries'); return; }
+      setTimeout(clickReopen,50); return;
+    }
+    btn.click();
+    setTimeout(clickNotNow, 100);
+  }
+  var tries2=0;
+  function clickNotNow(){
+    var btn=document.getElementById('importSkip');
+    if(!btn){
+      if(++tries2>100){ report('no importSkip button after '+tries2+' tries'); return; }
+      setTimeout(clickNotNow,50); return;
+    }
+    btn.click();
+    setTimeout(checkHidden, 600);
+  }
+  function checkHidden(){
+    var card=document.getElementById('importCard');
+    if(!card){ report('no importCard element'); return; }
+    report('ok hidden='+card.hidden);
+  }
+  window.addEventListener('load', clickReopen);
+})();`
+
 // probeMarketRowClicks drives the Lock in and Leave out controls on a market row and reports
 // what it managed to do. It waits for the players panel to load before clicking.
 const probeMarketRowClicks = `(function(){
