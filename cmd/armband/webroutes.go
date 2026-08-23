@@ -109,7 +109,7 @@ const (
 // whose own policy blocks its only control.
 const signupOrigin = "https://fplarmband.com"
 
-// connectSrcFor is the one directive that differs between the two documents.
+// connectSrcFor is the one directive that differs between landing and every other page.
 //
 // The landing page needs to reach signupOrigin, because its gate posts there from wherever
 // the page is served. The APPLICATION does not, and must not: /app is the page that renders
@@ -118,8 +118,9 @@ const signupOrigin = "https://fplarmband.com"
 // anywhere. Widening it there to save a branch here would trade the guarantee that matters
 // for the page that does not need it.
 //
-// Two documents, two policies, and the difference is one entry on one directive. If a third
-// document ever appears, this stops being a switch and starts being a table.
+// Two policies — landing and everything else — and the difference is one entry on one
+// directive. The branch stays two-way no matter how many pages exist, because it keys on
+// page == "landing", not on an enumerated list of documents.
 //
 // ⚠️ THE FPL API CANNOT BE ADDED HERE, AND THE REASON IS NOT THE ONE ABOVE. The paragraph
 // above is an XSS argument, which invites the reading that a sufficiently careful case

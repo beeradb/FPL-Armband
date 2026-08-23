@@ -216,7 +216,7 @@ and names neither the player nor the field.
 
 ### `internal/webui`
 
-The client application — three documents, the design system and self-hosted font subsets —
+The client application — one document per page, the design system and self-hosted font subsets —
 compiled into the binary with `//go:embed`.
 
 Embedded rather than read from disk because a Wails build has no directory to read from and
@@ -228,14 +228,16 @@ blank page in front of a reader.
 everything they reference, under `/assets/`. The split is what stops the application having
 two front doors.
 
-The three are `app.html` (the planner), `landing.html` (the marketing document) and
-`team.html` (the house team at `/armband-team`, ungated for the same reason the landing page
-is — proof of use is a marketing surface). ⚠️ **Three documents, but only two policies:** the
-split below is `landing` against everything else, so `team.html` takes the application's
-stricter directives, not the landing page's. ⚠️ `webroutes.go:109` still says *"If a third
-document ever appears, this stops being a switch and starts being a table."* A third document
-has appeared and it is still a switch — recorded here as the trap that leaves, not as a
-ratification of it.
+Current pages: `app.html` (the planner), `landing.html` (the marketing document), `team.html`
+(the house team at `/armband-team`, ungated for the same reason the landing page is — proof of
+use is a marketing surface) and `wildcard.html` (the wildcard/free-hit planner at `/wildcard`,
+paired with `team.html` rather than folded into the interactive builder). This list grows;
+whatever it names next inherits the split below without needing to change it. ⚠️ **The
+invariant is the policy split, not the page count:** the split is `landing` against everything
+else, so every non-landing page — `team.html`, `wildcard.html`, whatever comes after — takes the
+application's stricter directives, not the landing page's. See `connectSrcFor`'s doc comment in
+`cmd/armband/webroutes.go` for how that split stays a two-way switch as pages are added, rather
+than a table keyed on how many there are.
 
 They carry two different Content-Security-Policy directives, on purpose:
 the application (served at `/`, the front door) renders FPL's prose and player names by
