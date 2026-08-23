@@ -2668,14 +2668,15 @@ function renderBackstory(){
    third definition of "worth mentioning": its two subjects come from flaggedRows() and
    riskRows(), the exact functions the News tab itself draws from.
 
-   The risk subject narrows riskRows() further, to rotation risk (roleNum 3) alone --
-   NOT the "rotation risk or worse" (3/4/5) that riskRows() itself returns for the News
-   tab's neutral list. "The model doubts him and nobody said why" is a claim of surprise:
-   true of a genuine rotation risk, false of a player who is already squad depth or fringe
-   (4/5), where nobody expected a start in the first place and the copy just states the
-   obvious in an alarmed voice. See the reported case: Woodman, an obvious backup, fell
-   through to fringe (5) here with no rotation-risk (3) player present, and the row said
-   "the model doubts him" about a player nobody was surprised by.
+   Both subjects narrow further, to Nailed/Likely Starter (roleNum <= 2) -- NOT the
+   "rotation risk or worse" (3/4/5) that riskRows() itself returns for the News tab's
+   neutral list. Both a flag and a quiet model doubt are claims of SURPRISE: true of a
+   player who reads as a safe start, false of one whose own role chip already says
+   rotation risk, squad or fringe, where nobody expected a start in the first place and
+   the row would just be restating the card in an alarmed voice. See renderNewsNudge's
+   own comment on flagSubject/riskSubject for the two incidents (Woodman, then Slater)
+   that found this the hard way, and for riskSubject's own reasoning behind Likely
+   Starter (roleNum 2) exactly rather than Nailed too.
    ============================================================ */
 
 /* NUDGE_DISMISSED_KEY has THREE writers, all asserting the same fact -- this reader has
@@ -2706,25 +2707,43 @@ function renderNewsNudge(){
   if(nudgeDismissed() && !nudgeJustAnswered){ el.innerHTML=''; return; }
 
   // The two subjects, chosen by the two functions the News tab itself uses -- no third
-  // definition of "worth mentioning" is introduced here. riskSubject additionally requires
-  // roleNum(p.role)===3 -- rotation risk only, never squad (4) or fringe (5): see the
-  // comment on THE PITCH NUDGE above.
+  // definition of "worth mentioning" is introduced here. Both are additionally narrowed to
+  // roleNum(p.role)<=2 -- Nailed or Likely Starter, never rotation risk/squad/fringe (3-5)
+  // -- because BOTH subjects are claims of SURPRISE: "this looked like a safe pick, and
+  // here is a doubt about it nobody's card already shows." A rotation-risk, squad or
+  // fringe player's OWN role chip already says he might not start; a flag or a nudge on
+  // top of that repeats the card rather than adding to it. Confirmed by the owner,
+  // 2026-08-23, after Slater (£4.5m HUL bench MID, role "rotation risk" at 57 expected
+  // minutes, no flag) triggered the old roleNum===3 version the same way Woodman
+  // (roleNum 5) had triggered an even earlier one -- both correctly-modelled
+  // uncertainties on players nobody was surprised by, because nobody expected either to
+  // start in the first place. An XI-only fix was tried first and reverted same-day: the
+  // player's ROLE is the direct signal for "would a reader expect him to start", where
+  // XI/bench membership is a proxy for it that a nailed, low-price enabler can still slip
+  // through (or a genuine rotation-risk XI pick could wrongly pass).
   //
-  // flagSubject narrows further than flaggedRows() itself does: FPL's own 50%-or-below
-  // reading is "he definitely will not start" -- the card already says so plainly, in
-  // orange or red (cardHtml's three-level newsflag) -- so claiming it here as a heads-up
-  // oversells what this row knows. Per the owner, 2026-08-22: "anything 50% or below is
-  // basically FPL saying they definitely won't start. so no need to specially flag that as
-  // if we're giving them extra info." On FPL's 100/75/50/25/0 scale that leaves exactly
-  // ONE value this can ever match -- 75%, the one genuinely ambiguous reading. Do NOT
-  // widen this back to `<1` "for completeness": completeness is what oversold it before.
-  // flaggedRows() itself is UNCHANGED and still returns every one of these players -- this
-  // narrows the nudge's own subject only, never the News tab's flagged group or the nav
-  // badge count that reads it (see flaggedRows' own comment above).
+  // flagSubject narrows further still: FPL's own 50%-or-below reading is "he definitely
+  // will not start" -- the card already says so plainly, in orange or red (cardHtml's
+  // three-level newsflag) -- so claiming it here as a heads-up oversells what this row
+  // knows. Per the owner, 2026-08-22: "anything 50% or below is basically FPL saying they
+  // definitely won't start. so no need to specially flag that as if we're giving them
+  // extra info." On FPL's 100/75/50/25/0 scale that leaves exactly ONE value this can ever
+  // match -- 75%, the one genuinely ambiguous reading. Do NOT widen this back to `<1` "for
+  // completeness": completeness is what oversold it before. flaggedRows() itself is
+  // UNCHANGED and still returns every one of these players -- this narrows the nudge's own
+  // subject only, never the News tab's flagged group or the nav badge count that reads it
+  // (see flaggedRows' own comment above).
   const flagSubject=flaggedRows().find(p=>p.availability!==undefined
-    && p.availability<1 && p.availability>0.5);
+    && p.availability<1 && p.availability>0.5 && roleNum(p.role)<=2);
+  // roleNum===2 exactly (Likely Starter), not <=2: "Nailed" is rotationLabel's OWN
+  // confident-and-corroborated answer, so a nailed player is by definition not one this
+  // row can claim a quiet doubt about. "Likely Starter" is the tier one rung down --
+  // rotationLabel returns it either for 60-75 expected minutes, or for 75+ minutes that
+  // FPL/a prior/an override has not independently corroborated (see minutesCorroborated
+  // and rotationLabel's own comments) -- which is exactly "this reads like a safe pick
+  // and the model is not fully sure", the claim of surprise this row exists to make.
   const riskSubject=riskRows().find(p=>p!==flagSubject && !p.news &&
-    roleNum(p.role)===3 &&
+    roleNum(p.role)===2 &&
     (p.availability===undefined||p.availability>=1));
   if(!flagSubject && !riskSubject){ el.innerHTML=''; return; }
 
@@ -3080,7 +3099,9 @@ function renderSquadSource(){
   if(!imp.open){
     text=openingText;
   } else if(imp.entry){
-    text=`imported from FPL team ${imp.entry} · GW${imp.event}`;
+    /* imp.name is empty only for a session imported before this field existed --
+       falls back to the id it always showed before, rather than a blank team name. */
+    text=`imported from ${imp.name||`FPL team ${imp.entry}`} · GW${imp.event}`;
     btnLabel='Change team';
   } else if(imp.skipped){
     text=openingText;
@@ -3210,9 +3231,23 @@ if(optimiseBtn) optimiseBtn.onclick=()=>save(pending=>{
  * and it needs no server change: effectiveCfgFrom already builds every squad from
  * whatever the session's own lock/excl lists say, so an empty pair of lists is a build
  * under no session corrections at all. A confirm guards it because there is no undo once
- * the save round-trips -- but only when there is something to lose. */
+ * the save round-trips -- but only when there is something to lose.
+ *
+ * With an entry imported (PENDING.entry set), "the model's honest best" is the WRONG
+ * answer: it hands back a fifteen that is not the reader's team at all, discarding a real
+ * import the same way a bug would. What Reset means there is "put my FPL fifteen back" --
+ * a re-import, exactly what wireTransferReset's own #transferResetBtn already does below:
+ * openImportCard() to populate the panel's input with the standing entry id (see its own
+ * comment), then importTeam() to read it. Reused rather than re-implemented so there is
+ * one "restore the import" action, not two that could drift. */
 const resetBtn=document.getElementById('resetBtn');
 if(resetBtn) resetBtn.onclick=()=>{
+  if(PENDING.entry){
+    if(!confirm('Reset will discard any local changes and put your actual FPL fifteen back. Continue?')) return;
+    openImportCard();
+    importTeam();
+    return;
+  }
   const n=(PENDING.lock||[]).length+(PENDING.excl||[]).length;
   if(n && !confirm(`Reset asks the model for its honest best and forgets what you told it: `+
     `${n} instruction${n===1?'':'s'} will be discarded. Optimise keeps them; Reset does not. Continue?`)) return;

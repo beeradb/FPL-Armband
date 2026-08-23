@@ -99,6 +99,12 @@ type session struct {
 	// lives in the per-visitor session cookie instead, the same way Squad and the rest of
 	// this reader's team do.
 	Entry int `json:"entry,omitempty"`
+	// EntryName is that team's FPL name, captured once at import time (fromImport) from
+	// the same Entry fetch that confirmed the id exists — not re-fetched on every page
+	// build. Display-only: nothing here keys anything on it, so a reader who later
+	// renames their FPL team sees the old name until their next import. Empty for a
+	// session imported before this field existed; the client falls back to the id.
+	EntryName string `json:"entry_name,omitempty"`
 	// ImportSkipped records that the reader chose "start fresh" over importing, so the
 	// offer is not shown again on the next reload of the same session.
 	ImportSkipped bool `json:"noimp,omitempty"`
@@ -444,7 +450,7 @@ func (s session) applyAction(action string, code int) session {
 // ordinary import, and (nil, 0) for a free-hit week, whose fifteen goes back after the
 // deadline and so is not a baseline anything can be diffed against. See session.Base's own
 // doc comment.
-func (s session) fromImport(entry int, squad, xi, bench []int, captain, vice int, base []int, baseEvent int) session {
+func (s session) fromImport(entry int, entryName string, squad, xi, bench []int, captain, vice int, base []int, baseEvent int) session {
 	return session{
 		Lock:      s.Lock,
 		Exclude:   s.Exclude,
@@ -458,5 +464,6 @@ func (s session) fromImport(entry int, squad, xi, bench []int, captain, vice int
 		Base:      base,
 		BaseEvent: baseEvent,
 		Entry:     entry,
+		EntryName: entryName,
 	}
 }
