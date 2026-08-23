@@ -1006,4 +1006,8 @@ type Session struct {
 	// is and Transfers.BaseEvent for the gameweek it was fetched for.
 	Base      []int `json:"base,omitempty"`
 	BaseEvent int   `json:"basegw,omitempty"`
+	// BaseFreeHit round-trips session.BaseFreeHit for the same reason as Base/BaseEvent
+	// above — see that field's own doc comment for why it exists at all rather than
+	// being inferred from Base being empty.
+	BaseFreeHit bool `json:"basefh,omitempty"`
 }

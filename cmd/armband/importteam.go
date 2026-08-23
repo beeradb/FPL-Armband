@@ -217,7 +217,7 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 	if freeHit {
 		base, baseEvent = nil, 0
 	}
-	in := s.readValidSession(r).fromImport(id, entry.Name, squad, xi, bench, captain, vice, base, baseEvent)
+	in := s.readValidSession(r).fromImport(id, entry.Name, squad, xi, bench, captain, vice, base, baseEvent, freeHit)
 
 	// 9. Run it through the SAME validator every other session write goes through —
 	// see saveSession's own comment. It should always pass for a freshly-fetched FPL

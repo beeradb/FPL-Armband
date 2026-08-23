@@ -763,12 +763,15 @@ func buildTransfersBlock(e *analysis.Engine, sess session, free int, freeErr err
 		BaseEvent:   sess.BaseEvent,
 	}
 	if len(sess.Base) == 0 {
-		// The only path today that imports a squad and leaves Base empty is a free-hit
-		// import (importTeam step 8) — a cookie written before this field existed would
-		// read the same way and self-heals on the reader's next import. Both read as "no
-		// baseline"; free-hit is the only cause this build can name with any confidence.
+		// sess.BaseFreeHit says WHY, explicitly set at import time (fromImport) rather
+		// than inferred here. Used to be inferred from Base being empty alone, on the
+		// reasoning that a free-hit import was the only path that left it that way —
+		// true of that one path, but also true of a session that has simply never
+		// completed a real import (or a cookie written before this field existed), and
+		// both of those read the identical "you played a free hit" message to a reader
+		// who never touched the chip. Reported live 2026-08-23.
 		t.NoBaseline = true
-		t.FreeHitBase = true
+		t.FreeHitBase = sess.BaseFreeHit
 		return t
 	}
 	// FPL's current event has moved past the week Base was fetched for: the reader's
