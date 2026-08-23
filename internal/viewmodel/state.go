@@ -81,6 +81,160 @@ type State struct {
 	// on GET /api/results). Nil when there is no entry to describe, since there is then no
 	// real team to show. See Results.
 	Results *Results `json:"results,omitempty"`
+
+	// Transfers is what has changed since the reader's imported baseline, and what it
+	// would cost at FPL. Present only when the session carries an imported entry
+	// (session.Entry != 0); absent otherwise, which is how the client knows there is
+	// nothing to draw. See Transfers.
+	Transfers *Transfers `json:"transfers,omitempty"`
+
+	// ChipTeams gains one field, absent everywhere but GET /api/wildcard: the whole
+	// document that route answers. See ChipTeams.
+	ChipTeams *ChipTeams `json:"chip_teams,omitempty"`
+}
+
+// ChipTeams is what a squad-rebuilding chip would buy in ONE gameweek — the
+// gameweek nobody has played yet. Its tense is "what would be", never "what
+// happened": there is no points, rank, bonus or match-status field on it or on
+// anything it holds, and there must never be. See Results for the other tense.
+type ChipTeams struct {
+	// Event is the gameweek this whole document is about: the earliest gameweek
+	// whose deadline has NOT passed. Decided by the caller from a deadline, never
+	// from Bootstrap.NextEvent -- see cmd/armband.nextOpenEvent.
+	Event    int       `json:"event"`
+	Deadline time.Time `json:"deadline"`
+
+	// Budget is what a rebuild may spend, in millions, and BudgetSource is
+	// Engine.AssemblyBudget's own sentence ("£101.3m squad value plus £1.2m in the
+	// bank"). BudgetWarning is analysis.BudgetTrust.Warning() -- empty when the
+	// selling prices were verified against FPL's own team value, and a plain
+	// statement that the figure is overstated when they were not. It is rendered,
+	// never swallowed: a fifteen built on money that does not exist is a
+	// recommendation that dies at the deadline (AssemblyBudget's own words).
+	Budget        float64 `json:"budget"`
+	BudgetSource  string  `json:"budget_source"`
+	BudgetWarning string  `json:"budget_warning,omitempty"`
+
+	// Caveat is analysis.Engine.rebuildCaveat verbatim -- the model's own warning
+	// that a rebuild this early rests mostly on last season. Copied, never
+	// reworded, and never suppressed. It self-suppresses once this season carries
+	// half the weight on minutes, so nobody has to remember to remove it.
+	Caveat string `json:"caveat,omitempty"`
+
+	// Wildcard and FreeHit are nil when the competition does not allow that chip in
+	// Event -- gameweek one, per analysis.PlayableChips, which reads the windows FPL
+	// publishes rather than restating the rule. Unavailable then carries the
+	// sentence to render in its place. A nil team with an empty Unavailable is a
+	// bug, not a state.
+	Wildcard            *ChipTeam `json:"wildcard,omitempty"`
+	FreeHit             *ChipTeam `json:"free_hit,omitempty"`
+	WildcardUnavailable string    `json:"wildcard_unavailable,omitempty"`
+	FreeHitUnavailable  string    `json:"free_hit_unavailable,omitempty"`
+
+	// PlanWildcardGW and PlanFreeHitGW are the next gameweek the CONFIGURED plan
+	// puts each chip in, at or after Event, from ChipSchedule.Next -- which reads
+	// both sets, so a second-set chip is found rather than silently missed. Zero
+	// when nothing is planned ahead. It is a hypothesis and the copy says so.
+	PlanWildcardGW int `json:"plan_wildcard_gw,omitempty"`
+	PlanFreeHitGW  int `json:"plan_free_hit_gw,omitempty"`
+
+	// PlayedWildcardGW and PlayedFreeHitGW are gameweeks this account has ACTUALLY
+	// played each chip in, from fpl.EntryHistory.Chips -- FPL's own record, not the
+	// plan. Zero means not yet played. This is the only field on the page that can
+	// say "we have not used it" without guessing.
+	PlayedWildcardGW []int `json:"played_wildcard_gw,omitempty"`
+	PlayedFreeHitGW  []int `json:"played_free_hit_gw,omitempty"`
+}
+
+// ChipTeam is one rebuilt fifteen for one gameweek.
+type ChipTeam struct {
+	Formation string `json:"formation"`
+	// Captain and Vice are element ids, the same keyspace Squad uses.
+	Captain int `json:"captain"`
+	Vice    int `json:"vice"`
+
+	// XI and Bench are viewmodel.Player -- the ONE representation of a footballer
+	// in this contract (see Player's own comment: "one footballer as every surface
+	// draws him"). Repeated in full rather than by id, unlike Squad, because
+	// nothing mutates this document client-side and there is no second list to keep
+	// in step.
+	XI    []Player `json:"xi"`
+	Bench []Player `json:"bench"`
+
+	// Expected is what this ELEVEN is expected to return in Event, armband included
+	// -- WeekView.Expected, one gameweek, on both chips. XIScore is the same sum
+	// without the armband.
+	XIScore  float64 `json:"xi_score"`
+	Expected float64 `json:"expected"`
+
+	Cost       float64        `json:"cost"`
+	Bank       float64        `json:"bank"`
+	ClubCounts map[string]int `json:"club_counts"`
+
+	// Changes is how many of the fifteen this rebuild replaces, and Out names the
+	// players it drops -- both against the squad the account holds TODAY. Zero and
+	// nil when that squad could not be fetched, which is an absence the page renders
+	// as an absence rather than as "nothing changes".
+	Changes int      `json:"changes,omitempty"`
+	Out     []string `json:"out,omitempty"`
+	// KeptIDs marks which of XI/Bench the account already holds, so the client can
+	// draw a NEW mark without a second list.
+	KeptIDs []int `json:"kept_ids,omitempty"`
+}
+
+// Transfers is the transfer bar and panel's whole state: the free-transfer allowance, what
+// the reader's current pitch has changed against the fifteen they imported, and what that
+// would cost at FPL if they made it for real. Built in cmd/armband's buildState, from
+// session.Base/session.Squad and one FPL history read — see that function's own comment.
+//
+// A transfer is position-matched diff(Base, Squad), out-for-in, computed from two lists of
+// permanent codes already in the session cookie: no network call, no search, and no opinion
+// about whether a move is a good idea — that is Suggest's job (GET /api/transfers), which
+// this type has nothing to do with.
+type Transfers struct {
+	// Free is fpl.FreeTransfers' reconstruction, or fpl.UnlimitedTransfers (-1) before
+	// the first deadline. Never a guess of 1 — see FreeTransfers' own doc comment for why
+	// guessing low is the expensive direction.
+	Free int `json:"free"`
+	// FreeUnknown is set when the history read failed. The count and the cost are then
+	// both withheld and the reason is said out loud, per this project's own rule that a
+	// capability which vanishes quietly is the failure being prevented.
+	FreeUnknown bool `json:"free_unknown,omitempty"`
+
+	// Moves is Squad against Base, position-matched, out-for-in. Absent when there is
+	// nothing to diff against (NoBaseline) or the diff is not trustworthy (BaselineStale).
+	Moves []Move `json:"moves,omitempty"`
+	// Hits is max(0, len(Moves)-Free), zero when Free is unlimited or unknown.
+	Hits int `json:"hits,omitempty"`
+	// Cost is Hits * fpl.HitCost.
+	Cost int `json:"cost,omitempty"`
+
+	// BaseEvent is the gameweek Base was fetched for.
+	BaseEvent int `json:"base_event,omitempty"`
+	// BaselineStale: FPL's current event has moved past BaseEvent, so the reader's real
+	// squad may have changed and this diff describes a week that is over. The count and
+	// cost are withheld rather than shown against a baseline this build no longer trusts.
+	BaselineStale bool `json:"baseline_stale,omitempty"`
+	// NoBaseline: nothing on record to diff against.
+	NoBaseline bool `json:"no_baseline,omitempty"`
+	// FreeHitBase says NoBaseline is because the imported week was a free hit, which is a
+	// different sentence from "you have not imported".
+	FreeHitBase bool `json:"free_hit_base,omitempty"`
+}
+
+// Move is one player leaving and one arriving, either from the reader's own baseline diff
+// (Transfers.Moves) or from a suggested plan (GET /api/transfers). Every field is already
+// resolved for display — the client renders it and computes nothing.
+type Move struct {
+	Pos      string  `json:"pos"`
+	OutCode  int     `json:"out_code"`
+	OutName  string  `json:"out_name"`
+	OutClub  string  `json:"out_club"`
+	OutPrice float64 `json:"out_price"`
+	InCode   int     `json:"in_code"`
+	InName   string  `json:"in_name"`
+	InClub   string  `json:"in_club"`
+	InPrice  float64 `json:"in_price"`
 }
 
 // Results is one entry's actual gameweek result — /armband-team's whole document for the
@@ -130,6 +284,16 @@ type Results struct {
 	// score that week, already parsed off Boot with no new fetch. It is what makes a bare
 	// points total mean something.
 	EventAverage int `json:"event_average,omitempty"`
+
+	// Chip is analysis.ChipLabel of whatever this entry actually played in
+	// ResultEvent -- "Wildcard", "Free Hit", "Bench Boost", "Triple Captain" --
+	// from fpl.EntryHistory.Chips, FPL's own record of what was played and
+	// when. Empty when no chip was played this gameweek, which is the ordinary
+	// case. This is the receipt for /wildcard's own hypothetical: the week
+	// this account actually chips, the result IS the projection, and this is
+	// what makes that week legible on the page that records results rather
+	// than projects them.
+	Chip string `json:"chip,omitempty"`
 
 	// History is every gameweek FPL has scored so far, oldest first — the actual points
 	// the fielded eleven returned, not a projection.
@@ -444,7 +608,13 @@ type Gameweek struct {
 	// the interactive builder has nothing left to offer for it. A closed gameweek only
 	// appears in this list at all when the reader has imported their real picks (see
 	// State.Import); otherwise buildGameweeks drops it rather than showing a stale
-	// hypothetical plan for a squad that can no longer change.
+	// hypothetical plan for a squad that can no longer change. This covers two different
+	// origins that the client treats identically — fetch GET /api/results and render
+	// that instead of a plan: a gameweek still inside the planning horizon (p.Weeks) whose
+	// deadline has simply passed, still carrying its plan fields below for reference, and
+	// a gameweek that has fully finished and left the horizon entirely, added from
+	// boot.Events with every plan field left zero because there is no plan for it. See
+	// buildGameweeks's own comment.
 	Closed bool `json:"closed,omitempty"`
 	// Chip is the chip the plan puts in this week: "Wildcard", "Free Hit",
 	// "Bench Boost", "Triple Captain", or empty. Spelled as the engine spells it.
@@ -822,4 +992,13 @@ type Session struct {
 	// Optimised reports that the fifteen is the model's best rather than a varied opening
 	// squad. It drives whether the Optimize control reads as available or as already done.
 	Optimised bool `json:"optimised"`
+
+	// Base and BaseEvent round-trip session.Base/session.BaseEvent — the transfer
+	// baseline — the same way Locked/Blocked/Chips/Dismissed round-trip the reader's
+	// other corrections. PUT /api/session decodes straight into a fresh session{}, so a
+	// save that omitted these would silently erase an already-imported baseline on the
+	// very next unrelated save. See session.Base's own doc comment for what the fifteen
+	// is and Transfers.BaseEvent for the gameweek it was fetched for.
+	Base      []int `json:"base,omitempty"`
+	BaseEvent int   `json:"basegw,omitempty"`
 }

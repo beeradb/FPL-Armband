@@ -74,7 +74,11 @@
          "FPL Armband's Team", not "Our team": once a reader has imported their own squad
          onto this same screen, "our" reads as ambiguous -- their team, or the site's? The
          brand possessive says whose. Owner review of `61388151`, 2026-08-22. -->
-    <a class="navlink" href="/armband-team">FPL Armband’s Team →</a>
+    <div class="navlinks">
+      <a class="navlink" href="/armband-team">FPL Armband’s Team →</a>
+      <!-- Same reasoning as the link above: its own document, never a tab. -->
+      <a class="navlink" href="/wildcard">If we chipped →</a>
+    </div>
   </div>
 </nav>
 
@@ -110,6 +114,18 @@
          primary action on an unimported screen -- too quiet to notice. Off the green is the
          structural fix; the size restore below only works because of it. -->
     <div class="squadsource dim" id="squadsource"></div>
+
+    <!-- The transfer bar: free transfers, made, cost, and Suggest transfers -- in
+         .pitchcol rather than .pitchside, so a reader moving players sees what it costs
+         WHILE they are moving them. At phone width .pitchside is below the fold under a
+         full pitch and a bench, and a hit discovered by scrolling is a hit discovered
+         after the decision. Not in .pitchhud: that 30px band is already at capacity (the
+         landed record's defect 2), and nothing routine may push the score bug down.
+         #squadsource already answers "where did this fifteen come from"; this is the
+         second half of the same sentence, "and how far has it moved". Built entirely by
+         renderTransferBar() (app.js) from STATE.transfers -- ships empty and hidden, and
+         stays hidden whenever STATE.transfers is absent (no imported entry). -->
+    <div class="transferbar" id="transferbar" hidden></div>
 
     <!-- Import panel: the thing #squadsource's one action button opens. It used to be a
          card that only ever showed once, stranded on the Players tab where nobody browsing
@@ -173,6 +189,23 @@
              #squadsource, so its own presence already proves it comes back. 2026-08-22. -->
         <p id="importReassure" style="margin:8px 0 0 0;font-size:12px;color:var(--ink3)">You can import any time — the button stays on the pitch.</p>
       </div>
+    </div>
+
+    <!-- PAST GAMEWEEK RESULTS: what a closed gameweek on the rail actually did, once the
+         reader has imported a real entry -- see renderRail()/selectPastGameweek() (app.js).
+         Its OWN container, never #pitchwrap's planning children mutated in place: the two
+         states must stay separable, or the drag/lock wiring below ends up pointed at nodes
+         that are sometimes results cards. Built by the SAME shared component
+         /armband-team uses -- ArmbandResults.scoreboard()/.pitch() (results.js) -- so this
+         page never grows a second results renderer; results.js itself learns nothing about
+         being on this page, the same rule team.js's own comment states.
+         Toggled opposite PLANNING_ELEMENTS: hidden while a planning gameweek is selected,
+         shown (and #pitchwrap's own turf hidden by PLANNING_ELEMENTS) while a past one is.
+         Ships empty and hidden -- see selectPastGameweek()/renderPastResults() (app.js). -->
+    <div id="resultsview" hidden>
+      <div class="houseteam" id="resultsScoreboard"></div>
+      <div id="resultsPitch"></div>
+      <div id="resultsError" style="display:none;padding:8px 10px;margin-bottom:10px;background:var(--bad-lo);border:1px solid #7A4A5A;border-radius:var(--r-sm);color:var(--bad);font-size:12px"></div>
     </div>
 
   <div class="pitchwrap">
@@ -283,11 +316,28 @@
        description of what the service is -- say it once. -->
   <div class="notyet" id="pitch-newscallout" hidden></div>
 
+  <!-- TRANSFERS: what the reader's current pitch has changed against the fifteen they
+       imported, and what it would cost at FPL -- the OUT/IN rows, then a suggested plan
+       once Suggest transfers has been pressed. Directly above #instrpanel: the two are the
+       same kind of object (a list of what the reader has done, with a per-row action), they
+       share .instrrow, and a transfer is the more consequential of the two so it reads
+       first. Hides itself, the same way #instrpanel does below -- see renderTransferPanel()
+       (app.js). Ships empty; nothing here is ever the permanent empty-state block
+       #instrpanel used to carry, because there is no teaching copy for a list that only
+       ever appears once there is something in it. -->
+  <div class="why instr" id="transferpanel" hidden></div>
+
   <!-- YOUR INSTRUCTIONS: replaces the formations rail. Everything acting on the fifteen
        that a human decided, in the reader's own voice and removable in place. Split into
        what THIS session set (Remove is a real deletion) and what the settings file already
-       carries for a player in the squad (Ignore only suppresses it — see News, view-news). -->
-  <div class="why instr">
+       carries for a player in the squad (Ignore only suppresses it — see News, view-news).
+
+       ⚠️ id="instrpanel", not selected by the shared ".why.instr" class -- #leftout (below,
+       on the Players tab) carries the same two classes on a different surface, and a
+       class-based hide would catch both. renderInstructions() hides THIS element by id when
+       there is nothing to show, rather than drawing the permanent empty-state block it used
+       to. -->
+  <div class="why instr" id="instrpanel">
     <h3>Your instructions <span class="dim" id="instrCount"></span></h3>
     <div id="instrbody"></div>
   </div>
@@ -308,10 +358,12 @@
   <div class="readout four">
     <div><div class="k">Bank</div><div class="v" id="bank">—</div><div class="sub" id="bankSub"></div></div>
     <div><div class="k">Squad value</div><div class="v" id="squadValue">—</div><div class="sub" id="squadValueSub"></div></div>
-    <!-- The free-transfer count is not in the contract, and this cell asserted
-         "unlimited / until the GW1 deadline" as a literal that nothing updates -- true
-         for one week a season, and stated next to a market recommending moves. It says
-         what the policy is instead, which the contract does carry. -->
+    <!-- This cell used to assert "unlimited / until the GW1 deadline" as a literal that
+         nothing updates -- true for one week a season, and stated next to a market
+         recommending moves. It says what the policy is instead: how many transfers are
+         worth BANKING rather than spending, not how many the reader actually has right
+         now. The free-transfer count IS in the contract now (State.Transfers.Free, per the
+         transfer bar above the pitch) -- this cell must not become a second copy of it. -->
     <div><div class="k">Bank up to</div><div class="v acc" id="bankUpTo">—</div><div class="sub">free transfers worth saving</div></div>
     <div><div class="k">Worth it?</div><div class="v" id="gateValue">—</div><div class="sub">the gain a transfer has to beat</div></div>
   </div>
@@ -486,6 +538,7 @@
   <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 </div>
 
+<script src="/assets/results.js" defer></script>
 <script src="/assets/gate.js" defer></script>
 <script src="/assets/app.js" defer></script>
 </body>

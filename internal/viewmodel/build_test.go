@@ -306,6 +306,122 @@ func TestClosedGameweeksDropFromTheRailUnlessImported(t *testing.T) {
 	}
 }
 
+// TestPastGameweeksReachTheRailFromBootEventsOnceTheyLeaveTheHorizon pins the gap
+// TestClosedGameweeksDropFromTheRailUnlessImported does not cover: a gameweek that has
+// fully FINISHED is not merely closed, it is absent from p.Weeks entirely (upcomingEvents
+// drops it), so the "closed && imported" branch above never sees it. buildGameweeks must
+// add it from boot.Events instead, marked Closed exactly like the still-live case, with
+// every plan field left zero because there is no plan for a week that is over.
+func TestPastGameweeksReachTheRailFromBootEventsOnceTheyLeaveTheHorizon(t *testing.T) {
+	p := samplePage()
+	// GW1 has already left the planning horizon -- p.Weeks starts at GW2, same as the
+	// live system looks the day after GW1 settles.
+	p.Weeks = []analysis.WeekView{
+		{Event: 2, Formation: "3-4-3", Expected: 49.1, Chip: "Bench Boost"},
+	}
+	boot := &fpl.Bootstrap{Events: []fpl.Event{
+		{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), Finished: true},
+		{ID: 2, DeadlineTime: time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC)},
+	}}
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC) // between the two deadlines
+
+	s, err := Build(Input{
+		Page: p, Boot: boot, Now: now,
+		Import:              Import{Entry: 12345},
+		EarliestResultEvent: 1,
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if len(s.Gameweeks) != 2 {
+		t.Fatalf("Gameweeks = %+v, want 2 (GW1 past, GW2 planned)", s.Gameweeks)
+	}
+	gw1 := s.Gameweeks[0]
+	if gw1.Number != 1 || !gw1.Closed || gw1.Current {
+		t.Errorf("Gameweeks[0] = %+v, want {Number:1 Closed:true Current:false} first — "+
+			"past weeks precede the planning horizon", gw1)
+	}
+	if gw1.Chip != "" || gw1.Projected != 0 || gw1.Formation != "" || gw1.Playable != nil {
+		t.Errorf("GW1 carries a plan field it should not, there being no plan for it: %+v", gw1)
+	}
+	if gw1.Deadline.IsZero() {
+		t.Error("GW1.Deadline is zero, want the bootstrap's deadline")
+	}
+	if s.Gameweeks[1].Number != 2 || !s.Gameweeks[1].Current {
+		t.Errorf("Gameweeks[1] = %+v, want GW2 marked Current — unaffected by the past tab", s.Gameweeks[1])
+	}
+}
+
+// TestPastGameweeksAreBoundedByEarliestResultEvent pins that a finished gameweek before
+// the reader's own EntryHistory begins is never offered, even though the bootstrap has it
+// too — the design's "not all 38" bound, resolved by the caller from the reader's actual
+// history rather than the season's own start.
+func TestPastGameweeksAreBoundedByEarliestResultEvent(t *testing.T) {
+	p := samplePage()
+	p.Weeks = []analysis.WeekView{{Event: 3, Expected: 40}}
+	boot := &fpl.Bootstrap{Events: []fpl.Event{
+		{ID: 1, DeadlineTime: time.Date(2026, 8, 14, 17, 30, 0, 0, time.UTC), Finished: true},
+		{ID: 2, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), Finished: true},
+		{ID: 3, DeadlineTime: time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC)},
+	}}
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	s, err := Build(Input{
+		Page: p, Boot: boot, Now: now,
+		Import:              Import{Entry: 12345},
+		EarliestResultEvent: 2, // this reader's FPL history starts at GW2
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	var nums []int
+	for _, g := range s.Gameweeks {
+		nums = append(nums, g.Number)
+	}
+	if len(nums) != 2 || nums[0] != 2 || nums[1] != 3 {
+		t.Errorf("Gameweeks = %v, want [2 3] — GW1 is before the reader's earliest result "+
+			"and must not be offered even though it is Finished", nums)
+	}
+}
+
+// TestPastGameweeksNeedBothImportAndAKnownBound pins the two independent gates: no import
+// means no reader picks to show, and an unknown bound (EarliestResultEvent 0 — no history,
+// or the read failed) must add nothing rather than guessing the season started at GW1.
+func TestPastGameweeksNeedBothImportAndAKnownBound(t *testing.T) {
+	p := samplePage()
+	p.Weeks = []analysis.WeekView{{Event: 2, Expected: 40}}
+	boot := &fpl.Bootstrap{Events: []fpl.Event{
+		{ID: 1, DeadlineTime: time.Date(2026, 8, 21, 17, 30, 0, 0, time.UTC), Finished: true},
+		{ID: 2, DeadlineTime: time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC)},
+	}}
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name  string
+		imp   Import
+		bound int
+	}{
+		{"not imported, bound known", Import{}, 1},
+		{"imported, bound unknown (no history / read failed)", Import{Entry: 12345}, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := Build(Input{
+				Page: p, Boot: boot, Now: now,
+				Import: tc.imp, EarliestResultEvent: tc.bound,
+			})
+			if err != nil {
+				t.Fatalf("Build: %v", err)
+			}
+			for _, g := range s.Gameweeks {
+				if g.Number == 1 {
+					t.Errorf("GW1 present: %+v, want absent (%s)", g, tc.name)
+				}
+			}
+		})
+	}
+}
+
 // TestResultsIsAbsentWithoutAnEntry pins the honest-absence rule: no config.EntryID (or
 // a failed fetch, from the caller's point of view — build() supplies no Entry either
 // way) means no house team to show, not a zeroed one a client might render as "GW0 · 0 pts".

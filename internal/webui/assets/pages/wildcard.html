@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>If we chipped — FPL Armband</title>
+<meta name="description" content="What a wildcard and a free hit would each buy this gameweek, off FPL Armband's own money.">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<link rel="manifest" href="/assets/site.webmanifest">
+<meta name="theme-color" content="#070B10">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FPL Armband">
+<meta property="og:url" content="https://fplarmband.com/wildcard">
+<meta property="og:title" content="If we chipped — FPL Armband">
+<meta property="og:description" content="What a wildcard and a free hit would each buy this gameweek, off FPL Armband's own money. A hypothetical, not a plan.">
+<meta property="og:image" content="https://fplarmband.com/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="If we chipped — FPL Armband">
+<meta name="twitter:description" content="What a wildcard and a free hit would each buy this gameweek, off FPL Armband's own money. A hypothetical, not a plan.">
+<meta name="twitter:image" content="https://fplarmband.com/assets/og-image.png">
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/armband.css">
+</head>
+<body>
+
+<!-- ===================== TOP BAR ===================== -->
+<div class="topbar">
+  <div class="row">
+    <a class="logo" href="/">
+      <svg width="37.5" height="20" viewBox="0 0 120 64" aria-hidden="true">
+        <path d="M5 14 Q60 6 115 14 L115 50 Q60 58 5 50 Z" fill="#2F53F0"/>
+        <rect x="38" y="5.5" width="44" height="53" rx="3.5" fill="#1B2F9E"/>
+        <path d="M68.31 21.36 A13.5 13.5 0 1 0 68.31 42.64" fill="none" stroke="#FFFFFF" stroke-width="7.2" stroke-linecap="round"/>
+      </svg>
+      <span class="wordmark">FPL <em>Armband</em></span>
+    </a>
+    <span class="pill on">If we chipped</span>
+    <a class="btn sm ghost" href="/armband-team">FPL Armband’s Team →</a>
+    <span class="spacer"></span>
+    <a class="btn sm ghost" href="/app">Plan your own →</a>
+  </div>
+</div>
+
+<div class="wrap chipwrap" id="chipteam">
+
+  <!-- Same register as /armband-team's intro, but every sentence is conditional -- this
+       is a hypothetical about a chip we have not played, never a plan we will. -->
+  <div class="chipintro">
+    <span class="t-label">A hypothetical</span>
+    <h1 class="t-sec">If we chipped.</h1>
+    <p class="t-body" id="chipsub">This is the fifteen the model would buy with our money, this week.</p>
+  </div>
+
+  <div class="chipstrip">
+    <div class="chiptabs">
+      <button type="button" class="btn sm on" id="tab-wildcard">Wildcard</button>
+      <button type="button" class="btn sm" id="tab-freehit">Free hit</button>
+    </div>
+    <div id="chipheader"></div>
+  </div>
+
+  <!-- The objective-mismatch clause: the two tabs' expected-points figures are
+       comparable numbers built to different objectives, and that difference is
+       the one thing this page must never let a bare number imply away. See the
+       design note's own warning against an unlabelled shared column. -->
+  <p class="t-body" id="chipclause"></p>
+
+  <div id="chipbody"></div>
+
+  <div id="chipout"></div>
+
+</div>
+
+<script src="/assets/projection.js" defer></script>
+<script src="/assets/wildcard.js" defer></script>
+</body>
+</html>
