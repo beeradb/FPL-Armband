@@ -159,6 +159,34 @@ type ReviewPolicy struct {
 	// actually planned in `chip_plan`.
 	PrepareForChips bool `json:"prepare_squad_for_chips"`
 
+	// AnticipateChips lets the weekly transfer decision know a chip is coming,
+	// via `SimConfig.AnticipateChips`/`anticipate` in internal/backtest: a
+	// planned wildcard means the held squad only has to serve until it is
+	// replaced, so a short fixture run stops being a bet the policy has to
+	// unwind through the gate, and a planned free hit's week is excluded from
+	// scoring entirely. It reaches only the horizon and the free-hit week; it
+	// cannot carry a bench boost or triple captain (see PrepareForChips), and
+	// it does nothing unless a chip is actually planned in `chip_plan`.
+	//
+	// This is the same on/off pair `SimConfig.AnticipateChips` and
+	// `SimConfig.AnticipateGate` are in the replay, collapsed to one setting
+	// here on purpose. The replay's own comment on `AnticipateGate` records
+	// that the two are opposite levers — scoring a move on a shortened horizon
+	// while still charging it over the full one over-credits near-term fixture
+	// spikes by construction — and that a mismatched pair was measured at -17
+	// points a season. The replay exposes both because a sweep needs to
+	// isolate them one at a time; a config a manager edits by hand has no such
+	// need and every reason not to reproduce a measured loss, so this field
+	// drives both `AnticipateChips` and `AnticipateGate` together rather than
+	// exposing a second knob that could be left off by omission.
+	//
+	// Off by default: it was measured coherent in isolation (about +2.5 a
+	// season) and as part of a larger, unresolved corner alongside a
+	// calendar-anchored chip plan and banking lookahead (+73/+97 a season,
+	// not attributable to this lever alone) — real mechanism, unresolved
+	// points, the same standing this project holds PrepareForChips to.
+	AnticipateChips bool `json:"anticipate_chips"`
+
 	// MaxHitsPerWeek caps points deliberately spent on extra transfers.
 	// Zero means never take a hit.
 	MaxHitsPerWeek int `json:"max_hits_per_week"`
