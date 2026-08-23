@@ -68,7 +68,7 @@ func TestTheNearestMissPricesTheSaleAndNotJustThePurchase(t *testing.T) {
 	sq := &analysis.Squad{Players: squad, StartingXI: squad, Remaining: 0.0,
 		ClubCounts: whyClubCounts(squad)}
 
-	briefWhyThisFifteen(&b, pool, 6, sq)
+	briefWhyThisFifteen(&b, pool, 6, sq, nil)
 	got := b.String()
 
 	if !strings.Contains(got, "£1.5m more") {
@@ -89,7 +89,7 @@ func TestTheNearestMissSubtractsTheBank(t *testing.T) {
 	sq := &analysis.Squad{Players: squad, StartingXI: squad, Remaining: 1.0,
 		ClubCounts: whyClubCounts(squad)}
 
-	briefWhyThisFifteen(&b, pool, 6, sq)
+	briefWhyThisFifteen(&b, pool, 6, sq, nil)
 	if got := b.String(); !strings.Contains(got, "£0.5m more") {
 		t.Errorf("the bank should reduce the shortfall to £0.5m, got:\n%s", got)
 	}
@@ -106,7 +106,7 @@ func TestNoImprovementAtAnyPriceIsStatedRatherThanLeftBlank(t *testing.T) {
 	sq := &analysis.Squad{Players: squad, StartingXI: squad, Remaining: 0.0,
 		ClubCounts: whyClubCounts(squad)}
 
-	briefWhyThisFifteen(&b, pool, 6, sq)
+	briefWhyThisFifteen(&b, pool, 6, sq, nil)
 	got := b.String()
 	if !strings.Contains(got, "no money would help") {
 		t.Errorf("a squad nothing improves should say so, got:\n%s", got)
@@ -126,7 +126,7 @@ func TestFullClubsAreNamedAsASentence(t *testing.T) {
 	sq := &analysis.Squad{Players: squad, StartingXI: squad, Remaining: 0.0,
 		ClubCounts: map[string]int{"COV": 3, "HUL": 3, "IPS": 3, "ARS": 2}}
 
-	briefWhyThisFifteen(&b, nil, 6, sq)
+	briefWhyThisFifteen(&b, nil, 6, sq, nil)
 	got := b.String()
 	if !strings.Contains(got, "COV, HUL and IPS") {
 		t.Errorf("full clubs should read as a sentence, got:\n%s", got)
@@ -161,6 +161,73 @@ func TestTopPlansIsSafeBelowTheCap(t *testing.T) {
 		if want := min(n, 3); len(got) != want {
 			t.Errorf("topPlans(%d plans, 3) returned %d, want %d", n, len(got), want)
 		}
-		_ = got[min(len(got), 1):] // the slice the recommend path takes
+		if n >= 1 {
+			_ = got[1:] // the exact slice transfers.go takes after best := plans[0]
+		}
+	}
+}
+
+// The "search stopped short" alarm must fire only when the swap improves the quantity
+// Optimize actually climbs.
+//
+// RankSwaps scores through XIValue, which ignores the bench and scales by fixture load;
+// Optimize climbs ObjectiveFor, which does neither. A swap can raise the eleven and
+// lower the squad, and the first draft called that a search defect — on a real capture
+// it flagged a move worth +0.054 to the eleven and -0.061 to the objective.
+func TestTheSearchStoppedShortAlarmDefersToTheOptimisersOwnObjective(t *testing.T) {
+	squad := whySquad()
+	// Affordable and better on the eleven: same price, higher score.
+	pool := []analysis.PlayerMetrics{whyPlayer(99, "Dear", "ZZZ", "GKP", 4.5, 4.0)}
+	sq := &analysis.Squad{Players: squad, Remaining: 0.0, ClubCounts: whyClubCounts(squad)}
+
+	// An objective that disagrees: every trial squad scores worse than the one held.
+	disagrees := func(trial []analysis.PlayerMetrics) float64 {
+		for _, p := range trial {
+			if p.ID == 99 {
+				return 0
+			}
+		}
+		return 1
+	}
+	var b strings.Builder
+	briefWhyThisFifteen(&b, pool, 6, sq, disagrees)
+	if got := b.String(); strings.Contains(got, "stopped short") {
+		t.Errorf("alarm fired on a swap the optimiser's objective rejects:\n%s", got)
+	}
+
+	// An objective that agrees: the alarm is the correct output.
+	agrees := func(trial []analysis.PlayerMetrics) float64 {
+		for _, p := range trial {
+			if p.ID == 99 {
+				return 1
+			}
+		}
+		return 0
+	}
+	var b2 strings.Builder
+	briefWhyThisFifteen(&b2, pool, 6, sq, agrees)
+	if got := b2.String(); !strings.Contains(got, "stopped short") {
+		t.Errorf("alarm did not fire on a swap both searches prefer:\n%s", got)
+	}
+}
+
+// The no-improvement sentence must not name a cause it did not establish.
+//
+// RankSwaps prunes on four things and only one is money, so "they all cost more than
+// you have" can be false because of the three-per-club cap or because the arrival
+// would not make the eleven. The first draft asserted the money cause outright.
+func TestTheNoImprovementSentenceClaimsOnlyWhatWasChecked(t *testing.T) {
+	squad := whySquad()
+	pool := []analysis.PlayerMetrics{whyPlayer(99, "Worse", "ZZZ", "GKP", 6.0, 0.1)}
+	sq := &analysis.Squad{Players: squad, Remaining: 0.0, ClubCounts: whyClubCounts(squad)}
+
+	var b strings.Builder
+	briefWhyThisFifteen(&b, pool, 6, sq, nil)
+	got := b.String()
+	if strings.Contains(got, "costs more than the money left over") {
+		t.Errorf("the section blamed money for a pruning it did not attribute:\n%s", got)
+	}
+	if !strings.Contains(got, "No change you can afford would raise the projected eleven") {
+		t.Errorf("the section should state what it checked, got:\n%s", got)
 	}
 }

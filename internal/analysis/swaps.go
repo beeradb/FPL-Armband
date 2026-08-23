@@ -714,3 +714,17 @@ func frontierOf(ms []PlayerMetrics) []PlayerMetrics {
 // tenths converts a price in millions to FPL's integer tenths, so budget
 // arithmetic never accumulates float error.
 func tenths(price float64) int { return int(price*10 + 0.5) }
+
+// Tenths converts a price in millions to the tenths this package counts money in.
+//
+// Exported because cmd/armband had grown a third spelling of it. The three agreed on
+// every price the game can produce, which is why nothing caught them; they disagreed
+// on negatives, and a fourth would not have to be so lucky.
+func Tenths(price float64) int { return tenths(price) }
+
+// SellPrice is what an owned player raises, in tenths.
+//
+// Exported because reading SquadState.Sell directly skips the fallback below, and a
+// nil map then reads 0 — which silently prices a sale at nothing and reports the whole
+// purchase as the shortfall. That shipped once already.
+func (s SquadState) SellPrice(p PlayerMetrics) int { return s.sellPrice(p) }

@@ -392,6 +392,19 @@ type Squad struct {
 
 	TotalCost float64 `json:"total_cost_m"`
 	Remaining float64 `json:"budget_remaining_m"`
+	// Pool is the candidate set this squad was actually chosen from, after every
+	// exclusion, minutes floor and expected-minutes cut Optimize applies.
+	//
+	// It is carried on the result rather than rebuilt by a caller because rebuilding
+	// it means reimplementing the filter above, and the filter's own comment records
+	// what that costs: two deliberately corrected defenders were scored, reported,
+	// and then silently unbuyable, because `swaps.go` has no floor at all. Any caller
+	// that searches AllMetrics() against this squad can therefore recommend a player
+	// the optimiser was forbidden to pick — including an excluded one.
+	//
+	// Not serialised: it is the whole player pool, it is derivable state, and no
+	// client asks for it.
+	Pool []PlayerMetrics `json:"-"`
 	// XIScore is the plain sum of the eleven.
 	XIScore float64 `json:"starting_xi_score"`
 	// ExpectedPoints is XIScore plus the captain's score again — what the team
@@ -766,6 +779,7 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 		Remaining:  float64(budget-spend) / 10,
 		SquadScore: bestScore,
 		ClubCounts: clubCount,
+		Pool:       pool,
 	}
 	for _, p := range xi {
 		sq.XIScore += p.Score

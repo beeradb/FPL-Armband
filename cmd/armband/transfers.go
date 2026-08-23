@@ -74,13 +74,21 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	if outcome == outcomeBank || outcome == outcomeNothing {
 		fmt.Printf("\n  %s\n", "We'd recommend a hold.")
 	}
-	// The banking rule's own reasoning — but not when it had nothing to weigh and the
-	// hold above came from an empty board instead. The rule's "not banking" means it
-	// did not fire; printed under "we'd recommend a hold" it reads as a flat
-	// contradiction of the line above it, because the two use "hold" and "bank" in
-	// different senses. Suppressed only in that one combination, so a week where the
-	// rule genuinely weighed a choice still shows its arithmetic.
-	if board.Consulted && !(outcome == outcomeNothing && !board.Advice.Weighed()) {
+	// The banking rule's own reasoning — but not when the hold above came from an empty
+	// board and the rule reached its comparison with nothing in either arm. The rule's
+	// "not banking" means it did not fire; printed under "we'd recommend a hold" it
+	// reads as a flat contradiction, because the two use the word in different senses.
+	//
+	// ⚠️ Narrowed to BankGuardNone deliberately. A guard means the comparison was never
+	// made for a structural reason — the allowance is already at its ceiling, say — and
+	// that text tells the reader banking is not available to him at all, which is not
+	// the contradiction this suppresses and is worth keeping. An earlier version tested
+	// only !Weighed(), which is ALWAYS true under outcomeNothing (an empty board gives
+	// a zero now-arm, and any positive later-arm would have made this outcomeBank), so
+	// it silently swallowed both guard messages as well.
+	if board.Consulted &&
+		!(outcome == outcomeNothing && board.Advice.Guard == analysis.BankGuardNone &&
+			!board.Advice.Weighed()) {
 		fmt.Printf("\n  %s\n", bankLine(board.Advice))
 	}
 
@@ -105,10 +113,8 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 		// Distinct from the case above and the difference matters: there the rule
 		// weighed a real move and preferred waiting, here there is no move to weigh.
 		// Collapsing them would offer a reader alternatives that do not exist.
-		fmt.Printf("  %s\n", dim("Nothing on the board would improve this squad, so there "+
-			"is no move to offer even if you wanted one."))
-		fmt.Printf("  %s\n\n", dim("Banking the transfer is a first-class outcome and "+
-			"usually the right one."))
+		fmt.Printf("  %s\n", dim(emptyBoardReason))
+		fmt.Printf("  %s\n\n", dim(bankingIsFirstClass))
 		return nil
 	}
 
@@ -131,6 +137,22 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	return nil
 }
 
+// emptyBoardReason and bankingIsFirstClass are the two halves of what an empty board
+// says, in one place because `armband transfers` and the page render the same
+// transferBoard and must not describe the same state two ways — which is the reason
+// transferBoard exists at all.
+//
+// ⚠️ The wording these replaced was "No move clears the threshold this week", and it
+// described a threshold that is not applied: BuildPlans keeps every move with a
+// positive gain and imposes no floor of its own. An empty board means nothing raises
+// the eleven at all, which is a stronger and different statement.
+const (
+	emptyBoardReason = "Nothing on the board would improve this squad, so there is no " +
+		"move to offer even if you wanted one."
+	bankingIsFirstClass = "Banking the transfer is a first-class outcome and usually " +
+		"the right one."
+)
+
 // bestPlanForOwnedSquad returns the best transfer plan for the squad you own,
 // or a plain-language reason there is none.
 //
@@ -148,8 +170,7 @@ func bestPlanForOwnedSquad(ctx context.Context, cfg config.Config, client *fpl.C
 	case outcomeBank:
 		return nil, board.Advice.Explain()
 	case outcomeNothing:
-		return nil, "No move clears the threshold this week. Banking the transfer is a " +
-			"first-class outcome and usually the right one."
+		return nil, emptyBoardReason + " " + bankingIsFirstClass
 	}
 	return &board.Plans[0], ""
 }
