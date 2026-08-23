@@ -42,7 +42,7 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// FPL only exposes picks once a deadline has passed. Before GW1 that is
 	// expected rather than an error, and saying so is the difference between a
 	// user thinking the tool is broken and knowing the season has not started.
-	board, why := buildTransferBoard(ctx, cfg, client, e)
+	board, why := ownedTransferBoard(ctx, cfg, client, e)
 	if board == nil {
 		return fmt.Errorf("%s", why)
 	}
@@ -118,7 +118,7 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 func bestPlanForOwnedSquad(ctx context.Context, cfg config.Config, client *fpl.Client,
 	e *analysis.Engine) (*analysis.Plan, string) {
 
-	board, why := buildTransferBoard(ctx, cfg, client, e)
+	board, why := ownedTransferBoard(ctx, cfg, client, e)
 	if board == nil {
 		return nil, why
 	}
@@ -210,16 +210,19 @@ func (b *transferBoard) outcome() boardOutcome {
 	}
 }
 
-// buildTransferBoard assembles the weekly decision for the squad you own, or a
-// plain-language reason there is none.
+// ownedTransferBoard assembles the weekly decision for `cfg.EntryID`'s OWN squad — the CLI's
+// and `bestPlanForOwnedSquad`'s caller, neither of which has a session to read a fifteen
+// from. It fetches the entry's actual picks fresh, converts them to permanent codes (the
+// keyspace buildTransferBoard's `squad` parameter takes — see that function's own comment),
+// and prices the search at the entry's own sell prices.
 //
-// The reason is returned rather than swallowed on purpose. "No transfers shown"
-// and "you have no squad yet" and "the model wants no move this week" look
-// identical as an absent section, and only the last of those is a
-// recommendation — this project's review policy says doing nothing is a
-// first-class outcome and usually the right one, which is worth saying out loud
-// rather than leaving as a gap in a page.
-func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Client,
+// `client.Entry`/`client.Picks` are fetched again inside buildTransferBoard, for the bank,
+// squad value and current event — a second call to the same cached endpoint, which is a
+// disk read within the process's cacheTTL rather than a second round trip to FPL. That
+// redundancy buys buildTransferBoard one signature for both callers, which is the point:
+// see that function's own comment on why `squad` is a parameter rather than something it
+// derives itself.
+func ownedTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Client,
 	e *analysis.Engine) (*transferBoard, string) {
 
 	if cfg.EntryID == 0 {
@@ -238,21 +241,85 @@ func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Clie
 	if err != nil {
 		return nil, "Could not read your picks, so no transfers were computed: " + err.Error()
 	}
-
-	var squad []analysis.PlayerMetrics
+	codes := make([]int, 0, len(picks.Picks))
 	for _, p := range picks.Picks {
 		if el := e.Boot.ElementByID(p.Element); el != nil {
-			squad = append(squad, e.Metrics(el))
+			codes = append(codes, el.Code)
 		}
 	}
-	if len(squad) != 15 {
-		return nil, fmt.Sprintf("Read %d of 15 picks, so no transfers were computed.", len(squad))
+	if len(codes) != 15 {
+		return nil, fmt.Sprintf("Read %d of 15 picks, so no transfers were computed.", len(codes))
+	}
+	return buildTransferBoard(ctx, cfg, client, e, cfg.EntryID, codes, e.SellPrices)
+}
+
+// buildTransferBoard assembles the weekly decision for one entry's squad, or a
+// plain-language reason there is none.
+//
+// The reason is returned rather than swallowed on purpose. "No transfers shown"
+// and "you have no squad yet" and "the model wants no move this week" look
+// identical as an absent section, and only the last of those is a
+// recommendation — this project's review policy says doing nothing is a
+// first-class outcome and usually the right one, which is worth saying out loud
+// rather than leaving as a gap in a page.
+//
+// Three parameters carry every difference between the two callers, and this function has
+// no branch on which one reached it — the same rule internal/viewmodel/build.go states for
+// buildResults, applied here:
+//
+//   - entryID: cfg.EntryID for the CLI (through ownedTransferBoard), a reader's own
+//     sess.Entry for the page.
+//   - squad: permanent player CODES. The CLI's own owned fifteen, fetched fresh from FPL's
+//     picks (see ownedTransferBoard). The page must pass the reader's CURRENT pitch —
+//     sess.Squad — and NOT re-derive it from picks: the reader has been editing, and a
+//     suggestion computed from a fifteen that is no longer on screen would offer to sell
+//     players who are not there.
+//   - sell: purchase-price-aware selling prices, keyed by element id, or nil for
+//     sell-at-market. The CLI passes e.SellPrices, which is cfg.EntryID's own purchase
+//     history. A page caller MUST pass nil — engine.SellPrices belongs to the site's own
+//     squad, and handing it to a visitor's search would apply the house team's purchase
+//     history to a stranger's players, keyed on element ids that overlap by coincidence.
+//     client.SquadPrices, the honest per-visitor alternative, is not affordable at this
+//     traffic shape — see the design note this implements. The panel says "priced at
+//     market" instead of pretending otherwise.
+//
+// The entry and picks fetches stay regardless of caller, but only for EntryHistory.Bank,
+// EntryHistory.Value and entry.CurrentEvent — never for the squad, which is always the
+// `squad` parameter above.
+func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Client,
+	e *analysis.Engine, entryID int, squad []int, sell map[int]int) (*transferBoard, string) {
+
+	if entryID == 0 {
+		return nil, "No entry_id is configured, so there is no squad to improve — " +
+			"this page is a fifteen built from scratch."
+	}
+	entry, err := client.Entry(ctx, entryID)
+	if err != nil {
+		return nil, "Could not read your entry, so no transfers were computed: " + err.Error()
+	}
+	if entry.CurrentEvent == nil {
+		return nil, "FPL exposes picks only after a deadline has passed, so there is no " +
+			"squad to improve yet. Before GW1 this page is the opening fifteen."
+	}
+	picks, err := client.Picks(ctx, entryID, *entry.CurrentEvent)
+	if err != nil {
+		return nil, "Could not read your picks, so no transfers were computed: " + err.Error()
 	}
 
-	state := analysis.NewSquadState(squad)
+	var squadMetrics []analysis.PlayerMetrics
+	for _, code := range squad {
+		if el := e.Boot.ElementByCode(code); el != nil {
+			squadMetrics = append(squadMetrics, e.Metrics(el))
+		}
+	}
+	if len(squadMetrics) != 15 {
+		return nil, fmt.Sprintf("Read %d of 15 players in your squad, so no transfers were computed.", len(squadMetrics))
+	}
+
+	state := analysis.NewSquadState(squadMetrics)
 	// FPL pays what you paid plus half of any rise, never the market price. Nil
 	// means sell-at-market, which overstates the budget.
-	state.Sell = e.SellPrices
+	state.Sell = sell
 
 	// Standing overrides bind here for the reason recorded in the research
 	// record: excluding a player from squad builds while the transfer search
@@ -291,7 +358,7 @@ func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Clie
 	// carried and printed.
 	free := fpl.UnlimitedTransfers
 	var notes2 []string
-	if h, err := client.History(ctx, cfg.EntryID); err == nil {
+	if h, err := client.History(ctx, entryID); err == nil {
 		free = fpl.FreeTransfers(h)
 	} else if cfg.Review.BankTransfersLookahead {
 		notes2 = append(notes2, "Could not read your transfer history, so the free-transfer "+

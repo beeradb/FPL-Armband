@@ -765,6 +765,12 @@ func (c *Client) History(ctx context.Context, entryID int) (*EntryHistory, error
 // MaxBankedTransfers is the FPL cap on saved free transfers.
 const MaxBankedTransfers = 5
 
+// HitCost is what a transfer beyond the free ones costs, in points. FPL's rule, so it
+// lives beside the rest of the transfer-allowance facts rather than in internal/analysis
+// or internal/backtest — both of which import this package already and neither of which
+// owns the rule.
+const HitCost = 4
+
 // UnlimitedTransfers is returned when no gameweek has been scored yet. Before
 // the first deadline a manager is still assembling the initial squad and may
 // make as many changes as they like, so any finite number is wrong — and "1" is
@@ -812,4 +818,24 @@ func FreeTransfers(h *EntryHistory) int {
 		ft = 1
 	}
 	return ft
+}
+
+// EarliestResultEvent returns the earliest gameweek a manager's history carries an actual
+// result for, or 0 when there is nothing to bound — an empty history (the season has not
+// started) or h itself nil (the read failed). EntryHistory.Current lists exactly the
+// gameweeks this manager has a result for and no others: a manager who created their FPL
+// team after gameweek one has no history before it, and this must not guess one. A caller
+// wanting to show past-gameweek results (viewmodel.Input.EarliestResultEvent) uses this
+// as the bound rather than assuming the season's own first gameweek.
+func EarliestResultEvent(h *EntryHistory) int {
+	if h == nil || len(h.Current) == 0 {
+		return 0
+	}
+	earliest := h.Current[0].Event
+	for _, gw := range h.Current[1:] {
+		if gw.Event < earliest {
+			earliest = gw.Event
+		}
+	}
+	return earliest
 }

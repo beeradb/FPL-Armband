@@ -131,6 +131,33 @@ func latestClosedEvent(boot *fpl.Bootstrap, now time.Time) *fpl.Event {
 	return best
 }
 
+// nextOpenEvent is the gameweek a reader can still act on: the EARLIEST deadline
+// that has not yet passed. The exact mirror of latestClosedEvent above it, and for
+// the same reason -- Bootstrap.NextEvent reads FPL's is_next flag, which was
+// measured 24 minutes behind a real deadline on 2026-08-21 (see latestClosedEvent).
+//
+// ⚠️ viewmodel.buildGameweeks computes this same rule inline to decide
+// Gameweek.Current (internal/viewmodel/build.go, the "current" local in
+// buildGameweeks). Two statements of one rule; TestNextOpenEventMatchesTheRailsCurrent
+// pins them equal against a fixture so they cannot drift. If a third caller appears,
+// move the rule onto fpl.Bootstrap and delete both.
+func nextOpenEvent(boot *fpl.Bootstrap, now time.Time) *fpl.Event {
+	if boot == nil {
+		return nil
+	}
+	var best *fpl.Event
+	for i := range boot.Events {
+		e := &boot.Events[i]
+		if e.DeadlineTime.Before(now) {
+			continue
+		}
+		if best == nil || e.DeadlineTime.Before(best.DeadlineTime) {
+			best = e
+		}
+	}
+	return best
+}
+
 // houseLiveSources fetches the current gameweek's live per-player stats, every club's
 // match status for it, every club's own fixture in it, and the gameweek's own overall
 // state. All come from an always-fresh fetch (fpl.Client.Live, fpl.Client.FixturesLive),

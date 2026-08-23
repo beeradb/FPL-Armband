@@ -86,7 +86,7 @@ func TestWildcardBuildAnticipatesANextWeekBenchBoost(t *testing.T) {
 		if boostNextWeek {
 			e.Chips.First.BenchBoost = 3 // gw+1
 		}
-		for _, v := range e.WeekViews(nil, 2) {
+		for _, v := range e.WeekViews(nil, 2, OptimizeRequest{}) {
 			if v.Event == 2 && v.Rebuilt {
 				return v.Bench
 			}

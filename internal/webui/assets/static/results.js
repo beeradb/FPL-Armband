@@ -322,7 +322,12 @@ function scoreboard(r){
 
   if(r.result_event){
     const word = r.result_state === 'live' ? 'Live' : r.result_state === 'final' ? 'Final' : '';
-    cells.push(`<span class="htgw">Gameweek ${r.result_event}${word ? ` <i>${esc(word)}</i>` : ''}</span>`);
+    // The receipt for /wildcard's own hypothetical: the week this account actually
+    // plays a chip, FPL's own record of it (never the plan) names it right here,
+    // where the RESULT is, so the week nobody projected but everybody chipped is
+    // not invisible on the one page that would otherwise just show a normal week.
+    const chip = r.chip ? ` <i class="htchip">${esc(r.chip)}</i>` : '';
+    cells.push(`<span class="htgw">Gameweek ${r.result_event}${chip}${word ? ` <i>${esc(word)}</i>` : ''}</span>`);
   }
   // Points reads live_points while the gameweek is still being played and
   // history[last].points once FPL has settled it -- FPL itself reports 0 for

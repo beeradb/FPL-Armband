@@ -236,7 +236,7 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	if span <= 0 {
 		span = e.Weights.Horizon
 	}
-	views := e.WeekViews(sq.Players, span)
+	views := e.WeekViews(sq.Players, span, req)
 	mark("weekviews")
 	// Projected transfers for the squad you actually own, when there is one.
 	// The reason there is not is carried through and printed, because an

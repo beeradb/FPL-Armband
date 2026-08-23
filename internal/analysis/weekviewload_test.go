@@ -39,7 +39,7 @@ func TestWeekViewsPriceEachWeeksOwnFixtures(t *testing.T) {
 		2: {1: 1, 2: 1, 3: 0, 4: 1},
 		3: {1: 1, 2: 1, 3: 1, 4: 1},
 	}
-	views := e.WeekViews(squad, 3)
+	views := e.WeekViews(squad, 3, OptimizeRequest{})
 	if len(views) != 3 {
 		t.Fatalf("got %d week views, want 3", len(views))
 	}
@@ -101,7 +101,7 @@ func TestAWildcardIsNotBuiltOnOneWeeksBlanks(t *testing.T) {
 		case "Free Hit":
 			e.Chips.First.FreeHit = 2
 		}
-		for _, v := range e.WeekViews(nil, 2) {
+		for _, v := range e.WeekViews(nil, 2, OptimizeRequest{}) {
 			if v.Event == 2 && v.Rebuilt {
 				return v.Squad
 			}
