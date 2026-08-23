@@ -314,12 +314,17 @@ func runSnapshot(cfg config.Config, args []string) error {
 	} else {
 		fmt.Printf("no previous snapshot found; this one is the baseline\n")
 	}
-	// Say that the tree is now dirty and why, rather than leaving three untracked
-	// files for someone to find and wonder about. They are the record, and the next
-	// snapshot diffs against whatever is committed here.
-	fmt.Printf("\n%s is tracked, so this is now an untracked directory. Commit it —\n"+
-		"the next snapshot diffs against the newest one in the repository.\n"+
-		"  git add %s && git commit -m ... -- %s\n", *outRoot, target, target)
+	// ⚠️ CORRECTED 2026-08-22. This used to say the opposite: "%s is tracked ... commit
+	// it". That stopped being true the same day this comment was written -- the accuracy
+	// series left the tree, .github/workflows/snapshot.yml publishes it as a GitHub
+	// Release on every push to main, and .gitignore now refuses the four files this
+	// command just wrote under the default -out. A tool that tells its own caller to
+	// `git add` output its own project has decided not to commit is the exact failure
+	// internal/snapshot/staleness_test.go's recipe was rewritten to stop causing --
+	// see that file's own dated note on why. Found by a docs review reading this
+	// command's output against the rest of the change it shipped alongside.
+	fmt.Printf("\n%s is not committed -- CI publishes the record on every push to main.\n"+
+		"This is for your own eyes; read %s to see what moved.\n", target, snapshot.MarkdownFile)
 	for _, p := range problems {
 		fmt.Fprintf(os.Stderr, "note: %s\n", p)
 	}
