@@ -27,6 +27,7 @@ func buildImport(events []fpl.Event, sess session) viewmodel.Import {
 		Next:    nextEvent,
 		Skipped: sess.ImportSkipped,
 		Entry:   sess.Entry,
+		Name:    sess.EntryName,
 	}
 }
 
@@ -121,11 +122,14 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 	// import's network latency, for however long FPL takes to answer a stranger's
 	// request. Nothing below this point touches state the lock protects, so there is
 	// nothing to hold it for yet.
-	// The entry fetch's only purpose here is to confirm FPL has heard of this id at
-	// all: v1 imports the fifteen from Picks, not anything Entry itself carries. It is
-	// still fetched and checked first, deliberately, so a bad id is refused as "no
-	// such team" rather than as the picks route's more confusing "no squad" answer.
-	if _, err := s.entryUncached(r.Context(), id); err != nil {
+	// The entry fetch confirms FPL has heard of this id at all, and is checked first,
+	// deliberately, so a bad id is refused as "no such team" rather than as the picks
+	// route's more confusing "no squad" answer. The fifteen itself still comes from
+	// Picks below, not from anything else Entry carries — Name is the one exception,
+	// kept for session.EntryName's display use, since it is already in hand here and
+	// nowhere else fetches it.
+	entry, err := s.entryUncached(r.Context(), id)
+	if err != nil {
 		// FPL's own response text must never reach the browser — see main.go's own
 		// note on the same rule for price-history errors. The full error, which may
 		// carry up to 200 bytes of FPL's response body, goes to stderr only.
@@ -213,7 +217,7 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 	if freeHit {
 		base, baseEvent = nil, 0
 	}
-	in := s.readValidSession(r).fromImport(id, squad, xi, bench, captain, vice, base, baseEvent)
+	in := s.readValidSession(r).fromImport(id, entry.Name, squad, xi, bench, captain, vice, base, baseEvent)
 
 	// 9. Run it through the SAME validator every other session write goes through —
 	// see saveSession's own comment. It should always pass for a freshly-fetched FPL
