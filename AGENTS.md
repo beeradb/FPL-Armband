@@ -388,15 +388,6 @@ Shipped bugs, each now covered by a regression test. Re-introducing one is easy.
 in the vault; the lesson and the pinning test here — the test is the guard. →
 **harness-and-inference**, **optimiser-and-squad**, **archive-and-data**
 
-- **A panel that explains a search must run on that search's own pool and its own objective.**
-  → **optimiser-and-squad**. `brief`'s "Why this fifteen" ran `RankSwaps` over
-  `e.AllMetrics()` against a squad `Optimize` built from a filtered pool, so it recommended a
-  player a standing override had excluded; and it scored candidates on `XIValue` while calling
-  disagreement with `Optimize` a search defect. `Optimize` now carries its candidate set on
-  `Squad.Pool`. Pinned by `TestTheSearchStoppedShortAlarmDefersToTheOptimisersOwnObjective`.
-  ⚠️ **The pool half is NOT pinned** — it is one argument at `cmd/armband/brief.go` and a doc
-  comment, and a refactor can undo it with every test still green.
-
 - **The hit ceiling is a knob, not a clamp, and both expressions of it must move together.** →
   **transfer-policy**. Pinned by `TestTheHitCeilingIsReadByTheFundedPairBranch` (source scan)
   and `TestTheHitCeilingIsReachableAndDefaultsToOne`.

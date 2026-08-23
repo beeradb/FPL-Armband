@@ -619,8 +619,7 @@ func briefOptimal(b *strings.Builder, cfg config.Config, e *analysis.Engine) ([]
 
 	briefSquadTable(b, sq)
 
-	briefWhyThisFifteen(b, sq.Pool, e.Weights.Horizon, sq,
-		func(trial []analysis.PlayerMetrics) float64 { return e.ObjectiveFor(trial, req) })
+	briefWhyThisFifteen(b, e.Weights.Horizon, sq)
 
 	b.WriteString("### Best available by position\n\n")
 	all := e.AllMetrics()
@@ -849,44 +848,32 @@ func briefResearch(b *strings.Builder, e *analysis.Engine, squad []analysis.Play
 	}
 }
 
-// briefWhyThisFifteen says why the optimiser landed on this squad, in terms a reader
-// can act on: what fixed its shape, and what it would take to do better.
+// briefWhyThisFifteen states what fixed the SHAPE of the optimiser's squad: the money
+// it could not spend, the clubs it could not buy from, and the horizon it scored over.
 //
-// # It searches the pool the optimiser searched, not the whole game
+// # What it deliberately does NOT do
 //
-// pool must be sq.Pool. The first draft passed e.AllMetrics() and the section then
-// recommended saving up for players Optimize was forbidden to pick — including ones
-// excluded by a standing override listed at the top of the same document. squad.go's
-// own filter comment records that failure shape: "an override the transfer search
-// ignores is worse than no override".
+// An earlier draft also named the best upgrade the budget could not reach and the cash
+// it would take -- "you would need £3.5m more than you have". Withdrawn on the owner's
+// judgement, and the reasoning is worth keeping because it is a product rule rather
+// than a bug: a reader cannot conjure money, so a shortfall he cannot close is not an
+// option, it is a fact about the world stated back at him.
 //
-// # The two searches do not value a squad the same way
+// The bank line stays for the opposite reason. It reads as noise at £0.0m, but at £0.1m
+// or £0.2m later in the season it is exactly the constraint deciding what he can do.
 //
-// RankSwaps scores through XIValue, which ignores the bench and, by default, scales
-// by fixture load. Optimize climbs ObjectiveFor, which values the bench and must never
-// see fixture load. So a swap can raise the eleven and lower the thing the optimiser
-// was maximising, and calling that a search defect would be wrong most weeks. That is
-// what objective is for: the alarm below fires only when the swap improves the
-// quantity Optimize actually climbs. Pass nil to suppress the alarm entirely.
-//
-// # Why RankSwaps is run twice
-//
-// Once at the real bank and once with money no object. RankSwaps prunes on four
-// things — a candidate who does not outscore the man he replaces, one who cannot be
-// paid for, one who would break the three-per-club limit, and a swap that does not
-// raise the eleven — and only the money prune differs between the runs. So a swap
-// that appears with money no object and not at the real bank is blocked by cash and
-// by nothing else, which is what licenses naming a shortfall.
-//
-// ⚠️ That licenses the nearest-miss line and NOT a claim about why there is no
-// affordable improvement. Three of the four prunes are not about money, so "nothing
-// affordable improves it" may be true because of the club cap or because the player
-// would not make the eleven. The copy below says what was checked and stops there.
-func briefWhyThisFifteen(b *strings.Builder, pool []analysis.PlayerMetrics, horizon int,
-	sq *analysis.Squad, objective func([]analysis.PlayerMetrics) float64) {
-
+// ⚠️ Do not reintroduce a search here. The withdrawn version ran RankSwaps and got two
+// things wrong that are easy to repeat: it searched e.AllMetrics() rather than the pool
+// Optimize was allowed to use, so it recommended players a standing override had
+// excluded; and it scored candidates on XIValue while calling disagreement with
+// Optimize's own objective a search defect. What replaces it belongs on the transfer
+// surface, where the reader has moves to choose between, and is ranked as a BAND rather
+// than a winner -- see AGENTS.md's argmax box.
+func briefWhyThisFifteen(b *strings.Builder, horizon int, sq *analysis.Squad) {
 	b.WriteString("### Why this fifteen\n\n")
 
+	// Stated in tenths, not by comparing a float to zero: money is counted in tenths
+	// everywhere else in this codebase and £0.04m left is not "some money left".
 	if analysis.Tenths(sq.Remaining) == 0 {
 		b.WriteString("- **The budget is spent**, with nothing left over.\n")
 	} else {
@@ -910,71 +897,7 @@ func briefWhyThisFifteen(b *strings.Builder, pool []analysis.PlayerMetrics, hori
 	fmt.Fprintf(b, "- **Picked to score well over the next %d gameweeks**, not just the "+
 		"next one. A good run over those weeks counts for more here than one big "+
 		"fixture.\n\n", horizon)
-
-	// A squad just bought at market sells for what it cost — the half-of-any-rise rule
-	// has had no rise to act on yet. Stating them keeps the search and the shortfall
-	// reading one set of numbers.
-	state := analysis.NewSquadState(sq.Players)
-	state.Sell = make(map[int]int, len(sq.Players))
-	for _, p := range sq.Players {
-		state.Sell[p.ID] = analysis.Tenths(p.Price)
-	}
-	bank := analysis.Tenths(sq.Remaining)
-
-	affordable := analysis.RankSwaps(state, pool, bank)
-	atAnyPrice := analysis.RankSwaps(state, pool, unlimitedBank)
-
-	switch {
-	case len(affordable) == 0:
-		b.WriteString("**No change you can afford would raise the projected eleven.** " +
-			"That is what was checked: every one-for-one swap of a player here for one " +
-			"outside it, within the money left over.\n\n")
-	case objective != nil && objective(swapOne(sq.Players, affordable[0])) > objective(sq.Players):
-		// Improves the eleven AND the quantity Optimize climbs, so the wider search
-		// stopped short of something this narrower one can see. Reported rather than
-		// swallowed.
-		s := affordable[0]
-		fmt.Fprintf(b, "⚠️ **A swap you can afford would improve this squad on the "+
-			"optimiser's own measure**, so the search that built it stopped short. "+
-			"%s out, %s in. Worth reporting.\n\n", s.Out.Name, s.In.Name)
-	default:
-		// Raises the eleven but not the squad. Ordinary, and worth saying plainly so a
-		// reader who reruns the numbers does not think he has found a bug.
-		s := affordable[0]
-		fmt.Fprintf(b, "**One affordable change would raise the eleven**, though not the "+
-			"squad as a whole: %s out, %s in. The squad search also values the bench, so "+
-			"the two disagree here rather than either being wrong.\n\n",
-			s.Out.Name, s.In.Name)
-	}
-
-	best, shortfall, found := nearestMiss(state, atAnyPrice, bank)
-	if !found {
-		b.WriteString("**And no money would help.** There is nobody outside this fifteen " +
-			"who would raise the eleven one-for-one at any price.\n\n")
-		return
-	}
-	fmt.Fprintf(b, "**The nearest miss.** %s out, %s in, worth %+.2f points a gameweek "+
-		"to the eleven with the armband counted — but you would need £%.1fm more than "+
-		"you have.\n\n", best.Out.Name, best.In.Name, best.Gain, float64(shortfall)/10)
 }
-
-// swapOne returns the squad with one player replaced, for scoring a candidate move on
-// a second objective. The squad is copied; the caller's slice is untouched.
-func swapOne(squad []analysis.PlayerMetrics, sw analysis.Swap) []analysis.PlayerMetrics {
-	out := append([]analysis.PlayerMetrics(nil), squad...)
-	for i := range out {
-		if out[i].ID == sw.Out.ID {
-			out[i] = sw.In
-			break
-		}
-	}
-	return out
-}
-
-// unlimitedBank is a bank no transfer can exhaust, in tenths of a million. The whole
-// player pool costs less than this, so it removes the money prune from RankSwaps
-// without removing the club-limit one.
-const unlimitedBank = 1 << 20
 
 // joinAnd renders a list the way a sentence needs it: "A", "A and B", "A, B and C".
 // strings.Join with " and " produced "COV and HUL and IPS", which is what prompted this.
@@ -993,25 +916,4 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
-}
-
-// nearestMiss picks the best improving swap the reader cannot pay for, and says by
-// how much. swaps must be the money-no-object ranking; bank is what he really has.
-//
-// RankSwaps returns its result sorted by gain, so the first entry that fails on money
-// is the best one that does, and the scan stops there.
-//
-// ⚠️ The sale is priced through SquadState.SellPrice, never by reading Sell directly.
-// The map is nil unless someone fills it and a missing key then reads 0, which prices
-// the sale at nothing and reports the whole purchase as the shortfall — £6.0m to
-// replace a £4.5m keeper with a £6.0m one. That shipped in the first draft of this
-// section and is pinned by TestTheNearestMissPricesTheSaleAndNotJustThePurchase.
-func nearestMiss(s analysis.SquadState, swaps []analysis.Swap, bank int) (analysis.Swap, int, bool) {
-	for _, sw := range swaps {
-		short := analysis.Tenths(sw.In.Price) - s.SellPrice(sw.Out) - bank
-		if short > 0 {
-			return sw, short, true
-		}
-	}
-	return analysis.Swap{}, 0, false
 }

@@ -721,10 +721,3 @@ func tenths(price float64) int { return int(price*10 + 0.5) }
 // every price the game can produce, which is why nothing caught them; they disagreed
 // on negatives, and a fourth would not have to be so lucky.
 func Tenths(price float64) int { return tenths(price) }
-
-// SellPrice is what an owned player raises, in tenths.
-//
-// Exported because reading SquadState.Sell directly skips the fallback below, and a
-// nil map then reads 0 — which silently prices a sale at nothing and reports the whole
-// purchase as the shortfall. That shipped once already.
-func (s SquadState) SellPrice(p PlayerMetrics) int { return s.sellPrice(p) }
