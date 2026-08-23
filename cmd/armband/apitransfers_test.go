@@ -54,11 +54,25 @@ func TestTransfersRefusesWithNoImportedEntry(t *testing.T) {
 	}
 }
 
-// TestTransfersRefusesAPartialSquad pins the second 409: an Entry on record but no stored
-// fifteen (len(sess.Squad) != 15). Reachable through a hand-crafted session — Entry alone,
-// no Squad — which validateSession accepts (a session may carry only corrections and no
-// team; see its own comment), the same way an attacker or a stale client could produce it.
-func TestTransfersRefusesAPartialSquad(t *testing.T) {
+// TestTransfersResolvesAnEmptySquadRatherThanRefusing is the fplarmband.com production
+// incident of 2026-08-23: an Entry on record but no stored fifteen (len(sess.Squad) != 15)
+// used to answer 409 "Your fifteen is incomplete" outright — but an empty sess.Squad is
+// the ORDINARY state after Optimise or Reset (see session's own doc comment on why the
+// fifteen is only stored once a reader diverges from the model's live answer), not a
+// broken one, so any reader who imported a team and then pressed either button hit this
+// wall on the very next "Suggest transfers" click. Reachable through a hand-crafted
+// session — Entry alone, no Squad — which validateSession accepts (a session may carry
+// only corrections and no team; see its own comment) and is otherwise how Optimise/Reset's
+// own save shape reads once decoded.
+//
+// resolvedSquadCodes now resolves this the same way buildState would — the live-optimised
+// default, no FPL account needed for THAT part — so the request clears the old 409 and
+// proceeds to the real FPL fetches for entry 1234567, a fake id with no client configured
+// to answer it: 503, not 409. That the failure moved this far is the fix; a real client
+// and a real entry would carry it all the way to a suggestion, which
+// TestApiTransfersPassesTheReadersOwnSquadNotTheHouseTeams (source scan) and
+// TestTransfersAnswers503WithNoClientConfigured cover from the other side.
+func TestTransfersResolvesAnEmptySquadRatherThanRefusing(t *testing.T) {
 	s := fixtureServer(t)
 	w0, _ := put(t, s, session{Version: sessionVersion, Entry: 1234567}, nil)
 	if w0.Code != http.StatusOK {
@@ -67,8 +81,14 @@ func TestTransfersRefusesAPartialSquad(t *testing.T) {
 	cookie := sessionCookie(t, w0)
 
 	w := getTransfers(t, s, cookie)
-	if w.Code != http.StatusConflict {
-		t.Errorf("GET /api/transfers with Entry set but no squad answered %d, want 409: %s",
+	if w.Code == http.StatusConflict {
+		t.Errorf("GET /api/transfers with Entry set but no stored squad answered 409 — "+
+			"an empty squad must resolve to the live-optimised default, not refuse: %s",
+			w.Body.String())
+	}
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("GET /api/transfers with Entry set but no stored squad answered %d, want "+
+			"503 (squad resolution succeeds; the fake entry id then fails to fetch): %s",
 			w.Code, w.Body.String())
 	}
 }
@@ -168,22 +188,30 @@ func TestTransfersAnswers503WithNoClientConfigured(t *testing.T) {
 
 // TestApiTransfersPassesTheReadersOwnSquadNotTheHouseTeams is a source scan, the same
 // tripwire idiom TestTheTransferBoardWiresTheBankingDecision (transfers_test.go) already
-// uses for buildTransferBoard's own internal wiring: a review deleting the sess.Entry or
-// sess.Squad arguments, or handing sell a non-nil value, would build, vet and pass the rest
-// of this suite clean, because nothing else in the repository calls apiTransfers with a real
-// FPL account behind it. It matches on the exact call shape rather than proving behaviour —
-// the acknowledged limit of a scan like this — but a rewritten call is what would actually
-// happen if this hazard regressed.
+// uses for buildTransferBoard's own internal wiring: a review deleting the sess.Entry
+// argument, reintroducing sess.Squad directly in place of the resolved squad, or handing
+// sell a non-nil value, would build, vet and pass the rest of this suite clean, because
+// nothing else in the repository calls apiTransfers with a real FPL account behind it. It
+// matches on the exact call shape rather than proving behaviour — the acknowledged limit
+// of a scan like this — but a rewritten call is what would actually happen if this hazard
+// regressed.
+//
+// The middle argument reads `squad`, not `sess.Squad`, since
+// TestTransfersResolvesAnEmptySquadRatherThanRefusing: squad is
+// resolvedSquadCodes(ctx, cfg, sess)'s answer, sess.Squad's own value on the fast path
+// where one is already stored, and the live-optimised default otherwise — but always the
+// reader's OWN current pitch either way, never cfg.EntryID's or e.SellPrices' house-team
+// data, which is the property this scan actually pins.
 func TestApiTransfersPassesTheReadersOwnSquadNotTheHouseTeams(t *testing.T) {
 	src, err := os.ReadFile("apitransfers.go")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(src), "sess.Entry, sess.Squad, nil") {
-		t.Error("apiTransfers no longer calls buildTransferBoard with (sess.Entry, sess.Squad, nil) " +
-			"— sess.Entry/sess.Squad are the READER's own entry and current pitch, and nil " +
-			"sell means sell-at-market. cfg.EntryID or e.SellPrices here would price a " +
-			"visitor's search off the house team's own account.")
+	if !strings.Contains(string(src), "sess.Entry, squad, nil") {
+		t.Error("apiTransfers no longer calls buildTransferBoard with (sess.Entry, squad, nil) " +
+			"— sess.Entry is the READER's own entry, squad is their resolved current pitch " +
+			"(resolvedSquadCodes), and nil sell means sell-at-market. cfg.EntryID or " +
+			"e.SellPrices here would price a visitor's search off the house team's own account.")
 	}
 }
 
