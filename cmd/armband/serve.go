@@ -140,16 +140,24 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 	}
 
 	s := &squadServer{
-		token:   token,
-		cfg:     &cfg,
-		cfgPath: cfgPath,
-		client:  client,
-		engine:  e,
-		weeks:   weeks,
-		persist: *persist,
-		signups: signups,
+		token:           token,
+		cfg:             &cfg,
+		cfgPath:         cfgPath,
+		client:          client,
+		engine:          e,
+		weeks:           weeks,
+		persist:         *persist,
+		signups:         signups,
+		wildcardEnabled: cfg.WildcardEnabled,
 	}
 
+	if s.wildcardEnabled {
+		fmt.Fprintf(os.Stderr, "%s\n", dim("/wildcard is enabled (config.json wildcard_enabled)."))
+	} else {
+		fmt.Fprintf(os.Stderr, "%s\n", dim("/wildcard is disabled — config.json wildcard_enabled "+
+			"is false or unset. /wildcard and /api/wildcard both 404, and the "+
+			"\"If we chipped\" link is stripped from every page that carries it."))
+	}
 	fmt.Fprintf(os.Stderr, "\n%s\n", dim("Serving the squad page on http://"+*addr+"/?t="+token))
 	fmt.Fprintf(os.Stderr, "%s\n", dim("Open that exact URL — the token gates the page's write actions."))
 	if *persist {
@@ -246,6 +254,13 @@ type squadServer struct {
 	// Nil until the first build. See chipCacheGet/invalidateChipCache.
 	chips *chipCache
 
+	// wildcardEnabled gates /wildcard and /api/wildcard (both 404 when
+	// false) and hides the "If we chipped" link from landing.html, app.html
+	// and team.html. Mirrors cfg.WildcardEnabled — see that field's own
+	// comment for why this ships off by default and lives in config.json
+	// rather than a flag or an environment variable.
+	wildcardEnabled bool
+
 	// metricsOnce and metricsReg are this server's lazily-built Prometheus
 	// registry — the three staleness series, which close over client above.
 	// See metricsRegistry in instruments.go for why lazy: there is no
@@ -338,11 +353,20 @@ func (s *squadServer) routeFor(path string) (http.Handler, string) {
 	case routeArmbandTeamState:
 		return http.HandlerFunc(s.armbandTeamState), "armband-team-state"
 	case routeWildcard:
-		// Ungated, deliberately: see routeWildcard's own comment.
+		// Ungated, deliberately: see routeWildcard's own comment. "Ungated"
+		// is about the auth token, not about wildcardEnabled — a feature
+		// still off for everyone answers 404 for everyone the same way, auth
+		// or not, same as a route this binary had never heard of.
+		if !s.wildcardEnabled {
+			return http.HandlerFunc(http.NotFound), "wildcard-disabled"
+		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			s.servePage(w, r, "wildcard")
 		}), "wildcard"
 	case routeWildcardState:
+		if !s.wildcardEnabled {
+			return http.HandlerFunc(http.NotFound), "wildcard-state-disabled"
+		}
 		return http.HandlerFunc(s.apiChipTeams), "wildcard-state"
 	case routeSession:
 		return http.HandlerFunc(s.saveSession), "session"
