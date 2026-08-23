@@ -40,8 +40,9 @@ Typical use, after a sweep and the calibration diagnostics have run:
 Flags:
   -cells string      Per-cell CSV from a sweep (default /tmp/cells.csv)
   -model string      Model-accuracy CSV from the diagnostics (default /tmp/model.csv)
-  -out string        Snapshot root; a dated subdirectory is created (default stats/snapshots,
-                     which is tracked by git — the snapshot is meant to be committed)
+  -out string        Snapshot root; a dated subdirectory is created (default stats/snapshots).
+                     Not committed — .github/workflows/snapshot.yml publishes the real record
+                     as a GitHub Release on every push to main. This is for your own eyes.
   -inference string  Where the R tables are written (default stats/out)
   -note string       A caveat to stamp in. Repeatable.
   -no-r              Do not run the R inference; read whatever is already in -inference
@@ -65,23 +66,28 @@ func runSnapshot(cfg config.Config, args []string) error {
 	fs.Usage = func() { fmt.Fprint(os.Stderr, snapshotHelp) }
 	var (
 		modelCSV = fs.String("model", "/tmp/model.csv", "model-accuracy CSV")
-		// Inside the repository on purpose, and it must not be gitignored.
+		// ⚠️ CORRECTED 2026-08-22. This used to argue the opposite -- that the
+		// default had to stay inside the repository and NOT be gitignored, because
+		// the snapshot "is the deliverable... meant to be committed". That was true
+		// the day it was written and stopped being true the same day: the accuracy
+		// series left the tree, .github/workflows/snapshot.yml publishes it as a
+		// GitHub Release on every push to main, and .gitignore now refuses the four
+		// canonical files this command writes under stats/snapshots/*/ specifically
+		// so a local run cannot re-commit them by habit -- see that guard's own
+		// comment and internal/snapshot/staleness_test.go's rewritten recipe.
 		//
-		// A default run therefore leaves an untracked directory behind, which looks
-		// like a command dirtying the tree. It is the deliverable: the snapshot is
-		// the accuracy record, it is meant to be committed, and the *next* snapshot
-		// finds it with snapshot.FindPrevious and diffs against it. Ignore this path
-		// and every future record becomes invisible to git, so a fresh clone would
-		// diff against whatever was last committed by hand — which is the
-		// hand-maintained discipline this whole artefact exists to remove.
+		// The default stays stats/snapshots anyway, for a smaller reason: it is
+		// where the surviving evidence directories already live (see AGENTS.md and
+		// stats/snapshots' own note on what those are), so a local run lands beside
+		// them rather than in a third location nobody would think to look. The
+		// safety property that used to rest on "remember not to commit this" now
+		// rests on the .gitignore pattern instead, which is the whole point of
+		// moving it there -- see this function's closing Printf for what a reader
+		// is actually told to do with the result.
 		//
-		// Moving the default outside the repository fails the same way from the other
-		// end: the file you are supposed to commit lands somewhere you have to
-		// remember to fetch it from. The output below names the directory and says it
-		// wants committing, which is the part that was actually missing.
-		//
-		// -inference is different and *is* ignored: stats/out holds R's intermediate
-		// tables, which are re-derivable from the same CSV on demand.
+		// -inference is different and *is* ignored at the directory level: stats/out
+		// holds R's intermediate tables, which are re-derivable from the same CSV on
+		// demand and were never meant to be committed even before this change.
 		outRoot   = fs.String("out", filepath.Join("stats", "snapshots"), "snapshot root")
 		infDir    = fs.String("inference", filepath.Join("stats", "out"), "R output directory")
 		noR       = fs.Bool("no-r", false, "do not run the R inference")
