@@ -44,10 +44,23 @@ type blend struct {
 
 	MinutesPerMatch float64
 	StartShare      float64
-	XG90            float64
-	XA90            float64
-	XGC90           float64
-	DefCon90        float64
+	// GateMinutesPerMatch is what the eligibility floor (SettledMinutes) reads
+	// instead of MinutesPerMatch, when GateMinutesSet is true — see
+	// shrinkToLeague's own comment. GateMinutesSet false means "no
+	// divergence, read MinutesPerMatch": a bool rather than a zero sentinel,
+	// because a genuinely no-minutes player's raw figure IS zero and must
+	// still win over a shrunk-toward-league-average positive one. Every path
+	// that does not deliberately create a gap leaves both unset rather than
+	// duplicating MinutesPerMatch into GateMinutesPerMatch, so a reader
+	// auditing for a second implementation of "expected minutes" finds one
+	// real quantity and one explicit, named exception, not two competing
+	// copies.
+	GateMinutesPerMatch float64
+	GateMinutesSet      bool
+	XG90                float64
+	XA90                float64
+	XGC90               float64
+	DefCon90            float64
 
 	// Counting stats, per 90. Raw, these are the most explosive terms in the
 	// model early in a season: they divide a whole number by a fraction of a
@@ -594,7 +607,17 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 		//
 		// Weight stays at what the sample justifies, so the reported figure
 		// still says how thin the evidence is.
-		return e.shrinkToLeague(el, b)
+		b = e.shrinkToLeague(el, b)
+		// shrinkToLeague now mixes MinutesPerMatch/StartShare toward the
+		// league rate along with everything else — see its own comment — and
+		// has no idea a manual override already set them. A minutes
+		// correction beats anything derived from the data (the comment two
+		// screens up) and must not be diluted back toward a league average
+		// any more than blendForCode lets it be diluted toward a prior
+		// season: reassert it, matching the identical call the pre-season
+		// branch above already makes for the same reason.
+		e.reassertMinutesOverride(el, ignoreCode, &b)
+		return b
 	}
 
 	mix := func(cur, prior, n, k float64) float64 {
@@ -724,15 +747,50 @@ func defCon90(el *fpl.Element) float64 {
 }
 
 // shrinkToLeague pulls a player with no prior toward his position's league-wide
-// rates, using the same weighting as an ordinary blend.
+// rates AND league-wide playing time, using the same weighting as an ordinary
+// blend.
 //
-// Minutes are deliberately left alone here — this only shrinks the counting-stat
-// rates that explode when divided by a fraction of a season. That is not the same
-// as minutes carrying no sample-size uncertainty: MinutesRating (reliabilityFrom)
-// is a bare function of the point estimate, with no term for how many matches it
-// rests on, so a one-match debutant's 90 minutes reads there as fully reliable.
-// Whether minutes themselves should shrink toward a league prior is measured and
-// open, not resolved — see AGENTS.md's scoring-model entries.
+// Minutes used to be left alone here — only the counting-stat rates were
+// shrunk, on the reasoning that a one-match debutant's 90 minutes is a
+// statement of fact, not a sample to shrink. That left the trap this
+// function exists to close on the RATE side wide open on the VOLUME side:
+// MinutesRating (reliabilityFrom) is a bare function of MinutesPerMatch and
+// StartShare, with no term for how many matches they rest on, so a
+// promoted-club debutant who starts and plays a full ninety in his first
+// match — HUL's McBurnie and Belloumi, 2026-27 GW1 — reads as StartShare
+// 1.000, ExpectedMinutes 90, MinutesRating ~1.0: full certainty from n=1,
+// the identical "his debut reads as forever" mistake described below for
+// rates, just carried by the volume term instead of the rate term. It
+// concentrated the wildcard/free-hit builder on exactly these players — up
+// to 5 of 15 squad slots in the reported incident — because a well-shrunk,
+// modest rate multiplied by a false-certain full-90 volume still outscores
+// an established player whose volume is honestly uncertain.
+//
+// Extended 2026-08-23 to shrink MinutesPerMatch and StartShare too, on
+// BlendMinutesK rather than LeagueShrinkK — the established-prior path
+// below already keeps a volume weight separate from its rate weight
+// (BlendRateK vs BlendMinutesK, shipped at 8 vs 5), so the no-prior path
+// reuses that same split rather than inventing a third constant or
+// conflating volume with rate. This is still NOT a calibrated result —
+// BlendMinutesK was fit for the established-prior mix, not for this one —
+// but it reuses a constant this project has already measured once
+// (constants-and-sweeps) rather than asserting a fresh, untested number.
+//
+// ⚠️ The shrunk MinutesPerMatch/StartShare feed Score, which is the whole
+// point — but they must NOT reach the eligibility floor
+// (cutByExpectedMinutes, read off SettledMinutes). A first draft let them:
+// even at the gentler BlendMinutesK, shrinking a heavy-blank gameweek's
+// affordable pool toward the league average pushed enough of it below the
+// minutes floor to make a £82.0m free hit unbuildable within budget
+// (TestFreeHitNeverFieldsABlankingClub, 2021-22 GW18). That failure mode is
+// not about the magnitude of the shrink; it is a category error — a floor
+// asking "does he currently get picked" is a fact about today's team sheet,
+// answered by GateMinutesPerMatch below, not a confidence question the
+// SCORE side's uncertainty-shrink has any business narrowing. Both draws
+// from the same real observation; only which question each answers differs.
+// Ships because the ranking failure it closes is live and reproduced;
+// BlendMinutesK's use here (as opposed to a dedicated constant) is still a
+// candidate for the same backtest calibration LeagueShrinkK itself is owed.
 func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	base, ok := e.leagueRates[el.ElementType]
 	if !ok {
@@ -740,19 +798,50 @@ func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	}
 	n90 := float64(el.Minutes) / 90
 	k := e.Weights.LeagueShrinkK
-	mix := func(cur, league float64) float64 {
-		w := n90 / (n90 + k)
-		return w*cur + (1-w)*league
+	w := n90 / (n90 + k)
+	mix := func(cur, league, weight float64) float64 {
+		return weight*cur + (1-weight)*league
 	}
-	b.XG90 = mix(b.XG90, base.XG90)
-	b.XA90 = mix(b.XA90, base.XA90)
-	b.XGC90 = mix(b.XGC90, base.XGC90)
-	b.DefCon90 = mix(b.DefCon90, base.DefCon90)
-	b.Bonus90 = mix(b.Bonus90, base.Bonus90)
-	b.Saves90 = mix(b.Saves90, base.Saves90)
-	b.Yellow90 = mix(b.Yellow90, base.Yellow90)
-	b.Red90 = mix(b.Red90, base.Red90)
-	b.Weight = n90 / (n90 + k)
+	b.XG90 = mix(b.XG90, base.XG90, w)
+	b.XA90 = mix(b.XA90, base.XA90, w)
+	b.XGC90 = mix(b.XGC90, base.XGC90, w)
+	b.DefCon90 = mix(b.DefCon90, base.DefCon90, w)
+	b.Bonus90 = mix(b.Bonus90, base.Bonus90, w)
+	b.Saves90 = mix(b.Saves90, base.Saves90, w)
+	b.Yellow90 = mix(b.Yellow90, base.Yellow90, w)
+	b.Red90 = mix(b.Red90, base.Red90, w)
+	// Volume shrinks ONLY in the live gap this was reported and reproduced
+	// in — GameweeksPlayed() still 0, SeasonHasStarted() already true (see
+	// this function's own comment for why that is where a no-prior debutant
+	// reads as fully nailed off a single match). Past that window a no-prior
+	// player accumulates real CURRENT-season evidence of his own — n90 grows
+	// every week he plays regardless of whether he ever gets a prior SEASON
+	// on file — and w above is already correctly close to 1 by then, so the
+	// unshrunk mid-season population this once touched (freeHitSquad's cheap
+	// fodder among them) is not this bug's population and does not need
+	// this fix. Scoped here rather than left unconditional after
+	// TestFreeHitNeverFieldsABlankingClub (2021-22 GW18) showed the
+	// unconditional version pushing mid-season fodder below the minutes
+	// floor even through the BlendMinutesK/GateMinutesPerMatch narrowing
+	// below — the population past the gap was never who this needed to
+	// protect.
+	if e.GameweeksPlayed() == 0 {
+		// GateMinutesPerMatch is captured BEFORE the volume mix, so the
+		// eligibility floor keeps judging "does he currently get picked" off
+		// what he has actually done, unshrunk — see this function's own
+		// comment on why that gate must not move even though Score does.
+		b.GateMinutesPerMatch = b.MinutesPerMatch
+		b.GateMinutesSet = true
+		// Volume uses BlendMinutesK, not LeagueShrinkK — the same split the
+		// established-prior path two screens down already keeps (BlendRateK
+		// for rates, BlendMinutesK for MinutesPerMatch/StartShare, shipped
+		// at 5 against 8). Reusing LeagueShrinkK here would conflate two
+		// quantities that path deliberately tunes apart.
+		wMin := n90 / (n90 + e.Weights.BlendMinutesK)
+		b.MinutesPerMatch = mix(b.MinutesPerMatch, base.MinutesPerMatch, wMin)
+		b.StartShare = mix(b.StartShare, base.StartShare, wMin)
+	}
+	b.Weight = w
 	return b
 }
 
@@ -762,6 +851,11 @@ type leagueRate struct {
 	XG90, XA90, XGC90, DefCon90 float64
 	Bonus90, Saves90            float64
 	Yellow90, Red90             float64
+	// MinutesPerMatch and StartShare are the position's average PLAYING TIME,
+	// not scoring output — the fallback for a no-prior player's own volume,
+	// the same way the fields above are the fallback for his own rate. See
+	// shrinkToLeague's own comment for why this exists alongside them.
+	MinutesPerMatch, StartShare float64
 }
 
 // calibrateLeagueRates totals each position's output and minutes, so the
@@ -769,7 +863,7 @@ type leagueRate struct {
 // construction and read-only thereafter.
 func (e *Engine) calibrateLeagueRates() {
 	type acc struct {
-		mins                                    float64
+		mins, avail, starts                     float64
 		xg, xa, xgc, dc, bonus, saves, yel, red float64
 	}
 	sums := map[int]*acc{}
@@ -785,6 +879,8 @@ func (e *Engine) calibrateLeagueRates() {
 		}
 		m := float64(el.Minutes)
 		a.mins += m
+		a.avail += float64(e.matchesAvailable(el))
+		a.starts += float64(el.Starts)
 		a.xg += el.ExpectedGoals.Float()
 		a.xa += el.ExpectedAssists.Float()
 		a.xgc += el.ExpectedGoalsConceded.Float()
@@ -800,10 +896,15 @@ func (e *Engine) calibrateLeagueRates() {
 			continue
 		}
 		r := 90 / a.mins
-		e.leagueRates[pos] = leagueRate{
+		lr := leagueRate{
 			XG90: a.xg * r, XA90: a.xa * r, XGC90: a.xgc * r, DefCon90: a.dc * r,
 			Bonus90: a.bonus * r, Saves90: a.saves * r,
 			Yellow90: a.yel * r, Red90: a.red * r,
 		}
+		if a.avail > 0 {
+			lr.MinutesPerMatch = a.mins / a.avail
+			lr.StartShare = a.starts / a.avail
+		}
+		e.leagueRates[pos] = lr
 	}
 }

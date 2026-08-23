@@ -412,13 +412,20 @@ func TestTheCopiedExpressionsHaveOneImplementation(t *testing.T) {
 			// ⚠️ Listing them is what makes this row a tripwire rather than
 			// noise: with seven known occupants accounted for, an EIGHTH anywhere
 			// fails, and that eighth is the copy this row exists to catch.
-			// (4 + 1 + 2 = 7. An earlier draft of these two lines said six and
-			// seventh, which is the count a reader would check the row against.)
+			// (4 + 1 + 2 = 7 — recount here rather than trust the word if this
+			// row ever fails: blend.go's own count moved twice on 2026-08-23
+			// alone, once down when shrinkToLeague's weight was folded into one
+			// shared local instead of being typed out twice, and back up when a
+			// second, separately-tuned weight (wMin, below) was added beside it.)
 			"internal/analysis/blend.go": {4, "" +
 				"the rate blend's own weight, four times: the shrink-to-league " +
-				"arm on n, and the recency-weighted arm, the flat arm and the " +
-				"assembled result on n90. All four weigh EVIDENCE against a " +
-				"prior, on BlendRateK or LeagueShrinkK."},
+				"rate arm on n90 (LeagueShrinkK), that SAME function's separately " +
+				"-tuned volume arm on n90 (BlendMinutesK, wMin — a shrinkage weight " +
+				"is still one quantity even when a function computes two instances " +
+				"of it for two different inputs; see the function's own comment for " +
+				"why volume and rate cannot share a weight here), the " +
+				"recency-weighted prior-season arm on n, and the assembled result " +
+				"on n90 (BlendRateK). All four weigh EVIDENCE against a prior."},
 			"internal/analysis/metrics.go": {1,
 				"the same blend weight, clamped, on the metrics path."},
 			"internal/analysis/teamstrength.go": {2, "" +
