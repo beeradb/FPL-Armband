@@ -11,11 +11,13 @@
 //
 // # The split between pages and static
 //
-// assets/pages holds the two documents, and each is reachable at exactly one URL — "/"
-// and "/app". assets/static holds everything a document references, under /assets/.
-// The two directories are not interchangeable: were the pages also served under /assets/,
-// the app would have two URLs, and this project's most expensive recurring bug is one
-// thing with two implementations. One page, one route.
+// assets/pages holds one document per page, and each document is reachable at exactly one
+// URL. assets/static holds everything a document references, under /assets/. The two
+// directories are not interchangeable: were the pages also served under /assets/, a
+// document would have two URLs, and this project's most expensive recurring bug is one
+// thing with two implementations. One page, one route — that now includes "/app", which is
+// not a document at all but a redirect to "/", where the app document is served. See
+// routeFor in cmd/armband/webroutes.go for the current routes.
 //
 // # What this package does not do
 //

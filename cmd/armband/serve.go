@@ -31,8 +31,9 @@ import (
 // discards. There is no flag equivalent, on purpose — see cmdServe.
 const signupDSNEnv = "ARMBAND_SIGNUPS_DSN"
 
-// cmdServe hosts the client application over HTTP: the two embedded documents from
-// internal/webui, and the model behind them at /api/state.
+// cmdServe hosts the client application over HTTP: the embedded documents from
+// internal/webui — one per page, however many pages exist — and the model behind them at
+// /api/state.
 //
 // It is built by the same pipeline the terminal commands use (buildSquadPage) — the
 // difference is that it is live. `armband squad -html` no longer writes a page at all;
