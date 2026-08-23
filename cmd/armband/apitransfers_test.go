@@ -232,9 +232,11 @@ func TestTransferAnswerOutcomeSwitch(t *testing.T) {
 		{"bank", transferBoard{
 			Plans: plans, Free: 1, Consulted: true, Advice: analysis.BankAdvice{Bank: true},
 		}, "bank", analysis.BankAdvice{Bank: true}.Explain()},
+		// Reads the constant rather than a literal, like the "bank" case above reads
+		// Explain(). The literal that was here pinned wording the CLI and the page had
+		// already stopped using, and it described a threshold that is not applied.
 		{"nothing", transferBoard{Free: 1}, "nothing",
-			"No move clears the threshold this week. Doing nothing is a real answer " +
-				"and usually the right one."},
+			emptyBoardReason + " " + bankingIsFirstClass},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			doc := transferAnswer(&c.board, cfg, nil)

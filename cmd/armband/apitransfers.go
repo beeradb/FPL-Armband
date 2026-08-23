@@ -237,8 +237,7 @@ func transferAnswer(board *transferBoard, cfg config.Config, boot *fpl.Bootstrap
 		doc.Reason = board.Advice.Explain()
 	case outcomeNothing:
 		doc.Outcome = "nothing"
-		doc.Reason = "No move clears the threshold this week. Doing nothing is a real " +
-			"answer and usually the right one."
+		doc.Reason = emptyBoardReason + " " + bankingIsFirstClass
 	default:
 		doc.Outcome = "recommend"
 	}

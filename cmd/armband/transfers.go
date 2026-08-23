@@ -138,9 +138,16 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 }
 
 // emptyBoardReason and bankingIsFirstClass are the two halves of what an empty board
-// says, in one place because `armband transfers` and the page render the same
-// transferBoard and must not describe the same state two ways — which is the reason
-// transferBoard exists at all.
+// says, in one place because THREE surfaces now render the same transferBoard and must
+// not describe the same state three ways — which is the reason transferBoard exists at
+// all. The CLI, `bestPlanForOwnedSquad` (which the page renders as NoPlan) and
+// `apitransfers.go`'s document for the builder all read these.
+//
+// ⚠️ The third arrived while this was being written, carrying its own copy of the same
+// wrong sentence. That is the mirror this constant exists to close, and it will happen
+// again: a fourth surface will be written by someone who has not read this comment. If
+// the wording needs to differ per surface, give boardOutcome a method rather than
+// letting a literal back in.
 //
 // ⚠️ The wording these replaced was "No move clears the threshold this week", and it
 // described a threshold that is not applied: BuildPlans keeps every move with a
