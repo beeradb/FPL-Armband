@@ -29,10 +29,13 @@ switch**, because the term multiplies expected minutes and zero would erase them
 only weight with two defaults for one quantity, which is a shape this project has been bitten by
 before, so `TestBlankRunPenaltyHasOneDefault` pins both halves.
 
-Three fields need a genuine third state and get one by probing for **key presence** rather than
+Four fields need a genuine third state and get one by probing for **key presence** rather than
 value: `bonus_prior_weight`, so that an absent key does not read as a deliberate 0 — which is
 why its off switch is `-1` — `rest_minutes_factor`, for the rename migration described under
-post-tournament rest below, and `review_policy.early_floor`, described next.
+post-tournament rest below, `review_policy.early_floor`, described next, and
+`roster.minutes[].confirmed`, described above — an entry saved before that field existed probes
+as absent and is backfilled once from the retired ≥80 heuristic; an entry saved since always has
+the key, even when its value is `false`, so the probe has nothing left to infer from that point on.
 
 **List-valued fields follow a different rule again.** An absent key keeps the Go default; a
 present key wins outright — `{}`, `[]` and `null` included, since `encoding/json` zeroes a map
@@ -69,8 +72,8 @@ flowchart TB
     honoured["0 is honoured — it is a real<br/>setting meaning 'turn this term off'"]
     brp["blank_run_penalty"]
     trap2["0 is rewritten to 0.75 at the read<br/>site — the term stays fully on.<br/>The off switch is 1.0"]
-    probe["bonus_prior_weight ·<br/>rest_minutes_factor"]
-    presence["key presence is the test, not the value:<br/>bonus_prior_weight's off switch is -1,<br/>rest_minutes_factor probes for the<br/>rest_discount migration"]
+    probe["bonus_prior_weight ·<br/>rest_minutes_factor ·<br/>roster.minutes[].confirmed"]
+    presence["key presence is the test, not the value:<br/>bonus_prior_weight's off switch is -1,<br/>rest_minutes_factor probes for the<br/>rest_discount migration, confirmed probes<br/>for a one-time backfill on the retired<br/>≥80 heuristic — then the key is always<br/>written, so the probe has nothing left<br/>to infer"]
 
     listrule["a present key wins outright —<br/>empty object, empty list and null included.<br/>An empty list is a statement, and the<br/>agent's removals survive the next load"]
     listexc["except review_policy.rules and<br/>minutes_weight_by_position, which<br/>backfill when empty — and the<br/>latter merges per position"]
@@ -532,7 +535,7 @@ week's run would either re-derive it or silently not.
 ```jsonc
 "roster": {
   "minutes": [ { "player_code": 118748, "player": "Isak", "reason": "…",
-                 "set_on": "2026-08-09", "expected_minutes": 85 } ],
+                 "set_on": "2026-08-09", "expected_minutes": 85, "confirmed": true } ],
   "exclude": [ … ],
   "lock":    [ … ],
   "teams":   [ { "team": "ARS", "xgc_factor": 1.15, "reason": "…", "set_on": "…" } ]
@@ -541,10 +544,32 @@ week's run would either re-derive it or silently not.
 
 | List | What it does |
 |---|---|
-| `minutes` | **Prefer this one.** Replaces the model's expected-minutes figure and constrains nothing, so the optimiser can still decline the player — which is information rather than an obstacle. Setting 0 also subsumes most exclusions. |
+| `minutes` | **Prefer this one.** Replaces the model's expected-minutes figure and constrains nothing, so the optimiser can still decline the player — which is information rather than an obstacle. Setting 0 also subsumes most exclusions. `confirmed: true` additionally asserts this as settled fact rather than a prediction — see below. |
 | `exclude` | Must not appear in any squad, and must not be bought by any transfer. |
 | `lock` | Must appear in every squad and must not be sold. `must_start` raises that from "in the fifteen" to "in the eleven". |
 | `teams` | Corrects a **club's** expected goals conceded by a multiplier, for the case a per-player override cannot express: a back line that lost the player it was built around. |
+
+**`confirmed` is a separate claim from the minutes number itself, and it is the only thing that
+lets an override supply the corroboration the "nailed" rotation-risk label needs.** A player who
+also has a real prior Premier League season on file, or has already played a couple of matches
+this season himself, can still read "nailed" without it — `confirmed` only matters for the
+override channel. A high `expected_minutes` value says what he plays; `confirmed` says whether
+that figure is settled fact — a done deal, an announced role — or your own best guess for a
+situation that could still change. Leave it `false` (or omit it) for a first start, a provisional
+lineup prediction, or anything you would describe as "probably" rather than "confirmed": that
+reads as "likely starter" rather than "nailed", which is the honest label for a real but not yet
+certain forecast. This replaced an earlier version of the mechanism that read confidence off the
+expected-minutes value alone (anything 80 or above counted as confident) — which broke the moment
+an override asserted a high number while its own reasoning hedged it, so the number and the
+confidence are now two separate facts you set independently.
+
+**A `minutes` entry written before this field existed is backfilled once**, on the retired ≥80
+heuristic, so day-one behaviour did not change for anything already on file. That backfill is a
+one-time transition, not a standing default: the moment the config is saved by the program again
+(any tool call that touches the roster), every entry gets an explicit `confirmed` key, and from
+then on an entry with no stated confidence reads `false`. A brand-new entry you add by hand needs
+`confirmed: true` explicitly if you want it to read nailed — the number alone no longer does that,
+even at a high value.
 
 Four properties are load-bearing, and each fixes a bug this project actually shipped:
 

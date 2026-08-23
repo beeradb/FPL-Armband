@@ -256,7 +256,10 @@ func TestMinutesOverrideSurvivesThePriorsBlend(t *testing.T) {
 	established.Minutes, established.Starts = 0, 0 // nothing from this season yet
 
 	// The analysis layer has corrected him: nailed now, 88 expected minutes.
-	e.SetMinutesOverride(established.Code, 88, 6)
+	// Confirmed is deliberately false here — this test's "nailed" comes from
+	// the real prior season alone, and must not silently start depending on
+	// the analyst's confidence flag too.
+	e.SetMinutesOverride(established.Code, 88, 6, false)
 
 	m := e.Metrics(established)
 	if m.ExpectedMinutes < 80 {
@@ -296,24 +299,34 @@ func TestSingleCameoDoesNotReadNailed(t *testing.T) {
 	}
 }
 
-// TestOverrideConfidenceGatesNailed is the Tzolis/van Ewijk contrast from the
-// live 2026-27 config: two manual minutes overrides on players with no
-// Premier League history at all (RosterOverride carries no field a program can
-// read "how confident is this" from), where the override-setter's own
-// reasoning hedges one ("a starter today, not a nailed one") and asserts the
-// other outright ("nailed starter, not a fringe player") — and the only place
-// that distinction is written down, structurally, is the value itself: 75
-// against 85. An override must clear the same evidentiary bar as anyone else
-// to read "nailed"; a bare override at the label's own floor is exactly the
-// hedge this test pins.
-func TestOverrideConfidenceGatesNailed(t *testing.T) {
+// TestOverrideConfirmedGatesNailed is the Tzolis production incident this
+// field exists to fix, plus the Kinsky/van Ewijk contrast the fix must not
+// regress.
+//
+// The PREVIOUS mechanism (nailedOverrideFloor, now deleted) inferred
+// confidence from ExpectedMinutes' own magnitude: >= 80 read as "confident",
+// on the theory that a hedge and a confident assertion cluster at different
+// values. That held for the six overrides on file when it was written — until
+// Tzolis shipped in the real 2026-27 config at 82, with a reason that reads
+// "Set to 82 rather than a nailed 85 as this is still only his second
+// competitive appearance for the club": an explicit hedge, at a value the
+// floor still waved through, because RosterOverride carried no field that let
+// the model tell "82, asserted as settled" from "82, hedged". A magnitude can
+// never carry that distinction — only an explicit Confirmed field can, which
+// is what this test pins: the SAME value (82, and separately 88, matching
+// Kinsky) must read nailed or not purely off Confirmed, never off the number.
+func TestOverrideConfirmedGatesNailed(t *testing.T) {
 	tests := []struct {
 		name       string
 		overrideAt float64
+		confirmed  bool
 		wantNailed bool
 	}{
-		{"hedged override at the nailed floor reads only as a starter", 75, false},
-		{"confidently asserted override reads nailed", 85, true},
+		{"Tzolis: hedged reason, 82, unconfirmed — must not read nailed", 82, false, false},
+		{"Tzolis' own value WOULD clear the old magnitude floor, but Confirmed wins", 82, false, false},
+		{"Kinsky: confirmed at 88 reads nailed", 88, true, true},
+		{"van Ewijk: confirmed at 85 reads nailed", 85, true, true},
+		{"a confirmed override below the label's own 75 minutes band still does not read nailed", 70, true, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -321,7 +334,7 @@ func TestOverrideConfidenceGatesNailed(t *testing.T) {
 			e.Priors = fakePriors{} // no Premier League history on record at all
 			debutant.Minutes, debutant.Starts = 0, 0
 
-			e.SetMinutesOverride(debutant.Code, tt.overrideAt, 0)
+			e.SetMinutesOverride(debutant.Code, tt.overrideAt, 0, tt.confirmed)
 
 			m := e.Metrics(debutant)
 			if m.ExpectedMinutes != tt.overrideAt {
@@ -329,8 +342,8 @@ func TestOverrideConfidenceGatesNailed(t *testing.T) {
 					"this test is about the LABEL, not the estimate", m.ExpectedMinutes, tt.overrideAt)
 			}
 			if got := m.RotationRisk == "nailed"; got != tt.wantNailed {
-				t.Errorf("override %.0f: rotation_risk = %q (nailed=%v), want nailed=%v",
-					tt.overrideAt, m.RotationRisk, got, tt.wantNailed)
+				t.Errorf("override %.0f confirmed=%v: rotation_risk = %q (nailed=%v), want nailed=%v",
+					tt.overrideAt, tt.confirmed, m.RotationRisk, got, tt.wantNailed)
 			}
 		})
 	}

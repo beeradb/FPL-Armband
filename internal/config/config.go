@@ -409,7 +409,83 @@ func Load(path string) (Config, error) {
 	if cfg.PlayerCacheMinutes <= 0 {
 		cfg.PlayerCacheMinutes = d.PlayerCacheMinutes
 	}
+	backfillOverrideConfidence(b, &cfg)
 	return cfg, nil
+}
+
+// legacyNailedOverrideFloor is the value analysis.nailedOverrideFloor used to
+// carry, frozen here for exactly one purpose: reading a config.json written
+// before RosterOverride.Confirmed existed. The runtime mechanism it came from
+// is gone — inferring confidence from ExpectedMinutes' own magnitude was the
+// reported bug (Tzolis, hedged at 82, read "nailed" because 82 cleared 80
+// anyway) — so this constant must never again decide behaviour going
+// forward. It exists solely to keep a pre-existing file's overrides reading
+// exactly as they did the moment before this field shipped.
+const legacyNailedOverrideFloor = 80.0
+
+// backfillOverrideConfidence gives every minutes override that predates
+// RosterOverride.Confirmed the same reading it had under the retired
+// magnitude heuristic, so shipping the field does not silently flip anyone.
+//
+// This has to be a genuine one-time migration, not a permanent fallback —
+// the whole point of Confirmed is that confidence is no longer inferred from
+// a number. Two things make it actually one-time in practice:
+//
+//   - It only touches an override whose OWN JSON has no "confirmed" key at
+//     all. Presence is probed on raw bytes, exactly like bonus_prior_weight
+//     and rest_minutes_factor above, because cfg already starts from a zero
+//     Confirmed and testing the parsed VALUE could never tell "omitted" from
+//     "written as false" — which here are different facts.
+//   - Confirmed carries no "omitempty" tag, so the moment ANY tool call
+//     re-saves this config — which serialises the whole Roster, not just the
+//     entry it touched — every override gets its own key written explicitly,
+//     true or false. From that save onward hasKey sees it on every future
+//     Load, and this function has nothing left to infer for that entry. A
+//     newly written override that genuinely never addresses confidence keeps
+//     reading false forever, which is the correct, permanent answer — only an
+//     override old enough to predate the field at all gets the one historical
+//     pass below.
+//
+// Verified against the deployed production config.json (the private ops
+// repo's live account, not this repository's own dev config.json, which
+// carries a different roster) by hand, override by override: Kinsky, van
+// Ewijk and Mosquera read confidently in their own free text and cross the
+// floor, so this keeps them "nailed" — the three the field exists to
+// protect. Three others cross the floor despite each one's own reason
+// explicitly hedging ("rather than a nailed 85") — this migration does NOT
+// fix them, because doing so from the number alone would be the exact
+// mechanism being retired. It reproduces today's reading for all six without
+// exception; unhedging them requires an explicit "confirmed": false written
+// to their entries by hand, same as any other override correction. See
+// TestConfirmedBackfillMatchesTheLiveConfigOverrideByOverride for the shape
+// this was checked against, reconstructed rather than pasted from the real
+// file.
+func backfillOverrideConfidence(raw []byte, cfg *Config) {
+	var probe struct {
+		Roster struct {
+			Minutes []struct {
+				Confirmed *bool `json:"confirmed"`
+			} `json:"minutes"`
+		} `json:"roster"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return
+	}
+	if len(probe.Roster.Minutes) != len(cfg.Roster.Minutes) {
+		// Should not happen — same bytes, same shape — but an override this
+		// cannot account for is left alone (Confirmed stays its Go zero,
+		// false) rather than guessed at under a mismatched index.
+		return
+	}
+	for i := range cfg.Roster.Minutes {
+		if probe.Roster.Minutes[i].Confirmed != nil {
+			continue // already explicit; not this function's to touch
+		}
+		o := &cfg.Roster.Minutes[i]
+		if o.ExpectedMinutes != nil && *o.ExpectedMinutes >= legacyNailedOverrideFloor {
+			o.Confirmed = true
+		}
+	}
 }
 
 func Save(path string, cfg Config) error {

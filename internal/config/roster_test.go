@@ -13,10 +13,10 @@ import (
 // rather than as the contradiction it is.
 func TestRosterSetIsMutuallyExclusive(t *testing.T) {
 	var r Roster
-	if err := r.Set("lock", RosterOverride{Code: 1, Name: "A"}); err != nil {
+	if err := r.Set("lock", RosterOverride{Code: 1, Name: "A"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Set("exclude", RosterOverride{Code: 1, Name: "A"}); err != nil {
+	if err := r.Set("exclude", RosterOverride{Code: 1, Name: "A"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(r.Lock) != 0 {
@@ -25,13 +25,13 @@ func TestRosterSetIsMutuallyExclusive(t *testing.T) {
 	if len(r.Exclude) != 1 {
 		t.Errorf("exclude list is %+v, want one entry", r.Exclude)
 	}
-	if err := r.Set("clear", RosterOverride{Code: 1}); err != nil {
+	if err := r.Set("clear", RosterOverride{Code: 1}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(r.Lock) != 0 || len(r.Exclude) != 0 {
 		t.Error("clear left the player on a list")
 	}
-	if err := r.Set("nonsense", RosterOverride{Code: 1}); err == nil {
+	if err := r.Set("nonsense", RosterOverride{Code: 1}, nil); err == nil {
 		t.Error("an unknown mode was accepted")
 	}
 }
@@ -40,13 +40,88 @@ func TestRosterSetIsMutuallyExclusive(t *testing.T) {
 // must update him, or the lists grow without bound across a season.
 func TestRosterSetReplacesRatherThanDuplicates(t *testing.T) {
 	var r Roster
-	_ = r.Set("exclude", RosterOverride{Code: 7, Name: "Saliba", Reason: "back"})
-	_ = r.Set("exclude", RosterOverride{Code: 7, Name: "Saliba", Reason: "back, longer than thought"})
+	_ = r.Set("exclude", RosterOverride{Code: 7, Name: "Saliba", Reason: "back"}, nil)
+	_ = r.Set("exclude", RosterOverride{Code: 7, Name: "Saliba", Reason: "back, longer than thought"}, nil)
 	if len(r.Exclude) != 1 {
 		t.Fatalf("%d entries for one player, want 1", len(r.Exclude))
 	}
 	if r.Exclude[0].Reason != "back, longer than thought" {
 		t.Errorf("reason is %q; the update did not replace", r.Exclude[0].Reason)
+	}
+}
+
+// TestMinutesSetPreservesConfirmedWhenOmitted is the regression test for the
+// silent-reset bug: set_player_status's "confirmed" parameter defaults to Go's
+// zero value (false) when a caller omits it, and mode "minutes" is the SAME
+// path the tool tells the agent to prefer for any correction — including a
+// routine re-estimate of a player already confirmed nailed. Before Set
+// resolved the tri-state itself, a plain "update his minutes to 82" call with
+// no confirmed argument silently flipped a settled starter back to
+// unconfirmed, because the caller's zero-value false overwrote whatever was
+// already on file.
+//
+// A nil confirmed must carry the existing value forward; an explicit true or
+// false must still win outright, in both directions.
+func TestMinutesSetPreservesConfirmedWhenOmitted(t *testing.T) {
+	mins := 88.0
+
+	var r Roster
+	trueVal := true
+	if err := r.Set("minutes", RosterOverride{
+		Code: 1, Name: "Kinsky", Reason: "nailed", SetOn: "2026-08-15",
+		ExpectedMinutes: &mins,
+	}, &trueVal); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Minutes[0].Confirmed {
+		t.Fatal("test setup: explicit confirmed:true was not stored")
+	}
+
+	// A routine follow-up correcting the number, with confirmed left off
+	// entirely — the shape of call the tool description tells the agent to
+	// prefer for any correction.
+	mins2 := 85.0
+	if err := r.Set("minutes", RosterOverride{
+		Code: 1, Name: "Kinsky", Reason: "still nailed, minor correction", SetOn: "2026-08-20",
+		ExpectedMinutes: &mins2,
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Minutes[0].Confirmed {
+		t.Error("omitting confirmed on a routine minutes update reset it to false — " +
+			"it must carry forward the existing value instead")
+	}
+	if *r.Minutes[0].ExpectedMinutes != 85 {
+		t.Errorf("expected_minutes = %v, want 85 (the update itself must still apply)",
+			*r.Minutes[0].ExpectedMinutes)
+	}
+
+	// An explicit false must still win outright — an analyst who has genuinely
+	// downgraded their own confidence is not stuck with the old value forever.
+	falseVal := false
+	if err := r.Set("minutes", RosterOverride{
+		Code: 1, Name: "Kinsky", Reason: "actually now uncertain", SetOn: "2026-08-21",
+		ExpectedMinutes: &mins2,
+	}, &falseVal); err != nil {
+		t.Fatal(err)
+	}
+	if r.Minutes[0].Confirmed {
+		t.Error("an explicit confirmed:false was not applied — the carry-forward must not " +
+			"override an explicit call")
+	}
+
+	// And a fresh player with no existing override defaults to false when
+	// confirmed is omitted, same as any other unaddressed field.
+	var r2 Roster
+	if err := r2.Set("minutes", RosterOverride{
+		Code: 2, Name: "Someone New", Reason: "first correction", SetOn: "2026-08-21",
+		ExpectedMinutes: &mins,
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if r2.Minutes[0].Confirmed {
+		t.Error("a brand new override with no confirmed argument and nothing on file " +
+			"read as confirmed")
 	}
 }
 
@@ -122,7 +197,7 @@ func TestConfirmRefreshesWithoutMovingLists(t *testing.T) {
 	if err := r.Set("confirm", RosterOverride{
 		Code: 9, Name: "Saliba", Reason: "back, setback in training",
 		LastChecked: "2026-09-01", UntilGameweek: 12,
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(r.Exclude) != 1 || len(r.Lock) != 0 {
@@ -139,7 +214,7 @@ func TestConfirmRefreshesWithoutMovingLists(t *testing.T) {
 		t.Errorf("set-on moved to %q; it records when the override began", got.SetOn)
 	}
 	// Confirming someone with no override is a mistake, not a way to create one.
-	if err := r.Set("confirm", RosterOverride{Code: 99, Name: "Nobody"}); err == nil {
+	if err := r.Set("confirm", RosterOverride{Code: 99, Name: "Nobody"}, nil); err == nil {
 		t.Error("confirmed a player who has no standing override")
 	}
 }

@@ -1665,7 +1665,16 @@ func (t *Toolbox) rosterSets() (lock, start, exclude []int, notes []string) {
 		el := &t.Engine.Boot.Elements[i]
 		byCode[el.Code] = el.ID
 	}
+	// Guarded: t.Cfg is reassigned wholesale by updateConfig, under t.mu, and
+	// the tool runner fans a turn's calls out through an errgroup — so another
+	// tool call's config write can land in the middle of this read. This is the
+	// same torn-read shape minutesOverrideFor exists to prevent on the engine
+	// side, just on the config struct rather than the override maps.
+	// TestConcurrentSetPlayerStatusMinutesCallsDoNotRaceTheConfirmedReadback
+	// found it live, under -race, through this exact call.
+	t.mu.Lock()
 	lockOs, excludeOs, expired := t.Cfg.Roster.Active(gw)
+	t.mu.Unlock()
 	for _, o := range lockOs {
 		id, ok := byCode[o.Code]
 		if !ok {
@@ -1697,6 +1706,16 @@ type setPlayerStatusInput struct {
 	Mode    string   `json:"mode" jsonschema:"description=PREFER 'minutes'. One of: minutes (correct the expected-minutes figure and let the model re-decide - the right tool when the number is wrong, e.g. a returning injury or a promoted-club starter), start (must be in the STARTING ELEVEN - use when the squad is built around him), lock (must be in the squad but may be benched - use for a cheap enabler you need available), exclude (never picked or bought), confirm (re-verified against the news, still applies - optionally with an updated reason or until_gameweek), clear (remove any override)."`
 	Reason  string   `json:"reason" jsonschema:"description=Why. Shown back on every future run so a reader can tell when it no longer applies."`
 	Until   int      `json:"until_gameweek,omitempty" jsonschema:"description=Gameweek this lapses after. Omit for indefinite, which is reported as needing review every run."`
+	// Confirmed is a pointer for the same reason Minutes is: OMITTING it must
+	// mean something different from explicitly passing false. A plain bool
+	// defaults to false when left out of a call, and mode 'minutes' is the
+	// path the tool description tells the agent to PREFER for any correction —
+	// including a routine re-estimate of a player already confirmed nailed. If
+	// omitting this field read as false, that ordinary follow-up call would
+	// silently un-confirm him the moment the caller forgot to restate
+	// confirmed:true, which defeats the reason this field exists. Nil now
+	// means "leave whatever is already on file," and Roster.Set resolves it.
+	Confirmed *bool `json:"confirmed,omitempty" jsonschema:"description=With mode 'minutes' ONLY: pass true when you are asserting this as SETTLED FACT rather than a hedge - e.g. a confirmed starting role, a nailed-on new signing, an announced long-term injury with no return in doubt. Pass false for anything you would describe as provisional, a prediction, a first start, or a 'rather than a nailed X' judgement call - false reads as an honest 'not yet established' and is the safer default. OMIT this field entirely for a routine expected_minutes correction that says nothing new about confidence - omitting PRESERVES whatever confirmed state the player already has on file, rather than resetting it to false. This is the ONLY thing that lets the rotation_risk label read 'nailed'; the expected_minutes value alone no longer decides it, because a high number and genuine confidence are different claims."`
 }
 
 func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
@@ -1752,7 +1771,7 @@ func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
 					Code: el.Code, Name: name, Reason: in.Reason,
 					SetOn: now, LastChecked: now, UntilGameweek: in.Until,
 					ExpectedMinutes: in.Minutes,
-				})
+				}, in.Confirmed)
 			}); err != nil {
 				return errResult("%v", err)
 			}
@@ -1767,7 +1786,29 @@ func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
 			// prompt actively asks for, and Go does not let a program recover
 			// from that.
 			if mode == "minutes" {
-				t.Engine.SetMinutesOverride(el.Code, *in.Minutes, in.Until)
+				// Read back what Roster.Set just resolved Confirmed to, rather
+				// than re-deriving the carry-forward rule here: in.Confirmed is
+				// only ever a caller's raw, possibly-nil input, and Set already
+				// decided the actual value (explicit, or carried forward from
+				// the existing override) as the one thing t.Cfg now records.
+				// Recomputing it a second time here is exactly the kind of copy
+				// this project has seen drift.
+				//
+				// Taken under t.mu, deliberately a second, separate acquisition
+				// from updateConfig's own: the tool runner fans a turn's calls
+				// out through an errgroup, so another set_player_status call for
+				// a different player can reassign t.Cfg — a whole-struct copy —
+				// between this handler's updateConfig call returning and this
+				// read. An unguarded read here is the exact torn-read shape
+				// minutesOverrideFor exists to prevent on the engine side, just
+				// on Cfg instead of the override maps.
+				t.mu.Lock()
+				confirmed := false
+				if existing, ok := t.Cfg.Roster.MinutesFor(el.Code); ok {
+					confirmed = existing.Confirmed
+				}
+				t.mu.Unlock()
+				t.Engine.SetMinutesOverride(el.Code, *in.Minutes, in.Until, confirmed)
 			} else if mode == "clear" {
 				t.Engine.ClearMinutesOverride(el.Code)
 			}

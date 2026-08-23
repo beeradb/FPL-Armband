@@ -418,6 +418,19 @@ func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.Playe
 		// would re-write the lock, replacing the reason the agent set with the
 		// page's canned one and clearing MustStart. The same guard keeps an
 		// excluded player's EXCL badge, which the watchlist's skip set reads.
+		if o.ExpectedMinutes != nil && o.Confirmed {
+			// Confirmed decides whether rotation_risk can read "nailed" and was
+			// found to be invisible on this page entirely. Appended to Label,
+			// not Reason: Reason is the raw stored text, reused verbatim by the
+			// News tab (buildNews copies it into NewsItem.Body), so mutating it
+			// here would silently rewrite what a REPORTED row says. Label is
+			// this page's own compact badge and has no other reader.
+			//
+			// Only the confirmed case adds a marker; leaving the unconfirmed
+			// case bare keeps the ordinary "MIN 88" badge unchanged for the
+			// common case, which is what most minutes overrides are.
+			label += " (confirmed)"
+		}
 		_, taken := bound[byCode[o.Code]]
 		live = append(live, player("minutes", label, o, false, !taken))
 	}

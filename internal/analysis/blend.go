@@ -129,7 +129,7 @@ type RecentForm interface {
 // An override with no end date is indefinite and applies flat, which is right:
 // nobody has said when it stops.
 func (e *Engine) prorateOverride(code int, override, natural float64) float64 {
-	_, until, _ := e.minutesOverrideFor(code)
+	_, until, _, _ := e.minutesOverrideFor(code)
 	if until <= 0 {
 		return override
 	}
@@ -172,7 +172,7 @@ func (e *Engine) reassertMinutesOverride(el *fpl.Element, ignoreCode int, b *ble
 	if ignoreCode != 0 && el.Code == ignoreCode {
 		return
 	}
-	if v, _, ok := e.minutesOverrideFor(el.Code); ok {
+	if v, _, _, ok := e.minutesOverrideFor(el.Code); ok {
 		v = e.prorateOverride(el.Code, v, b.MinutesPerMatch)
 		b.MinutesPerMatch = v
 		b.StartShare = clamp(v/90, 0, 1)
@@ -191,26 +191,6 @@ func (e *Engine) reassertMinutesOverride(el *fpl.Element, ignoreCode int, b *ble
 // evidence" — the exact phrase this was reported against.
 const corroboratingMatches = 2.0
 
-// nailedOverrideFloor is how confident a manual minutes override has to be,
-// on its own, to count as corroborating evidence rather than a bare estimate.
-//
-// Asserted, not measured, and read off this project's own override history
-// rather than picked from nothing. As of 2026-08-19 config.json holds eight
-// minutes overrides; two (J.Timber at 15, Konsa at 0) are short-term absences
-// nowhere near either cluster and say nothing about "nailed" one way or the
-// other. Of the six that DO assert or hedge a nailed-type judgement, every one
-// sits at exactly one of two values, and the value itself is where the
-// override-setter's own confidence already lives — free text can say "not a
-// nailed one" (Tzolis, Thomas, Isak, each set to 75) or "a nailed Premier
-// League keeper" / "nailed starter, not a fringe player" (Kinsky at 88, van
-// Ewijk and Mosquera at 85), but RosterOverride carries no field a program can
-// read that distinction from, and this project does not parse free-text
-// reasoning. The floor sits strictly between the two clusters actually
-// observed (75 hedged, 85-88 confident), so it changes no override written to
-// date; it does not generalise beyond the six overrides it was read from, and
-// should be revisited once more exist.
-const nailedOverrideFloor = 80.0
-
 // minutesCorroborated reports whether m's expected-minutes estimate has more
 // behind it than the point estimate alone — see rotationLabel, which is the
 // only caller. A flat threshold on ExpectedMinutes cannot tell a season's
@@ -226,15 +206,26 @@ const nailedOverrideFloor = 80.0
 //     which branch actually priced the player;
 //   - enough of the CURRENT season has been played that the raw figure is not
 //     resting on one match (see corroboratingMatches);
-//   - a manual override is set, confidently enough (see nailedOverrideFloor)
-//     that it reads as an assertion of settled status rather than a hedge.
+//   - a manual override is set AND the analyst who set it explicitly marked
+//     it confirmed (config.RosterOverride.Confirmed) — a settled fact, not a
+//     hedge.
 //
-// Deliberately NOT satisfied by an override alone at any value: the reported
-// bug is exactly a hedged override (Tzolis, 75) reading "nailed" because
-// nothing distinguished "the analyst asserted a fact" from "the analyst
-// asserted a fact they themselves called not-nailed". An override is real
-// evidence, but its own value is the only place that distinction is written
-// down, so it has to clear the same bar as everyone else.
+// The third bullet used to be a floor on the override's own magnitude
+// (ExpectedMinutes >= 80), on the theory that a hedge and a confident
+// assertion cluster at different values. They did, for the six overrides
+// that theory was read off — until Tzolis shipped at 82 with a reason that
+// itself says "Set to 82 rather than a nailed 85 as this is still only his
+// second competitive appearance for the club": an explicit hedge, at a value
+// the floor still waved through, because nothing in RosterOverride let this
+// function tell "82, asserted as settled" from "82, hedged". A magnitude can
+// never carry that distinction on its own; this project does not parse
+// free-text reasoning either, so the only place left for it is a field the
+// analyst sets directly. See config.RosterOverride.Confirmed.
+//
+// Deliberately NOT satisfied by an override alone, at any value or with the
+// field unset: an override the analyst did not explicitly vouch for is real
+// evidence for ExpectedMinutes itself, but not for "settled beyond doubt" —
+// the two are different claims, and only the analyst can make the second one.
 //
 // ignoreCode suppresses el's own override, mirroring blendRatesCode's
 // ignoreCode — used by NaturalMetrics to ask what the estimate would be
@@ -250,7 +241,7 @@ func (e *Engine) minutesCorroborated(el *fpl.Element, ignoreCode int) bool {
 		return true
 	}
 	if ignoreCode == 0 || el.Code != ignoreCode {
-		if v, _, ok := e.minutesOverrideFor(el.Code); ok && v >= nailedOverrideFloor {
+		if _, _, confirmed, ok := e.minutesOverrideFor(el.Code); ok && confirmed {
 			return true
 		}
 	}
@@ -274,7 +265,7 @@ func (e *Engine) blendForCode(el *fpl.Element, m PlayerMetrics, ignoreCode int) 
 	// what this player will actually play, so it already accounts for the
 	// summer. Discounting it again would double-count.
 	if ignoreCode == 0 || el.Code != ignoreCode {
-		if _, _, ok := e.minutesOverrideFor(el.Code); ok {
+		if _, _, _, ok := e.minutesOverrideFor(el.Code); ok {
 			return b
 		}
 	}
@@ -525,7 +516,7 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 	// mandated one. Unlike the blend it is not shrunk toward anything: it is a
 	// statement of fact, not a sample.
 	if ignoreCode == 0 || el.Code != ignoreCode {
-		if v, _, ok := e.minutesOverrideFor(el.Code); ok {
+		if v, _, _, ok := e.minutesOverrideFor(el.Code); ok {
 			v = e.prorateOverride(el.Code, v, minsPerMatch)
 			minsPerMatch = v
 			startShare = clamp(v/90, 0, 1)

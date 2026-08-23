@@ -897,7 +897,7 @@ func (s *squadServer) persistCorrections(in session) (session, error) {
 			if err := next.Roster.Set(kind, config.RosterOverride{
 				Code: code, Name: name(code), Reason: why,
 				SetOn: today, LastChecked: today,
-			}); err != nil {
+			}, nil); err != nil {
 				return err
 			}
 		}

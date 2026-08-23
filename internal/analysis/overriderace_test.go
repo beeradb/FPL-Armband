@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -56,7 +57,7 @@ func TestMinutesOverridesSurviveConcurrentWritesAndReads(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			e.SetMinutesOverride(code, 75, 12)
+			e.SetMinutesOverride(code, 75, 12, false)
 		}()
 	}
 
@@ -88,7 +89,7 @@ func TestMinutesOverridesSurviveConcurrentWritesAndReads(t *testing.T) {
 	// oblivion would pass a race detector and lose the overrides.
 	installed := 0
 	for _, code := range codes {
-		if _, _, ok := e.minutesOverrideFor(code); ok {
+		if _, _, _, ok := e.minutesOverrideFor(code); ok {
 			installed++
 		}
 	}
@@ -109,27 +110,92 @@ func TestMinutesOverridesSurviveConcurrentWritesAndReads(t *testing.T) {
 func TestMinutesOverrideAndItsExpiryAreReadTogether(t *testing.T) {
 	e := &Engine{}
 
-	e.SetMinutesOverride(1234, 75, 12)
-	mins, until, ok := e.minutesOverrideFor(1234)
-	if !ok || mins != 75 || until != 12 {
-		t.Fatalf("got (%v, %v, %v), want (75, 12, true)", mins, until, ok)
+	e.SetMinutesOverride(1234, 75, 12, false)
+	mins, until, confirmed, ok := e.minutesOverrideFor(1234)
+	if !ok || mins != 75 || until != 12 || confirmed {
+		t.Fatalf("got (%v, %v, %v, %v), want (75, 12, false, true)", mins, until, confirmed, ok)
 	}
 
 	// An indefinite override must clear any previous expiry rather than
 	// inheriting it — "he is out until GW12" followed by "he plays 80 minutes,
 	// indefinitely" must not keep prorating to GW12.
-	e.SetMinutesOverride(1234, 80, 0)
-	mins, until, ok = e.minutesOverrideFor(1234)
-	if !ok || mins != 80 || until != 0 {
-		t.Errorf("got (%v, %v, %v), want (80, 0, true) — a stale expiry survived an "+
-			"indefinite override", mins, until, ok)
+	e.SetMinutesOverride(1234, 80, 0, false)
+	mins, until, confirmed, ok = e.minutesOverrideFor(1234)
+	if !ok || mins != 80 || until != 0 || confirmed {
+		t.Errorf("got (%v, %v, %v, %v), want (80, 0, false, true) — a stale expiry survived an "+
+			"indefinite override", mins, until, confirmed, ok)
 	}
 
 	e.ClearMinutesOverride(1234)
-	if _, _, ok := e.minutesOverrideFor(1234); ok {
+	if _, _, _, ok := e.minutesOverrideFor(1234); ok {
 		t.Error("the override survived being cleared")
 	}
 	if !e.hasMinutesOverrides() == false {
 		t.Error("hasMinutesOverrides is inconsistent with the map")
+	}
+}
+
+// TestMinutesOverrideConfirmedIsReadWithItsValue pins the third leg of the same
+// pair. `MinutesOverrideConfirmed` shipped as a THIRD map guarded by the same
+// `overrideMu`, but for one revision it had its own two-line accessor
+// (`minutesOverrideConfirmed`) that took and released `overrideMu.RLock()`
+// independently of `minutesOverrideFor` — exactly the torn-read shape
+// TestMinutesOverrideAndItsExpiryAreReadTogether already exists to catch for
+// `until`, just with a third map instead of a second. A caller doing
+// `minutesOverrideFor(code)` then separately `minutesOverrideConfirmed(code)`
+// could observe one write's minutes value alongside a DIFFERENT write's
+// confirmed flag — silently reading a hedge as settled fact, or a settled fact
+// as a hedge, which is precisely the distinction Confirmed exists to carry.
+//
+// The two states below are constructed so minutes and confirmed are only ever
+// consistent with each other (75 <-> true, 80 <-> false), so any combination
+// straddling the two writes is detectable without needing -race to catch it:
+// the accessor under test can produce a torn pair silently, with no data race
+// at all, if minutes/until/confirmed are read under separate lock
+// acquisitions rather than one.
+func TestMinutesOverrideConfirmedIsReadWithItsValue(t *testing.T) {
+	e := &Engine{}
+	e.SetMinutesOverride(1234, 75, 0, true)
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+
+	// Writer: the concurrent set_player_status calls a live turn produces,
+	// flipping between two internally-consistent states.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer close(done)
+		for i := 0; i < 5000; i++ {
+			e.SetMinutesOverride(1234, 75, 0, true)
+			e.SetMinutesOverride(1234, 80, 0, false)
+		}
+	}()
+
+	// Readers: the exact accessor Engine.minutesCorroborated calls.
+	var tornReads int32
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				if mins, _, confirmed, ok := e.minutesOverrideFor(1234); ok {
+					if (mins == 75) != confirmed {
+						atomic.AddInt32(&tornReads, 1)
+					}
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	if tornReads > 0 {
+		t.Errorf("%d torn reads: minutes and confirmed came from two different writes — "+
+			"they must be read under one lock acquisition, not two", tornReads)
 	}
 }
