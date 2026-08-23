@@ -988,7 +988,20 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// those to fit is the qualifier-dropping failure this comment already warns
 	// against twice above. Left about 3 KB free rather than repeating the 14-byte
 	// and 74-byte near-misses.
-	const budget = 52 * 1024
+	//
+	// # 54 KB, 2026-08-22 — the accuracy series stopped being committed, and AGENTS.md
+	// owed the reader the new rule, not a smaller file
+	//
+	// Removing 117 committed `stats/snapshots/*` directories did not shrink this file
+	// either, for the same reason the 52 KB raise above records: the description of
+	// what the tree carries had to change, and the new rule — the accuracy series now
+	// publishes as a GitHub Release on every push to `main`, is never committed, and
+	// is NOT a citable record, so a figure a comment needs has to be inlined rather
+	// than pointed at a Release — is longer than the sentence it replaced because it
+	// is stating something readers used to get for free by finding the directory.
+	// Cutting it to fit is the qualifier-dropping failure this comment already
+	// warns against, above. Left just under 1 KB free.
+	const budget = 54 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

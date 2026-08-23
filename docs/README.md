@@ -6,11 +6,12 @@ one of these documents disagrees with the code, the document is wrong and should
 That narrowness is deliberate. Design proposals — what the system *should* be — and research
 notes recording how a conclusion was reached do not live in this directory, and should not be
 added to it. The project's measured verdicts are summarised in AGENTS.md; the evidence behind
-most of them sits outside this repository. What a checkout does carry is `stats/snapshots/`
-(dozens of banked runs), `stats/findings/` (a narrative and a pre-registration per run) and
-`stats/cells/` (the banked cells two R screens read as input) — look there before deciding a
-number cannot be checked. A verdict with no citation to click is the expected state, not a
-broken link.
+most of them sits outside this repository. What a checkout does carry is `stats/findings/` (a
+narrative and a pre-registration per run), `stats/cells/` (the banked cells two R screens read
+as input) and `stats/snapshots/` (one-off sweep evidence for closed findings — **not** the
+accuracy series, which publishes as a GitHub Release on every push to `main` as of 2026-08-22
+and is never committed) — look there before deciding a number cannot be checked. A verdict
+with no citation to click is the expected state, not a broken link.
 
 ```mermaid
 flowchart LR

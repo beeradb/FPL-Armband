@@ -19,7 +19,18 @@ index.md, so a title plus a pointer routes a reader to the verdict, which a repo
 store could never do. The user-facing docs never reference the vault; this file and the other
 agent-facing surfaces may. Three things in the tree are also evidence: `stats/findings/` holds a
 narrative and a pre-registration per run, `stats/cells/` holds the banked cells two R screens
-read as input, and `stats/snapshots/` holds the accuracy series.
+read as input, and `stats/snapshots/` holds one-off sweep evidence for closed findings.
+
+⚠️ **The ACCURACY series is no longer committed here, as of 2026-08-22.** It publishes as a
+GitHub Release asset on every push to `main` (`.github/workflows/snapshot.yml`), never as a
+tracked directory — see that workflow's own comment for why, and
+`internal/snapshot`'s `TestSnapshotCoversTheCurrentCode` for the guard that used to require the
+commit. **The published series is not a citable record**: nothing in this repository may point
+at it, for the same reason `stats/snapshots/` itself could never be cited directly — see the
+retired-location guard. A figure a comment needs stated has to be inlined at the citing site,
+not pointed at a release. What remains under `stats/snapshots/` is the older, pre-2026-08-22
+evidence directories that predate this split and the odd one-off sweep since — check a
+directory's own files before assuming it is either kind.
 
 ⚠️ **The 2026-08-17 compaction moved derivation narratives out of this file, and the 2026-08-19
 cut moved the verdicts after them — titles and pointers stay resident, derivations and verdict

@@ -228,5 +228,16 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # ⚠️ FPL_SNAPSHOTS_EXTERNAL=1 is load-bearing, added 2026-08-22 the same commit the
+      # accuracy series stopped being committed. TestSnapshotCoversTheCurrentCode's own doc
+      # comment says the flag is for when "the series is expected to come from CI rather
+      # than from git" — that has been true of the PUBLISHED artefact since this repo's
+      # first commit (.github/workflows/snapshot.yml), but the flag was never set here, so
+      # it stayed a no-op: `ok` was always true while 117 directories were still committed,
+      # and the skip branch it guards was unreachable. Drop this only if the series goes
+      # back to being committed, or every `go test ./...` on every push and PR fails with
+      # no accuracy snapshot present.
       - name: Test
+        env:
+          FPL_SNAPSHOTS_EXTERNAL: "1"
         run: go test ./...

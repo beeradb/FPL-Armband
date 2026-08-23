@@ -1258,6 +1258,14 @@ fplagent snapshot -cells /tmp/cells.csv -model /tmp/model.csv
 `-count=1` is not optional on step 1: Go caches test results, and a cached run
 replays its stdout while writing no new CSV rows.
 
+⚠️ **Do not commit the result, as of 2026-08-22.** `fplagent snapshot`'s own default
+`-out` is still `stats/snapshots/`, and running it there is fine for reading —
+`.gitignore` now refuses the four files it writes there specifically so the old
+habit fails loudly instead of committing cleanly. The record CI publishes on every
+push to `main` is the real one; a local run is for checking your own change before
+you push it. Pass `-out /tmp/whatever` if you would rather it not land in the tree
+at all.
+
 Useful flags: `-note "..."` stamps a caveat in (repeatable), `-no-r` reads whatever
 is already in `stats/out` instead of re-running the inference, `-constants` prints
 the full settings list for a fingerprint and exits, `-previous DIR` diffs against a
@@ -1282,7 +1290,9 @@ three arms and the gap was invisible until somebody counted rows.
 | invariance checks | quantities the change must not move, and whether they moved |
 
 `FPL_SESSION` is deliberately excluded from the fingerprint: it is a credential and
-a snapshot is committed.
+a snapshot is **published** — as a GitHub Release asset on every push to `main`
+(`.github/workflows/snapshot.yml`), publicly, since 2026-08-22 no longer merely
+committed to a public repo but actively distributed as a download.
 
 ### Two properties worth knowing before trusting one
 

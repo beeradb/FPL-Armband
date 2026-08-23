@@ -47,3 +47,16 @@ internal/webui/testdata/golden/diff-*.png
 # One-shot edit scripts. They are written, run once and deleted; two were committed by
 # accident and carried verbatim copies of intermediate source with them.
 .*.py
+
+# The accuracy snapshot's four canonical files (internal/snapshot/values.go's MarkdownFile,
+# ValuesFile, ConstantsFile, watched.go's KeyFile) — never committed as of 2026-08-22. The
+# series now publishes as a GitHub Release asset (.github/workflows/snapshot.yml); this stops
+# `cmd/armband snapshot`'s own default -out=stats/snapshots from landing back in the tree by
+# habit, the way 117 prior directories did. NOT a blanket ignore of stats/snapshots/: the
+# older evidence directories that remain there (schedule-screen sweeps, xg-repair checks, and
+# the rest — see AGENTS.md) name their files after what they measured, never these four, so
+# this pattern cannot catch them.
+stats/snapshots/*/snapshot.md
+stats/snapshots/*/figures.csv
+stats/snapshots/*/constants.csv
+stats/snapshots/*/key.csv
