@@ -477,9 +477,9 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 	}
 	switch act {
 	case "lock":
-		err = next.Roster.Set("lock", pageOverride(name, "locked from the squad page"))
+		err = next.Roster.Set("lock", pageOverride(name, "locked from the squad page"), nil)
 	case "boot":
-		err = next.Roster.Set("exclude", pageOverride(name, "booted from the squad page"))
+		err = next.Roster.Set("exclude", pageOverride(name, "booted from the squad page"), nil)
 	case "unlock":
 		err = next.Roster.Remove("lock", code)
 	case "unboot":

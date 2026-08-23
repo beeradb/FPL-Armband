@@ -318,7 +318,7 @@ func (s session) applyTo(cfg config.Config, e *analysis.Engine, today string) co
 			}
 			_ = cfg.Roster.Set(mode, config.RosterOverride{
 				Code: code, Name: n, Reason: reason, SetOn: today, LastChecked: today,
-			})
+			}, nil)
 		}
 	}
 	// ⚠️ The session's own corrections are filtered by the dismissals too, and they are

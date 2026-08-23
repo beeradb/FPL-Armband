@@ -446,16 +446,20 @@ const legacyNailedOverrideFloor = 80.0
 //     override old enough to predate the field at all gets the one historical
 //     pass below.
 //
-// Verified against the live 2026-27 config.json by hand, override by
-// override: Kinsky (88), van Ewijk (85) and Mosquera (85) read confidently in
-// their own free text and cross the floor, so this keeps them "nailed" — the
-// three the field exists to protect. Thomas (80), Tzolis (82) and Robertson
-// (80) also cross the floor despite each one's own reason explicitly hedging
-// ("rather than a nailed 85") — this migration does NOT fix them, because
-// doing so from the number alone would be the exact mechanism being retired.
-// It reproduces today's reading for all six without exception; unhedging the
-// three requires an explicit "confirmed": false written to their entries by
-// hand, same as any other override correction.
+// Verified against the deployed production config.json (the private ops
+// repo's live account, not this repository's own dev config.json, which
+// carries a different roster) by hand, override by override: Kinsky, van
+// Ewijk and Mosquera read confidently in their own free text and cross the
+// floor, so this keeps them "nailed" — the three the field exists to
+// protect. Three others cross the floor despite each one's own reason
+// explicitly hedging ("rather than a nailed 85") — this migration does NOT
+// fix them, because doing so from the number alone would be the exact
+// mechanism being retired. It reproduces today's reading for all six without
+// exception; unhedging them requires an explicit "confirmed": false written
+// to their entries by hand, same as any other override correction. See
+// TestConfirmedBackfillMatchesTheLiveConfigOverrideByOverride for the shape
+// this was checked against, reconstructed rather than pasted from the real
+// file.
 func backfillOverrideConfidence(raw []byte, cfg *Config) {
 	var probe struct {
 		Roster struct {

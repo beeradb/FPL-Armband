@@ -298,7 +298,7 @@ func TestExcludedPlayersAreNeverOffered(t *testing.T) {
 	}
 	if err := tb.Cfg.Roster.Set("exclude", config.RosterOverride{
 		Code: el.Code, Name: el.WebName, Reason: "test", SetOn: "2026-08-05",
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -348,7 +348,7 @@ func TestLockedPlayersAreNeverSold(t *testing.T) {
 	}
 	if err := tb.Cfg.Roster.Set("lock", config.RosterOverride{
 		Code: el.Code, Name: el.WebName, Reason: "test", SetOn: "2026-08-05",
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -453,7 +453,7 @@ func TestConcurrentOverridesAllPersist(t *testing.T) {
 				return cfg.Roster.Set("exclude", config.RosterOverride{
 					Code: code, Name: names[i], Reason: "concurrency test",
 					SetOn: "2026-08-05", LastChecked: "2026-08-05",
-				})
+				}, nil)
 			})
 		}()
 	}

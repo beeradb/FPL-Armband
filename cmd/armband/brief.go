@@ -198,6 +198,15 @@ func briefOverrides(b *strings.Builder, cfg config.Config, e *analysis.Engine, n
 		kind := "minutes"
 		if o.ExpectedMinutes != nil {
 			kind = fmt.Sprintf("minutes → %.0f", *o.ExpectedMinutes)
+			// Confirmed decides whether rotation_risk can read "nailed" and was
+			// found to be invisible everywhere an override reaches a reader —
+			// stated here next to the value it qualifies, the same place a
+			// reader already looks to see what the override actually claims.
+			if o.Confirmed {
+				kind += ", confirmed"
+			} else {
+				kind += ", not confirmed"
+			}
 		}
 		row(kind, o)
 	}

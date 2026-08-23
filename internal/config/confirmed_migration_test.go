@@ -8,20 +8,23 @@ import (
 )
 
 // TestConfirmedBackfillMatchesTheLiveConfigOverrideByOverride pins the
-// migration in backfillOverrideConfidence against the exact shape of the real
-// 2026-27 production config.json: several minutes overrides with no
+// migration in backfillOverrideConfidence against the SHAPE of the real
+// deployed production config.json — the private ops repo's live account,
+// not this repository's own dev config.json, whose roster is different and
+// not checkable against the numbers below: several minutes overrides with no
 // "confirmed" key at all, written before RosterOverride.Confirmed existed.
 //
-// Verified by hand against that file, override by override: Kinsky (88), van
-// Ewijk (85) and Mosquera (85) read confidently in their own free text and
-// clear the retired magnitude floor, so the backfill must keep them reading
-// nailed — regressing them to "likely starter" the moment this field ships
-// is exactly the failure this test exists to catch. Thomas (80), Robertson
-// (80) and Tzolis (82) explicitly hedge in their own reason text despite
-// clearing the same floor — this backfill does NOT unhedge them (doing so
-// from the number alone would be the exact mechanism being retired); it only
-// promises no override's status flips on the day this ships. Isak (75) sits
-// below the floor and is unaffected either way.
+// Verified by hand against that deployed file, override by override: Kinsky
+// (88), van Ewijk (85) and Mosquera (85) read confidently in their own free
+// text and clear the retired magnitude floor, so the backfill must keep them
+// reading nailed — regressing them to "likely starter" the moment this field
+// ships is exactly the failure this test exists to catch. Thomas (80),
+// Robertson (80) and Tzolis (82) explicitly hedge in their own reason text
+// despite clearing the same floor — this backfill does NOT unhedge them
+// (doing so from the number alone would be the exact mechanism being
+// retired); it only promises no override's status flips on the day this
+// ships. Isak (75) sits below the floor and is unaffected either way. The
+// fixture below reconstructs that shape rather than pasting the real file.
 func TestConfirmedBackfillMatchesTheLiveConfigOverrideByOverride(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")

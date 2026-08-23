@@ -129,7 +129,7 @@ type RecentForm interface {
 // An override with no end date is indefinite and applies flat, which is right:
 // nobody has said when it stops.
 func (e *Engine) prorateOverride(code int, override, natural float64) float64 {
-	_, until, _ := e.minutesOverrideFor(code)
+	_, until, _, _ := e.minutesOverrideFor(code)
 	if until <= 0 {
 		return override
 	}
@@ -172,7 +172,7 @@ func (e *Engine) reassertMinutesOverride(el *fpl.Element, ignoreCode int, b *ble
 	if ignoreCode != 0 && el.Code == ignoreCode {
 		return
 	}
-	if v, _, ok := e.minutesOverrideFor(el.Code); ok {
+	if v, _, _, ok := e.minutesOverrideFor(el.Code); ok {
 		v = e.prorateOverride(el.Code, v, b.MinutesPerMatch)
 		b.MinutesPerMatch = v
 		b.StartShare = clamp(v/90, 0, 1)
@@ -241,7 +241,7 @@ func (e *Engine) minutesCorroborated(el *fpl.Element, ignoreCode int) bool {
 		return true
 	}
 	if ignoreCode == 0 || el.Code != ignoreCode {
-		if _, _, ok := e.minutesOverrideFor(el.Code); ok && e.minutesOverrideConfirmed(el.Code) {
+		if _, _, confirmed, ok := e.minutesOverrideFor(el.Code); ok && confirmed {
 			return true
 		}
 	}
@@ -265,7 +265,7 @@ func (e *Engine) blendForCode(el *fpl.Element, m PlayerMetrics, ignoreCode int) 
 	// what this player will actually play, so it already accounts for the
 	// summer. Discounting it again would double-count.
 	if ignoreCode == 0 || el.Code != ignoreCode {
-		if _, _, ok := e.minutesOverrideFor(el.Code); ok {
+		if _, _, _, ok := e.minutesOverrideFor(el.Code); ok {
 			return b
 		}
 	}
@@ -516,7 +516,7 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 	// mandated one. Unlike the blend it is not shrunk toward anything: it is a
 	// statement of fact, not a sample.
 	if ignoreCode == 0 || el.Code != ignoreCode {
-		if v, _, ok := e.minutesOverrideFor(el.Code); ok {
+		if v, _, _, ok := e.minutesOverrideFor(el.Code); ok {
 			v = e.prorateOverride(el.Code, v, minsPerMatch)
 			minsPerMatch = v
 			startShare = clamp(v/90, 0, 1)

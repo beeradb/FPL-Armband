@@ -152,6 +152,18 @@ func (o RosterOverride) String() string {
 	}
 	if o.ExpectedMinutes != nil {
 		kind = fmt.Sprintf(", minutes set to %.0f", *o.ExpectedMinutes)
+		// Confirmed only means anything alongside a minutes value — see its own
+		// doc comment — and it was flagged as invisible everywhere an override
+		// is rendered back to a reader, human or agent. Shown here because
+		// prompt.go's "Standing player overrides" block prints every override
+		// through this method; brief.go and page.go build their own labels and
+		// carry the same fact separately, next to their own ExpectedMinutes
+		// display.
+		if o.Confirmed {
+			kind += ", confirmed nailed"
+		} else {
+			kind += ", not confirmed"
+		}
 	}
 	checked := "never re-checked"
 	if o.LastChecked != "" && o.LastChecked != o.SetOn {
@@ -266,9 +278,38 @@ func (r Roster) Active(gw int) (lock, exclude, expired []RosterOverride) {
 	return lock, exclude, expired
 }
 
+// MinutesFor returns the standing minutes override for a player code, if any.
+//
+// Exported so a caller outside this package — set_player_status, specifically
+// — can read back what Set actually resolved Confirmed to, rather than
+// re-deriving the same carry-forward logic Set's own "minutes" case already
+// applies. Two implementations of "what is this player's override" is the
+// bug class this project keeps shipping.
+func (r Roster) MinutesFor(code int) (RosterOverride, bool) {
+	for _, o := range r.Minutes {
+		if o.Code == code {
+			return o, true
+		}
+	}
+	return RosterOverride{}, false
+}
+
 // Set adds or replaces an override, removing the player from the opposite list
 // so he cannot be locked and excluded at once.
-func (r *Roster) Set(mode string, o RosterOverride) error {
+//
+// confirmed is tri-state and applies to mode "minutes" only: nil means the
+// caller said nothing about confidence, true or false is an explicit
+// assertion. Every other mode ignores it.
+//
+// This exists because RosterOverride.Confirmed itself cannot carry "not
+// specified" — it is a plain bool, deliberately with no omitempty tag, so
+// every SAVED override states true or false explicitly (see its own doc
+// comment). A tool argument that defaults to false when omitted is a
+// different fact from an analyst asserting false, and collapsing them here
+// would silently un-confirm a nailed starter the first time his minutes
+// figure gets a routine update through this same path without the caller
+// re-asserting confirmed every time.
+func (r *Roster) Set(mode string, o RosterOverride, confirmed *bool) error {
 	// Bound the free text BEFORE it is stored, because this field is read back
 	// into the system prompt on every future run.
 	//
@@ -302,6 +343,18 @@ func (r *Roster) Set(mode string, o RosterOverride) error {
 	case "minutes":
 		if o.ExpectedMinutes == nil {
 			return fmt.Errorf("minutes mode needs an expected_minutes value")
+		}
+		// Confirmed is resolved here, not by the caller: an explicit value wins,
+		// and an omitted one carries forward whatever this player's existing
+		// override already had — never silently resetting to false. Without
+		// this, the tool's own "prefer minutes for any correction" guidance
+		// walks a nailed starter back to unconfirmed the very next time his
+		// expected minutes get a routine update and the caller doesn't happen
+		// to restate confirmed:true.
+		if confirmed != nil {
+			o.Confirmed = *confirmed
+		} else if existing, ok := r.MinutesFor(o.Code); ok {
+			o.Confirmed = existing.Confirmed
 		}
 		// A minutes correction is a statement about the player, not a demand
 		// about the squad, so it does not put him on either list.

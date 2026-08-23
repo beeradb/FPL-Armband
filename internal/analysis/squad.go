@@ -536,7 +536,7 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	if e.hasMinutesOverrides() && e.Boot != nil {
 		for i := range e.Boot.Elements {
 			el := &e.Boot.Elements[i]
-			if _, _, ok := e.minutesOverrideFor(el.Code); ok {
+			if _, _, _, ok := e.minutesOverrideFor(el.Code); ok {
 				overridden[el.ID] = true
 			}
 		}
@@ -1835,7 +1835,7 @@ func (e *Engine) ReachesExpectedMinutesCut(m PlayerMetrics, req OptimizeRequest)
 			if el.ID != m.ID {
 				continue
 			}
-			if _, _, ok := e.minutesOverrideFor(el.Code); ok {
+			if _, _, _, ok := e.minutesOverrideFor(el.Code); ok {
 				overridden = true
 			}
 			break

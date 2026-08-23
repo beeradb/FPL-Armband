@@ -3202,29 +3202,25 @@ func (e *Engine) ClearMinutesOverride(code int) {
 	}
 }
 
-// minutesOverrideFor reads a player's correction and its expiry together.
+// minutesOverrideFor reads a player's correction, its expiry and whether it
+// was asserted as settled fact, all together under one lock acquisition.
 //
-// Together on purpose: read separately under separate locks, a player can pick
-// up one write's minutes with another write's expiry, which is a silently wrong
-// prorating rather than a crash.
-func (e *Engine) minutesOverrideFor(code int) (mins float64, until int, ok bool) {
+// Together on purpose: read under separate locks, a player can pick up one
+// write's minutes with another write's expiry — a silently wrong prorating
+// rather than a crash — and the same is true of confirmed, which is why it was
+// folded in here rather than left as its own RLock-guarded accessor. That
+// earlier split (minutesOverrideConfirmed as a second method, each taking its
+// own RLock) was exactly the bug this comment already warned about, just with
+// a third map instead of a second: SetMinutesOverride writes all three maps
+// together, so a reader that RLocks twice can observe one write's minutes
+// alongside a DIFFERENT write's confirmed flag.
+func (e *Engine) minutesOverrideFor(code int) (mins float64, until int, confirmed, ok bool) {
 	e.overrideMu.RLock()
 	defer e.overrideMu.RUnlock()
 	mins, ok = e.MinutesOverride[code]
 	until = e.MinutesOverrideUntil[code]
-	return mins, until, ok
-}
-
-// minutesOverrideConfirmed reports whether code's minutes override, if any,
-// has been explicitly asserted as settled fact — see
-// config.RosterOverride.Confirmed. False for a player with no override at
-// all, which is the same "nothing asserted" answer as an override that
-// exists but was never confirmed; the caller (Engine.minutesCorroborated)
-// already gates on minutesOverrideFor's own ok before asking this.
-func (e *Engine) minutesOverrideConfirmed(code int) bool {
-	e.overrideMu.RLock()
-	defer e.overrideMu.RUnlock()
-	return e.MinutesOverrideConfirmed[code]
+	confirmed = e.MinutesOverrideConfirmed[code]
+	return mins, until, confirmed, ok
 }
 
 // hasMinutesOverrides reports whether any correction is installed.
@@ -3239,6 +3235,6 @@ func (e *Engine) hasMinutesOverrides() bool {
 // override" and "override with zero effect" are different facts, and this
 // is what tells them apart without paying for the second Metrics call.
 func (e *Engine) HasMinutesOverride(code int) bool {
-	_, _, ok := e.minutesOverrideFor(code)
+	_, _, _, ok := e.minutesOverrideFor(code)
 	return ok
 }
