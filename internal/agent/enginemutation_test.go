@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,28 +71,44 @@ func TestResearchTargetsLeavesTheSharedEngineAlone(t *testing.T) {
 //
 // A source scan rather than a behavioural test per tool, for the reason this
 // project's other scans give: a behavioural test stops one divergence, a scan
-// stops the next copy. ⚠️ Like every scan here it matches an IDIOM — a handler
-// reaching ApplyChipPlan through an alias or a helper in another package is
-// invisible to it, so this is a tripwire and not a proof.
+// stops the next copy.
+//
+// It WALKS rather than reading one directory, which is the idiom
+// TestTheCopiedExpressionsHaveOneImplementation and
+// TestTheSharedCellQuantitiesHaveOneImplementation already use. There is no
+// subpackage under internal/agent today, so a non-recursive scan would be inert
+// and would stay green on the day somebody adds one — a guard that silently
+// stops covering its own package is worse than no guard, because it still reads
+// like coverage.
+//
+// It is scoped to this package tree rather than the repository because the call
+// is LEGITIMATE elsewhere: the web builder owns its engine for the request and
+// guards it, and the replay mutates a per-cell engine on purpose. A repo-wide
+// scan would need an allowlist of the callers that are fine, and an allowlist is
+// the thing that goes stale.
+//
+// ⚠️ Like every scan here it matches an IDIOM — a handler reaching
+// ApplyChipPlan through a helper in another package is invisible to it, so this
+// is a tripwire and not a proof.
 func TestNoAgentToolAppliesTheChipPlanToTheSharedEngine(t *testing.T) {
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("reading the package directory: %v", err)
-	}
 	scanned := 0
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") ||
-			strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		src, err := os.ReadFile(filepath.Clean(name))
+	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			t.Fatalf("reading %s: %v", name, err)
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") ||
+			strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
 		}
 		scanned++
 		for i, line := range strings.Split(string(src), "\n") {
 			code := line
+			// Line comments only. A call inside a block comment would be a false
+			// failure, which is the safe direction; a missed real call is not.
 			if idx := strings.Index(code, "//"); idx >= 0 {
 				code = code[:idx]
 			}
@@ -102,9 +119,13 @@ func TestNoAgentToolAppliesTheChipPlanToTheSharedEngine(t *testing.T) {
 					"through an errgroup, so this leaks into every later call and "+
 					"races the ones running beside it. Build what you need without "+
 					"writing to the shared engine — see Toolbox.researchSquad.",
-					name, i+1)
+					path, i+1)
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking the package tree: %v", err)
 	}
 	if scanned == 0 {
 		t.Fatal("scanned no source files, so this guard proved nothing")

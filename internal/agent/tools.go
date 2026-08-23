@@ -1864,17 +1864,46 @@ type researchTargetsInput struct{}
 // — its own budget resolution is best-effort for exactly that reason — so it has
 // no claim on the shared engine's horizon.
 //
+// # What is dropped, and what is kept
+//
+// Only the mutating half. `ApplyChipPlan` does two independent things, and the
+// bench-boost half — `SuggestBenchWeight`, which returns a number and writes
+// nothing to the receiver — is kept and called directly below. Dropping the
+// whole call would have thrown that away too, and it fires on a different chip:
+// a planned boost inside the horizon is what stops cheap non-playing fodder
+// being free, so the reference fifteen would have stopped being the one whose
+// bench is worth reading the news about.
+//
 // ⚠️ **This changes what the tool returns when a wildcard is planned**: the
-// reference fifteen is now built on the configured horizon rather than on the
-// truncated one. It moves no player's `Score` and no recommendation's ordering;
-// it changes which names appear on a research shortlist. Whether
-// `optimize_squad` and `suggest_transfers` SHOULD apply the chip plan is a real
-// question and a separate one — they do not call it today, and the accident this
-// removes is not an argument that they should.
+// reference fifteen is built on the configured horizon rather than the truncated
+// one, so different names reach the shortlist.
+//
+// ⚠️ **And in one case it moves `Score` itself.** `EffectiveHorizon`'s wildcard
+// branch returns `gw - nextGW`, whose minimum is 1 — a wildcard planned for the
+// very next gameweek. At a horizon of exactly 1 `FixtureLoadInScore()` turns
+// true in the shipped configuration, and `Metrics` then applies
+// `Score *= FixtureLoad` to every player. So the old code multiplied by fixture
+// load in that case and this does not. It is the closest wildcard a plan can
+// name and a perfectly ordinary thing to plan, so it is stated rather than
+// waved past: the scores this tool's shortlist is drawn from differ from the
+// scores it used to draw them from, for that one placement.
+//
+// Whether `optimize_squad` and `suggest_transfers` SHOULD apply the chip plan is
+// a real question and a separate one — they do not call it today, and the
+// accident this removes is not an argument that they should.
 func (t *Toolbox) researchSquad() []analysis.PlayerMetrics {
 	// BenchWeight left at zero so Optimize reads the configured weight, which is
-	// what every other squad this project builds is scored on.
+	// what every other squad this project builds is scored on — unless a planned
+	// bench boost raises it, below.
 	req := analysis.OptimizeRequest{MinMinutes: 600, MinExpectedMinutes: 55}
+	// The safe half of ApplyChipPlan, called directly. SuggestBenchWeight reads
+	// Weights.BenchWeight and the schedule and returns a number; unlike the
+	// horizon half it writes nothing to the shared engine, so it is safe beside
+	// the other tools in the turn. The empty reason is the no-op, matching
+	// ApplyChipPlan's own guard rather than testing the weight for equality.
+	if bw, why := t.Engine.SuggestBenchWeight(t.Engine.Chips); why != "" {
+		req.BenchWeight = bw
+	}
 	// Best effort, unlike everywhere else the budget is resolved. This output is
 	// a list of players to go and read the news about, not a squad to buy, so an
 	// unpriceable squad should cost the extra names rather than the whole step.
