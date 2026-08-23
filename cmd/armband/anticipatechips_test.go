@@ -19,9 +19,10 @@ import (
 // `backtest.SimConfig` has TWO fields — AnticipateChips and AnticipateGate —
 // and the replay's own comment on AnticipateGate records that a mismatched
 // pair (scoring a move on a shortened horizon while still charging it over
-// the full one) was measured at -17 points a season. ReviewPolicy therefore
-// exposes only ONE config field and cmdBacktest must drive both SimConfig
-// fields from it, never from two independently-settable config fields. The
+// the full one) over-credits near-term fixture spikes by construction.
+// ReviewPolicy therefore exposes only ONE config field and cmdBacktest must
+// drive both SimConfig fields from it, never from two independently-settable
+// config fields. The
 // source scan checks both halves: `cfg.Review.AnticipateChips` reaches the
 // mapping, and nothing in it reads a hypothetical `cfg.Review.AnticipateGate`
 // — the shape a future edit would take if someone "finished" this by giving
@@ -54,13 +55,13 @@ func TestAnticipateChipsReachesTheReplayAsAPair(t *testing.T) {
 		t.Errorf("cmdBacktest does not read cfg.Review.AnticipateChips exactly twice " +
 			"(once for SimConfig.AnticipateChips, once for SimConfig.AnticipateGate). " +
 			"A config field read fewer times than that is a setting that never fully " +
-			"arrives; read more times from a second config field is the -17-point-a-season " +
-			"mismatch this field exists to make impossible")
+			"arrives; read more times from a second config field is the mismatched-pair " +
+			"bias this field exists to make impossible")
 	}
 	if strings.Contains(body, "cfg.Review.AnticipateGate") {
 		t.Error("cmdBacktest reads a cfg.Review.AnticipateGate that ReviewPolicy does not " +
 			"expose — AnticipateGate must be derived from AnticipateChips, never " +
-			"independently settable, or a manager can reproduce the measured -17-point-a-season " +
-			"mismatched pair by only setting one of them")
+			"independently settable, or a manager can reproduce the same mismatched pair " +
+			"by only setting one of them")
 	}
 }

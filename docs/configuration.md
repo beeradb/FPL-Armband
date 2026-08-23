@@ -417,11 +417,22 @@ them.
 | `max_hits_ceiling` | `1` | The largest value `max_hits_per_week` can *mean*. It used to be a hard-coded clamp, so setting `max_hits_per_week: 2` changed nothing and said nothing about it; raise this to make the two-hit week reachable. The shipped 1 is measured, on three replayed seasons and absolute totals — read it as why the default is 1 rather than as a resolved constant. |
 | `bank_transfers_lookahead` | `false` | Decline this week's move when one more free transfer next week buys a better package, valued over a horizon one gameweek shorter. See below. |
 | `prepare_squad_for_chips` | `false` | Let the transfer search value a bench boost or triple captain planned inside its horizon, so the squad can be assembled for it. Does nothing unless a chip is set in `chip_plan`. |
-| `anticipate_chips` | `false` | Let the weekly transfer decision know a chip is coming: a planned wildcard shortens how long the held squad has to survive rather than being scored as if it were permanent, and a planned free hit's own week is excluded from scoring entirely. Reaches only the horizon and the free-hit exclusion — it cannot carry a bench boost or triple captain; that is `prepare_squad_for_chips`'s job. One key drives a *pair* of switches in the replay, deliberately: scoring a move on a shortened horizon while still charging it over the full one was measured at −17 points a season, so there is no separate knob to mismatch. Does nothing unless a chip is set in `chip_plan`. |
+| `anticipate_chips` | `false` | Let a REPLAYED transfer decision know a chip is coming: a planned wildcard shortens how long the held squad has to survive rather than being scored as if it were permanent, and a planned free hit's own week is excluded from scoring entirely. Reaches only the horizon and the free-hit exclusion — it cannot carry a bench boost or triple captain; that is `prepare_squad_for_chips`'s job. Backtest-only — see the warning below. Does nothing unless a chip is set in `chip_plan`. |
 | `scheduled_run_lead_hours` | `6` | How long before a deadline a scheduled run fires. The point of running late is team news: press conferences land one to two days out, confirmed line-ups only at the deadline. |
 | `always_act_on_ruled_out_starter` | `true` | Forces a move regardless of thresholds — an unavailable player scores zero. |
 | `rules` | five shipped | Free-text policy, passed to the agent verbatim exactly like `criteria`. The defaults cover churn, hits, chip-adjacent transfers and fixture-chasing. |
 | `early_floor` | `{free_transfer_value: 1.0, min_gain_for_free_transfer: 0.2, until_gameweek: 8}` | A looser gate for the opening gameweeks, when a squad's real problems are still being found. The **key itself** is probed for presence, not just its values — an absent `early_floor` object backfills the whole default above, exactly like `bonus_prior_weight` and `rest_minutes_factor` above. Within an object that IS present, `free_transfer_value` and `min_gain_for_free_transfer` backfill on `<= 0` as usual, but `until_gameweek: 0` is honoured as the real off state — it does not backfill — so that is how to disable the floor without deleting the key. |
+
+⚠️ **`anticipate_chips` reaches `armband backtest` and the replay only**, the same as the three
+`option_value` chip triggers below and for the same reason. The LIVE weekly decision
+(`armband review` / `armband transfers`) already does the equivalent unconditionally, with no
+toggle: `EffectiveHorizon` and `ApplyChipPlan` read `chip_plan` on every live run regardless of
+this setting. So turning it on or off changes what a *replay* can reproduce, never what a live
+run recommends. It also drives a *pair* of switches in the replay (`AnticipateChips` and
+`AnticipateGate`) together rather than as two independently-settable fields: the replay's own
+comment on the pair records that a mismatched combination — scoring a move on a shortened horizon
+while still charging it over the full one — over-credits near-term fixture spikes by construction,
+so this key makes that combination unreachable from config rather than merely undocumented.
 
 ### `option_value` — pricing what you hold and can only spend once
 

@@ -159,7 +159,7 @@ type ReviewPolicy struct {
 	// actually planned in `chip_plan`.
 	PrepareForChips bool `json:"prepare_squad_for_chips"`
 
-	// AnticipateChips lets the weekly transfer decision know a chip is coming,
+	// AnticipateChips lets a REPLAYED transfer decision know a chip is coming,
 	// via `SimConfig.AnticipateChips`/`anticipate` in internal/backtest: a
 	// planned wildcard means the held squad only has to serve until it is
 	// replaced, so a short fixture run stops being a bet the policy has to
@@ -168,23 +168,38 @@ type ReviewPolicy struct {
 	// cannot carry a bench boost or triple captain (see PrepareForChips), and
 	// it does nothing unless a chip is actually planned in `chip_plan`.
 	//
+	// # Reaches `armband backtest` only — the live decision needs no toggle
+	//
+	// The LIVE weekly decision (`armband review`/`armband transfers`) already
+	// does the equivalent unconditionally, with no config gate at all:
+	// `Engine.EffectiveHorizon` and `Engine.ApplyChipPlan` read `chip_plan` on
+	// every live run regardless of anything here (see cmd/armband/transfers.go
+	// and brief.go). So this key does not bring the live tool a capability it
+	// lacked — it lets a REPLAY reproduce that same behaviour under the
+	// scoring conditions the replay is measuring, for a sweep or a comparison
+	// that needs it held fixed. Turning it on or off changes what `armband
+	// backtest` can reproduce; it never changes what a live run recommends.
+	//
 	// This is the same on/off pair `SimConfig.AnticipateChips` and
 	// `SimConfig.AnticipateGate` are in the replay, collapsed to one setting
 	// here on purpose. The replay's own comment on `AnticipateGate` records
-	// that the two are opposite levers — scoring a move on a shortened horizon
-	// while still charging it over the full one over-credits near-term fixture
-	// spikes by construction — and that a mismatched pair was measured at -17
-	// points a season. The replay exposes both because a sweep needs to
-	// isolate them one at a time; a config a manager edits by hand has no such
-	// need and every reason not to reproduce a measured loss, so this field
-	// drives both `AnticipateChips` and `AnticipateGate` together rather than
-	// exposing a second knob that could be left off by omission.
+	// that the two are opposite levers: scoring a move on a shortened horizon
+	// while still charging it over the full one over-credits near-term
+	// fixture spikes by construction, which is a bias regardless of its size
+	// on any one sweep. The replay exposes both fields separately because a
+	// sweep needs to isolate them one at a time; a config a manager edits by
+	// hand has no such need and every reason not to reintroduce that bias, so
+	// this field drives both `AnticipateChips` and `AnticipateGate` together
+	// rather than exposing a second knob that could be left off by omission.
 	//
-	// Off by default: it was measured coherent in isolation (about +2.5 a
+	// Off by default: `SimConfig.AnticipateChips`'s own comment in
+	// internal/backtest records it as coherent in isolation (about +2.5 a
 	// season) and as part of a larger, unresolved corner alongside a
-	// calendar-anchored chip plan and banking lookahead (+73/+97 a season,
-	// not attributable to this lever alone) — real mechanism, unresolved
-	// points, the same standing this project holds PrepareForChips to.
+	// calendar-anchored chip plan and banking lookahead — see
+	// BankTransfersLookahead's default below and
+	// stats/findings/2026-08-18-scheduled-floor.md, not attributable to this
+	// lever alone. Real mechanism, unresolved points: the same standing this
+	// project holds PrepareForChips to.
 	AnticipateChips bool `json:"anticipate_chips"`
 
 	// MaxHitsPerWeek caps points deliberately spent on extra transfers.

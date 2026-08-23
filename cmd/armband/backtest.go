@@ -157,10 +157,10 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		// One config field drives both: AnticipateGate has no effect unless
 		// AnticipateChips is also set (enforced again in decide), and a
 		// mismatched pair — scoring a move on a shortened horizon while still
-		// charging it over the full one — was measured at -17 points a
-		// season. Exposing a second, independently-settable field here would
-		// let a user reproduce exactly that mismatch by omission; see
-		// ReviewPolicy.AnticipateChips.
+		// charging it over the full one — over-credits near-term fixture
+		// spikes by construction. Exposing a second, independently-settable
+		// field here would let a user reintroduce exactly that bias by
+		// omission; see ReviewPolicy.AnticipateChips.
 		AnticipateChips: cfg.Review.AnticipateChips,
 		AnticipateGate:  cfg.Review.AnticipateChips,
 		// Diagnostic override for sweeping what the opening fifteen credits a
