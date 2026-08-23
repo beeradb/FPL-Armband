@@ -283,12 +283,13 @@ button{font-family:inherit;color:inherit;}
   content:'';position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;
   background:var(--acc);box-shadow:0 0 0 3px rgba(0,232,138,.18);
 }
-/* A closed week is a real thing that happened, not an error -- dimmed and inert rather than
-   hidden, so an imported reader can still see GW1 sitting there. cursor+hover are both
-   turned off so the tab does not invite a click its own `disabled` attribute already
-   refuses. See renderRail's own comment (app.js) for why it has nothing to open. */
-.gw:disabled{opacity:.5;cursor:not-allowed;}
-.gw:disabled:hover{border-color:var(--line);}
+/* A closed week is a real thing that happened, not an error -- dimmed but clickable, so an
+   imported reader can still see GW1 sitting there AND open what actually happened (see
+   renderRail's own comment, app.js, for why a click on one of these opens a result instead
+   of the planner). Selected (viewing this week's result) clears the dimming, the same way
+   an ordinary selected tab already reads at full strength. */
+.gw.past{opacity:.68;}
+.gw.past[aria-selected="true"]{opacity:1;}
 
 /* section nav ------------------------------------------------- */
 .mainnav{border-bottom:1px solid var(--line);background:var(--bg);}

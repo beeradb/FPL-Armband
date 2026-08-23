@@ -280,6 +280,15 @@ function hydrate(st){
      silently reset an already-imported entry id, or a reader's earlier "start fresh" choice,
      back to zero on the very next unrelated save (locking a player, toggling a chip, ...). */
   const imp=st.import||{};
+  /* A cached past-gameweek result (RESULTS_CACHE) is keyed only by gameweek number, on the
+     assumption that "the session's imported entry" does not change under it -- true for
+     every hydrate except the one right after "Change team"/"Re-import from FPL" swaps
+     PENDING.entry for a different id. Caught here, before PENDING is overwritten below,
+     because this is the one place old and new entry are both still in hand: a cache keyed
+     by gw alone would otherwise go on answering the PREVIOUS team's GW3 for the new one. */
+  if(PENDING.entry && imp.entry && PENDING.entry!==imp.entry){
+    for(const k in RESULTS_CACHE) delete RESULTS_CACHE[k];
+  }
   PENDING={
     v:1,
     seed:undefined,          /* the server owns the seed; never sent back */
@@ -407,6 +416,14 @@ const CHIPS=[
    complaining, so a client that sent S would drop every lock and block with a 200. */
 let S={
   gw:1, view:'pitch',
+  /* resultsGw names the CLOSED gameweek currently showing on the pitch view as a result
+     (see renderRail()/selectPastGameweek()), or null while a planning gameweek is
+     selected. Deliberately separate from gw, which stays the gameweek being PLANNED and
+     must not move just because the reader is looking at a past result -- every fixture
+     lookup, the chip control and the drag/lock wiring key off gw, and repointing it at a
+     closed week would corrupt all of them for a squad that can no longer change. Not
+     serialised: a page reload always returns to the planning view, the same as S.view. */
+  resultsGw:null,
   xi:[], bench:[], benchGk:null,
   cap:null, vc:null,
   locks:new Set(), blocks:new Set(),
@@ -815,23 +832,110 @@ function renderRail(){
       :(g.gw===CHIPWIN.endsGw?`<span class="wend${due?' due':''}">Chips end</span>`:'');
     /* A closed week (g.closed) only reaches this rail at all for an imported reader --
        buildGameweeks drops it for everyone else, see viewmodel.Gameweek.Closed's own
-       comment. This rail has nothing to open for one: every control behind a tab click --
-       Optimise, Reset, drag-to-reorder, locks, the chip control -- edits a hypothetical
-       eleven for a week that is already played and scored, and none of it can do anything
-       there. Disabled, not omitted: the reader should still see that the week happened, not
-       watch it vanish the moment they import. Showing what ACTUALLY happened that week is a
-       separate, larger piece of work (fetch GET /api/results, render results into this
-       view, hide the planning controls) and is not this guard's job -- this only stops the
-       broken state being reachable until that lands. Found 2026-08-22: the guard existed on
-       the server (viewmodel.Gameweek.Closed) with no client-side handling at all, reachable
-       the moment PUT /api/import stopped being blocked by the deployment's own 403. */
-    return `<button class="gw${g.live?' live':''}" role="tab" data-gw="${g.gw}"
-      aria-selected="${g.gw===S.gw}"${g.closed?' disabled title="This gameweek is already played — results for past gameweeks aren’t shown here yet."':''}>
+       comment. Every control that edits a hypothetical eleven -- Optimise, Reset,
+       drag-to-reorder, locks, the chip control -- has nothing to do for a week that is
+       already played and scored, so a closed tab opens something different: what
+       ACTUALLY happened, fetched from GET /api/results and rendered by
+       selectPastGameweek() below. Clickable and dimmed (.past, armband.css) rather than
+       disabled and dimmed, which is what this used to be before that fetch existed --
+       see this rail's own git history for the guard that stood in for it. Selection is
+       tracked separately from the planning gw (S.resultsGw, not S.gw -- see S's own
+       comment), so aria-selected reads whichever of the two applies to THIS tab. */
+    const selected = g.closed ? g.gw===S.resultsGw : (S.resultsGw==null && g.gw===S.gw);
+    return `<button class="gw${g.live?' live':''}${g.closed?' past':''}" role="tab" data-gw="${g.gw}"
+      aria-selected="${selected}"${g.closed?` title="See GW${g.gw}’s result"`:''}>
       <div class="n">GW${g.gw}${g.live?' <span class="k" style="letter-spacing:.1em">NOW</span>':g.closed?' <span class="k" style="letter-spacing:.1em">PAST</span>':''}</div>
       <div class="d">${g.d}</div>
       <div class="chipslot">${slot}</div>
     </button>`;}).join('');
-  el.querySelectorAll('.gw').forEach(b=>{ if(!b.disabled) b.onclick=()=>{S.gw=+b.dataset.gw;renderAll();}; });
+  el.querySelectorAll('.gw').forEach(b=>{
+    b.onclick=()=>{
+      const gw=+b.dataset.gw;
+      const g=GWS.find(x=>x.gw===gw);
+      if(g && g.closed) selectPastGameweek(gw);
+      else selectPlanningGameweek(gw);
+    };
+  });
+}
+
+/* ============================================================
+   RENDER — past gameweek results
+   ============================================================
+   selectPastGameweek/selectPlanningGameweek are the rail's two destinations (see
+   renderRail() above): a closed tab opens a result, any other tab opens the planner, and
+   either one can be reached from the other. Both stay tiny and symmetric on purpose --
+   the two states (S.resultsGw set vs null) must never both be true at once, and keeping
+   the toggle in exactly two places is what keeps that true. */
+function selectPastGameweek(gw){
+  if(S.resultsGw===gw) return; // already showing it
+  S.resultsGw=gw;
+  showPlanningSurface(false);
+  const rv=document.getElementById('resultsview');
+  if(rv) rv.hidden=false;
+  renderRail(); // repaint tab highlighting -- no other render function reads S.resultsGw
+  renderPastResults(gw);
+}
+
+function selectPlanningGameweek(gw){
+  S.gw=+gw;
+  S.resultsGw=null;
+  showPlanningSurface(true);
+  const rv=document.getElementById('resultsview');
+  if(rv) rv.hidden=true;
+  renderAll();
+}
+
+/* RESULTS_CACHE holds fetched GET /api/results documents, keyed by gameweek number, so
+   clicking between weeks already seen costs nothing. Populated ONLY when
+   result_state==='final' -- a live or fulltime gameweek can still change on the next
+   request and must always be refetched, see this codebase's own design note on the
+   endpoint's caching (results.js/results.go share the same rule at the HTTP layer; this
+   is the client's mirror of it for the in-memory case a hard HTTP cache does not cover,
+   e.g. a session that started before this tab gameweek went final). Never serialised and
+   never evicted -- a season has at most 38 gameweeks and a finished one's document is
+   immutable, so the ceiling on this object's size is small and fixed. */
+const RESULTS_CACHE={};
+
+function paintPastResults(doc){
+  const err=document.getElementById('resultsError');
+  if(err){ err.style.display='none'; err.textContent=''; }
+  const r=doc&&doc.results;
+  const scoreEl=document.getElementById('resultsScoreboard');
+  const pitchEl=document.getElementById('resultsPitch');
+  if(scoreEl) scoreEl.innerHTML = r ? ArmbandResults.scoreboard(r) : '';
+  if(pitchEl) pitchEl.innerHTML = r
+    ? ArmbandResults.pitch(r)
+    : '<div class="panel" style="padding:24px"><b>No result for this gameweek.</b></div>';
+}
+
+function paintPastResultsError(message){
+  const scoreEl=document.getElementById('resultsScoreboard');
+  const pitchEl=document.getElementById('resultsPitch');
+  if(scoreEl) scoreEl.innerHTML='';
+  if(pitchEl) pitchEl.innerHTML='';
+  const err=document.getElementById('resultsError');
+  if(err){ err.textContent=message; err.style.display='block'; }
+}
+
+/* renderPastResults fetches (or reuses RESULTS_CACHE for) one closed gameweek's result and
+   paints it into #resultsview. Guarded against a stale response: if the reader has since
+   selected a different tab (or gone back to planning) by the time this resolves,
+   S.resultsGw no longer matches `gw` and the response is dropped -- the same shape
+   save()'s own comment argues for a mutation applied mid-flight. */
+function renderPastResults(gw){
+  const cached=RESULTS_CACHE[gw];
+  if(cached){ paintPastResults(cached); return; }
+  fetch(`/api/results?gw=${gw}`, {credentials:'same-origin'})
+    .then(r=>{ if(!r.ok) throw new Error(`the server answered ${r.status}`); return r.json(); })
+    .then(doc=>{
+      if(S.resultsGw!==gw) return;
+      if(doc.results && doc.results.result_state==='final') RESULTS_CACHE[gw]=doc;
+      paintPastResults(doc);
+    })
+    .catch(err=>{
+      if(S.resultsGw!==gw) return;
+      paintPastResultsError(`GW${gw}’s result could not be loaded: ${err.message}`);
+    });
 }
 
 /* ============================================================
@@ -2859,14 +2963,27 @@ const VIEWS=['pitch','players','news'];
  * #squadsource is deliberately NOT in this list -- it is provenance, "where this fifteen
  * came from", and that is as true of a past week as of this one.
  *
- * Nothing here wires this to a past-gameweek view yet: there is no such view today (the
- * gameweek rail disables a closed week's tab outright, see renderRail's own comment). This
- * exists so the piece that builds that view has one correctly-shaped switch to call rather
- * than inventing its own list. showPlanningSurface(true) below is called once at boot, so
- * today's behaviour -- everything shown -- is unchanged. */
+ * ⚠️ .pitchwrap replaced the four separate entries .pitchactions/#chipctl/.pitch/.bench
+ * (plus #pitch-newsnudge, still separate -- see below) once a past-gameweek view actually
+ * existed to call showPlanningSurface(false) (see selectPastGameweek/renderRail, and the
+ * results-past golden this was caught on). The list before that had only ever been
+ * exercised by showPlanningSurface(true) at boot -- `false` had no caller yet, so nothing
+ * had ever rendered any of this hidden. Hiding only .pitchactions/#chipctl left the REST
+ * of .pitchwrap on screen: #pitchhud's formation/captain-math/vs-our-pick describe the
+ * CURRENTLY PLANNED gameweek, not the past one on screen (results.js's own pitch() draws
+ * its own formation heading), and .rolekey legends the role-coloured dots on .pitch,
+ * itself already hidden -- both sat directly under a past result, describing a different
+ * week or nothing at all. .pitchwrap ALSO carries the turf card's own border/background,
+ * which stayed a visible empty sliver once every child inside it was hidden one by one.
+ * One entry for the whole card is both the fix and the simplification: everything
+ * .pitchwrap contains (#pitchhud, #pitch-newsnudge, .pitch, .rolekey, .bench) is
+ * planning-only, so there is nothing inside it a past week needs kept visible. Safe to
+ * force in both directions: showPlanningSurface(true)'s own "every other element
+ * recomputes its real state immediately afterward" covers it, since renderReadout() and
+ * renderPitch() (which fill in everything .pitchwrap contains) run on every renderAll(). */
 const PLANNING_ELEMENTS=[
   '#transferbar','#transferpanel','#instrpanel','#importCard',
-  '.pitchactions','#chipctl','.pitch','.bench','#pitch-newsnudge'
+  '.pitchwrap'
 ];
 /* showPlanningSurface(false) forces every element on the list hidden -- unconditionally,
  * which is exactly right for a past gameweek: none of them has anything to say about a week
@@ -3055,8 +3172,10 @@ function boot(){
       const hash=location.hash.slice(1);
       const replace=/^replace-(\d+)$/.exec(hash);
       const buy=/^buy-(\d+)$/.exec(hash);
+      const results=/^results-(\d+)$/.exec(hash);
       if(replace){ setView('pitch', false); openPicker(+replace[1]); }
       else if(buy){ setView('pitch', false); openBuyPicker(+buy[1]); }
+      else if(results){ setView('pitch', false); selectPastGameweek(+results[1]); }
       else if(hash){ setView(hash, false); }
     })
     .catch(err=>{
@@ -3245,6 +3364,13 @@ function importTeam(){
          comment). Whichever job the panel was open for -- first import or a change -- is
          done, so close it here, directly. */
       closeImportCard();
+      /* "Change team"/"Re-import from FPL" is reachable while a past gameweek's result is
+         on screen -- #squadsource is the one control this feature deliberately leaves live
+         through showPlanningSurface(false). hydrate() has already cleared RESULTS_CACHE for
+         the entry swap (see its own comment); this repaints what is currently ON SCREEN,
+         which would otherwise go on showing the PREVIOUS team's result until the reader
+         happened to click the tab again. */
+      if(S.resultsGw!=null) renderPastResults(S.resultsGw);
       const eventNum=st.import?.event||'your';
       notify(`Imported your Gameweek ${eventNum} fifteen.`);
     })

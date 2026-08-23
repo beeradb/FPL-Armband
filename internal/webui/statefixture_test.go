@@ -58,6 +58,13 @@ var fixtureNames = []string{
 	"import-transfers-none",  // imported, nothing changed since: bar shows "1 free", panel hidden
 	"import-transfers-two",   // two changes made, one free: bar shows the −4, panel shows two rows
 	"import-transfers-stale", // baseline_stale: the re-import sentence, count and cost withheld
+	// A past, FINISHED gameweek on the rail, and its result selected on load (see
+	// visual_test.go's shot list, /app#results-1). Derived from import-imported by moving
+	// `now` past GW1's deadline, marking GW1 closed/GW2 current, and borrowing GW1's own
+	// results block from gameweek-one -- forced to result_state "final" (every
+	// match_status "finished") so the shot exercises the settled case a reader actually
+	// clicks back to, not the mid-match one gameweek-one's own shots already cover.
+	"import-past-result",
 }
 
 // loadState reads one fixture and fails loudly if it does not decode into the contract.

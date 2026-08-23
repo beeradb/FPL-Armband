@@ -187,6 +187,23 @@
       </div>
     </div>
 
+    <!-- PAST GAMEWEEK RESULTS: what a closed gameweek on the rail actually did, once the
+         reader has imported a real entry -- see renderRail()/selectPastGameweek() (app.js).
+         Its OWN container, never #pitchwrap's planning children mutated in place: the two
+         states must stay separable, or the drag/lock wiring below ends up pointed at nodes
+         that are sometimes results cards. Built by the SAME shared component
+         /armband-team uses -- ArmbandResults.scoreboard()/.pitch() (results.js) -- so this
+         page never grows a second results renderer; results.js itself learns nothing about
+         being on this page, the same rule team.js's own comment states.
+         Toggled opposite PLANNING_ELEMENTS: hidden while a planning gameweek is selected,
+         shown (and #pitchwrap's own turf hidden by PLANNING_ELEMENTS) while a past one is.
+         Ships empty and hidden -- see selectPastGameweek()/renderPastResults() (app.js). -->
+    <div id="resultsview" hidden>
+      <div class="houseteam" id="resultsScoreboard"></div>
+      <div id="resultsPitch"></div>
+      <div id="resultsError" style="display:none;padding:8px 10px;margin-bottom:10px;background:var(--bad-lo);border:1px solid #7A4A5A;border-radius:var(--r-sm);color:var(--bad);font-size:12px"></div>
+    </div>
+
   <div class="pitchwrap">
     <div class="pitchhud" id="pitchhud">
       <span class="k">Formation</span>
@@ -517,6 +534,7 @@
   <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 </div>
 
+<script src="/assets/results.js" defer></script>
 <script src="/assets/gate.js" defer></script>
 <script src="/assets/app.js" defer></script>
 </body>

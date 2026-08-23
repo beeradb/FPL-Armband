@@ -229,13 +229,13 @@ func (s *squadServer) importTeam(w http.ResponseWriter, r *http.Request) {
 	// 9.5. The free-transfer allowance, resolved here for the same reason step 6's fetches
 	// are: it is one more outbound FPL call, and s.freeTransfersFor must never run under
 	// s.mu. See that method's own comment.
-	free, freeErr := s.freeTransfersFor(r.Context(), in)
+	free, hist, freeErr := s.freeTransfersFor(r.Context(), in)
 
 	// 10. The render lock, taken only now — see step 6's comment for why it could not
 	// be taken any earlier.
 	defer s.lockRender("import")()
 
-	stateBody, err := s.buildState(r, in, free, freeErr)
+	stateBody, err := s.buildState(r, in, free, hist, freeErr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "serve: import: %v\n", err)
 		http.Error(w, "the squad could not be built just now — try reloading",

@@ -569,7 +569,7 @@ func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 	sess := s.readValidSession(r)
 	// The free-transfer allowance needs one FPL round trip, resolved BEFORE the render
 	// lock — see freeTransfersFor's own comment for why that ordering may not move.
-	free, freeErr := s.freeTransfersFor(r.Context(), sess)
+	free, hist, freeErr := s.freeTransfersFor(r.Context(), sess)
 
 	defer s.lockRender("state")()
 
@@ -579,13 +579,13 @@ func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(os.Stderr, "serve: storing the session seed: %v\n", err)
 		}
 	}
-	s.answerState(w, r, sess, free, freeErr)
+	s.answerState(w, r, sess, free, hist, freeErr)
 }
 
 // answerState builds and writes the document for a session. Shared by the read and the
 // write route so the two cannot disagree about what the state IS.
-func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess session, free int, freeErr error) {
-	body, err := s.buildState(r, sess, free, freeErr)
+func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess session, free int, hist *fpl.EntryHistory, freeErr error) {
+	body, err := s.buildState(r, sess, free, hist, freeErr)
 	if err != nil {
 		// The full error is for whoever is running the server -- a viewmodel marshal
 		// failure like "State.Squad.Players[3].XP is NaN, which encoding/json cannot
@@ -615,28 +615,35 @@ func writeState(w http.ResponseWriter, body []byte) {
 // should carry that forward as State.Transfers.FreeUnknown, rather than silently treating
 // it the same as "before GW1".
 //
+// It also returns the *fpl.EntryHistory it read (nil alongside the unlimited/error cases
+// above) — the SAME cached round trip, not a second one — because buildState needs it for
+// one more thing beyond the free-transfer count: fpl.EarliestResultEvent, the bound the
+// gameweek rail's past-tab tabs use (see viewmodel.Input.EarliestResultEvent's own
+// comment). A caller that only needs the count is free to ignore the second value.
+//
 // It is a method squadServer's three buildState callers (state, saveSession, importTeam)
 // each invoke BEFORE taking the render lock, and buildState itself takes the resolved
 // answer as a parameter rather than calling this. buildState runs under s.mu, this makes an
 // outbound FPL call, and importTeam's own step 6 states the rule this exists to keep
 // visible: holding the render lock across an outbound call would stall every OTHER
 // visitor's render behind this one's network latency.
-func (s *squadServer) freeTransfersFor(ctx context.Context, sess session) (int, error) {
+func (s *squadServer) freeTransfersFor(ctx context.Context, sess session) (int, *fpl.EntryHistory, error) {
 	if sess.Entry == 0 || s.client == nil {
-		return fpl.UnlimitedTransfers, nil
+		return fpl.UnlimitedTransfers, nil, nil
 	}
 	h, err := s.client.History(ctx, sess.Entry)
 	if err != nil {
-		return fpl.UnlimitedTransfers, err
+		return fpl.UnlimitedTransfers, nil, err
 	}
-	return fpl.FreeTransfers(h), nil
+	return fpl.FreeTransfers(h), h, nil
 }
 
 // buildState produces the document for a session, or an error naming what went wrong.
 //
-// free/freeErr are the free-transfer allowance, resolved by the caller via
-// freeTransfersFor BEFORE the render lock — see that method's own comment.
-func (s *squadServer) buildState(r *http.Request, sess session, free int, freeErr error) ([]byte, error) {
+// free/hist/freeErr are the free-transfer allowance and the history it was read from,
+// resolved by the caller via freeTransfersFor BEFORE the render lock — see that method's
+// own comment.
+func (s *squadServer) buildState(r *http.Request, sess session, free int, hist *fpl.EntryHistory, freeErr error) ([]byte, error) {
 	cfg := s.effectiveCfgFrom(sess)
 	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, pageOpts{
 		Weeks:     s.weeks,
@@ -686,6 +693,13 @@ func (s *squadServer) buildState(r *http.Request, sess session, free int, freeEr
 		// document, and a manager's record has nothing to do with building it. It is
 		// fetched only by the two results documents — armbandTeamState for
 		// /armband-team, apiResults for GET /api/results — see those functions.
+		//
+		// EarliestResultEvent is the one exception, and it is not a manager's record —
+		// it is a single bound the rail needs to know how far back its past-gameweek
+		// tabs may reach. hist is the SAME History freeTransfersFor already read for
+		// the free-transfer count above (no second round trip); fpl.EarliestResultEvent
+		// on a nil hist answers 0, which buildGameweeks reads as "add no past tabs".
+		EarliestResultEvent: fpl.EarliestResultEvent(hist),
 	})
 	if err != nil {
 		// Build's only failure is a number encoding/json would refuse. Naming the field
@@ -965,7 +979,7 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 	// validating the body above need neither the lock nor the network, so this is the
 	// earliest point `in.Entry` is known. See freeTransfersFor's own comment for why the
 	// FPL call may not happen under s.mu.
-	free, freeErr := s.freeTransfersFor(r.Context(), in)
+	free, hist, freeErr := s.freeTransfersFor(r.Context(), in)
 
 	defer s.lockRender("session")()
 
@@ -997,7 +1011,7 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 	// every later request rebuilds from it and fails the same way, and the reader has to
 	// open devtools to recover. /action already gets this right and says so: the change is
 	// saved before it is adopted, and a failure leaves everything as it was.
-	body, err := s.buildState(r, in, free, freeErr)
+	body, err := s.buildState(r, in, free, hist, freeErr)
 	if err != nil {
 		// Same reasoning as answerState: log the Go error, tell the reader only that
 		// the save did not land.

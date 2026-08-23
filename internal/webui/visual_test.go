@@ -108,6 +108,15 @@ func serve(t *testing.T, fixture string) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_, _ = w.Write(body)
 	})
+	// GET /api/results?gw=N -- the past-gameweek tab's own fetch (see app.js's
+	// renderPastResults). Same convenience as /api/armband-team above: the fixture's
+	// Results already rides along in State, so this serves the identical body regardless
+	// of which gw was asked for. The real server answers per-gameweek; this test only
+	// needs the ONE the fixture was built to show (see import-past-result's own comment).
+	mux.HandleFunc("/api/results", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(body)
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		name := "landing"
 		if r.URL.Path == "/app" {
@@ -225,6 +234,16 @@ var shots = []shot{
 	{"transfers-two-desktop", "import-transfers-two", "/app#pitch", desktop(1900)},
 	{"transfers-two-mobile", "import-transfers-two", "/app#pitch", mobile(2400)},
 	{"transfers-stale-desktop", "import-transfers-stale", "/app#pitch", desktop(1700)},
+
+	// A past, finished gameweek's tab selected on the rail -- results.js's scoreboard and
+	// pitch rendered into #resultsview, and the planning surface (PLANNING_ELEMENTS)
+	// hidden underneath it. Reached the same way the picker is (see picker-desktop
+	// below): a deep link, /app#results-1, that boot() honours by calling
+	// selectPastGameweek() before the first paint. See import-past-result's own comment
+	// for the fixture and statefixture_test.go's fixtureNames for why it is a settled,
+	// non-live result rather than a rerun of gameweek-one's own live shots.
+	{"results-past-desktop", "import-past-result", "/app#results-1", desktop(1900)},
+	{"results-past-mobile", "import-past-result", "/app#results-1", mobile(2400)},
 
 	// The states live data will not hand you on demand, and which are therefore the most
 	// likely to be broken and the least likely to be looked at.

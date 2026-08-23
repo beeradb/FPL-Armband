@@ -505,7 +505,13 @@ type Gameweek struct {
 	// the interactive builder has nothing left to offer for it. A closed gameweek only
 	// appears in this list at all when the reader has imported their real picks (see
 	// State.Import); otherwise buildGameweeks drops it rather than showing a stale
-	// hypothetical plan for a squad that can no longer change.
+	// hypothetical plan for a squad that can no longer change. This covers two different
+	// origins that the client treats identically — fetch GET /api/results and render
+	// that instead of a plan: a gameweek still inside the planning horizon (p.Weeks) whose
+	// deadline has simply passed, still carrying its plan fields below for reference, and
+	// a gameweek that has fully finished and left the horizon entirely, added from
+	// boot.Events with every plan field left zero because there is no plan for it. See
+	// buildGameweeks's own comment.
 	Closed bool `json:"closed,omitempty"`
 	// Chip is the chip the plan puts in this week: "Wildcard", "Free Hit",
 	// "Bench Boost", "Triple Captain", or empty. Spelled as the engine spells it.

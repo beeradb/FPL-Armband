@@ -134,6 +134,53 @@ func TestFreeTransfersReconstruction(t *testing.T) {
 	}
 }
 
+// TestEarliestResultEvent pins the bound the gameweek rail's past-tab tabs use: the
+// earliest gameweek the manager's OWN history has a result for, never a guess at the
+// season's own first gameweek — a manager who joined FPL after gameweek one has no
+// history before the gameweek they created their team.
+func TestEarliestResultEvent(t *testing.T) {
+	cases := []struct {
+		name string
+		json string
+		want int
+	}{
+		{
+			name: "no history at all",
+			json: `{"current":[],"past":[],"chips":[]}`,
+			want: 0,
+		},
+		{
+			name: "history starts at the season's first gameweek",
+			json: `{"current":[{"event":1},{"event":2},{"event":3}],"chips":[]}`,
+			want: 1,
+		},
+		{
+			name: "history starts mid-season -- this manager joined after GW1-4",
+			json: `{"current":[{"event":5},{"event":6}],"chips":[]}`,
+			want: 5,
+		},
+		{
+			name: "out of order in the JSON does not change the minimum",
+			json: `{"current":[{"event":7},{"event":5},{"event":6}],"chips":[]}`,
+			want: 5,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var h EntryHistory
+			if err := json.Unmarshal([]byte(tc.json), &h); err != nil {
+				t.Fatalf("bad fixture: %v", err)
+			}
+			if got := EarliestResultEvent(&h); got != tc.want {
+				t.Errorf("EarliestResultEvent = %d, want %d", got, tc.want)
+			}
+		})
+	}
+	if got := EarliestResultEvent(nil); got != 0 {
+		t.Errorf("EarliestResultEvent(nil) = %d, want 0 — a failed read must not be treated as GW1", got)
+	}
+}
+
 // A player's own display name must resolve to that player. The agent looks
 // players up by name, so a mis-ranked match means it reasons about the wrong
 // footballer — which happened live: "Rodri" returned Rodrigo Bentancur, because

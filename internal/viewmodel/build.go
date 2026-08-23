@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"sort"
 	"time"
 
 	"armband/internal/analysis"
@@ -74,6 +75,17 @@ type Input struct {
 	// cmd/armband.importWindow — this package may not decide whether a gameweek has been
 	// played any more than it may compute any other model quantity. See State.Import.
 	Import Import
+
+	// EarliestResultEvent bounds how far back buildGameweeks reaches into boot.Events for
+	// FINISHED gameweeks that have already dropped out of the planning horizon (p.Weeks) —
+	// see that function's own comment for why a settled week is not there at all. It is
+	// fpl.EarliestResultEvent of the reader's own EntryHistory, resolved by the caller
+	// (cmd/armband, from the same cached History fetch freeTransfersFor already makes),
+	// because this package has no license to decide which past gameweeks the reader
+	// actually has a result for — the same rule Import's own comment states. Zero means
+	// "unknown" (no import, or the history read failed) and adds no past gameweeks at all
+	// rather than guessing a bound.
+	EarliestResultEvent int
 
 	// Entry and History are the FPL manager record buildResults describes — either
 	// config.EntryID's (armbandTeamState, the site's own spectator page) or a reader's own
@@ -159,7 +171,7 @@ func Build(in Input) (*State, error) {
 	}
 
 	s.Squad = buildSquad(p)
-	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips, in.Now, in.Import.Entry != 0)
+	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips, in.Now, in.Import.Entry != 0, in.EarliestResultEvent)
 	s.Results = buildResults(s.Squad, in.Entry, in.History, in.Boot,
 		in.Live, in.MatchStatus, in.Opponent, in.Multiplier,
 		in.ResultEvent, in.ResultState, in.EventAverage)
@@ -279,11 +291,30 @@ func buildPlayer(m analysis.PlayerMetrics, p present.Page) Player {
 // Once a gameweek's deadline passes, its entry in p.Weeks is the model's hypothetical
 // best-XI for a squad the reader can no longer change — a Monday-morning-quarterback
 // opinion about a locked decision, not a plan. That is worth showing only when it can be
-// replaced by the reader's ACTUAL picks (imported — see State.Import), which this
-// function does not have access to; that is a real gap, tracked rather than worked around
-// here (see ROLLOUT.md). Until then a closed week is filtered rather than left showing a
-// stale hypothetical plan a reader might mistake for their own.
-func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSchedule, now time.Time, imported bool) []Gameweek {
+// replaced by the reader's ACTUAL picks (imported — see State.Import). Closed marks this
+// case; the client fetches GET /api/results and renders that instead of the plan the
+// moment it sees Closed true, for exactly the reason above — see app.js's renderRail.
+//
+// # Past gameweeks that have already left the planning horizon
+//
+// p.Weeks comes from analysis.Engine.WeekViews, which is built from upcomingEvents and
+// drops a gameweek the instant every one of its fixtures is FPL-Finished (weekview.go) —
+// it is a PLANNING horizon and has no reason to know about the past. So a gameweek that
+// finished, say, a week ago is not "closed" in the sense above at all: it is simply
+// absent, imported or not. Those are added here from boot.Events instead — the bootstrap
+// carries every gameweek FPL has ever played — marked Closed exactly like the
+// still-live case above, so the client's one rule ("Closed means fetch results, not a
+// plan") covers both without needing to tell them apart.
+//
+// Bounded by earliestResultEvent (see Input.EarliestResultEvent's own comment): only
+// FINISHED events at or after it are added, and only for an imported reader. Do NOT
+// widen span/the horizon passed to WeekViews to reach these instead — that would re-run
+// the optimiser over gameweeks nobody is planning, on every request, for a squad that can
+// no longer change. boot.Events already has everything a past result needs (a deadline
+// and a Finished flag); the plan fields (Chip, Projected, Formation, Playable, ChipWindow,
+// Rebuilt) are left zero on a past Gameweek because there is no plan for a week that is
+// over.
+func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSchedule, now time.Time, imported bool, earliestResultEvent int) []Gameweek {
 	deadline := map[int]time.Time{}
 	current := 0
 	if boot != nil {
@@ -303,11 +334,18 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 		}
 	}
 	out := make([]Gameweek, 0, len(p.Weeks))
+	// seen tracks every gameweek already placed from p.Weeks, so a past event sourced
+	// from boot.Events below can never duplicate one the planning horizon still carries.
+	// In practice a Finished event never reaches p.Weeks at all (see this function's own
+	// comment on upcomingEvents), so this is a defensive guard rather than a load-bearing
+	// one.
+	seen := map[int]bool{}
 	for _, w := range p.Weeks {
 		closed := !deadline[w.Event].IsZero() && deadline[w.Event].Before(now)
 		if closed && !imported {
 			continue
 		}
+		seen[w.Event] = true
 		var playable []ChipOption
 		for _, key := range analysis.PlayableChips(boot, w.Event) {
 			playable = append(playable, ChipOption{Key: key, Label: analysis.ChipLabel(key)})
@@ -325,7 +363,23 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 			ChipWindow: buildChipWindow(boot, chips, w.Event, deadline),
 		})
 	}
-	return out
+
+	var past []Gameweek
+	if imported && boot != nil && earliestResultEvent > 0 {
+		for i := range boot.Events {
+			e := &boot.Events[i]
+			if !e.Finished || e.ID < earliestResultEvent || seen[e.ID] {
+				continue
+			}
+			past = append(past, Gameweek{
+				Number:   e.ID,
+				Deadline: e.DeadlineTime,
+				Closed:   true,
+			})
+		}
+		sort.Slice(past, func(i, j int) bool { return past[i].Number < past[j].Number })
+	}
+	return append(past, out...)
 }
 
 // buildResults arranges ONE entry's manager record into the results page's contract — the
