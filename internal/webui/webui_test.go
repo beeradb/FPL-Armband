@@ -9,7 +9,7 @@ import (
 )
 
 // pages are the documents, by the name Page takes.
-var pages = []string{"landing", "app", "team"}
+var pages = []string{"landing", "app", "team", "wildcard"}
 
 // TestEveryPageIsEmbeddedAndNonEmpty is the shallowest possible check, and it exists
 // because the failure it catches is silent. A //go:embed directive that matches nothing
@@ -300,7 +300,7 @@ func TestEveryReferencedAssetResolves(t *testing.T) {
 			strings.HasPrefix(ref, "data:"),
 			strings.HasPrefix(ref, "mailto:"):
 			return
-		case ref == "/" || ref == "/app" || ref == "/armband-team":
+		case ref == "/" || ref == "/app" || ref == "/armband-team" || ref == "/wildcard":
 			// The page routes. Served by cmd/armband/serve.go, not from static.
 			return
 		case ref == "/privacy":

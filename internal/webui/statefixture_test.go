@@ -65,6 +65,12 @@ var fixtureNames = []string{
 	// match_status "finished") so the shot exercises the settled case a reader actually
 	// clicks back to, not the mid-match one gameweek-one's own shots already cover.
 	"import-past-result",
+	// State 2 (§3.2 of the wildcard design): a gameweek the competition does not
+	// allow either chip in yet. Derived from gameweek-one by replacing
+	// chip_teams with gameweek 1's own real answer -- both teams nil, both
+	// *_unavailable sentences set -- rather than gameweek-one's own gameweek-2
+	// chip_teams, which IS available. See TestWriteTheWildcardFixtures.
+	"chip-unavailable",
 }
 
 // loadState reads one fixture and fails loudly if it does not decode into the contract.

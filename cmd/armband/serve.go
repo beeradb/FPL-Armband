@@ -240,6 +240,12 @@ type squadServer struct {
 	fetchEntry func(ctx context.Context, id int) (*fpl.Entry, error)
 	fetchPicks func(ctx context.Context, entryID, event int) (*fpl.EntryPicks, error)
 
+	// chips is GET /api/wildcard's cache of the two rebuilt WeekViews for one
+	// gameweek — see chipCache's own comment for why the route needs one at
+	// all. Guarded by mu above, the same render lock the build itself takes.
+	// Nil until the first build. See chipCacheGet/invalidateChipCache.
+	chips *chipCache
+
 	// metricsOnce and metricsReg are this server's lazily-built Prometheus
 	// registry — the three staleness series, which close over client above.
 	// See metricsRegistry in instruments.go for why lazy: there is no
@@ -331,6 +337,13 @@ func (s *squadServer) routeFor(path string) (http.Handler, string) {
 		}), "armband-team"
 	case routeArmbandTeamState:
 		return http.HandlerFunc(s.armbandTeamState), "armband-team-state"
+	case routeWildcard:
+		// Ungated, deliberately: see routeWildcard's own comment.
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s.servePage(w, r, "wildcard")
+		}), "wildcard"
+	case routeWildcardState:
+		return http.HandlerFunc(s.apiChipTeams), "wildcard-state"
 	case routeSession:
 		return http.HandlerFunc(s.saveSession), "session"
 	case routeImport:

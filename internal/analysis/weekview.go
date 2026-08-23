@@ -147,132 +147,162 @@ func (w WeekView) Blanks(squad []PlayerMetrics) []PlayerMetrics {
 // played in a different week. So the fixture is checked against G and dropped if
 // it does not match. A blanking club then has no entry in Opponents, its players
 // score zero for that week, and `BestXI` fields whoever is left.
-func (e *Engine) WeekViews(squad []PlayerMetrics, n int) []WeekView {
+func (e *Engine) WeekViews(squad []PlayerMetrics, n int, req OptimizeRequest) []WeekView {
 	events := e.upcomingEvents(n)
 	views := make([]WeekView, 0, len(events))
 
 	for _, gw := range events {
-		wk := e.engineAt(gw)
-
-		// A wildcard or free hit fields a DIFFERENT fifteen, so the week has to
-		// be scored on the squad that chip would buy rather than on the one you
-		// own. Anything else answers the wrong question — and answers it
-		// confidently, which is worse.
-		//
-		// Budget: a wildcard spends the squad's selling value plus the bank, the
-		// same allowance AssemblyBudget resolves for any in-season rebuild.
-		// Failing to price it is reported by leaving the squad alone rather than
-		// by inventing £100m, since a fifteen built on money that does not exist
-		// is a recommendation that dies at the deadline.
-		weekSquad, chip, rebuilt := squad, e.chipAt(gw), false
-		if chip == "Wildcard" || chip == "Free Hit" {
-			if budget, _, err := e.AssemblyBudget(); err == nil {
-				req := OptimizeRequest{
-					Budget:             budget,
-					MinMinutes:         600,
-					MinExpectedMinutes: 55,
-				}
-				// The two chips want fifteens built to different questions, so
-				// they are built on different engines.
-				//
-				// A FREE HIT fields its fifteen for this one round and hands the
-				// permanent squad back, so one gameweek is the whole horizon and
-				// `wk` is the right engine. A player whose club does not play is
-				// then not merely a poor pick — he cannot appear at all, bench
-				// included — and `fixtureLoadFor` takes his score to zero, which
-				// keeps him out of the eleven and does nothing about the four
-				// bench slots, since a builder is indifferent between two players
-				// worth nothing and takes the cheapest. So the guard is applied to
-				// the POOL as well.
-				//
-				// A WILDCARD is the opposite: that fifteen is KEPT, so it must be
-				// built over the horizon rather than for one round. It cannot use
-				// `wk` at all. `wk` is horizon 1, where `FixtureLoadInScore()` is
-				// true, so every blanking club's score is already zero before
-				// `Optimize` ranks on it — and a wildcard planned for a heavy blank
-				// (2023-24 GW29 blanked twelve clubs of twenty) would return a
-				// permanent squad drawn entirely from the eight clubs that happened
-				// to play that week. That is a free-hit squad presented as a
-				// wildcard, and it is reachable only since `fixtureLoadFor` learned
-				// to express a blank: before that, a blanking club read >= 1 and the
-				// distortion could not arise. So the wildcard is built at the
-				// caller's horizon, anchored on its own week, where the same blank
-				// is correctly one week in five rather than the whole world.
-				builder := wk
-				if chip == "Wildcard" {
-					builder = e.engineAtHorizon(gw, e.Weights.Horizon)
-				} else {
-					req.ExcludeIDs = wk.ElementsWithoutFixtures()
-				}
-				if built, err := builder.Optimize(req); err == nil && built != nil {
-					weekSquad, rebuilt = built.Players, true
-				}
-			}
-		}
-
-		scored := make([]PlayerMetrics, 0, len(weekSquad))
-		opponents := map[int][]FixtureBrief{}
-		for _, p := range weekSquad {
-			el := e.Boot.ElementByID(p.ID)
-			if el == nil {
-				scored = append(scored, p)
-				continue
-			}
-			m := wk.Metrics(el)
-
-			// Everything a club plays IN this gameweek, which is two fixtures in
-			// a double and none in a blank.
-			var fixtures []FixtureBrief
-			for _, f := range wk.TeamFixtures(el.Team, 2) {
-				if f.Event == gw {
-					fixtures = append(fixtures, f)
-				}
-			}
-			if len(fixtures) == 0 {
-				// He cannot score, so he must not be picked. Zeroing the score
-				// is what makes BestXI field the eleven a manager actually
-				// would, rather than one containing a player with no match.
-				m.Score = 0
-			}
-			opponents[m.ID] = fixtures
-			scored = append(scored, m)
-		}
-
-		xi, bench, formation := BestXI(scored)
-		v := WeekView{
-			Event: gw, XI: xi, Bench: bench, Formation: formation,
-			Opponents: opponents, Chip: chip, Rebuilt: rebuilt, Squad: scored,
-		}
-		if rebuilt {
-			v.Caveat = e.rebuildCaveat()
-		}
-		ranked := append([]PlayerMetrics(nil), xi...)
-		sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].Score > ranked[j].Score })
-		if len(ranked) > 0 {
-			v.Captain = ranked[0]
-		}
-		if len(ranked) > 1 {
-			v.ViceCaptain = ranked[1]
-		}
-		for _, p := range xi {
-			v.XIScore += p.Score
-		}
-
-		// What FPL would actually pay, which is the whole point of naming the
-		// chip. The armband is counted once MORE than it already is in XIScore,
-		// so a triple captain adds him twice again rather than three times.
-		v.Expected = v.XIScore + v.Captain.Score
-		switch chip {
-		case "Bench Boost":
-			for _, p := range bench {
-				v.Expected += p.Score
-			}
-		case "Triple Captain":
-			v.Expected += v.Captain.Score
-		}
-		views = append(views, v)
+		views = append(views, e.ChipWeekView(squad, gw, e.chipAt(gw), req))
 	}
 	return views
+}
+
+// ChipWeekView is one gameweek scored under a NAMED chip, whatever the
+// configured plan says about that week.
+//
+// WeekViews asks the same question of the plan (chipAt) and is the schedule's
+// reader. This is the hypothetical's: "what would a wildcard buy in gameweek
+// 3", asked of a season whose plan points at gameweek 6. One implementation,
+// two callers, because a second copy of the rebuild is how the page and the
+// rail come to disagree about what a wildcard buys.
+//
+// req carries the caller's roster constraints -- LockIDs, StartIDs,
+// ExcludeIDs. Budget, MinMinutes and MinExpectedMinutes are set here and any
+// value the caller put in them is overwritten: the budget is AssemblyBudget's
+// and the two floors are the rebuild's own, and a caller that could change
+// them could publish a fifteen built to a different question than the rail's.
+//
+// gw is a gameweek number, NOT an index into upcomingEvents: that list
+// filters on f.Finished, so a gameweek being played right now is still in it,
+// and nobody can chip into a gameweek whose deadline has passed.
+func (e *Engine) ChipWeekView(squad []PlayerMetrics, gw int, chip string,
+	req OptimizeRequest) WeekView {
+
+	wk := e.engineAt(gw)
+
+	// A wildcard or free hit fields a DIFFERENT fifteen, so the week has to
+	// be scored on the squad that chip would buy rather than on the one you
+	// own. Anything else answers the wrong question — and answers it
+	// confidently, which is worse.
+	//
+	// Budget: a wildcard spends the squad's selling value plus the bank, the
+	// same allowance AssemblyBudget resolves for any in-season rebuild.
+	// Failing to price it is reported by leaving the squad alone rather than
+	// by inventing £100m, since a fifteen built on money that does not exist
+	// is a recommendation that dies at the deadline.
+	weekSquad, rebuilt := squad, false
+	// Nobody can chip into a gameweek whose deadline has passed. ChipWeekView
+	// takes no clock, so it cannot check the deadline directly the way
+	// nextOpenEvent does -- but a gameweek every one of whose fixtures has
+	// already finished is unambiguously behind it, and that is a fact about
+	// the fixture list this engine already carries. A caller that hands in a
+	// closed gameweek gets the squad back unrebuilt rather than a fifteen for
+	// a chip nobody could actually have played.
+	if (chip == "Wildcard" || chip == "Free Hit") && !e.gameweekClosed(gw) {
+		if budget, _, err := e.AssemblyBudget(); err == nil {
+			rebuildReq := req
+			rebuildReq.Budget = budget
+			rebuildReq.MinMinutes = 600
+			rebuildReq.MinExpectedMinutes = 55
+			// The two chips want fifteens built to different questions, so
+			// they are built on different engines.
+			//
+			// A FREE HIT fields its fifteen for this one round and hands the
+			// permanent squad back, so one gameweek is the whole horizon and
+			// `wk` is the right engine. A player whose club does not play is
+			// then not merely a poor pick — he cannot appear at all, bench
+			// included — and `fixtureLoadFor` takes his score to zero, which
+			// keeps him out of the eleven and does nothing about the four
+			// bench slots, since a builder is indifferent between two players
+			// worth nothing and takes the cheapest. So the guard is applied to
+			// the POOL as well.
+			//
+			// A WILDCARD is the opposite: that fifteen is KEPT, so it must be
+			// built over the horizon rather than for one round. It cannot use
+			// `wk` at all. `wk` is horizon 1, where `FixtureLoadInScore()` is
+			// true, so every blanking club's score is already zero before
+			// `Optimize` ranks on it — and a wildcard planned for a heavy blank
+			// (2023-24 GW29 blanked twelve clubs of twenty) would return a
+			// permanent squad drawn entirely from the eight clubs that happened
+			// to play that week. That is a free-hit squad presented as a
+			// wildcard, and it is reachable only since `fixtureLoadFor` learned
+			// to express a blank: before that, a blanking club read >= 1 and the
+			// distortion could not arise. So the wildcard is built at the
+			// caller's horizon, anchored on its own week, where the same blank
+			// is correctly one week in five rather than the whole world.
+			builder := wk
+			if chip == "Wildcard" {
+				builder = e.engineAtHorizon(gw, e.Weights.Horizon)
+			} else {
+				rebuildReq.ExcludeIDs = append(append([]int(nil), rebuildReq.ExcludeIDs...), wk.ElementsWithoutFixtures()...)
+			}
+			if built, err := builder.Optimize(rebuildReq); err == nil && built != nil {
+				weekSquad, rebuilt = built.Players, true
+			}
+		}
+	}
+
+	scored := make([]PlayerMetrics, 0, len(weekSquad))
+	opponents := map[int][]FixtureBrief{}
+	for _, p := range weekSquad {
+		el := e.Boot.ElementByID(p.ID)
+		if el == nil {
+			scored = append(scored, p)
+			continue
+		}
+		m := wk.Metrics(el)
+
+		// Everything a club plays IN this gameweek, which is two fixtures in
+		// a double and none in a blank.
+		var fixtures []FixtureBrief
+		for _, f := range wk.TeamFixtures(el.Team, 2) {
+			if f.Event == gw {
+				fixtures = append(fixtures, f)
+			}
+		}
+		if len(fixtures) == 0 {
+			// He cannot score, so he must not be picked. Zeroing the score
+			// is what makes BestXI field the eleven a manager actually
+			// would, rather than one containing a player with no match.
+			m.Score = 0
+		}
+		opponents[m.ID] = fixtures
+		scored = append(scored, m)
+	}
+
+	xi, bench, formation := BestXI(scored)
+	v := WeekView{
+		Event: gw, XI: xi, Bench: bench, Formation: formation,
+		Opponents: opponents, Chip: chip, Rebuilt: rebuilt, Squad: scored,
+	}
+	if rebuilt {
+		v.Caveat = e.rebuildCaveat()
+	}
+	ranked := append([]PlayerMetrics(nil), xi...)
+	sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].Score > ranked[j].Score })
+	if len(ranked) > 0 {
+		v.Captain = ranked[0]
+	}
+	if len(ranked) > 1 {
+		v.ViceCaptain = ranked[1]
+	}
+	for _, p := range xi {
+		v.XIScore += p.Score
+	}
+
+	// What FPL would actually pay, which is the whole point of naming the
+	// chip. The armband is counted once MORE than it already is in XIScore,
+	// so a triple captain adds him twice again rather than three times.
+	v.Expected = v.XIScore + v.Captain.Score
+	switch chip {
+	case "Bench Boost":
+		for _, p := range bench {
+			v.Expected += p.Score
+		}
+	case "Triple Captain":
+		v.Expected += v.Captain.Score
+	}
+	return v
 }
 
 // upcomingEvents is the next n gameweek numbers that any club actually plays,
@@ -295,6 +325,25 @@ func (e *Engine) upcomingEvents(n int) []int {
 		events = events[:n]
 	}
 	return events
+}
+
+// gameweekClosed reports whether every fixture in gw has already finished.
+// An empty gw (no fixture at all, e.g. one that has fallen off the end of the
+// fixture list) is NOT closed by this rule — there is nothing to say it is
+// behind the deadline rather than simply outside the data this engine holds,
+// and treating "unknown" as "closed" would silently swallow a caller's typo.
+func (e *Engine) gameweekClosed(gw int) bool {
+	found := false
+	for _, f := range e.Fixtures {
+		if f.Event == nil || *f.Event != gw {
+			continue
+		}
+		found = true
+		if !f.Finished {
+			return false
+		}
+	}
+	return found
 }
 
 // engineAt builds a horizon-1 engine anchored on one gameweek. It is a fresh

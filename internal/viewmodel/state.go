@@ -87,6 +87,99 @@ type State struct {
 	// (session.Entry != 0); absent otherwise, which is how the client knows there is
 	// nothing to draw. See Transfers.
 	Transfers *Transfers `json:"transfers,omitempty"`
+
+	// ChipTeams gains one field, absent everywhere but GET /api/wildcard: the whole
+	// document that route answers. See ChipTeams.
+	ChipTeams *ChipTeams `json:"chip_teams,omitempty"`
+}
+
+// ChipTeams is what a squad-rebuilding chip would buy in ONE gameweek — the
+// gameweek nobody has played yet. Its tense is "what would be", never "what
+// happened": there is no points, rank, bonus or match-status field on it or on
+// anything it holds, and there must never be. See Results for the other tense.
+type ChipTeams struct {
+	// Event is the gameweek this whole document is about: the earliest gameweek
+	// whose deadline has NOT passed. Decided by the caller from a deadline, never
+	// from Bootstrap.NextEvent -- see cmd/armband.nextOpenEvent.
+	Event    int       `json:"event"`
+	Deadline time.Time `json:"deadline"`
+
+	// Budget is what a rebuild may spend, in millions, and BudgetSource is
+	// Engine.AssemblyBudget's own sentence ("£101.3m squad value plus £1.2m in the
+	// bank"). BudgetWarning is analysis.BudgetTrust.Warning() -- empty when the
+	// selling prices were verified against FPL's own team value, and a plain
+	// statement that the figure is overstated when they were not. It is rendered,
+	// never swallowed: a fifteen built on money that does not exist is a
+	// recommendation that dies at the deadline (AssemblyBudget's own words).
+	Budget        float64 `json:"budget"`
+	BudgetSource  string  `json:"budget_source"`
+	BudgetWarning string  `json:"budget_warning,omitempty"`
+
+	// Caveat is analysis.Engine.rebuildCaveat verbatim -- the model's own warning
+	// that a rebuild this early rests mostly on last season. Copied, never
+	// reworded, and never suppressed. It self-suppresses once this season carries
+	// half the weight on minutes, so nobody has to remember to remove it.
+	Caveat string `json:"caveat,omitempty"`
+
+	// Wildcard and FreeHit are nil when the competition does not allow that chip in
+	// Event -- gameweek one, per analysis.PlayableChips, which reads the windows FPL
+	// publishes rather than restating the rule. Unavailable then carries the
+	// sentence to render in its place. A nil team with an empty Unavailable is a
+	// bug, not a state.
+	Wildcard            *ChipTeam `json:"wildcard,omitempty"`
+	FreeHit             *ChipTeam `json:"free_hit,omitempty"`
+	WildcardUnavailable string    `json:"wildcard_unavailable,omitempty"`
+	FreeHitUnavailable  string    `json:"free_hit_unavailable,omitempty"`
+
+	// PlanWildcardGW and PlanFreeHitGW are the next gameweek the CONFIGURED plan
+	// puts each chip in, at or after Event, from ChipSchedule.Next -- which reads
+	// both sets, so a second-set chip is found rather than silently missed. Zero
+	// when nothing is planned ahead. It is a hypothesis and the copy says so.
+	PlanWildcardGW int `json:"plan_wildcard_gw,omitempty"`
+	PlanFreeHitGW  int `json:"plan_free_hit_gw,omitempty"`
+
+	// PlayedWildcardGW and PlayedFreeHitGW are gameweeks this account has ACTUALLY
+	// played each chip in, from fpl.EntryHistory.Chips -- FPL's own record, not the
+	// plan. Zero means not yet played. This is the only field on the page that can
+	// say "we have not used it" without guessing.
+	PlayedWildcardGW []int `json:"played_wildcard_gw,omitempty"`
+	PlayedFreeHitGW  []int `json:"played_free_hit_gw,omitempty"`
+}
+
+// ChipTeam is one rebuilt fifteen for one gameweek.
+type ChipTeam struct {
+	Formation string `json:"formation"`
+	// Captain and Vice are element ids, the same keyspace Squad uses.
+	Captain int `json:"captain"`
+	Vice    int `json:"vice"`
+
+	// XI and Bench are viewmodel.Player -- the ONE representation of a footballer
+	// in this contract (see Player's own comment: "one footballer as every surface
+	// draws him"). Repeated in full rather than by id, unlike Squad, because
+	// nothing mutates this document client-side and there is no second list to keep
+	// in step.
+	XI    []Player `json:"xi"`
+	Bench []Player `json:"bench"`
+
+	// Expected is what this ELEVEN is expected to return in Event, armband included
+	// -- WeekView.Expected, one gameweek, on both chips. XIScore is the same sum
+	// without the armband.
+	XIScore  float64 `json:"xi_score"`
+	Expected float64 `json:"expected"`
+
+	Cost       float64        `json:"cost"`
+	Bank       float64        `json:"bank"`
+	ClubCounts map[string]int `json:"club_counts"`
+
+	// Changes is how many of the fifteen this rebuild replaces, and Out names the
+	// players it drops -- both against the squad the account holds TODAY. Zero and
+	// nil when that squad could not be fetched, which is an absence the page renders
+	// as an absence rather than as "nothing changes".
+	Changes int      `json:"changes,omitempty"`
+	Out     []string `json:"out,omitempty"`
+	// KeptIDs marks which of XI/Bench the account already holds, so the client can
+	// draw a NEW mark without a second list.
+	KeptIDs []int `json:"kept_ids,omitempty"`
 }
 
 // Transfers is the transfer bar and panel's whole state: the free-transfer allowance, what
@@ -191,6 +284,16 @@ type Results struct {
 	// score that week, already parsed off Boot with no new fetch. It is what makes a bare
 	// points total mean something.
 	EventAverage int `json:"event_average,omitempty"`
+
+	// Chip is analysis.ChipLabel of whatever this entry actually played in
+	// ResultEvent -- "Wildcard", "Free Hit", "Bench Boost", "Triple Captain" --
+	// from fpl.EntryHistory.Chips, FPL's own record of what was played and
+	// when. Empty when no chip was played this gameweek, which is the ordinary
+	// case. This is the receipt for /wildcard's own hypothetical: the week
+	// this account actually chips, the result IS the projection, and this is
+	// what makes that week legible on the page that records results rather
+	// than projects them.
+	Chip string `json:"chip,omitempty"`
 
 	// History is every gameweek FPL has scored so far, oldest first — the actual points
 	// the fielded eleven returned, not a projection.

@@ -57,6 +57,14 @@ const (
 	// proof-of-use is a marketing surface, not the product behind the gate. See armbandteam.go.
 	routeArmbandTeam      = "/armband-team"
 	routeArmbandTeamState = "/api/armband-team"
+	// routeWildcard and routeWildcardState are the OTHER tense: what a wildcard
+	// and a free hit would buy in the next gameweek nobody has played, off the
+	// same house account. Its own page, ungated and cacheable like
+	// routeArmbandTeam, and deliberately paired with it rather than folded into
+	// the interactive builder -- see chipteams.go and the design note this
+	// implements.
+	routeWildcard      = "/wildcard"
+	routeWildcardState = "/api/wildcard"
 	// routeImport is the team-ID import write path. See importteam.go.
 	routeImport = "/api/import"
 	// routeResults is the on-demand per-gameweek results read for the SESSION's own
@@ -1097,6 +1105,11 @@ func (s *squadServer) persistCorrections(in session) (session, error) {
 		return in, fmt.Errorf("saving config: %w", err)
 	}
 	s.cfg = &next
+	// config is the ONE input the chip cache can change under a running process
+	// (see chipCache's own comment) -- a roster correction just moved the
+	// optimiser's answer, and without this the wildcard page would keep
+	// recommending a player the operator just blocked until the next deadline.
+	s.invalidateChipCache()
 	in.Lock, in.Exclude, in.Dismissed = nil, nil, nil
 	return in, nil
 }

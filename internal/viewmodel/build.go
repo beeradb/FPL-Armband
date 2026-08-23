@@ -138,6 +138,50 @@ type Input struct {
 	ResultEvent  int
 	ResultState  string
 	EventAverage int
+
+	// ChipTeams is GET /api/wildcard's whole input, supplied only by that route's
+	// handler (chipteams.go). Nil for every other caller, which is how Build knows
+	// there is no such document to build. See ChipTeamsInput.
+	ChipTeams *ChipTeamsInput
+}
+
+// ChipTeamsInput is what buildChipTeams needs to answer GET /api/wildcard. Every
+// field is decided by the caller for the same reason ResultEvent/ResultState/
+// EventAverage above are: this package may not decide which gameweek is next,
+// whether a chip is playable, or what a rebuild rests on.
+type ChipTeamsInput struct {
+	Event    int
+	Deadline time.Time
+
+	Budget        float64
+	BudgetSource  string
+	BudgetWarning string
+	Caveat        string
+
+	// Wildcard and FreeHit are the two rebuilt WeekViews, nil when the
+	// competition does not allow that chip in Event (analysis.PlayableChips).
+	// Unavailable then carries the sentence to render instead.
+	Wildcard            *analysis.WeekView
+	FreeHit             *analysis.WeekView
+	WildcardUnavailable string
+	FreeHitUnavailable  string
+
+	PlanWildcardGW   int
+	PlanFreeHitGW    int
+	PlayedWildcardGW []int
+	PlayedFreeHitGW  []int
+
+	// TodaySquad is the house account's actual fifteen today -- the same
+	// PlayerMetrics buildSquadPage's Fixed/Arrange path already resolved for the
+	// handler's own call, reused here rather than fetched a second time. Nil when
+	// that fetch failed, which leaves Changes/Out/KeptIDs on both chips at their
+	// zero value: an absence rendered as an absence, never as "nothing changes".
+	TodaySquad []analysis.PlayerMetrics
+
+	// Codes and Overrides let buildChipTeams call buildPlayer exactly as buildSquad
+	// does -- elementCodes(s.engine) and the house build's own Page.Overrides.
+	Codes     map[int]int
+	Overrides map[int]present.Override
 }
 
 // Build translates an assembled page into the client contract.
@@ -179,6 +223,7 @@ func Build(in Input) (*State, error) {
 	s.Overrides = buildOverrides(p)
 	s.News = buildNews(s, in)
 	s.Import = in.Import
+	s.ChipTeams = buildChipTeams(in)
 	if p.Reasoning != nil {
 		s.Blind = p.Reasoning.Blind
 		s.Policy = Policy{
@@ -208,7 +253,7 @@ func buildSquad(p present.Page) Squad {
 		ClubCounts: p.Squad.ClubCounts,
 	}
 	for _, m := range p.Squad.Players {
-		sq.Players = append(sq.Players, buildPlayer(m, p))
+		sq.Players = append(sq.Players, buildPlayer(m, p.Codes, p.Overrides))
 	}
 	for _, m := range p.Squad.StartingXI {
 		sq.XI = append(sq.XI, m.ID)
@@ -227,10 +272,15 @@ func buildSquad(p present.Page) Squad {
 //
 // Every field is a copy. If a value needs working out, it is worked out in
 // internal/analysis and copied here — that is the whole discipline of this package.
-func buildPlayer(m analysis.PlayerMetrics, p present.Page) Player {
+//
+// Takes codes and overrides directly, rather than a present.Page, because
+// buildChipTeams has PlayerMetrics for a rebuilt fifteen with no Page of its
+// own behind it — only the bootstrap's code map and the page's override set,
+// both of which it already has from the caller that built the house squad.
+func buildPlayer(m analysis.PlayerMetrics, codes map[int]int, overrides map[int]present.Override) Player {
 	pl := Player{
 		ID:            m.ID,
-		Code:          p.Codes[m.ID],
+		Code:          codes[m.ID],
 		Name:          m.Name,
 		Club:          m.Team,
 		Pos:           m.Position,
@@ -259,7 +309,7 @@ func buildPlayer(m analysis.PlayerMetrics, p present.Page) Player {
 			Difficulty: f.Difficulty,
 		})
 	}
-	if ov, ok := p.Overrides[m.ID]; ok {
+	if ov, ok := overrides[m.ID]; ok {
 		o := convertOverride(ov)
 		pl.Override = &o
 	}
@@ -425,6 +475,14 @@ func buildResults(sq Squad, entry *fpl.Entry, history *fpl.EntryHistory, boot *f
 				BenchPoints: gw.PointsOnBench,
 			})
 		}
+		// FPL's own record of what was actually played, not the plan -- see
+		// Results.Chip's own comment.
+		for _, c := range history.Chips {
+			if c.Event == resultEvent {
+				res.Chip = analysis.ChipLabel(c.Name)
+				break
+			}
+		}
 	}
 
 	byID := make(map[int]Player, len(sq.Players))
@@ -570,6 +628,109 @@ func buildChipWindow(boot *fpl.Bootstrap, chips analysis.ChipSchedule, gw int, d
 	return cw
 }
 
+// buildChipTeams arranges GET /api/wildcard's whole document from what the
+// caller already decided: the gameweek, the budget a rebuild may spend, the
+// two rebuilt WeekViews (or why a chip has none this week), and the plan/
+// played facts read off config and FPL's own history. Called from Build when
+// the caller supplies ChipTeamsInput; nil otherwise -- the same shape
+// buildResults already has for Results.
+func buildChipTeams(in Input) *ChipTeams {
+	ci := in.ChipTeams
+	if ci == nil {
+		return nil
+	}
+	ct := &ChipTeams{
+		Event:               ci.Event,
+		Deadline:            ci.Deadline,
+		Budget:              ci.Budget,
+		BudgetSource:        ci.BudgetSource,
+		BudgetWarning:       ci.BudgetWarning,
+		Caveat:              ci.Caveat,
+		WildcardUnavailable: ci.WildcardUnavailable,
+		FreeHitUnavailable:  ci.FreeHitUnavailable,
+		PlanWildcardGW:      ci.PlanWildcardGW,
+		PlanFreeHitGW:       ci.PlanFreeHitGW,
+		PlayedWildcardGW:    ci.PlayedWildcardGW,
+		PlayedFreeHitGW:     ci.PlayedFreeHitGW,
+	}
+	if ci.Wildcard != nil {
+		ct.Wildcard = buildChipTeam(*ci.Wildcard, ci.Budget, ci.Codes, ci.Overrides, ci.TodaySquad)
+	}
+	if ci.FreeHit != nil {
+		ct.FreeHit = buildChipTeam(*ci.FreeHit, ci.Budget, ci.Codes, ci.Overrides, ci.TodaySquad)
+	}
+	return ct
+}
+
+// buildChipTeam turns one rebuilt WeekView into the client's ChipTeam.
+//
+// It arranges; it does not derive, with one exception this package's own
+// standing rule invites the opposite reading on and so must say so here:
+// Cost, ClubCounts, Changes, Out and KeptIDs are a plain sum, count and set
+// intersection over two PlayerMetrics lists this function was handed --
+// membership and arithmetic over already-decided values (Price, Team, ID),
+// not a model quantity computed fresh. today is nil when the account's real
+// fifteen could not be fetched, and Changes/Out/KeptIDs are then left at
+// their zero value rather than a misleading "nothing changes".
+func buildChipTeam(wv analysis.WeekView, budget float64, codes map[int]int,
+	overrides map[int]present.Override, today []analysis.PlayerMetrics) *ChipTeam {
+
+	ct := &ChipTeam{
+		Formation:  wv.Formation,
+		Captain:    wv.Captain.ID,
+		Vice:       wv.ViceCaptain.ID,
+		XIScore:    wv.XIScore,
+		Expected:   wv.Expected,
+		ClubCounts: map[string]int{},
+	}
+
+	// The opponent chip for THIS gameweek, never the model's forward-looking
+	// fixture window -- Player.Fixtures is the model's ordinary multi-week
+	// window and is NOT ResultEvent-correct the moment a deadline has passed
+	// (see TeamPlayer.Opponent's own comment for the same mistake made once
+	// already, on a different page). WeekView.Opponents is keyed by player id
+	// and IS this gameweek's fixture by construction, so the projection card
+	// reuses the existing Fixtures slot rather than growing a fourth type,
+	// carrying exactly the one (or two, on a double) fixture that gameweek
+	// has. Empty for a blanking club -- no fallback -- and the card renders a
+	// dash.
+	weekPlayer := func(m analysis.PlayerMetrics) Player {
+		pl := buildPlayer(m, codes, overrides)
+		pl.Fixtures = nil
+		for _, f := range wv.Opponents[m.ID] {
+			pl.Fixtures = append(pl.Fixtures, Fixture{
+				Gameweek: f.Event, Opponent: f.Opponent, Home: f.Home, Difficulty: f.Difficulty,
+			})
+		}
+		return pl
+	}
+
+	rebuilt := map[int]bool{}
+	for _, m := range wv.Squad {
+		rebuilt[m.ID] = true
+		ct.Cost += m.Price
+		ct.ClubCounts[m.Team]++
+	}
+	ct.Bank = budget - ct.Cost
+
+	for _, m := range wv.XI {
+		ct.XI = append(ct.XI, weekPlayer(m))
+	}
+	for _, m := range wv.Bench {
+		ct.Bench = append(ct.Bench, weekPlayer(m))
+	}
+
+	for _, m := range today {
+		if rebuilt[m.ID] {
+			ct.KeptIDs = append(ct.KeptIDs, m.ID)
+		} else {
+			ct.Changes++
+			ct.Out = append(ct.Out, m.Name)
+		}
+	}
+	return ct
+}
+
 func buildMarket(p present.Page) Market {
 	var m Market
 	if p.Watch == nil {
@@ -580,7 +741,7 @@ func buildMarket(p present.Page) Market {
 	m.Gate = p.Watch.Gate
 	for _, r := range p.Watch.Rows {
 		m.Rows = append(m.Rows, MarketRow{
-			Player:     buildPlayer(r.Player, p),
+			Player:     buildPlayer(r.Player, p.Codes, p.Overrides),
 			Delta:      r.Delta,
 			ClearsGate: r.ClearsGate,
 		})

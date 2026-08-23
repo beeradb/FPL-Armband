@@ -117,12 +117,23 @@ func serve(t *testing.T, fixture string) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_, _ = w.Write(body)
 	})
+	// /api/wildcard -- same convenience as /api/armband-team above: the fixture's
+	// ChipTeams already rides along in State, so this serves the identical body
+	// regardless of the tab wildcard.js asks for (it reads chip_teams.wildcard /
+	// .free_hit off the one document). The real server answers from
+	// GET /api/wildcard, session-less, exactly like armbandTeamState.
+	mux.HandleFunc("/api/wildcard", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(body)
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		name := "landing"
 		if r.URL.Path == "/app" {
 			name = "app"
 		} else if r.URL.Path == "/armband-team" {
 			name = "team"
+		} else if r.URL.Path == "/wildcard" {
+			name = "wildcard"
 		} else if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
@@ -244,6 +255,19 @@ var shots = []shot{
 	// non-live result rather than a rerun of gameweek-one's own live shots.
 	{"results-past-desktop", "import-past-result", "/app#results-1", desktop(1900)},
 	{"results-past-mobile", "import-past-result", "/app#results-1", mobile(2400)},
+
+	// /wildcard: the wildcard/free-hit hypothetical. gameweek-one's own
+	// chip_teams answers gameweek 2, where the committed capture's bootstrap
+	// opens both chips (see TestWriteTheWildcardFixtures) -- so these three
+	// are state 1, a real rebuilt fifteen on each tab. The fourth is state 2,
+	// the gameweek the competition does not allow either chip in yet, which
+	// is NOT optional: a feature with no golden is a feature whose
+	// regressions are invisible (see the design note this implements, and the
+	// import control's own history before it got one).
+	{"wildcard-desktop", "gameweek-one", "/wildcard", desktop(1500)},
+	{"wildcard-mobile", "gameweek-one", "/wildcard", mobile(2200)},
+	{"wildcard-freehit-desktop", "gameweek-one", "/wildcard#free-hit", desktop(1500)},
+	{"wildcard-unavailable-desktop", "chip-unavailable", "/wildcard", desktop(900)},
 
 	// The states live data will not hand you on demand, and which are therefore the most
 	// likely to be broken and the least likely to be looked at.
