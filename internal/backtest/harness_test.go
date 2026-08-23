@@ -268,10 +268,10 @@ func extendedPairNames() [][2]string {
 // degrees of freedom and no number of entry points moves it. The threshold scales as
 // t_crit(S-1)/sqrt(S):
 //
-//	seasons  df  t_crit  scale vs today  the canonical 39/season becomes
-//	4 (ships) 3   3.182   1.000           39
-//	6         5   2.571   0.660           26
-//	7         6   2.447   0.581           23
+//	seasons       df  t_crit  scale vs today  the canonical 39/season becomes
+//	4 (historical) 3   3.182   1.000           39
+//	6 (ships)      5   2.571   0.660           26
+//	7              6   2.447   0.581           23
 //
 // and `HOLD`'s own 33 becomes about 19. For comparison, the measured alternative —
 // densifying the entry-point grid — buys 20% off the standard error at twelve entry
