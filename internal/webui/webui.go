@@ -1,4 +1,4 @@
-// Package webui carries the client application: the two pages, the design system and the
+// Package webui carries the client application: the pages, the design system and the
 // self-hosted fonts, compiled into the binary.
 //
 // # Why the assets are embedded rather than read from disk
