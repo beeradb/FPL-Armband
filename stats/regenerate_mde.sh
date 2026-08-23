@@ -69,6 +69,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 OUT=stats/out
 SNAP=stats/snapshots
+CELLS=stats/cells
 mkdir -p "$OUT"
 
 fail=0
@@ -76,8 +77,15 @@ fail=0
 run() {
   local label="$1" cells="$2"
   if [ ! -f "$cells" ]; then
-    echo "SKIP $label — not on disk: $cells"
-    return
+    # A missing input is a rotted path, not an empty result — silently returning
+    # here once cost the canonical median three of its fourteen sweeps (11/184/n=10
+    # instead of 14/264/n=23) and nothing downstream noticed, because the aggregate
+    # still looked like a valid one. That is a different failure than the
+    # oraclechip case below: there the file is present and R has a real reason to
+    # refuse it. Here the file just isn't where this script says it is, so stop
+    # the whole run rather than hand mde_aggregate.py a quieter population.
+    echo "ERROR $label — input file missing from disk: $cells" >&2
+    exit 1
   fi
   if Rscript stats/variance_components.R --out="$OUT/$label" "$cells" \
       > "$OUT/$label.log" 2>&1; then
@@ -107,10 +115,15 @@ run vice6         "$SNAP/2026-08-11-6acc5ad/vice6.csv"
 # what was measured, and they are why rescuing them mattered — but they cannot be
 # regenerated, so this arm's thresholds are unreproducible from code. Do not treat a
 # committed cells file as proof its sweep still exists.
-run hits          "$SNAP/2026-08-12-4d61058/cells/hits.csv"
-run teamform      "$SNAP/2026-08-12-4d61058/cells/teamform.csv"
+#
+# hits, teamform, and anchored moved out of $SNAP/.../cells/ into $CELLS/... at
+# c6fb465 ("Relocate the banked cells the R screens read as data"); the other
+# seven inputs below did not move. This script kept pointing at the old path for
+# all three, which the missing-file check above used to swallow as a silent SKIP.
+run hits          "$CELLS/2026-08-12-4d61058/hits.csv"
+run teamform      "$CELLS/2026-08-12-4d61058/teamform.csv"
 run oracleminutes "$SNAP/2026-08-12-4d61058/cells/oracleminutes.csv"
-run anchored      "$SNAP/2026-08-12-4d61058/cells/anchored.csv"
+run anchored      "$CELLS/2026-08-12-4d61058/anchored.csv"
 run oraclearmband "$SNAP/2026-08-12-4d61058/cells/oraclearmband.csv"
 run oraclegate    "$SNAP/2026-08-12-4d61058/cells/oraclegate.csv"
 run oracleprices  "$SNAP/2026-08-12-4d61058/cells/oracleprices.csv"
