@@ -216,7 +216,7 @@ and names neither the player nor the field.
 
 ### `internal/webui`
 
-The client application — two documents, the design system and self-hosted font subsets —
+The client application — three documents, the design system and self-hosted font subsets —
 compiled into the binary with `//go:embed`.
 
 Embedded rather than read from disk because a Wails build has no directory to read from and
@@ -228,7 +228,16 @@ blank page in front of a reader.
 everything they reference, under `/assets/`. The split is what stops the application having
 two front doors.
 
-The two documents also carry two different Content-Security-Policy directives, on purpose:
+The three are `app.html` (the planner), `landing.html` (the marketing document) and
+`team.html` (the house team at `/armband-team`, ungated for the same reason the landing page
+is — proof of use is a marketing surface). ⚠️ **Three documents, but only two policies:** the
+split below is `landing` against everything else, so `team.html` takes the application's
+stricter directives, not the landing page's. ⚠️ `webroutes.go:109` still says *"If a third
+document ever appears, this stops being a switch and starts being a table."* A third document
+has appeared and it is still a switch — recorded here as the trap that leaves, not as a
+ratification of it.
+
+They carry two different Content-Security-Policy directives, on purpose:
 the application (served at `/`, the front door) renders FPL's prose and player names by
 innerHTML, so its `connect-src` stays `'self'` under any configuration, while the landing
 page (`/about`) may widen. `ARMBAND_GA4_ID`, if set, widens the landing page's policy
