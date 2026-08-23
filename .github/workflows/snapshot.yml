@@ -98,10 +98,25 @@ jobs:
             exit 1
           fi
 
+      # ⚠️ The path this step writes is captured HERE, from the command's own stdout,
+      # and carried to the publish step below rather than re-derived there. Do not
+      # go back to deriving it from a directory listing — see the publish step's
+      # own comment for the failure that produced this rule.
       - name: Render the snapshot
         env:
           MODEL_CSV: ${{ runner.temp }}/model.csv
-        run: go run ./cmd/armband snapshot -model "$MODEL_CSV"
+        run: |
+          out=$(go run ./cmd/armband snapshot -model "$MODEL_CSV")
+          echo "$out"
+          # cmd/armband/snapshot.go's own Printf: "wrote %s\n", <dir>/snapshot.md —
+          # the ONE place this path is constructed, so parsing it here is reading
+          # the writer's own answer rather than guessing at its naming convention.
+          dir=$(printf '%s\n' "$out" | sed -nE 's#^wrote (stats/snapshots/[^/]+)/snapshot\.md$#\1#p')
+          if [ -z "$dir" ]; then
+            echo "::error::could not find the 'wrote <dir>/snapshot.md' line in the render output"
+            exit 1
+          fi
+          echo "snapshot_dir=$dir" >> "$GITHUB_ENV"
 
       # Published as a release asset rather than committed. That is the whole
       # point: the series leaves the repository and its history, and this is where
@@ -112,12 +127,27 @@ jobs:
       # may point at it — see the retired-location guard, which forbids replacing
       # an in-repo path with a location outside the repository. It is here so a
       # figure can be checked, not so a comment can link to it.
+      #
+      # ⚠️ FIXED 2026-08-22. This used to pick the directory with
+      # `ls -d stats/snapshots/*/ | sort | tail -1` — lexical order over EVERY
+      # directory under the path, including every one already committed from
+      # history. That is the exact mistake internal/snapshot.FindPrevious's own
+      # doc comment names and refuses: "lexical order LOOKS chronological and is
+      # wrong the moment two snapshots share a day." Verified against the 20 most
+      # recent of this workflow's own published releases: 12 shipped a `key.csv`
+      # naming a DIFFERENT commit than the release tag claimed, because a
+      # committed directory from earlier the same day sorted after the one this
+      # run had just written — the render step's real diagnostics, computed and
+      # then silently discarded. `$snapshot_dir` from the render step is the one
+      # directory this run actually produced; there is no derivation left to get
+      # wrong.
       - name: Publish the snapshot
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SHA: ${{ github.sha }}
+          DIR: ${{ env.snapshot_dir }}
         run: |
-          dir=$(ls -d stats/snapshots/*/ | sort | tail -1)
+          dir="$DIR"
           short=$(git rev-parse --short "$SHA")
           tag="snapshot-$short"
           echo "publishing $dir as $tag"
