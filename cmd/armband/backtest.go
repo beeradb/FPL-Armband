@@ -154,6 +154,15 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 		// shipped 1 — so a user raising both would get the same silent null the
 		// comment above is about, from the knob added to abolish it.
 		HitCeiling: cfg.Review.HitCeiling,
+		// One config field drives both: AnticipateGate has no effect unless
+		// AnticipateChips is also set (enforced again in decide), and a
+		// mismatched pair — scoring a move on a shortened horizon while still
+		// charging it over the full one — over-credits near-term fixture
+		// spikes by construction. Exposing a second, independently-settable
+		// field here would let a user reintroduce exactly that bias by
+		// omission; see ReviewPolicy.AnticipateChips.
+		AnticipateChips: cfg.Review.AnticipateChips,
+		AnticipateGate:  cfg.Review.AnticipateChips,
 		// Diagnostic override for sweeping what the opening fifteen credits a
 		// bench player at. See SimConfig.openingBenchWeight — the shipped 0.02
 		// is what broke when the optimiser was fixed.

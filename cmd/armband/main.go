@@ -485,7 +485,7 @@ func run() error {
 	case "verify-competitions":
 		return cmdVerifyCompetitions(cfg, *cfgPath, engine)
 	case "chips":
-		return cmdChips(engine, cfg)
+		return cmdChips(ctx, cfg, client, engine)
 	case "advise":
 		return cmdAgent(ctx, cfg, *cfgPath, client, engine, advicePrompt(engine), "FPL Advice", !*noReport)
 	case "due":
@@ -1332,7 +1332,7 @@ func cmdVerifyCompetitions(cfg config.Config, cfgPath string, e *analysis.Engine
 
 // cmdChips shows chip windows, validates the configured plan, and reports
 // whether any blank or double gameweeks are known yet.
-func cmdChips(e *analysis.Engine, cfg config.Config) error {
+func cmdChips(ctx context.Context, cfg config.Config, client *fpl.Client, e *analysis.Engine) error {
 	nextGW := 1
 	if n := e.Boot.NextEvent(); n != nil {
 		nextGW = n.ID
@@ -1402,7 +1402,111 @@ func cmdChips(e *analysis.Engine, cfg config.Config) error {
 		fmt.Println("  Blanks and doubles appear later, once cup progress forces postponements,")
 		fmt.Println("  so a Free Hit held for a blank is a bet that one materialises before it expires.")
 	}
+
+	// The league-wide counts above say WHEN a chip pays off; they say nothing
+	// about whether the squad this manager actually holds is exposed. This is
+	// display only — it reads the same fixture data the scoring path already
+	// uses (FixtureCountsIn, anchored on the calendar's next gameweek, never on
+	// a club's next fixture) and changes nothing about scoring or planning.
+	fmt.Println("\nYOUR SQUAD")
+	squad, reason := currentHeldSquad(ctx, cfg, client, e)
+	switch {
+	case reason != "":
+		fmt.Printf("  %s\n", reason)
+	case !irregular:
+		fmt.Println("  Nothing to check yet — no blank or double is scheduled.")
+	default:
+		blanks, doubles := squadBlankOrDoubleWeeks(e, squad, gws, counts)
+		found := false
+		for _, gw := range gws {
+			if b, d := blanks[gw], doubles[gw]; len(b) > 0 || len(d) > 0 {
+				found = true
+				if len(b) > 0 {
+					fmt.Printf("  GW%-2d BLANK for your squad: %s\n", gw, strings.Join(b, ", "))
+				}
+				if len(d) > 0 {
+					fmt.Printf("  GW%-2d DOUBLE for your squad: %s\n", gw, strings.Join(d, ", "))
+				}
+			}
+		}
+		if !found {
+			fmt.Println("  None of your clubs are affected by the blanks or doubles listed above.")
+		}
+	}
 	return nil
+}
+
+// currentHeldSquad reads the fifteen this manager currently owns, or a
+// plain-language reason there is none — the same "reason, not a swallowed
+// empty result" convention buildTransferBoard and briefSquad use, since "no
+// entry_id configured" and "no squad visible yet" and "the API is down" all
+// look identical as a silently empty slice.
+func currentHeldSquad(ctx context.Context, cfg config.Config, client *fpl.Client,
+	e *analysis.Engine) ([]analysis.PlayerMetrics, string) {
+
+	if cfg.EntryID == 0 {
+		return nil, "No entry_id is configured, so there is no squad to check."
+	}
+	entry, err := client.Entry(ctx, cfg.EntryID)
+	if err != nil {
+		return nil, "Could not read your entry: " + err.Error()
+	}
+	if entry.CurrentEvent == nil {
+		return nil, "FPL exposes picks only after a deadline has passed, so there is no " +
+			"squad to check yet."
+	}
+	picks, err := client.Picks(ctx, cfg.EntryID, *entry.CurrentEvent)
+	if err != nil {
+		return nil, "Could not read your picks: " + err.Error()
+	}
+	var squad []analysis.PlayerMetrics
+	for _, p := range picks.Picks {
+		if el := e.Boot.ElementByID(p.Element); el != nil {
+			squad = append(squad, e.Metrics(el))
+		}
+	}
+	if len(squad) != 15 {
+		return nil, fmt.Sprintf("Read %d of 15 picks, so there is no squad to check.", len(squad))
+	}
+	return squad, ""
+}
+
+// squadBlankOrDoubleWeeks reports, for every gameweek in gws whose LEAGUE-WIDE
+// fixture count (counts, computed by cmdChips from e.Fixtures) is irregular,
+// which of the squad's own clubs blank or double that particular week.
+//
+// It delegates entirely to Engine.FixtureCountsIn — the same per-club, per-gw
+// count the bench-boost credit prices a chip week with — rather than
+// re-deriving a fixture window: this project's standing rule is that a
+// fixture window must be anchored on the calendar's next gameweek, never a
+// club's next fixture, and FixtureCountsIn already carries that anchor.
+// Nothing here computes a new fixture fact; it only regroups one FPL already
+// keyed by gameweek into one keyed by the manager's own squad.
+//
+// Gameweeks where the league plays a normal full round (counts[gw] == 10) are
+// skipped: nothing squad-specific to say about a week nobody blanks or
+// doubles in.
+func squadBlankOrDoubleWeeks(e *analysis.Engine, squad []analysis.PlayerMetrics,
+	gws []int, counts map[int]int) (blanks, doubles map[int][]string) {
+
+	blanks, doubles = map[int][]string{}, map[int][]string{}
+	for _, gw := range gws {
+		if counts[gw] == 10 {
+			continue
+		}
+		clubFixtures := e.FixtureCountsIn(gw)
+		for _, p := range squad {
+			switch clubFixtures[p.Team] {
+			case 0:
+				blanks[gw] = append(blanks[gw], p.Name)
+			case 2:
+				doubles[gw] = append(doubles[gw], p.Name)
+			}
+		}
+		sort.Strings(blanks[gw])
+		sort.Strings(doubles[gw])
+	}
+	return blanks, doubles
 }
 
 // cmdPriors caches a completed season's totals and reports the join quality.

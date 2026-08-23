@@ -904,6 +904,9 @@ var unwiredBaseline = map[string]string{
 		"gameweek count off a synthetic season; no rate or minute enters the verdict. " +
 		"Only visible since the wired count was de-quoted.",
 	"fixtureload_test.go": "OK — synthetic empty bootstrap, no season at all",
+	"chipsquad_test.go": "OK — synthetic empty bootstrap, no season at all; the " +
+		"squadBlankOrDoubleWeeks test only reads club membership and fixture " +
+		"counts, never a Score or a rate a missing recency index could distort.",
 	// The served application's fixture, built from the committed GW1 capture. At GW1
 	// GameweeksPlayed() is 0, and cmd/armband/main.go wires BOTH the recency index and
 	// the priors behind `GameweeksPlayed() > 0` — so the live binary builds an engine
