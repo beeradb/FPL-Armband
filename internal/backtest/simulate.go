@@ -2133,8 +2133,8 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 					week.Transfers++
 					if mv.Hit {
 						res.Hits++
-						res.HitCost += 4
-						week.HitCost += 4
+						res.HitCost += HitCost
+						week.HitCost += HitCost
 					}
 				}
 			}
@@ -2967,8 +2967,10 @@ func applyMove(held []int, mv Move) []int {
 	return out
 }
 
-// HitCost is what a transfer beyond the free ones costs, in points.
-const HitCost = 4.0
+// HitCost is what a transfer beyond the free ones costs, in points. FPL's rule rather
+// than this package's own, so it is a plain alias for fpl.HitCost — see that constant's
+// doc comment for why the value itself lives there.
+const HitCost = fpl.HitCost
 
 // DefconScoredIn reports whether defensive contribution paid points in a season.
 //

@@ -283,12 +283,13 @@ button{font-family:inherit;color:inherit;}
   content:'';position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;
   background:var(--acc);box-shadow:0 0 0 3px rgba(0,232,138,.18);
 }
-/* A closed week is a real thing that happened, not an error -- dimmed and inert rather than
-   hidden, so an imported reader can still see GW1 sitting there. cursor+hover are both
-   turned off so the tab does not invite a click its own `disabled` attribute already
-   refuses. See renderRail's own comment (app.js) for why it has nothing to open. */
-.gw:disabled{opacity:.5;cursor:not-allowed;}
-.gw:disabled:hover{border-color:var(--line);}
+/* A closed week is a real thing that happened, not an error -- dimmed but clickable, so an
+   imported reader can still see GW1 sitting there AND open what actually happened (see
+   renderRail's own comment, app.js, for why a click on one of these opens a result instead
+   of the planner). Selected (viewing this week's result) clears the dimming, the same way
+   an ordinary selected tab already reads at full strength. */
+.gw.past{opacity:.68;}
+.gw.past[aria-selected="true"]{opacity:1;}
 
 /* section nav ------------------------------------------------- */
 .mainnav{border-bottom:1px solid var(--line);background:var(--bg);}
@@ -304,11 +305,17 @@ button{font-family:inherit;color:inherit;}
   font-family:var(--mono);font-size:9.5px;padding:1px 5px;border-radius:999px;
   background:var(--panel2);color:var(--ink3);
 }
-/* .navlink is a real <a> to a SEPARATE document (/armband-team), never a data-view --
-   right-aligned and visually distinct from the tab buttons on purpose, so it never reads
-   as a fourth tab of the same tool. See routeArmbandTeam's comment in webroutes.go. */
+/* .navlink is a real <a> to a SEPARATE document (/armband-team or /wildcard), never a
+   data-view -- right-aligned and visually distinct from the tab buttons on purpose, so
+   neither reads as a fourth tab of the same tool. See routeArmbandTeam's comment in
+   webroutes.go. .navlinks is the pair's own wrapper: margin-left:auto lives on the
+   wrapper, not on each link, so two links push right AS A GROUP rather than each
+   grabbing its own share of the free space -- the latter is what happened when
+   /wildcard's link first got the same rule as the first: both auto margins split the
+   space and the two links rendered on top of each other. */
+.mainnav .navlinks{margin-left:auto;display:flex;align-items:center;gap:16px;}
 .mainnav .navlink{
-  margin-left:auto;align-self:center;padding:0 4px;
+  align-self:center;padding:0 4px;
   font-size:12px;font-weight:600;color:var(--band-hi);text-decoration:none;
 }
 .mainnav .navlink:hover{color:var(--band);}
@@ -767,6 +774,42 @@ button{font-family:inherit;color:inherit;}
 .instrrow.cfg .v{font-weight:500;color:var(--ink2);font-family:var(--mono);font-size:11px;letter-spacing:.04em;}
 .instrrow .who{color:var(--ink2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .instrrow .who .club{font-family:var(--mono);font-size:10.5px;color:var(--ink3);margin-left:6px;}
+
+/* Transfer rows -- #transferpanel's OUT/IN list, drawn with .instrrow (above) rather than a
+   second row shape. The colour idiom (accent for IN, quiet + struck-through for OUT) is the
+   same one `.whyrow .swap .in/.out` already defines, but scoped under the new id instead of
+   borrowing that class: `.pitchside .whyrow` (below) carries its own grid-template-areas
+   rule for the OLD staged-transfer strip, and since #transferpanel sits in `.pitchside` too,
+   attaching `.whyrow` here would pull that unrelated layout override in with it -- the exact
+   "grep the class before adding a bare rule" lesson this codebase has already paid for once. */
+#transferpanel .swap{font-family:var(--mono);font-size:11px;}
+#transferpanel .swap .out{color:var(--ink3);text-decoration:line-through;}
+#transferpanel .swap .in{color:var(--acc);}
+#transferpanel .swap .arw{color:var(--ink3);margin:0 2px;}
+/* No #transferpanel h3 rule here -- the element carries class "why" (app.html), so .why h3
+   above already styles its heading; a second rule with the same properties would be the
+   "one quantity, two implementations" failure this codebase keeps naming. */
+
+/* The transfer bar: free transfers / made / cost, or the stale / no-baseline / free-hit
+   sentence in their place, plus Suggest transfers. Styled like #squadsource just above it
+   (same panel background, mono figures, wraps rather than clips at narrow widths) -- the two
+   are the same kind of statement, "where this fifteen came from" and "how far it has moved
+   since". Reuses .stat, the market table's own inline label+value shape, rather than a new
+   one. */
+.transferbar{
+  font-size:11.5px;padding:9px 12px;font-family:var(--mono);
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+}
+.transferbar[hidden]{display:none;}
+.transferbar .stat i.k{
+  display:block;font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink3);
+}
+.transferbar .stat{flex-direction:column;align-items:flex-start;gap:1px;}
+.transferbar .stat b{font-family:var(--mono);font-size:12.5px;}
+.transferbar .stat b.badc{color:var(--bad);}
+.transferbar .btn{font-family:var(--ui);margin-left:auto;}
 
 /* brief: two columns above 1080px so the verdict isn't a column of air */
 .briefgrid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;align-items:start;}
@@ -1297,6 +1340,7 @@ body.saving{cursor:progress;}
      rule above; this only tightens the gap so the wrapped button doesn't read as a second,
      unrelated row. */
   .squadsource{gap:6px 8px;}
+  .transferbar{gap:6px 10px;}
 }
 
 
@@ -2221,6 +2265,13 @@ body.saving{cursor:progress;}
   font-family:var(--mono);font-style:normal;font-size:10px;font-weight:500;
   letter-spacing:.16em;text-transform:uppercase;color:var(--label);
 }
+/* .htchip is the receipt: the chip this account actually played in this gameweek
+   (Results.Chip, FPL's own record). --band-hi, not --label like LIVE/FINAL beside
+   it -- this is a fact worth standing out from the plain status word, the same
+   weight the armband glyph carries everywhere else in this system. Selector
+   matches .htgw i's own specificity (two classes plus the tag) so this wins
+   regardless of source order, rather than relying on cascade position. */
+.houseteamrow .htgw i.htchip{color:var(--band-hi);}
 .houseteamrow .htstat{display:flex;flex-direction:column;gap:1px;padding:0 12px;border-left:1px solid var(--line);}
 .houseteamrow .htstat .v{font-family:var(--mono);font-weight:700;font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums;}
 .houseteamrow .htstat .v.sec{color:var(--ink3);} /* the average -- somebody else's number */
@@ -2406,3 +2457,127 @@ body.saving{cursor:progress;}
    wraps its badges to a second line does not leave its neighbours short and ladder the row.
    That is a spectator-card problem and it does not exist on the builder's pitch. */
 #teampitch .line{align-items:stretch;}
+
+/* --- /wildcard, the chip-projection page ---------------------------
+   wildcard.html + wildcard.js + projection.js. Everything below is scoped under
+   #chipteam, the page's own wrapper -- see the .line incident above for why a
+   bare rule on a shared class name is how a spectator-page change silently
+   restyles the interactive builder. Reuses .pitch/.line/.wrap/.panel/.pill/.btn/
+   .t-label/.t-sec/.t-body/.fdr unscoped and unchanged, same as the team page
+   above; everything with a "chip"/"cp" prefix here is new.
+
+   Colour: this whole page is projection, never a result -- every figure on it
+   is what the model would do, not what happened. --acc is the model's own
+   number everywhere else in this system (.card .xp b, the builder's own
+   pitch-card projection); --ink is reserved for a fact, which is the opposite
+   rule /armband-team applies for the same reason. So the figures below take
+   --acc throughout, deliberately the mirror of the results page's choice. */
+.chipwrap{max-width:900px;padding-top:20px;}
+.chipintro{max-width:56ch;margin-bottom:20px;}
+.chipintro h1{margin:4px 0 8px;}
+.chipintro .t-body{color:var(--ink2);}
+
+#chipteam .chipstrip{
+  display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;
+  padding:10px 16px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);
+  margin-bottom:12px;
+}
+#chipteam .chiptabs{display:flex;gap:6px;}
+/* The active tab, scoped: .btn.on is not this codebase's class anywhere else
+   (checked before adding it), but it lives under #chipteam regardless, the
+   same discipline as everything else in this block. */
+#chipteam .chiptabs .btn.on{background:var(--band);border-color:var(--band);color:var(--onband);}
+#chipteam #chipheader{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 14px;margin-left:auto;}
+.chipstat{font-family:var(--mono);font-size:12px;color:var(--ink3);white-space:nowrap;}
+.chipstat b{font-family:var(--display);font-weight:800;font-size:15px;color:var(--acc);letter-spacing:-.02em;}
+
+/* The model's own caveat and budget warning -- rendered verbatim, never
+   suppressed, never reworded (see analysis.Engine.rebuildCaveat and
+   analysis.BudgetTrust.Warning's own comments). Amber by default; .bad for the
+   budget warning, which says the figure above it is actually overstated. */
+.chipcaveat{
+  margin-bottom:12px;padding:11px 12px;background:var(--warn-lo);border:1px solid #5A4210;
+  border-left:3px solid var(--warn);border-radius:0 var(--r-sm) var(--r-sm) 0;
+  font-size:12.5px;color:var(--ink2);
+}
+.chipcaveat.bad{background:var(--bad-lo);border-color:#5E2130;border-left-color:var(--bad);}
+
+.chipformation{display:flex;align-items:center;gap:8px;margin:14px 0 8px;}
+.chipformation .form{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--ink);}
+
+/* The projection card. Deliberately its own class, .cpcard -- not .tpcard (a
+   result, points and badges) and not .card (a control, drag handles and lock
+   buttons) -- a smaller vocabulary than either: name, club, price, this
+   gameweek's opponent, expected points, availability, and NEW. Dimensions
+   mirror .tpcard's, which already solved fitting five across 350px of pitch
+   at 390px (see the media query below). */
+.cpcard{
+  position:relative;width:112px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r-sm);overflow:hidden;
+}
+.cpcard .cpbar{height:3px;}
+.cpband{
+  position:absolute;top:4px;right:4px;width:16px;height:16px;border-radius:50%;
+  display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:10px;
+  background:var(--band);color:#fff;
+}
+.cpband.v{background:var(--panel3);color:var(--ink2);}
+.cpcard.iscap .cpname, .cpcard.isvc .cpname{padding-right:17px;}
+.cpbody{padding:6px 7px;}
+.cpname{font-family:var(--ui);font-weight:600;font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* Inline, not a floating corner mark -- .cpband already owns the top-right corner
+   and the availability flag (reused from .card .newsflag, see below) owns the
+   top-left, so a third floating badge would have nowhere left to sit without
+   colliding. NEW rides on the name line instead, in --acc: this mark is itself
+   a model fact ("this rebuild wants him and today's squad does not have him"),
+   not a decoration. */
+.cpnew{font-family:var(--mono);font-weight:700;font-size:9px;letter-spacing:.04em;color:var(--acc);}
+.cpmeta{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px;}
+.cpclub{font-family:var(--mono);font-size:10px;color:var(--ink3);}
+.cpopp{display:inline-flex;align-items:center;}
+/* Same specificity note as .tpopp i above: must stay below .fdr i in the file. */
+.cpopp i{width:auto;min-width:0;height:13px;padding:0 3px;border-radius:3px;}
+.cpxp{display:flex;align-items:baseline;gap:4px;margin-top:1px;}
+.cpxp b{font-family:var(--display);font-weight:800;font-size:18px;letter-spacing:-.03em;color:var(--acc);font-variant-numeric:tabular-nums;line-height:1.1;}
+/* Price rides on the xPts line, ahead of the number it costs to buy -- club and
+   opponent already share the line above (the same "one line, not two" rule
+   .tpmeta uses), and there is no third line to spare it. */
+.cpprice{font-family:var(--mono);font-size:10px;color:var(--ink3);}
+.cpcard.bench .cpxp b{color:var(--ink3);} /* a real projection that would not start */
+
+/* The availability flag, reused from .card .newsflag (app.js's builder card) --
+   same three-severity read (--flag-doubt/--warn/--bad), same glyph, copied
+   rather than depended on because .cpcard is not .card and a descendant
+   selector on that ancestor would not reach here. Top-left, opposite .cpband,
+   so a flagged captain never collides with his own band -- the same corner
+   convention .card .newsflag already uses relative to the armband glyph. */
+#chipteam .newsflag{
+  position:absolute;top:4px;left:4px;z-index:4;min-width:15px;height:15px;
+  padding:0 3px;border-radius:4px;display:grid;place-items:center;
+  background:var(--flag-doubt);color:#000;border:1.5px solid var(--panel);
+  font-family:var(--display);font-weight:800;font-size:10px;line-height:1;
+}
+#chipteam .newsflag.warn{background:var(--warn);color:#241800;}
+#chipteam .newsflag.bad{background:var(--bad);color:#000;}
+
+.chipbench{margin-top:14px;}
+.chipbenchrow{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
+.chipbenchrow .cpcard{flex:none;}
+
+.chipout{margin-top:14px;font-size:12.5px;color:var(--ink2);}
+.chipout b{color:var(--ink);}
+
+@media (max-width:640px){
+  .cpcard{width:auto;flex:1 1 0;min-width:0;max-width:78px;}
+  .cpbody{padding:5px 4px;}
+  .cpmeta{gap:4px;}
+  #chipteam #chipheader{margin-left:0;}
+  .chipbenchrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;overflow:visible;}
+  .chipbenchrow .cpcard{flex:none;width:auto;max-width:none;}
+}
+/* ⚠️ SCOPED TO #chipteam, same reasoning as #teampitch .line above: .line is the
+   pitch ROW class app.html's interactive builder uses four times, and this rule
+   is only for levelling a row of projection cards whose badge-free bodies can
+   still differ in height by a pixel or two between a captain/vice band and a
+   plain card. */
+#chipteam .line{align-items:stretch;}

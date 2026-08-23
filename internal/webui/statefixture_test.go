@@ -51,6 +51,26 @@ var fixtureNames = []string{
 	// No flagged players, one rotation-risk player with no news: derived from gameweek-one
 	// by changing Calvert-Lewin's role to "rotation risk".
 	"rotation-risk",
+	// The transfer bar/panel's three states, each derived from import-imported by adding
+	// State.Transfers -- everything else held identical, the same discipline
+	// import-imported itself follows against import-offered. See visual_test.go's shot
+	// list for what each one is for.
+	"import-transfers-none",  // imported, nothing changed since: bar shows "1 free", panel hidden
+	"import-transfers-two",   // two changes made, one free: bar shows the −4, panel shows two rows
+	"import-transfers-stale", // baseline_stale: the re-import sentence, count and cost withheld
+	// A past, FINISHED gameweek on the rail, and its result selected on load (see
+	// visual_test.go's shot list, /app#results-1). Derived from import-imported by moving
+	// `now` past GW1's deadline, marking GW1 closed/GW2 current, and borrowing GW1's own
+	// results block from gameweek-one -- forced to result_state "final" (every
+	// match_status "finished") so the shot exercises the settled case a reader actually
+	// clicks back to, not the mid-match one gameweek-one's own shots already cover.
+	"import-past-result",
+	// State 2 (§3.2 of the wildcard design): a gameweek the competition does not
+	// allow either chip in yet. Derived from gameweek-one by replacing
+	// chip_teams with gameweek 1's own real answer -- both teams nil, both
+	// *_unavailable sentences set -- rather than gameweek-one's own gameweek-2
+	// chip_teams, which IS available. See TestWriteTheWildcardFixtures.
+	"chip-unavailable",
 }
 
 // loadState reads one fixture and fails loudly if it does not decode into the contract.

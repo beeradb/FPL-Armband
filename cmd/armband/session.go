@@ -77,6 +77,19 @@ type session struct {
 	// at most one chip.
 	Chips map[string]string `json:"chips,omitempty"`
 
+	// Base is the fifteen as FPL held it at the moment of import, by permanent CODE — the
+	// thing Squad is diffed against to answer "what have you changed". Squad is edited in
+	// place from the moment it is imported; without this there is nothing to compare it
+	// to. See fromImport.
+	//
+	// Base is only ever written alongside Squad, so session.empty() needs no separate
+	// clause for it: a session carrying only a baseline cannot exist.
+	Base []int `json:"base,omitempty"`
+	// BaseEvent is the gameweek Base was fetched for. It is what makes Base falsifiable:
+	// once FPL's current event has moved past it, the reader's real squad may have
+	// changed and this list is a record of a week that is over, not of what they own.
+	BaseEvent int `json:"basegw,omitempty"`
+
 	// Entry is the imported team's FPL entry (Team) id, 0 if nothing has been imported.
 	//
 	// This is deliberately NOT config.EntryID. That field is the agent-facing "my team"
@@ -363,6 +376,12 @@ func (s session) arrangement() viewmodel.Session {
 		// Sent although nothing draws it: the client rebuilds its pending session from
 		// the document, so an omitted field is a field it will overwrite with nothing.
 		Dismissed: s.Dismissed,
+		// Also sent although nothing draws them directly (State.Transfers.Moves is what
+		// draws), for the identical round-trip reason: PUT /api/session is a full
+		// replace, so the client must echo these back unchanged or the next unrelated
+		// save erases them.
+		Base:      s.Base,
+		BaseEvent: s.BaseEvent,
 	}
 }
 
@@ -419,7 +438,13 @@ func (s session) applyAction(action string, code int) session {
 // (if any) the reader had before. Optimised is left false, deliberately — an imported
 // fifteen is the reader's own team from FPL, not the model's optimum, so the Optimize
 // control should read as available rather than already pressed.
-func (s session) fromImport(entry int, squad, xi, bench []int, captain, vice int) session {
+//
+// base/baseEvent become the new Base/BaseEvent — the transfer baseline. The caller decides
+// what they are: importTeam step 8 passes the same squad and the imported gameweek for an
+// ordinary import, and (nil, 0) for a free-hit week, whose fifteen goes back after the
+// deadline and so is not a baseline anything can be diffed against. See session.Base's own
+// doc comment.
+func (s session) fromImport(entry int, squad, xi, bench []int, captain, vice int, base []int, baseEvent int) session {
 	return session{
 		Lock:      s.Lock,
 		Exclude:   s.Exclude,
@@ -430,6 +455,8 @@ func (s session) fromImport(entry int, squad, xi, bench []int, captain, vice int
 		Bench:     bench,
 		Captain:   captain,
 		Vice:      vice,
+		Base:      base,
+		BaseEvent: baseEvent,
 		Entry:     entry,
 	}
 }

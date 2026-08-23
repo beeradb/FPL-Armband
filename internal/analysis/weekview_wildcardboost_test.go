@@ -64,12 +64,12 @@ func TestWildcardBuildAnticipatesANextWeekBenchBoost(t *testing.T) {
 	els = append(els, mk(7, 7, 2, 40, 0, 0))      // DEF bench filler
 	els = append(els, mk(8, 8, 2, 70, 0.7, 0.42)) // DEF bench "gem" — better than filler, worse than a starter
 
-	els = append(els, mk(9, 1, 3, 95, 1.0, 0.6))        // MID starter
-	els = append(els, mk(10, 2, 3, 95, 1.0, 0.6))       // MID starter
-	els = append(els, mk(11, 3, 3, 95, 1.0, 0.6))       // MID starter
-	els = append(els, mk(12, 4, 3, 95, 1.0, 0.6))       // MID starter (4th)
-	els = append(els, mk(120, 4, 3, 125, 1.32, 0.792))  // MID "superstar" — the competing XI upgrade
-	els = append(els, mk(14, 6, 3, 40, 0, 0))           // MID bench filler — fixed in every scenario
+	els = append(els, mk(9, 1, 3, 95, 1.0, 0.6))       // MID starter
+	els = append(els, mk(10, 2, 3, 95, 1.0, 0.6))      // MID starter
+	els = append(els, mk(11, 3, 3, 95, 1.0, 0.6))      // MID starter
+	els = append(els, mk(12, 4, 3, 95, 1.0, 0.6))      // MID starter (4th)
+	els = append(els, mk(120, 4, 3, 125, 1.32, 0.792)) // MID "superstar" — the competing XI upgrade
+	els = append(els, mk(14, 6, 3, 40, 0, 0))          // MID bench filler — fixed in every scenario
 
 	els = append(els, mk(15, 7, 4, 95, 1.0, 0.6)) // FWD starter
 	els = append(els, mk(16, 8, 4, 95, 1.0, 0.6)) // FWD starter
@@ -86,7 +86,7 @@ func TestWildcardBuildAnticipatesANextWeekBenchBoost(t *testing.T) {
 		if boostNextWeek {
 			e.Chips.First.BenchBoost = 3 // gw+1
 		}
-		for _, v := range e.WeekViews(nil, 2) {
+		for _, v := range e.WeekViews(nil, 2, OptimizeRequest{}) {
 			if v.Event == 2 && v.Rebuilt {
 				return v.Bench
 			}

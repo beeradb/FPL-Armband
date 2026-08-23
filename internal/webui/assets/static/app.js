@@ -280,6 +280,15 @@ function hydrate(st){
      silently reset an already-imported entry id, or a reader's earlier "start fresh" choice,
      back to zero on the very next unrelated save (locking a player, toggling a chip, ...). */
   const imp=st.import||{};
+  /* A cached past-gameweek result (RESULTS_CACHE) is keyed only by gameweek number, on the
+     assumption that "the session's imported entry" does not change under it -- true for
+     every hydrate except the one right after "Change team"/"Re-import from FPL" swaps
+     PENDING.entry for a different id. Caught here, before PENDING is overwritten below,
+     because this is the one place old and new entry are both still in hand: a cache keyed
+     by gw alone would otherwise go on answering the PREVIOUS team's GW3 for the new one. */
+  if(PENDING.entry && imp.entry && PENDING.entry!==imp.entry){
+    for(const k in RESULTS_CACHE) delete RESULTS_CACHE[k];
+  }
   PENDING={
     v:1,
     seed:undefined,          /* the server owns the seed; never sent back */
@@ -289,7 +298,15 @@ function hydrate(st){
     dis:(sess.dismissed||[]).slice(),
     chips:Object.assign({},sess.chips||{}),
     entry:imp.entry||0,
-    noimp:!!imp.skipped
+    noimp:!!imp.skipped,
+    /* base/basegw round-trip the transfer baseline exactly the way entry/noimp do, and
+       for the identical reason (see their own comment two lines up): PUT /api/session is
+       a full replace, so a save that omitted them would silently erase an already-imported
+       baseline on the very next unrelated save -- a lock, a bench drag, a chip toggle. The
+       client never mutates either field; only importTeam() (via a fresh PUT /api/import)
+       ever changes what the server holds here. */
+    base:(sess.base||[]).slice(),
+    basegw:sess.basegw||0
   };
 
   const sq=st.squad;
@@ -399,6 +416,14 @@ const CHIPS=[
    complaining, so a client that sent S would drop every lock and block with a 200. */
 let S={
   gw:1, view:'pitch',
+  /* resultsGw names the CLOSED gameweek currently showing on the pitch view as a result
+     (see renderRail()/selectPastGameweek()), or null while a planning gameweek is
+     selected. Deliberately separate from gw, which stays the gameweek being PLANNED and
+     must not move just because the reader is looking at a past result -- every fixture
+     lookup, the chip control and the drag/lock wiring key off gw, and repointing it at a
+     closed week would corrupt all of them for a squad that can no longer change. Not
+     serialised: a page reload always returns to the planning view, the same as S.view. */
+  resultsGw:null,
   xi:[], bench:[], benchGk:null,
   cap:null, vc:null,
   locks:new Set(), blocks:new Set(),
@@ -413,6 +438,15 @@ let S={
      for one click on a small button -- so the row arms first, the same two-step pattern
      moveConfirm already uses for a planned chip. Any other click disarms it. */
   armLock:null,
+  /* suggest holds GET /api/transfers' fetched document once Suggest transfers has been
+     pressed: null (not fetched), {loading:true}, {error:'...'}, or the endpoint's own
+     document. suggestArmed is the plan index armed for Apply, or null -- same two-step
+     arm-then-confirm shape as armLock (see that field's own comment), deliberately a
+     SEPARATE field: sharing armLock would make a click on the pitch silently cancel a
+     market arm and vice versa. Neither is armLock itself; both live here rather than on
+     PENDING because PENDING is what round-trips to the server and a fetched suggestion
+     is not the reader's own session state. */
+  suggest:null, suggestArmed:null,
   posFilter:'ALL', q:'', affordOnly:false, showAll:false,
   modelXi:[],
   /* Sort and filter are independent axes and sort survives a filter change -- one state
@@ -798,23 +832,110 @@ function renderRail(){
       :(g.gw===CHIPWIN.endsGw?`<span class="wend${due?' due':''}">Chips end</span>`:'');
     /* A closed week (g.closed) only reaches this rail at all for an imported reader --
        buildGameweeks drops it for everyone else, see viewmodel.Gameweek.Closed's own
-       comment. This rail has nothing to open for one: every control behind a tab click --
-       Optimise, Reset, drag-to-reorder, locks, the chip control -- edits a hypothetical
-       eleven for a week that is already played and scored, and none of it can do anything
-       there. Disabled, not omitted: the reader should still see that the week happened, not
-       watch it vanish the moment they import. Showing what ACTUALLY happened that week is a
-       separate, larger piece of work (fetch GET /api/results, render results into this
-       view, hide the planning controls) and is not this guard's job -- this only stops the
-       broken state being reachable until that lands. Found 2026-08-22: the guard existed on
-       the server (viewmodel.Gameweek.Closed) with no client-side handling at all, reachable
-       the moment PUT /api/import stopped being blocked by the deployment's own 403. */
-    return `<button class="gw${g.live?' live':''}" role="tab" data-gw="${g.gw}"
-      aria-selected="${g.gw===S.gw}"${g.closed?' disabled title="This gameweek is already played — results for past gameweeks aren’t shown here yet."':''}>
+       comment. Every control that edits a hypothetical eleven -- Optimise, Reset,
+       drag-to-reorder, locks, the chip control -- has nothing to do for a week that is
+       already played and scored, so a closed tab opens something different: what
+       ACTUALLY happened, fetched from GET /api/results and rendered by
+       selectPastGameweek() below. Clickable and dimmed (.past, armband.css) rather than
+       disabled and dimmed, which is what this used to be before that fetch existed --
+       see this rail's own git history for the guard that stood in for it. Selection is
+       tracked separately from the planning gw (S.resultsGw, not S.gw -- see S's own
+       comment), so aria-selected reads whichever of the two applies to THIS tab. */
+    const selected = g.closed ? g.gw===S.resultsGw : (S.resultsGw==null && g.gw===S.gw);
+    return `<button class="gw${g.live?' live':''}${g.closed?' past':''}" role="tab" data-gw="${g.gw}"
+      aria-selected="${selected}"${g.closed?` title="See GW${g.gw}’s result"`:''}>
       <div class="n">GW${g.gw}${g.live?' <span class="k" style="letter-spacing:.1em">NOW</span>':g.closed?' <span class="k" style="letter-spacing:.1em">PAST</span>':''}</div>
       <div class="d">${g.d}</div>
       <div class="chipslot">${slot}</div>
     </button>`;}).join('');
-  el.querySelectorAll('.gw').forEach(b=>{ if(!b.disabled) b.onclick=()=>{S.gw=+b.dataset.gw;renderAll();}; });
+  el.querySelectorAll('.gw').forEach(b=>{
+    b.onclick=()=>{
+      const gw=+b.dataset.gw;
+      const g=GWS.find(x=>x.gw===gw);
+      if(g && g.closed) selectPastGameweek(gw);
+      else selectPlanningGameweek(gw);
+    };
+  });
+}
+
+/* ============================================================
+   RENDER — past gameweek results
+   ============================================================
+   selectPastGameweek/selectPlanningGameweek are the rail's two destinations (see
+   renderRail() above): a closed tab opens a result, any other tab opens the planner, and
+   either one can be reached from the other. Both stay tiny and symmetric on purpose --
+   the two states (S.resultsGw set vs null) must never both be true at once, and keeping
+   the toggle in exactly two places is what keeps that true. */
+function selectPastGameweek(gw){
+  if(S.resultsGw===gw) return; // already showing it
+  S.resultsGw=gw;
+  showPlanningSurface(false);
+  const rv=document.getElementById('resultsview');
+  if(rv) rv.hidden=false;
+  renderRail(); // repaint tab highlighting -- no other render function reads S.resultsGw
+  renderPastResults(gw);
+}
+
+function selectPlanningGameweek(gw){
+  S.gw=+gw;
+  S.resultsGw=null;
+  showPlanningSurface(true);
+  const rv=document.getElementById('resultsview');
+  if(rv) rv.hidden=true;
+  renderAll();
+}
+
+/* RESULTS_CACHE holds fetched GET /api/results documents, keyed by gameweek number, so
+   clicking between weeks already seen costs nothing. Populated ONLY when
+   result_state==='final' -- a live or fulltime gameweek can still change on the next
+   request and must always be refetched, see this codebase's own design note on the
+   endpoint's caching (results.js/results.go share the same rule at the HTTP layer; this
+   is the client's mirror of it for the in-memory case a hard HTTP cache does not cover,
+   e.g. a session that started before this tab gameweek went final). Never serialised and
+   never evicted -- a season has at most 38 gameweeks and a finished one's document is
+   immutable, so the ceiling on this object's size is small and fixed. */
+const RESULTS_CACHE={};
+
+function paintPastResults(doc){
+  const err=document.getElementById('resultsError');
+  if(err){ err.style.display='none'; err.textContent=''; }
+  const r=doc&&doc.results;
+  const scoreEl=document.getElementById('resultsScoreboard');
+  const pitchEl=document.getElementById('resultsPitch');
+  if(scoreEl) scoreEl.innerHTML = r ? ArmbandResults.scoreboard(r) : '';
+  if(pitchEl) pitchEl.innerHTML = r
+    ? ArmbandResults.pitch(r)
+    : '<div class="panel" style="padding:24px"><b>No result for this gameweek.</b></div>';
+}
+
+function paintPastResultsError(message){
+  const scoreEl=document.getElementById('resultsScoreboard');
+  const pitchEl=document.getElementById('resultsPitch');
+  if(scoreEl) scoreEl.innerHTML='';
+  if(pitchEl) pitchEl.innerHTML='';
+  const err=document.getElementById('resultsError');
+  if(err){ err.textContent=message; err.style.display='block'; }
+}
+
+/* renderPastResults fetches (or reuses RESULTS_CACHE for) one closed gameweek's result and
+   paints it into #resultsview. Guarded against a stale response: if the reader has since
+   selected a different tab (or gone back to planning) by the time this resolves,
+   S.resultsGw no longer matches `gw` and the response is dropped -- the same shape
+   save()'s own comment argues for a mutation applied mid-flight. */
+function renderPastResults(gw){
+  const cached=RESULTS_CACHE[gw];
+  if(cached){ paintPastResults(cached); return; }
+  fetch(`/api/results?gw=${gw}`, {credentials:'same-origin'})
+    .then(r=>{ if(!r.ok) throw new Error(`the server answered ${r.status}`); return r.json(); })
+    .then(doc=>{
+      if(S.resultsGw!==gw) return;
+      if(doc.results && doc.results.result_state==='final') RESULTS_CACHE[gw]=doc;
+      paintPastResults(doc);
+    })
+    .catch(err=>{
+      if(S.resultsGw!==gw) return;
+      paintPastResultsError(`GW${gw}’s result could not be loaded: ${err.message}`);
+    });
 }
 
 /* ============================================================
@@ -1243,17 +1364,22 @@ document.getElementById('swapcancel').onclick=()=>{S.swapFrom=null;setSwapbar();
    channel this design reserves is what it should wear. */
 function renderInstructions(){
   const mine=OV.filter(o=>o.session);                       // this session's own locks and leave-outs
+  /* The WRAPPER hides, not just #instrbody -- #instrpanel carries the "Your instructions"
+     heading in the markup (app.html), so emptying only the body would leave a bare heading
+     over nothing. Selected by id, deliberately: the wrapper is `.why.instr`, and #leftout
+     (Players tab) carries the same two classes on a different surface -- a class-based hide
+     would catch both. The old permanent empty-state block (teaching the Lock in/Leave out
+     affordance) is gone: that teaching survives on every player card and every market row,
+     which are the controls the reader is already looking at when there is nothing here yet. */
+  const panel=document.getElementById('instrpanel');
+  if(!mine.length){
+    if(panel) panel.hidden=true;
+    return;
+  }
+  if(panel) panel.hidden=false;
   const el=document.getElementById('instrbody');
   const count=document.getElementById('instrCount');
   count.textContent=mine.length?`${mine.length} active`:'';
-  if(!mine.length){
-    el.innerHTML=`<div class="empty" style="padding:22px 16px">
-      <div class="big">You haven't told us anything yet.</div>
-      <p>This eleven is our own pick. Open any player and <b>Lock in</b> to keep him, or
-      <b>Leave out</b> to make sure we never pick him.</p>
-    </div>`;
-    return;
-  }
   /* Past tense, because these label a state that already exists rather than an action -- and
      they are the same two words as the buttons that created it. */
   const verb=o=>o.kind==='exclude'?'Left out':'Locked in';
@@ -1323,6 +1449,235 @@ function renderLeftOut(){
    State.blind is still sent and is still read into BLIND here; the contract is untouched,
    so a surface that wants the model's blind spots can render them without a server change.
    Nothing draws them today. */
+
+/* ============================================================
+   RENDER — transfers
+   ============================================================
+   The transfer bar (#transferbar, free/made/cost + Suggest transfers) and the transfer
+   panel (#transferpanel, the OUT/IN rows and, once fetched, a suggested plan). Both draw
+   from STATE.transfers -- the reader's Base diffed against Squad, server-computed, nothing
+   here recomputes a count or a cost. Suggest is a SEPARATE fetch (GET /api/transfers) with
+   its own read-only preview, held in S.suggest -- see that field's own comment. */
+
+/* moveRowHtml draws one OUT/IN row, for both the baseline diff (STATE.transfers.moves) and
+   a suggested plan's moves (S.suggest.plans[i].moves) -- the two arrive in the identical
+   shape (viewmodel.Move), so one row renderer serves both.
+
+   Reuses .instrrow (the same row shape "Your instructions" uses) rather than inventing a
+   second one -- see that markup's own mobile grid re-flow (armband.css). It does NOT carry
+   the `.whyrow` class: `.pitchside .whyrow` already has its own grid-template-areas rule
+   (armband.css, for the old staged-transfer strip) that would silently override
+   `.instrrow`'s column layout the moment this row's parent sits in `.pitchside` -- which
+   #transferpanel does. So the OUT/IN colour idiom (`--acc` for IN, `--ink3` + strike-through
+   for OUT) is reproduced under `#transferpanel .swap` instead, scoped to the new id rather
+   than borrowed from a bare class already carrying a side effect here -- the exact "grep the
+   class first" lesson the design note for this change states explicitly. */
+function moveRowHtml(m){
+  return `<div class="instrrow">
+    <span class="v">${esc(m.pos)}</span>
+    <span class="who swap">
+      <span class="out">${esc(m.out_name)}<span class="club">${esc(m.out_club)}</span></span>
+      <span class="arw"> → </span>
+      <span class="in">${esc(m.in_name)}<span class="club">${esc(m.in_club)}</span></span>
+    </span>
+  </div>`;
+}
+
+/* renderTransferBar draws #transferbar from STATE.transfers: free / made / cost, or the
+   stale / no-baseline / free-hit sentence in their place. Hides the element entirely when
+   STATE.transfers is absent (no imported entry) -- the same honest-absence rule every other
+   optional block in this contract follows. */
+function renderTransferBar(){
+  const el=document.getElementById('transferbar');
+  if(!el) return;
+  const t=STATE.transfers;
+  if(!t){ el.hidden=true; el.innerHTML=''; return; }
+  el.hidden=false;
+
+  const suggestBtn=`<button class="btn sm" id="suggestBtn">Suggest transfers</button>`;
+
+  if(t.no_baseline){
+    const gw=(STATE.import&&STATE.import.event)||'—';
+    const msg=t.free_hit_base
+      ? `You played a Free Hit in GW${esc(gw)}, so this fifteen goes back after the `+
+        `deadline. We'll count transfers again once your own squad returns — re-import then.`
+      : `We don't have a fifteen to compare this against yet.`;
+    el.innerHTML=`<span class="dim">${msg}</span>${suggestBtn}`;
+  } else if(t.baseline_stale){
+    el.innerHTML=`<span class="dim">Your FPL squad has moved on since you imported. `+
+      `Re-import to plan from where you actually are.</span>${suggestBtn}`;
+  } else {
+    const freeTxt=t.free_unknown ? '—'
+      : t.free===-1 ? `unlimited until the GW${esc((STATE.import&&STATE.import.next)||'—')} deadline`
+      : `${t.free} free`;
+    const made=(t.moves||[]).length;
+    el.innerHTML=
+      `<span class="stat"><i class="k">Free transfers</i><b>${freeTxt}</b></span>`+
+      `<span class="stat"><i class="k">Made</i><b>${made}</b></span>`+
+      (t.cost>0 ? `<span class="stat"><i class="k">Cost</i><b class="badc">−${t.cost}</b></span>` : '')+
+      suggestBtn;
+  }
+  const b=document.getElementById('suggestBtn');
+  if(b) b.onclick=suggestTransfers;
+}
+
+/* transferResetHtml is the panel's own footer -- "Put my FPL fifteen back", or "Re-import
+   from FPL" once the baseline has gone stale (§4 of the design this implements: the word
+   "Reset" is already taken, by #resetBtn, for something else entirely, so this is a new
+   sentence rather than a second control of the same name). Shown only when there is
+   something to put back: real changes on the pitch, or a baseline old enough that "putting
+   back" means re-importing rather than restoring. It calls the EXISTING
+   openImportCard()/importTeam() flow, pre-filled with the entry already on record -- no new
+   endpoint, no new session field, no second kind of import. */
+function transferResetHtml(t){
+  if(!((t.moves&&t.moves.length)||t.baseline_stale)) return '';
+  const label=t.baseline_stale ? 'Re-import from FPL' : 'Put my FPL fifteen back';
+  return `<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;padding:9px 13px">
+    <button class="btn sm ghost warn" id="transferResetBtn">${esc(label)}</button>
+  </div>`;
+}
+function wireTransferReset(t){
+  const btn=document.getElementById('transferResetBtn');
+  if(!btn) return;
+  btn.onclick=()=>{
+    const entry=PENDING.entry;
+    const n=(t.moves||[]).length;
+    // Guarded exactly like #resetBtn: a count, the two outcomes named, and only when
+    // there is something to lose. A stale baseline has no known diff to name, and
+    // re-importing there is the recommended action rather than a destructive one, so it
+    // proceeds without asking.
+    if(n && !confirm(
+      `This puts back the fifteen you imported from FPL team ${entry} and discards the `+
+      `${n} change${n===1?'':'s'} on this pitch. Your locks, leave-outs and chip plans `+
+      `are kept. Continue?`)) return;
+    openImportCard();
+    importTeam();
+  };
+}
+
+/* renderTransferPanel draws #transferpanel: the OUT/IN rows, then either the suggestion
+   (when S.suggest is set) or nothing, then the reset footer. Hides when there is nothing at
+   all to show -- no moves, no suggestion, and a baseline that is not stale (which is itself
+   a reason to show the reset footer even with zero moves). */
+function renderTransferPanel(){
+  const el=document.getElementById('transferpanel');
+  if(!el) return;
+  const t=STATE.transfers;
+  if(!t){ el.hidden=true; el.innerHTML=''; return; }
+
+  const rows=(t.moves||[]).map(moveRowHtml).join('');
+  const suggestion=suggestionHtml();
+  const hasContent=!!rows||!!suggestion||t.baseline_stale;
+  if(!hasContent){ el.hidden=true; el.innerHTML=''; return; }
+  el.hidden=false;
+
+  const heading=(t.moves||[]).length
+    ? `Transfers <span class="dim">${t.moves.length}</span>` : 'Transfers';
+  el.innerHTML=`<h3>${heading}</h3>${rows}${suggestion}${transferResetHtml(t)}`;
+  wireTransferReset(t);
+  wireSuggestionControls();
+}
+
+/* suggestionHtml is S.suggest's own render: nothing (not fetched), a loading line, an error
+   box (showImportError's shape -- a toast is the wrong carrier for something the reader
+   must act on), or the fetched plan. Only plans[0] is ever offered for Apply, the same
+   restraint the terminal renderer already applies to its own "also considered" list
+   (transfers.go) -- those exist to be checked against, not clicked. */
+function suggestionHtml(){
+  const s=S.suggest;
+  if(!s) return '';
+  if(s.loading) return `<div class="marketnote" style="margin:10px 13px 0">Looking for a better move…</div>`;
+  if(s.error) return `<div class="marketnote rule" style="margin:10px 13px 0">
+    <b>Could not fetch a suggestion.</b> ${esc(s.error)}
+    <span class="spacer" style="flex:1"></span>
+    <button class="btn sm ghost" id="suggestRetry">Try again</button>
+  </div>`;
+  if(s.outcome==='nothing'){
+    return `<div class="marketnote" style="margin:10px 13px 0">${esc(s.reason)}
+      <span class="spacer" style="flex:1"></span>
+      <button class="btn sm ghost" id="suggestCancel">Dismiss</button>
+    </div>`;
+  }
+  const p=s.plans&&s.plans[0];
+  if(!p) return '';
+  const declined=s.outcome==='bank';
+  const rows=p.moves.map(moveRowHtml).join('');
+  const armed=S.suggestArmed===0;
+  const lines=[];
+  if(declined) lines.push(`<b>${esc(s.reason)}</b>`);
+  lines.push(`+${p.gain_per_gw.toFixed(2)} a gameweek — the model's estimate`);
+  if(p.cost>0){
+    lines.push(`costs a −${p.cost} hit · about ${p.breakeven_gws} `+
+      `gameweek${p.breakeven_gws===1?'':'s'} to pay for itself`);
+  }
+  if(!p.survives_loss){
+    lines.push(`this hinges on ${esc(p.depends_on)}. If he doesn't play, it isn't worth doing.`);
+  }
+  lines.push('Priced at market. FPL pays what you paid plus half of any rise, so your '+
+    'real budget may be a little tighter.');
+  const note=`<div class="marketnote${declined?' rule':''}" style="display:block;margin:10px 13px 0">`+
+    lines.map(l=>`<div>${l}</div>`).join('')+`</div>`;
+  const acts=armed
+    ? `<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;padding:9px 13px">
+        <button class="btn sm ghost warn" id="suggestConfirm">Yes, apply</button>
+        <button class="btn sm ghost" id="suggestCancel">Not now</button>
+      </div>`
+    : `<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;padding:9px 13px">
+        <button class="btn sm" id="suggestArm">Apply these moves</button>
+        <button class="btn sm ghost" id="suggestCancel">Not now</button>
+      </div>`;
+  return `${rows}${note}${acts}`;
+}
+function wireSuggestionControls(){
+  const retry=document.getElementById('suggestRetry');
+  if(retry) retry.onclick=suggestTransfers;
+  const arm=document.getElementById('suggestArm');
+  if(arm) arm.onclick=()=>{ S.suggestArmed=0; renderTransferPanel(); };
+  const confirmBtn=document.getElementById('suggestConfirm');
+  if(confirmBtn) confirmBtn.onclick=()=>applySuggestion(0);
+  const cancel=document.getElementById('suggestCancel');
+  if(cancel) cancel.onclick=()=>{ S.suggest=null; S.suggestArmed=null; renderTransferPanel(); };
+}
+
+/* suggestTransfers fetches GET /api/transfers and renders the answer read-only -- the first
+ * of the two steps §3 of the design describes: fetch and preview, then a separate click
+ * (applySuggestion) to mutate. Never S.armLock's shape reused for this: see S.suggest's own
+ * comment for why a shared field would let a pitch click silently cancel this arm and vice
+ * versa. */
+function suggestTransfers(){
+  S.suggest={loading:true};
+  S.suggestArmed=null;
+  renderTransferPanel();
+  fetch('/api/transfers',{credentials:'same-origin'})
+    .then(r=>{
+      if(!r.ok) return r.text().then(t=>{throw new Error(t||('the server answered '+r.status));});
+      return r.json();
+    })
+    .then(doc=>{ S.suggest=doc; renderTransferPanel(); })
+    .catch(err=>{ S.suggest={error:err.message}; renderTransferPanel(); });
+}
+
+/* applySuggestion mutates: it replaces the outgoing codes with the incoming ones in
+ * pending.squad and clears xi/bench/cap/vc so the server re-arranges the fifteen around the
+ * new team -- #optimise's own shape (below), because a transfer plan changes who is on the
+ * pitch as much as an optimise does. Goes through save(), never a bespoke fetch, for the
+ * reason save()'s own comment gives: a mutation applied outside the chain can be overwritten
+ * by an answer already in flight. */
+function applySuggestion(i){
+  const p=S.suggest&&S.suggest.plans&&S.suggest.plans[i];
+  if(!p) return;
+  save(pending=>{
+    const squad=(pending.squad||[]).slice();
+    p.moves.forEach(m=>{
+      const idx=squad.indexOf(m.out_code);
+      if(idx>=0) squad[idx]=m.in_code;
+    });
+    pending.squad=squad;
+    pending.xi=undefined; pending.bench=undefined; pending.cap=undefined; pending.vc=undefined;
+  });
+  S.suggest=null;
+  S.suggestArmed=null;
+}
 
 /* ============================================================
    The player card's depth — /api/player/{code}
@@ -2598,6 +2953,64 @@ function renderNewsCallout(){
    ============================================================ */
 const VIEWS=['pitch','players','news'];
 
+/* PLANNING_ELEMENTS is every control that edits a hypothetical fifteen -- everything that
+ * makes no sense once a past, already-scored gameweek is on screen. Named in ONE place
+ * rather than scattered `hidden=` assignments across the render functions, because a set
+ * that lives in nine places is a set that will be wrong in one of them the first time
+ * something is added to it -- and the three elements this change adds (#transferbar,
+ * #transferpanel, #instrpanel) are exactly that "something added".
+ *
+ * #squadsource is deliberately NOT in this list -- it is provenance, "where this fifteen
+ * came from", and that is as true of a past week as of this one.
+ *
+ * ⚠️ .pitchwrap replaced the four separate entries .pitchactions/#chipctl/.pitch/.bench
+ * (plus #pitch-newsnudge, still separate -- see below) once a past-gameweek view actually
+ * existed to call showPlanningSurface(false) (see selectPastGameweek/renderRail, and the
+ * results-past golden this was caught on). The list before that had only ever been
+ * exercised by showPlanningSurface(true) at boot -- `false` had no caller yet, so nothing
+ * had ever rendered any of this hidden. Hiding only .pitchactions/#chipctl left the REST
+ * of .pitchwrap on screen: #pitchhud's formation/captain-math/vs-our-pick describe the
+ * CURRENTLY PLANNED gameweek, not the past one on screen (results.js's own pitch() draws
+ * its own formation heading), and .rolekey legends the role-coloured dots on .pitch,
+ * itself already hidden -- both sat directly under a past result, describing a different
+ * week or nothing at all. .pitchwrap ALSO carries the turf card's own border/background,
+ * which stayed a visible empty sliver once every child inside it was hidden one by one.
+ * One entry for the whole card is both the fix and the simplification: everything
+ * .pitchwrap contains (#pitchhud, #pitch-newsnudge, .pitch, .rolekey, .bench) is
+ * planning-only, so there is nothing inside it a past week needs kept visible. Safe to
+ * force in both directions: showPlanningSurface(true)'s own "every other element
+ * recomputes its real state immediately afterward" covers it, since renderReadout() and
+ * renderPitch() (which fill in everything .pitchwrap contains) run on every renderAll(). */
+const PLANNING_ELEMENTS=[
+  '#transferbar','#transferpanel','#instrpanel','#importCard',
+  '.pitchwrap'
+];
+/* showPlanningSurface(false) forces every element on the list hidden -- unconditionally,
+ * which is exactly right for a past gameweek: none of them has anything to say about a week
+ * that is already scored.
+ *
+ * showPlanningSurface(true) is NOT the mirror of that, and `#importCard` is why: its hidden
+ * state is not "recomputed fresh on every call" the way #transferbar/#transferpanel/
+ * #instrpanel and #chipctl/#pitch-newsnudge are -- hydrate()'s own comment documents that it
+ * deliberately LEAVES the panel alone once an entry is on record, specifically so a reader
+ * mid-edit on "Change team" does not watch it slam shut under an unrelated save. Forcing it
+ * open here, unconditionally, on the FIRST boot -- before hydrate has run even once -- broke
+ * exactly that: an already-imported reader's very first paint showed the import card wide
+ * open over the pitch, because nothing downstream of a blind force-open ever closes it again
+ * for that case. Caught by the import-imported golden the moment this shipped. So `true`
+ * skips `#importCard` and leaves it exactly as hydrate/the shipped markup already have it;
+ * every other element on the list is safe to force, because each one has its own render
+ * function running immediately afterward that recomputes its real hidden state from
+ * scratch, every time, with no "leave alone" case of its own. */
+function showPlanningSurface(on){
+  PLANNING_ELEMENTS.forEach(sel=>{
+    document.querySelectorAll(sel).forEach(el=>{
+      if(on && sel==='#importCard') return;
+      el.hidden=!on;
+    });
+  });
+}
+
 /* What the phone's back bar says it returns to. The sheet always opens from the view the
    reader is looking at, so the label is a property of the view and is set in one place --
    setView -- rather than at each of the four places a sheet is opened. */
@@ -2721,7 +3134,7 @@ function renderResultsStrip(){
   </div>`;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderNewsCallout();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderResultsStrip();}
+function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderNewsCallout();renderTransferBar();renderTransferPanel();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderResultsStrip();}
 
 /* boot fetches the state and draws once.
 
@@ -2740,14 +3153,29 @@ function boot(){
       return r.json();
     })
     .then(st=>{
+      /* Called ONCE, here, and BEFORE hydrate/renderAll -- not at script load, which would
+         violate this function's own rule two paragraphs up ("renders NOTHING before the
+         fetch returns": unhiding #importCard before the fetch resolves would flash it open
+         for a reader who has already imported and dismissed it, for however long the
+         network takes). Placed before hydrate/renderAll rather than after so their own,
+         finer-grained hidden decisions -- hydrate's importCard branch, renderTransferBar's
+         absent-STATE.transfers case, renderInstructions' empty-list case -- run in the same
+         synchronous tick and are what the browser actually paints; nothing here is ever
+         visible in between. Today's behaviour is unchanged (everything shown, since there
+         is no past-gameweek view yet to call this with `false`) -- this exists so that
+         later feature has one correctly-shaped switch to call rather than inventing its own
+         list, per PLANNING_ELEMENTS' own comment. */
+      showPlanningSurface(true);
       hydrate(st);
       renderAll();
       /* Honour a panel named in the URL, so a reload lands where the reader was. */
       const hash=location.hash.slice(1);
       const replace=/^replace-(\d+)$/.exec(hash);
       const buy=/^buy-(\d+)$/.exec(hash);
+      const results=/^results-(\d+)$/.exec(hash);
       if(replace){ setView('pitch', false); openPicker(+replace[1]); }
       else if(buy){ setView('pitch', false); openBuyPicker(+buy[1]); }
+      else if(results){ setView('pitch', false); selectPastGameweek(+results[1]); }
       else if(hash){ setView(hash, false); }
     })
     .catch(err=>{
@@ -2936,6 +3364,13 @@ function importTeam(){
          comment). Whichever job the panel was open for -- first import or a change -- is
          done, so close it here, directly. */
       closeImportCard();
+      /* "Change team"/"Re-import from FPL" is reachable while a past gameweek's result is
+         on screen -- #squadsource is the one control this feature deliberately leaves live
+         through showPlanningSurface(false). hydrate() has already cleared RESULTS_CACHE for
+         the entry swap (see its own comment); this repaints what is currently ON SCREEN,
+         which would otherwise go on showing the PREVIOUS team's result until the reader
+         happened to click the tab again. */
+      if(S.resultsGw!=null) renderPastResults(S.resultsGw);
       const eventNum=st.import?.event||'your';
       notify(`Imported your Gameweek ${eventNum} fifteen.`);
     })
