@@ -781,10 +781,20 @@ const UnlimitedTransfers = -1
 // FreeTransfers reconstructs how many free transfers a manager has available.
 //
 // FPL does not publish this directly, so it is rebuilt from the transfer history:
-// one free transfer per gameweek, banked up to the cap, minus those spent. A
-// wildcard or free hit week is skipped, since transfers made under a chip are
-// unlimited and do not consume the allowance. Treat the result as a close
-// reconstruction rather than an authoritative figure.
+// one free transfer per gameweek from GW2 onward, banked up to the cap, minus
+// those spent. A wildcard or free hit week is skipped, since transfers made
+// under a chip are unlimited and do not consume the allowance. Treat the
+// result as a close reconstruction rather than an authoritative figure.
+//
+// GW1 is skipped outright, never entering the ledger — "Free Transfers do not
+// accumulate before Gameweek 2" is FPL's own rule, because the opening
+// deadline is squad SELECTION, not a transfer market: h.Current[0].EventTransfers
+// is 0 for every manager regardless of how many times they rearranged their
+// fifteen beforehand. Reported live 2026-08-23: a manager with only GW1 played
+// read 2 free transfers for GW2, not the 1 they actually had, because the
+// pre-fix loop ran GW1 through the same "grant one more, capped" step as every
+// later week — banking a transfer nobody was ever entitled to for having
+// "not spent" a week that was never spendable.
 //
 // An empty history means the season has not started, which is unambiguous:
 // the manager has unlimited transfers, not one.
@@ -799,6 +809,9 @@ func FreeTransfers(h *EntryHistory) int {
 
 	ft := 1
 	for _, gw := range h.Current {
+		if gw.Event == 1 {
+			continue
+		}
 		switch chipAt[gw.Event] {
 		case "wildcard", "freehit":
 			// Chip weeks don't spend the allowance.
