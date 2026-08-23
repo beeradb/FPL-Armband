@@ -1831,6 +1831,93 @@ func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
 
 type researchTargetsInput struct{}
 
+// researchSquad is the model's own best fifteen, included in research_targets so
+// that its non-nailed members are checked too — the recommendation depends on
+// them starting.
+//
+// # It must not touch the shared engine, and it used to
+//
+// This read `t.Engine.ApplyChipPlan(&req)` before optimising. That call MUTATES
+// the receiver: it writes `Engine.Weights.Horizon` and rebuilds
+// `Engine.byTeamUpcoming` (see analysis.ApplyChipPlan and buildFixtureIndex).
+// The toolbox holds ONE engine for the whole run, so the write was permanent and
+// unguarded, and it cost two separate things:
+//
+//   - **A leak.** Nothing put the horizon back, so every later `optimize_squad`
+//     and `suggest_transfers` in the run scored on the shortened horizon and
+//     every one asked earlier scored on the full one. The prompt mandates this
+//     tool in the standard review procedure, so the answer depended on the order
+//     the model happened to call its tools in — one quantity, two values, chosen
+//     by the LLM. Measured live at the current gameweek with a wildcard planned
+//     three weeks out: horizon 5 became horizon 2 and stayed there.
+//   - **A race.** The tool runner fans a turn's calls out through an errgroup —
+//     as the `set_player_status` handler below says at length — so this ran
+//     beside tools whose scoring path READS `byTeamUpcoming` while
+//     `buildFixtureIndex` assigned a fresh map over it. Go does not let a program
+//     recover from a concurrent map read and write.
+//
+// The fix is to not make the call rather than to save and restore around it. A
+// save/restore is what the web builder does (cmd/armband/page.go), and it is
+// right there because the page is BUILDING the squad the plan describes; it
+// still would not close the race, because the siblings read the index during the
+// window. This tool's output is a list of players to go and read the news about
+// — its own budget resolution is best-effort for exactly that reason — so it has
+// no claim on the shared engine's horizon.
+//
+// # What is dropped, and what is kept
+//
+// Only the mutating half. `ApplyChipPlan` does two independent things, and the
+// bench-boost half — `SuggestBenchWeight`, which returns a number and writes
+// nothing to the receiver — is kept and called directly below. Dropping the
+// whole call would have thrown that away too, and it fires on a different chip:
+// a planned boost inside the horizon is what stops cheap non-playing fodder
+// being free, so the reference fifteen would have stopped being the one whose
+// bench is worth reading the news about.
+//
+// ⚠️ **This changes what the tool returns when a wildcard is planned**: the
+// reference fifteen is built on the configured horizon rather than the truncated
+// one, so different names reach the shortlist.
+//
+// ⚠️ **And in one case it moves `Score` itself.** `EffectiveHorizon`'s wildcard
+// branch returns `gw - nextGW`, whose minimum is 1 — a wildcard planned for the
+// very next gameweek. At a horizon of exactly 1 `FixtureLoadInScore()` turns
+// true in the shipped configuration, and `Metrics` then applies
+// `Score *= FixtureLoad` to every player. So the old code multiplied by fixture
+// load in that case and this does not. It is the closest wildcard a plan can
+// name and a perfectly ordinary thing to plan, so it is stated rather than
+// waved past: the scores this tool's shortlist is drawn from differ from the
+// scores it used to draw them from, for that one placement.
+//
+// Whether `optimize_squad` and `suggest_transfers` SHOULD apply the chip plan is
+// a real question and a separate one — they do not call it today, and the
+// accident this removes is not an argument that they should.
+func (t *Toolbox) researchSquad() []analysis.PlayerMetrics {
+	// BenchWeight left at zero so Optimize reads the configured weight, which is
+	// what every other squad this project builds is scored on — unless a planned
+	// bench boost raises it, below.
+	req := analysis.OptimizeRequest{MinMinutes: 600, MinExpectedMinutes: 55}
+	// The safe half of ApplyChipPlan, called directly. SuggestBenchWeight reads
+	// Weights.BenchWeight and the schedule and returns a number; unlike the
+	// horizon half it writes nothing to the shared engine, so it is safe beside
+	// the other tools in the turn. The empty reason is the no-op, matching
+	// ApplyChipPlan's own guard rather than testing the weight for equality.
+	if bw, why := t.Engine.SuggestBenchWeight(t.Engine.Chips); why != "" {
+		req.BenchWeight = bw
+	}
+	// Best effort, unlike everywhere else the budget is resolved. This output is
+	// a list of players to go and read the news about, not a squad to buy, so an
+	// unpriceable squad should cost the extra names rather than the whole step.
+	// Zero leaves Optimize on its default.
+	if budget, _, err := t.Engine.AssemblyBudget(); err == nil {
+		req.Budget = budget
+	}
+	sq, err := t.Engine.Optimize(req)
+	if err != nil {
+		return nil
+	}
+	return sq.Players
+}
+
 func (t *Toolbox) researchTargets() (anthropic.BetaTool, error) {
 	return toolrunner.NewBetaToolFromJSONSchema(
 		"research_targets",
@@ -1844,23 +1931,7 @@ func (t *Toolbox) researchTargets() (anthropic.BetaTool, error) {
 		func(ctx context.Context, _ researchTargetsInput) (anthropic.BetaToolResultBlockParamContentUnion, error) {
 			t.note("research_targets", "where the model is blind")
 
-			// Include the model's own best squad so its non-nailed members are
-			// checked too — the recommendation depends on them starting.
-			var squad []analysis.PlayerMetrics
-			// BenchWeight left at zero so Optimize reads the configured weight,
-			// which is what every other squad this project builds is scored on.
-			req := analysis.OptimizeRequest{MinMinutes: 600, MinExpectedMinutes: 55}
-			// Best effort, unlike everywhere else the budget is resolved. This
-			// output is a list of players to go and read the news about, not a
-			// squad to buy, so an unpriceable squad should cost the extra names
-			// rather than the whole step. Zero leaves Optimize on its default.
-			if budget, _, err := t.Engine.AssemblyBudget(); err == nil {
-				req.Budget = budget
-			}
-			t.Engine.ApplyChipPlan(&req)
-			if sq, err := t.Engine.Optimize(req); err == nil {
-				squad = sq.Players
-			}
+			squad := t.researchSquad()
 
 			type row struct {
 				Name  string  `json:"name"`
