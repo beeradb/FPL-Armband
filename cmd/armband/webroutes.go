@@ -234,6 +234,9 @@ func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name str
 		http.Error(w, "that page is not built into this binary", http.StatusInternalServerError)
 		return
 	}
+	if !s.wildcardEnabled {
+		body = withoutWildcardLink(body)
+	}
 	// The application is never meant to be framed. A hostile page could otherwise iframe
 	// it and clickjack the controls, and the token gate cannot see that a click did not
 	// come from the reader.
@@ -355,6 +358,32 @@ func withGA4(body []byte) []byte {
 	}
 	filled := `<meta name="armband-ga4" content="` + html.EscapeString(id) + `">`
 	return bytes.Replace(body, []byte(ga4Meta), []byte(filled), 1)
+}
+
+// wildcardLinks is the "If we chipped" anchor as each of the three embedded
+// pages that carry it spells it, verbatim — team.html, landing.html and
+// app.html, in that order. No placeholder-and-fill here, unlike tokenMeta and
+// ga4Meta above: those exist to be filled in MOST of the time and empty only
+// as a fallback, where this exists to be removed most of the time (see
+// squadServer.wildcardEnabled) and is otherwise the literal, live markup —
+// inverting the placeholder pattern would ship a placeholder to every reader
+// by default instead of to none.
+var wildcardLinks = [][]byte{
+	[]byte(`<a class="btn sm ghost" href="/wildcard">If we chipped →</a>`),
+	[]byte(`<a class="t-meta" href="/wildcard">If we chipped</a>`),
+	[]byte(`<a class="navlink" href="/wildcard">If we chipped →</a>`),
+}
+
+// withoutWildcardLink strips whichever of wildcardLinks the page carries. A
+// bytes.Replace against a pattern the page does not have is a no-op, so this
+// is safe to call for every page rather than switching on name the way
+// withGA4/withSignups do — team.html, landing.html and app.html each carry
+// exactly one of the three, and nothing else carries any.
+func withoutWildcardLink(body []byte) []byte {
+	for _, link := range wildcardLinks {
+		body = bytes.Replace(body, link, nil, 1)
+	}
+	return body
 }
 
 // signupsMeta is app.html's placeholder for whether the client should offer an email ask.
@@ -734,12 +763,15 @@ func buildTransfersBlock(e *analysis.Engine, sess session, free int, freeErr err
 		BaseEvent:   sess.BaseEvent,
 	}
 	if len(sess.Base) == 0 {
-		// The only path today that imports a squad and leaves Base empty is a free-hit
-		// import (importTeam step 8) — a cookie written before this field existed would
-		// read the same way and self-heals on the reader's next import. Both read as "no
-		// baseline"; free-hit is the only cause this build can name with any confidence.
+		// sess.BaseFreeHit says WHY, explicitly set at import time (fromImport) rather
+		// than inferred here. Used to be inferred from Base being empty alone, on the
+		// reasoning that a free-hit import was the only path that left it that way —
+		// true of that one path, but also true of a session that has simply never
+		// completed a real import (or a cookie written before this field existed), and
+		// both of those read the identical "you played a free hit" message to a reader
+		// who never touched the chip. Reported live 2026-08-23.
 		t.NoBaseline = true
-		t.FreeHitBase = true
+		t.FreeHitBase = sess.BaseFreeHit
 		return t
 	}
 	// FPL's current event has moved past the week Base was fetched for: the reader's

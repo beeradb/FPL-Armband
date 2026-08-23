@@ -510,6 +510,11 @@ type Import struct {
 	Skipped bool `json:"skipped,omitempty"`
 	// Entry is the FPL entry (Team) id this reader has already imported, 0 if none.
 	Entry int `json:"entry,omitempty"`
+	// Name is that team's FPL name, captured once at import time — see
+	// session.EntryName's own comment for why it is not re-fetched here. Empty when
+	// Entry is 0, and for a session imported before this field existed; the client
+	// falls back to displaying Entry (the numeric id) in that case.
+	Name string `json:"name,omitempty"`
 }
 
 // News is the News tab's own data, kept apart from Player so a page that has not
@@ -1001,4 +1006,8 @@ type Session struct {
 	// is and Transfers.BaseEvent for the gameweek it was fetched for.
 	Base      []int `json:"base,omitempty"`
 	BaseEvent int   `json:"basegw,omitempty"`
+	// BaseFreeHit round-trips session.BaseFreeHit for the same reason as Base/BaseEvent
+	// above — see that field's own doc comment for why it exists at all rather than
+	// being inferred from Base being empty.
+	BaseFreeHit bool `json:"basefh,omitempty"`
 }

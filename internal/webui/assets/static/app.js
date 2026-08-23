@@ -299,14 +299,16 @@ function hydrate(st){
     chips:Object.assign({},sess.chips||{}),
     entry:imp.entry||0,
     noimp:!!imp.skipped,
-    /* base/basegw round-trip the transfer baseline exactly the way entry/noimp do, and
-       for the identical reason (see their own comment two lines up): PUT /api/session is
-       a full replace, so a save that omitted them would silently erase an already-imported
-       baseline on the very next unrelated save -- a lock, a bench drag, a chip toggle. The
-       client never mutates either field; only importTeam() (via a fresh PUT /api/import)
-       ever changes what the server holds here. */
+    /* base/basegw/basefh round-trip the transfer baseline exactly the way entry/noimp do,
+       and for the identical reason (see their own comment two lines up): PUT /api/session
+       is a full replace, so a save that omitted them would silently erase an
+       already-imported baseline (or misreport a real free-hit import as an unexplained
+       one) on the very next unrelated save -- a lock, a bench drag, a chip toggle. The
+       client never mutates any of the three; only importTeam() (via a fresh PUT
+       /api/import) ever changes what the server holds here. */
     base:(sess.base||[]).slice(),
-    basegw:sess.basegw||0
+    basegw:sess.basegw||0,
+    basefh:!!sess.basefh
   };
 
   const sq=st.squad;
@@ -1084,7 +1086,7 @@ document.addEventListener('keydown',e=>{
    ============================================================ */
 let lastTotal=null, deltaTimer=null;
 function renderReadout(){
-  const chip=gwState().chip, c=CHIPS.find(x=>x.k===chip);
+  const chip=gwState().chip;
   const model=S.modelXi.reduce((s,id)=>s+xpFor(byId(id)),0);
   const mine=xiPts();
   const vsm=+(mine-model).toFixed(2);
@@ -1093,8 +1095,14 @@ function renderReadout(){
   // Captain is off the score bug now -- his arithmetic lives on the pitch HUD's armband
   // pill (renderPitch), which renders at every width, so nothing is lost on a phone: the
   // bug used to hide the pre-doubled figure under 720px and show only the total.
+  //
+  // Bench, Gameweek and Chip used to sit here too, in three more .sb-cells -- removed
+  // 2026-08-23, per the owner, as repeats of what the page already shows elsewhere:
+  // gameweek is the rail above this view, chip is #chipctl in the pitch HUD below, and
+  // bench points sit beside the actual bench (#benchval, renderPitch). Projected and
+  // Budget are what is left, and what stays -- see this element's own HTML comment for
+  // why they moved to sit directly above the turf rather than at the page's top.
   document.getElementById('scorebug').innerHTML=`
-   <div class="gwlz">GW${S.gw}<small>${gwState().live?'NOW':'PLANNED'}</small></div>
    <div class="sb-main">
      <span class="sb-big" id="sbTotal">${total.toFixed(1)}</span>
      <span class="sb-lbl"><span class="k">Projected</span>
@@ -1103,23 +1111,9 @@ function renderReadout(){
      <span class="sb-delta" id="sbDelta"></span>
    </div>
    <div class="sb-div"></div>
-   <div class="sb-cell"><span class="k">Bench</span>
-     <div class="v">${benchPts().toFixed(1)}<small>pts</small></div>
-     <div class="sub">${chip==='bboost'?'counting':'not counting'}</div></div>
-   <div class="sb-div"></div>
-   <div class="sb-cell"><span class="k">In the bank</span>
+   <div class="sb-cell"><span class="k">Budget</span>
      <div class="v${bankHtml().bad?' badc':''}">${bankHtml().text}</div>
      <div class="sub${bankHtml().bad?' badc':''}">${bankHtml().bad?'over budget':'squad £'+spend().toFixed(1)+'m'}</div></div>
-   <div class="sb-div"></div>
-   <div class="sb-cell"><span class="k">Chip</span>
-     <div class="v">${c?c.n:'None'}</div>
-     <!-- ⚠️ Was (4 - GWS.filter(g=>g.chip).length) + ' of 4 left' -- GWS is the rail,
-          current + upcoming (app.js:93), so a chip already spent earlier in the window
-          was never counted and the figure overstated what the reader had; the 4 was
-          hardcoded with no concept of the two windows; and it was the client deciding a
-          competition rule. CHIPWIN.remaining is server-sent and scoped to the window
-          (NOTES.md §6). -->
-     <div class="sub">${c?'in the number above':(CHIPWIN.remaining==null?'—':CHIPWIN.remaining+' left this season')}</div></div>
    <div class="sb-pad"></div>`;
 
   // the score reacts to your hand
@@ -1481,44 +1475,6 @@ function moveRowHtml(m){
       <span class="in">${esc(m.in_name)}<span class="club">${esc(m.in_club)}</span></span>
     </span>
   </div>`;
-}
-
-/* renderTransferBar draws #transferbar from STATE.transfers: free / made / cost, or the
-   stale / no-baseline / free-hit sentence in their place. Hides the element entirely when
-   STATE.transfers is absent (no imported entry) -- the same honest-absence rule every other
-   optional block in this contract follows. */
-function renderTransferBar(){
-  const el=document.getElementById('transferbar');
-  if(!el) return;
-  const t=STATE.transfers;
-  if(!t){ el.hidden=true; el.innerHTML=''; return; }
-  el.hidden=false;
-
-  const suggestBtn=`<button class="btn sm" id="suggestBtn">Suggest transfers</button>`;
-
-  if(t.no_baseline){
-    const gw=(STATE.import&&STATE.import.event)||'—';
-    const msg=t.free_hit_base
-      ? `You played a Free Hit in GW${esc(gw)}, so this fifteen goes back after the `+
-        `deadline. We'll count transfers again once your own squad returns — re-import then.`
-      : `We don't have a fifteen to compare this against yet.`;
-    el.innerHTML=`<span class="dim">${msg}</span>${suggestBtn}`;
-  } else if(t.baseline_stale){
-    el.innerHTML=`<span class="dim">Your FPL squad has moved on since you imported. `+
-      `Re-import to plan from where you actually are.</span>${suggestBtn}`;
-  } else {
-    const freeTxt=t.free_unknown ? '—'
-      : t.free===-1 ? `unlimited until the GW${esc((STATE.import&&STATE.import.next)||'—')} deadline`
-      : `${t.free} free`;
-    const made=(t.moves||[]).length;
-    el.innerHTML=
-      `<span class="stat"><i class="k">Free transfers</i><b>${freeTxt}</b></span>`+
-      `<span class="stat"><i class="k">Made</i><b>${made}</b></span>`+
-      (t.cost>0 ? `<span class="stat"><i class="k">Cost</i><b class="badc">−${t.cost}</b></span>` : '')+
-      suggestBtn;
-  }
-  const b=document.getElementById('suggestBtn');
-  if(b) b.onclick=suggestTransfers;
 }
 
 /* transferResetHtml is the panel's own footer -- "Put my FPL fifteen back", or "Re-import
@@ -2668,14 +2624,15 @@ function renderBackstory(){
    third definition of "worth mentioning": its two subjects come from flaggedRows() and
    riskRows(), the exact functions the News tab itself draws from.
 
-   The risk subject narrows riskRows() further, to rotation risk (roleNum 3) alone --
-   NOT the "rotation risk or worse" (3/4/5) that riskRows() itself returns for the News
-   tab's neutral list. "The model doubts him and nobody said why" is a claim of surprise:
-   true of a genuine rotation risk, false of a player who is already squad depth or fringe
-   (4/5), where nobody expected a start in the first place and the copy just states the
-   obvious in an alarmed voice. See the reported case: Woodman, an obvious backup, fell
-   through to fringe (5) here with no rotation-risk (3) player present, and the row said
-   "the model doubts him" about a player nobody was surprised by.
+   Both subjects narrow further, to Nailed/Likely Starter (roleNum <= 2) -- NOT the
+   "rotation risk or worse" (3/4/5) that riskRows() itself returns for the News tab's
+   neutral list. Both a flag and a quiet model doubt are claims of SURPRISE: true of a
+   player who reads as a safe start, false of one whose own role chip already says
+   rotation risk, squad or fringe, where nobody expected a start in the first place and
+   the row would just be restating the card in an alarmed voice. See renderNewsNudge's
+   own comment on flagSubject/riskSubject for the two incidents (Woodman, then Slater)
+   that found this the hard way, and for riskSubject's own reasoning behind Likely
+   Starter (roleNum 2) exactly rather than Nailed too.
    ============================================================ */
 
 /* NUDGE_DISMISSED_KEY has THREE writers, all asserting the same fact -- this reader has
@@ -2706,25 +2663,43 @@ function renderNewsNudge(){
   if(nudgeDismissed() && !nudgeJustAnswered){ el.innerHTML=''; return; }
 
   // The two subjects, chosen by the two functions the News tab itself uses -- no third
-  // definition of "worth mentioning" is introduced here. riskSubject additionally requires
-  // roleNum(p.role)===3 -- rotation risk only, never squad (4) or fringe (5): see the
-  // comment on THE PITCH NUDGE above.
+  // definition of "worth mentioning" is introduced here. Both are additionally narrowed to
+  // roleNum(p.role)<=2 -- Nailed or Likely Starter, never rotation risk/squad/fringe (3-5)
+  // -- because BOTH subjects are claims of SURPRISE: "this looked like a safe pick, and
+  // here is a doubt about it nobody's card already shows." A rotation-risk, squad or
+  // fringe player's OWN role chip already says he might not start; a flag or a nudge on
+  // top of that repeats the card rather than adding to it. Confirmed by the owner,
+  // 2026-08-23, after Slater (£4.5m HUL bench MID, role "rotation risk" at 57 expected
+  // minutes, no flag) triggered the old roleNum===3 version the same way Woodman
+  // (roleNum 5) had triggered an even earlier one -- both correctly-modelled
+  // uncertainties on players nobody was surprised by, because nobody expected either to
+  // start in the first place. An XI-only fix was tried first and reverted same-day: the
+  // player's ROLE is the direct signal for "would a reader expect him to start", where
+  // XI/bench membership is a proxy for it that a nailed, low-price enabler can still slip
+  // through (or a genuine rotation-risk XI pick could wrongly pass).
   //
-  // flagSubject narrows further than flaggedRows() itself does: FPL's own 50%-or-below
-  // reading is "he definitely will not start" -- the card already says so plainly, in
-  // orange or red (cardHtml's three-level newsflag) -- so claiming it here as a heads-up
-  // oversells what this row knows. Per the owner, 2026-08-22: "anything 50% or below is
-  // basically FPL saying they definitely won't start. so no need to specially flag that as
-  // if we're giving them extra info." On FPL's 100/75/50/25/0 scale that leaves exactly
-  // ONE value this can ever match -- 75%, the one genuinely ambiguous reading. Do NOT
-  // widen this back to `<1` "for completeness": completeness is what oversold it before.
-  // flaggedRows() itself is UNCHANGED and still returns every one of these players -- this
-  // narrows the nudge's own subject only, never the News tab's flagged group or the nav
-  // badge count that reads it (see flaggedRows' own comment above).
+  // flagSubject narrows further still: FPL's own 50%-or-below reading is "he definitely
+  // will not start" -- the card already says so plainly, in orange or red (cardHtml's
+  // three-level newsflag) -- so claiming it here as a heads-up oversells what this row
+  // knows. Per the owner, 2026-08-22: "anything 50% or below is basically FPL saying they
+  // definitely won't start. so no need to specially flag that as if we're giving them
+  // extra info." On FPL's 100/75/50/25/0 scale that leaves exactly ONE value this can ever
+  // match -- 75%, the one genuinely ambiguous reading. Do NOT widen this back to `<1` "for
+  // completeness": completeness is what oversold it before. flaggedRows() itself is
+  // UNCHANGED and still returns every one of these players -- this narrows the nudge's own
+  // subject only, never the News tab's flagged group or the nav badge count that reads it
+  // (see flaggedRows' own comment above).
   const flagSubject=flaggedRows().find(p=>p.availability!==undefined
-    && p.availability<1 && p.availability>0.5);
+    && p.availability<1 && p.availability>0.5 && roleNum(p.role)<=2);
+  // roleNum===2 exactly (Likely Starter), not <=2: "Nailed" is rotationLabel's OWN
+  // confident-and-corroborated answer, so a nailed player is by definition not one this
+  // row can claim a quiet doubt about. "Likely Starter" is the tier one rung down --
+  // rotationLabel returns it either for 60-75 expected minutes, or for 75+ minutes that
+  // FPL/a prior/an override has not independently corroborated (see minutesCorroborated
+  // and rotationLabel's own comments) -- which is exactly "this reads like a safe pick
+  // and the model is not fully sure", the claim of surprise this row exists to make.
   const riskSubject=riskRows().find(p=>p!==flagSubject && !p.news &&
-    roleNum(p.role)===3 &&
+    roleNum(p.role)===2 &&
     (p.availability===undefined||p.availability>=1));
   if(!flagSubject && !riskSubject){ el.innerHTML=''; return; }
 
@@ -3050,25 +3025,41 @@ addEventListener('hashchange',()=>setView(location.hash.slice(1), false));
 /* ============================================================
    BOOT
    ============================================================ */
-/* Where this fifteen came from, said plainly -- and, once the import window is open, the
- * one control for changing it.
+/* Where this fifteen came from, the one control for changing it, and -- once an entry is
+ * on record -- how many free transfers are left and the one control for spending them.
+ * One bar (#squadsource) until 2026-08-22, two (#squadsource + #transferbar) until
+ * 2026-08-23: STATE.transfers only ever exists in the SAME state that grows a "Change
+ * team" button (imp.entry set — buildState only attaches Transfers once sess.Entry != 0,
+ * see webroutes.go), so the second bar was always either empty or sitting directly under
+ * a first bar making a related claim. Combined per the owner: one clean bar, not two.
  *
  * The opening squad is deliberately varied rather than the model's single best, so a reader
  * looking at it deserves to know which of the two they have -- otherwise the tool appears to
  * be recommending something it is not. That was this element's whole job until the import
  * card grew a second life: "where did this come from" and "how do I change it" turned out to
  * be one question, not two, so the card that used to live alone on the Players tab now opens
- * from a button appended right here. Four states, crossed against STATE.import (imp) and the
- * existing S.saved/S.optimised:
+ * from a button appended right here. Four states for the LEFT half, crossed against
+ * STATE.import (imp) and the existing S.saved/S.optimised:
  *
  *   !imp.open                      -- unchanged: the three-way text, no button
  *   open, no entry, not skipped    -- "a suggested fifteen — not yours yet" + Import (primary)
  *   open, skipped, no entry        -- the three-way text again + Import (ghost)
- *   open, entry set                -- "imported from FPL team N · GWn" + Change team (ghost)
+ *   open, entry set                -- "imported from NAME (id) · GWn" + Change team (ghost)
  *
- * The button is appended inside this element rather than placed beside it so the sentence
- * and its verb can never drift apart at a width where one of them wraps. */
-function renderSquadSource(){
+ * The RIGHT half (free transfers + Suggest transfers) exists only in that last state, and
+ * only once STATE.transfers itself has landed -- see renderTransferBar's old comment,
+ * folded in below, for its own three sub-states (ordinary / no baseline / stale).
+ *
+ * Made and Cost are NOT carried over from the old #transferbar. Made duplicated
+ * #transferpanel's own "Transfers N" heading one bar down -- the SAME count, not a
+ * complementary one, so this bar is where it stopped being shown rather than a second
+ * place it was. Cost -- an active hit, real points already being spent -- is kept: unlike
+ * Made it is not shown anywhere else, and dropping a live point deduction to make the bar
+ * shorter would be losing information the owner did not ask to lose.
+ *
+ * The button is appended inside the text rather than placed beside it so the sentence and
+ * its verb can never drift apart at a width where one of them wraps. */
+function renderTeamBar(){
   const el=document.getElementById('squadsource');
   if(!el) return;
   const imp=STATE.import||{};
@@ -3080,7 +3071,13 @@ function renderSquadSource(){
   if(!imp.open){
     text=openingText;
   } else if(imp.entry){
-    text=`imported from FPL team ${imp.entry} · GW${imp.event}`;
+    /* "Name (id)" per the owner, 2026-08-22 -- the id stays visible even with a name in
+       hand, since it is what a reader would check against their own points-page URL.
+       imp.name is empty only for a session imported before this field existed, or one
+       set directly rather than through a real import (a hand-crafted or test session):
+       falls back to the id alone, the whole banner's previous text, rather than a blank
+       "( 2785902)". */
+    text=`imported from ${imp.name ? `${imp.name} (${imp.entry})` : `FPL team ${imp.entry}`} · GW${imp.event}`;
     btnLabel='Change team';
   } else if(imp.skipped){
     text=openingText;
@@ -3090,11 +3087,43 @@ function renderSquadSource(){
     btnLabel='Import your team'; btnClass='primary';
   }
 
+  // The right half: free transfers and Suggest transfers, only once an entry is on
+  // record AND the server has attached Transfers for it -- the two conditions are the
+  // same one in practice (see this function's own top comment) but checked separately
+  // rather than assumed, the same honest-absence rule every other optional block in
+  // this contract follows.
+  let rightHtml='';
+  const t=STATE.transfers;
+  if(imp.entry && t){
+    const suggestBtn=`<button class="btn sm" id="suggestBtn">Suggest transfers</button>`;
+    if(t.no_baseline){
+      const gw=imp.event||'—';
+      const msg=t.free_hit_base
+        ? `You played a Free Hit in GW${esc(gw)}, so this fifteen goes back after the `+
+          `deadline. We'll count transfers again once your own squad returns — re-import then.`
+        : `We don't have a fifteen to compare this against yet.`;
+      rightHtml=`<span class="dim">${msg}</span>${suggestBtn}`;
+    } else if(t.baseline_stale){
+      rightHtml=`<span class="dim">Your FPL squad has moved on since you imported. `+
+        `Re-import to plan from where you actually are.</span>${suggestBtn}`;
+    } else {
+      const freeTxt=t.free_unknown ? '—'
+        : t.free===-1 ? `unlimited until the GW${esc(imp.next||'—')} deadline`
+        : `${t.free} free`;
+      rightHtml=
+        `<span class="stat"><i class="k">Free transfers</i><b>${freeTxt}</b></span>`+
+        (t.cost>0 ? `<span class="stat"><i class="k">Cost</i><b class="badc">−${t.cost}</b></span>` : '')+
+        suggestBtn;
+    }
+  }
+
   el.innerHTML = esc(text) + (btnLabel
     ? ` <button class="btn sm ${btnClass}" id="squadSourceAction">${esc(btnLabel)}</button>`
-    : '');
+    : '') + rightHtml;
   const actionBtn=document.getElementById('squadSourceAction');
   if(actionBtn) actionBtn.onclick=()=>openImportCard();
+  const suggestBtnEl=document.getElementById('suggestBtn');
+  if(suggestBtnEl) suggestBtnEl.onclick=suggestTransfers;
 
   const opt=document.getElementById('optimise');
   if(opt) opt.disabled = !!S.optimised && !S.saved;
@@ -3134,7 +3163,7 @@ function renderResultsStrip(){
   </div>`;
 }
 
-function renderAll(){renderRail();renderReadout();renderChips();renderSquadSource();renderPitch();renderNewsNudge();renderNewsCallout();renderTransferBar();renderTransferPanel();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderResultsStrip();}
+function renderAll(){renderRail();renderReadout();renderChips();renderTeamBar();renderPitch();renderNewsNudge();renderNewsCallout();renderTransferPanel();renderInstructions();renderPlayers();renderLeftOut();renderNews();renderResultsStrip();}
 
 /* boot fetches the state and draws once.
 
@@ -3158,7 +3187,7 @@ function boot(){
          fetch returns": unhiding #importCard before the fetch resolves would flash it open
          for a reader who has already imported and dismissed it, for however long the
          network takes). Placed before hydrate/renderAll rather than after so their own,
-         finer-grained hidden decisions -- hydrate's importCard branch, renderTransferBar's
+         finer-grained hidden decisions -- hydrate's importCard branch, renderTeamBar's
          absent-STATE.transfers case, renderInstructions' empty-list case -- run in the same
          synchronous tick and are what the browser actually paints; nothing here is ever
          visible in between. Today's behaviour is unchanged (everything shown, since there
@@ -3210,9 +3239,23 @@ if(optimiseBtn) optimiseBtn.onclick=()=>save(pending=>{
  * and it needs no server change: effectiveCfgFrom already builds every squad from
  * whatever the session's own lock/excl lists say, so an empty pair of lists is a build
  * under no session corrections at all. A confirm guards it because there is no undo once
- * the save round-trips -- but only when there is something to lose. */
+ * the save round-trips -- but only when there is something to lose.
+ *
+ * With an entry imported (PENDING.entry set), "the model's honest best" is the WRONG
+ * answer: it hands back a fifteen that is not the reader's team at all, discarding a real
+ * import the same way a bug would. What Reset means there is "put my FPL fifteen back" --
+ * a re-import, exactly what wireTransferReset's own #transferResetBtn already does below:
+ * openImportCard() to populate the panel's input with the standing entry id (see its own
+ * comment), then importTeam() to read it. Reused rather than re-implemented so there is
+ * one "restore the import" action, not two that could drift. */
 const resetBtn=document.getElementById('resetBtn');
 if(resetBtn) resetBtn.onclick=()=>{
+  if(PENDING.entry){
+    if(!confirm('Reset will discard any local changes and put your actual FPL fifteen back. Continue?')) return;
+    openImportCard();
+    importTeam();
+    return;
+  }
   const n=(PENDING.lock||[]).length+(PENDING.excl||[]).length;
   if(n && !confirm(`Reset asks the model for its honest best and forgets what you told it: `+
     `${n} instruction${n===1?'':'s'} will be discarded. Optimise keeps them; Reset does not. Continue?`)) return;

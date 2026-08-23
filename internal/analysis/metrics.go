@@ -1804,10 +1804,20 @@ func (e *Engine) metricsIgnoring(el *fpl.Element, ignoreCode int) PlayerMetrics 
 	// ExpectedMinutes carries the rest factor, so the reported figure and the
 	// rotation_risk band agree with the score. SettledMinutes takes it back out,
 	// for the pool filters — see the field comment.
+	//
+	// It also reads GateMinutesPerMatch over MinutesPerMatch when
+	// shrinkToLeague set one: the eligibility floor asks "does he currently
+	// get picked", a fact about today's team sheet, and must not inherit the
+	// no-prior confidence-shrink that only Score has any business narrowing
+	// — see shrinkToLeague's own comment.
+	gateMinutes := b.MinutesPerMatch
+	if b.GateMinutesSet {
+		gateMinutes = b.GateMinutesPerMatch
+	}
 	m.ExpectedMinutes = b.MinutesPerMatch
-	m.SettledMinutes = b.MinutesPerMatch
+	m.SettledMinutes = gateMinutes
 	if _, f := e.restFactor(el); f > 0 && f < 1 {
-		m.SettledMinutes = b.MinutesPerMatch / f
+		m.SettledMinutes = gateMinutes / f
 	}
 	m.StartShare = b.StartShare
 	m.PriorWeight = b.Weight

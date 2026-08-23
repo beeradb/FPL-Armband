@@ -89,6 +89,16 @@ type session struct {
 	// once FPL's current event has moved past it, the reader's real squad may have
 	// changed and this list is a record of a week that is over, not of what they own.
 	BaseEvent int `json:"basegw,omitempty"`
+	// BaseFreeHit records WHY fromImport left Base empty, when it did: the imported
+	// week was a free hit (see fromImport's own doc comment). Explicit rather than
+	// inferred, after a live incident of the inference: buildTransfersBlock used to
+	// read len(Base)==0 alone as "must have been a free hit" — true of that one path,
+	// but also true of a session that has simply never completed a real import,
+	// misreporting a reader who "just started the game" as having played a chip they
+	// never touched. False (the zero value) for every empty-Base case that is NOT a
+	// free hit, so an omitted field from an older cookie reads as the honest "we don't
+	// know why" rather than a confident wrong guess.
+	BaseFreeHit bool `json:"basefh,omitempty"`
 
 	// Entry is the imported team's FPL entry (Team) id, 0 if nothing has been imported.
 	//
@@ -99,6 +109,12 @@ type session struct {
 	// lives in the per-visitor session cookie instead, the same way Squad and the rest of
 	// this reader's team do.
 	Entry int `json:"entry,omitempty"`
+	// EntryName is that team's FPL name, captured once at import time (fromImport) from
+	// the same Entry fetch that confirmed the id exists — not re-fetched on every page
+	// build. Display-only: nothing here keys anything on it, so a reader who later
+	// renames their FPL team sees the old name until their next import. Empty for a
+	// session imported before this field existed; the client falls back to the id.
+	EntryName string `json:"entry_name,omitempty"`
 	// ImportSkipped records that the reader chose "start fresh" over importing, so the
 	// offer is not shown again on the next reload of the same session.
 	ImportSkipped bool `json:"noimp,omitempty"`
@@ -380,8 +396,9 @@ func (s session) arrangement() viewmodel.Session {
 		// draws), for the identical round-trip reason: PUT /api/session is a full
 		// replace, so the client must echo these back unchanged or the next unrelated
 		// save erases them.
-		Base:      s.Base,
-		BaseEvent: s.BaseEvent,
+		Base:        s.Base,
+		BaseEvent:   s.BaseEvent,
+		BaseFreeHit: s.BaseFreeHit,
 	}
 }
 
@@ -441,22 +458,27 @@ func (s session) applyAction(action string, code int) session {
 //
 // base/baseEvent become the new Base/BaseEvent — the transfer baseline. The caller decides
 // what they are: importTeam step 8 passes the same squad and the imported gameweek for an
-// ordinary import, and (nil, 0) for a free-hit week, whose fifteen goes back after the
-// deadline and so is not a baseline anything can be diffed against. See session.Base's own
-// doc comment.
-func (s session) fromImport(entry int, squad, xi, bench []int, captain, vice int, base []int, baseEvent int) session {
+// ordinary import, and (nil, 0, true) for a free-hit week, whose fifteen goes back after
+// the deadline and so is not a baseline anything can be diffed against. See session.Base's
+// own doc comment. freeHit becomes BaseFreeHit verbatim — it is the caller's own
+// picks.ActiveChip=="freehit" test, not re-derived from base being empty, precisely so a
+// FUTURE reason for an empty base (there is only one today) does not silently relabel
+// itself a free hit the way the inferred version once did.
+func (s session) fromImport(entry int, entryName string, squad, xi, bench []int, captain, vice int, base []int, baseEvent int, freeHit bool) session {
 	return session{
-		Lock:      s.Lock,
-		Exclude:   s.Exclude,
-		Dismissed: s.Dismissed,
-		Chips:     s.Chips,
-		Squad:     squad,
-		XI:        xi,
-		Bench:     bench,
-		Captain:   captain,
-		Vice:      vice,
-		Base:      base,
-		BaseEvent: baseEvent,
-		Entry:     entry,
+		Lock:        s.Lock,
+		Exclude:     s.Exclude,
+		Dismissed:   s.Dismissed,
+		Chips:       s.Chips,
+		Squad:       squad,
+		XI:          xi,
+		Bench:       bench,
+		Captain:     captain,
+		Vice:        vice,
+		Base:        base,
+		BaseEvent:   baseEvent,
+		BaseFreeHit: freeHit,
+		Entry:       entry,
+		EntryName:   entryName,
 	}
 }

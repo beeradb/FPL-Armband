@@ -28,6 +28,7 @@ func getChipTeams(t *testing.T, s *squadServer, cookie *http.Cookie) *httptest.R
 // TestChipTeamsRejectsWrongMethod pins the 405 half of the route's contract.
 func TestChipTeamsRejectsWrongMethod(t *testing.T) {
 	s := fixtureServer(t)
+	s.wildcardEnabled = true // this whole file is /api/wildcard's own contract
 	req := httptest.NewRequest("POST", routeWildcardState, nil)
 	req.Host = "127.0.0.1:8080"
 	w := httptest.NewRecorder()
@@ -46,6 +47,7 @@ func TestChipTeamsRejectsWrongMethod(t *testing.T) {
 // server error.
 func TestChipTeamsAnswers409WithNoOpenGameweek(t *testing.T) {
 	s := fixtureServer(t)
+	s.wildcardEnabled = true // this whole file is /api/wildcard's own contract
 	var latest time.Time
 	for _, e := range s.engine.Boot.Events {
 		if e.DeadlineTime.After(latest) {
@@ -67,6 +69,7 @@ func TestChipTeamsAnswers409WithNoOpenGameweek(t *testing.T) {
 // 500 sentence rather than a stack trace or a wrong squad.
 func TestChipTeamsAnswers500OnABuildFailure(t *testing.T) {
 	s := fixtureServer(t)
+	s.wildcardEnabled = true // this whole file is /api/wildcard's own contract
 	s.cfg.EntryID = 2785902
 	s.engine.Entry = 2785902
 	if len(s.engine.Fixtures) == 0 {
@@ -89,6 +92,7 @@ func TestChipTeamsAnswers500OnABuildFailure(t *testing.T) {
 // refuse.
 func TestChipTeamsGoodRequestAnswersTheExpectedShape(t *testing.T) {
 	s := fixtureServer(t)
+	s.wildcardEnabled = true // this whole file is /api/wildcard's own contract
 
 	w := getChipTeams(t, s, nil)
 	if w.Code != http.StatusOK {
@@ -125,6 +129,7 @@ func TestChipTeamsGoodRequestAnswersTheExpectedShape(t *testing.T) {
 // (the opposite assertion) would use for /api/results.
 func TestChipTeamsIsNotSessionScoped(t *testing.T) {
 	s := fixtureServer(t)
+	s.wildcardEnabled = true // this whole file is /api/wildcard's own contract
 	cookieA := resultsSessionCookie(t, 111)
 	cookieB := resultsSessionCookie(t, 222)
 
@@ -147,6 +152,7 @@ func TestChipTeamsIsNotSessionScoped(t *testing.T) {
 // cache's key.
 func TestPersistingACorrectionInvalidatesTheChipCache(t *testing.T) {
 	s := fixtureServer(t)
+	s.wildcardEnabled = true // this whole file is /api/wildcard's own contract
 	s.persist = true
 	s.cfgPath = filepath.Join(t.TempDir(), "config.json")
 
@@ -167,6 +173,7 @@ func TestPersistingACorrectionInvalidatesTheChipCache(t *testing.T) {
 // Gameweek.Current, and the two must never drift apart.
 func TestNextOpenEventMatchesTheRailsCurrent(t *testing.T) {
 	s := fixtureServer(t)
+	s.wildcardEnabled = true // this whole file is /api/wildcard's own contract
 	req := httptest.NewRequest("GET", routeArmbandTeamState, nil)
 	req.Host = "127.0.0.1:8080"
 	w := httptest.NewRecorder()

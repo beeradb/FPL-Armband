@@ -106,21 +106,45 @@ func TestDiffSquadAgainstBaseIsEmptyForAnUnchangedSquad(t *testing.T) {
 	}
 }
 
-// TestBuildTransfersBlockNoBaseline pins the free-hit / no-baseline path: Base empty means
-// NoBaseline and FreeHitBase both true (see buildTransfersBlock's own comment for why the
-// two are the same condition today), and no moves are computed against nothing.
+// TestBuildTransfersBlockNoBaseline pins the no-baseline path: Base empty always means
+// NoBaseline, and no moves are computed against nothing. FreeHitBase follows
+// sess.BaseFreeHit explicitly (set at import time, fromImport) rather than being inferred
+// from Base being empty — see buildTransfersBlock's own comment for the live incident that
+// inference caused: a reader who had simply never completed a real import read the
+// identical "you played a free hit" message as one who genuinely had.
 func TestBuildTransfersBlockNoBaseline(t *testing.T) {
 	s := fixtureServer(t)
-	sess := session{Entry: 1234567, Squad: fifteenCodes(t, s.engine.Boot)}
+	sess := session{Entry: 1234567, Squad: fifteenCodes(t, s.engine.Boot), BaseFreeHit: true}
 	got := buildTransfersBlock(s.engine, sess, 1, nil)
 	if !got.NoBaseline || !got.FreeHitBase {
-		t.Errorf("got NoBaseline=%v FreeHitBase=%v, want both true with no Base", got.NoBaseline, got.FreeHitBase)
+		t.Errorf("got NoBaseline=%v FreeHitBase=%v, want both true with no Base and BaseFreeHit set",
+			got.NoBaseline, got.FreeHitBase)
 	}
 	if len(got.Moves) != 0 {
 		t.Errorf("got %d moves with no baseline to diff against, want 0", len(got.Moves))
 	}
 	if got.Hits != 0 || got.Cost != 0 {
 		t.Errorf("got hits=%d cost=%d with no baseline, want both 0", got.Hits, got.Cost)
+	}
+}
+
+// TestBuildTransfersBlockNoBaselineWithoutFreeHitDoesNotClaimOne is the fplarmband.com
+// production incident of 2026-08-23: a reader who imported before this field existed, or
+// whose session otherwise never completed a real import, had an empty Base read as "you
+// played a free hit" regardless — the inference buildTransfersBlock used to make from Base
+// alone. sess.BaseFreeHit false (the zero value, and every case that is not an explicit
+// free-hit import) must answer FreeHitBase false, so the client falls through to its own
+// honest "we don't have a fifteen to compare this against yet" instead.
+func TestBuildTransfersBlockNoBaselineWithoutFreeHitDoesNotClaimOne(t *testing.T) {
+	s := fixtureServer(t)
+	sess := session{Entry: 1234567, Squad: fifteenCodes(t, s.engine.Boot)}
+	got := buildTransfersBlock(s.engine, sess, 1, nil)
+	if !got.NoBaseline {
+		t.Error("got NoBaseline=false with an empty Base, want true")
+	}
+	if got.FreeHitBase {
+		t.Error("got FreeHitBase=true with sess.BaseFreeHit unset — claimed a free hit " +
+			"nobody played")
 	}
 }
 

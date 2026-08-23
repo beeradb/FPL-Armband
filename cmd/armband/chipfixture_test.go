@@ -38,6 +38,7 @@ func TestWriteTheWildcardFixtures(t *testing.T) {
 	// chip-unavailable: the fixture's own ordinary clock, before GW1's deadline.
 	// GW1 is state 2 for both chips in the committed capture.
 	unavailable := fixtureServer(t)
+	unavailable.wildcardEnabled = true
 	ct := decodeChipTeams(t, getChipTeams(t, unavailable, nil))
 	writeWildcardFixture(t, base, ct, "chip-unavailable")
 
@@ -45,6 +46,7 @@ func TestWriteTheWildcardFixtures(t *testing.T) {
 	// the capture's bootstrap opens both chips, so this is a genuine rebuild
 	// from the real optimiser over the real capture.
 	available := fixtureServer(t)
+	available.wildcardEnabled = true
 	available.clock = func() time.Time { return time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC) }
 	ct = decodeChipTeams(t, getChipTeams(t, available, nil))
 

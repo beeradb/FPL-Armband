@@ -96,9 +96,6 @@
      ============================================================ -->
 <section id="view-pitch">
 
-  <!-- the score bug: one number is the product -->
-  <div class="scorebug" id="scorebug"></div>
-
   <!-- the chip catalogue's mobile scrim -- <720px it pins to the bottom edge like
        .sheetacts, and this dims what's behind it. Hidden above 720px (armband.css). -->
   <div class="chipscrim" id="chipscrim"></div>
@@ -106,26 +103,16 @@
   <div class="pitchgrid">
   <div class="pitchcol">
 
-    <!-- Provenance row: where the fifteen came from, and the one action to change it. Lives
-         on the page ground (--panel), not on .pitchwrap's turf below -- a control reading as
-         pitch furniture is a control nobody presses. Moved off the turf 2026-08-22: it had
-         been sized down to 24px/11.5px specifically so it would stop competing with Optimise
-         in the HUD, which worked but left the first-run "Import your team" button -- the
-         primary action on an unimported screen -- too quiet to notice. Off the green is the
-         structural fix; the size restore below only works because of it. -->
-    <div class="squadsource dim" id="squadsource"></div>
-
-    <!-- The transfer bar: free transfers, made, cost, and Suggest transfers -- in
-         .pitchcol rather than .pitchside, so a reader moving players sees what it costs
-         WHILE they are moving them. At phone width .pitchside is below the fold under a
-         full pitch and a bench, and a hit discovered by scrolling is a hit discovered
-         after the decision. Not in .pitchhud: that 30px band is already at capacity (the
-         landed record's defect 2), and nothing routine may push the score bug down.
-         #squadsource already answers "where did this fifteen come from"; this is the
-         second half of the same sentence, "and how far has it moved". Built entirely by
-         renderTransferBar() (app.js) from STATE.transfers -- ships empty and hidden, and
-         stays hidden whenever STATE.transfers is absent (no imported entry). -->
-    <div class="transferbar" id="transferbar" hidden></div>
+    <!-- Provenance + transfers, ONE bar: where the fifteen came from, the one action to
+         change it, and -- once an entry is on record -- how many free transfers are left
+         and the one action to spend them. Two bars until 2026-08-23: #squadsource answered
+         "where did this fifteen come from" and a separate #transferbar answered "how far
+         has it moved", stacked, each its own panel. Combined per the owner: one clean bar
+         rather than two adjacent ones saying related things. Lives on the page ground
+         (--panel), not on .pitchwrap's turf below -- a control reading as pitch furniture
+         is a control nobody presses. Built entirely by renderTeamBar() (app.js) from
+         STATE.import and STATE.transfers. -->
+    <div class="squadsource transferbar dim" id="squadsource"></div>
 
     <!-- Import panel: the thing #squadsource's one action button opens. It used to be a
          card that only ever showed once, stranded on the Players tab where nobody browsing
@@ -252,6 +239,16 @@
          dismissed, its own ask is answered, or the News tab is opened by any route -- see
          NUDGE_DISMISSED_KEY's comment for why those three writers share one key. -->
     <div id="pitch-newsnudge"></div>
+
+    <!-- Projected points and budget, anchored directly above the turf they describe --
+         moved here 2026-08-23 from a standalone bar at the top of the page (per the
+         owner: gameweek and chip were already shown elsewhere -- the rail above and
+         #chipctl in the HUD below -- and bench points already sit beside the bench
+         (#benchval), so the bar carrying all five was mostly repeating the page back to
+         itself). Same class as the old top bar (.scorebug), so it inherits that
+         styling verbatim rather than a second definition of it; only what
+         renderReadout() (app.js) fills in changed, not how it is drawn. -->
+    <div class="scorebug" id="scorebug"></div>
 
     <div class="pitch" id="pitch">
       <div class="sixyard"></div><div class="spot"></div>

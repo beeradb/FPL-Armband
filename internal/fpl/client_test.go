@@ -88,8 +88,11 @@ func TestFreeTransfersReconstruction(t *testing.T) {
 		{
 			name: "one gameweek played, nothing spent",
 			json: `{"current":[{"event":1,"event_transfers":0}],"chips":[]}`,
-			want: 2,
-			why:  "the unspent transfer banks and the next gameweek grants another",
+			want: 1,
+			why: "GW1 is squad selection, not a transfer week -- free transfers do not " +
+				"accumulate before GW2, so nothing banks from it. fplarmband.com " +
+				"production incident, 2026-08-23: this read 2 before the fix, a transfer " +
+				"the manager could not possibly have had",
 		},
 		{
 			name: "spending every week leaves one",
@@ -110,8 +113,10 @@ func TestFreeTransfersReconstruction(t *testing.T) {
 			name: "a wildcard week does not consume the allowance",
 			json: `{"current":[{"event":1,"event_transfers":0},{"event":2,"event_transfers":12}],
 			        "chips":[{"name":"wildcard","event":2}]}`,
-			want: 3,
-			why:  "twelve transfers under a wildcard are free and must not zero the balance",
+			want: 2,
+			why: "twelve transfers under a wildcard are free and must not zero the balance " +
+				"-- 1 free transfer into GW2 (GW1 does not bank one, see the case above), " +
+				"untouched by the wildcard, plus GW3's own grant",
 		},
 		{
 			name: "a hit cannot push the balance negative",

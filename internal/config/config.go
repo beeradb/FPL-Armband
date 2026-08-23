@@ -79,6 +79,17 @@ type Config struct {
 	// built around. These bind every solver call and survive between runs.
 	Roster Roster `json:"roster,omitempty"`
 
+	// WildcardEnabled turns on /wildcard and /api/wildcard (what a wildcard
+	// or free hit would buy right now) and the "If we chipped" link that
+	// points at them. False by default, deliberately: an operator's own
+	// config.json omitting the field, or a fresh one written before this
+	// existed, gets the safe answer rather than silently publishing a page
+	// nobody asked to ship yet. Flip it in config.json and reapply — no
+	// rebuild — when ready; unlike ARMBAND_SIGNUPS_DSN this carries no
+	// secret, so it belongs in the operator config that already carries
+	// every other per-deployment toggle rather than in a second mechanism.
+	WildcardEnabled bool `json:"wildcard_enabled"`
+
 	// Criteria are your own rules, passed verbatim to the agent. This is the
 	// main place to encode personal preferences, e.g.
 	//   "Never own more than one Spurs player."
