@@ -481,6 +481,96 @@ func TestConcurrentOverridesAllPersist(t *testing.T) {
 	}
 }
 
+// TestConcurrentSetPlayerStatusMinutesCallsDoNotRaceTheConfirmedReadback is
+// the regression test for a data race an independent review found in the fix
+// for the silent-reset bug above (see Roster.Set's confirmed carry-forward
+// and setPlayerStatusInput.Confirmed's doc comment): the "minutes" branch of
+// set_player_status's handler reads t.Cfg.Roster.MinutesFor(...) back AFTER
+// updateConfig has released t.mu, to discover what Confirmed actually
+// resolved to for the engine update. The tool runner fans a turn's calls out
+// through an errgroup, so a DIFFERENT player's set_player_status call can run
+// updateConfig — which reassigns t.Cfg wholesale — at the exact moment this
+// handler reads it. That is the same torn-read shape minutesOverrideFor
+// exists to prevent on the engine side, just on the config struct instead of
+// the override maps, and it is a genuine `go test -race` finding rather than
+// a hypothetical one. The fix takes t.mu around the readback.
+//
+// This drives real set_player_status calls THROUGH THE TOOL BOUNDARY
+// (BetaTool.Execute), rather than calling updateConfig directly the way
+// TestConcurrentOverridesAllPersist does above, because the race lives
+// specifically in the tool handler's post-updateConfig readback, which a
+// direct updateConfig call never reaches. Run with -race.
+func TestConcurrentSetPlayerStatusMinutesCallsDoNotRaceTheConfirmedReadback(t *testing.T) {
+	tb := testToolbox(t)
+	tb.ConfigPath = filepath.Join(t.TempDir(), "config.json")
+
+	tool, err := tb.setPlayerStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var codes []int
+	var names []string
+	for i := range tb.Engine.Boot.Elements {
+		el := tb.Engine.Boot.Elements[i]
+		if el.Code == 0 {
+			continue
+		}
+		codes = append(codes, el.Code)
+		names = append(names, el.WebName)
+		if len(codes) == 6 {
+			break
+		}
+	}
+	if len(codes) < 6 {
+		t.Skip("not enough players")
+	}
+
+	call := func(name string, minutes float64, confirmed *bool) {
+		in := setPlayerStatusInput{
+			Player: name, Mode: "minutes", Reason: "concurrency test",
+			Minutes: &minutes, Confirmed: confirmed,
+		}
+		raw, err := json.Marshal(in)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		if _, err := tool.Execute(context.Background(), raw); err != nil {
+			t.Error(err)
+		}
+	}
+
+	trueVal := true
+	var wg sync.WaitGroup
+	for i, name := range names {
+		wg.Add(1)
+		go func(name string, i int) {
+			defer wg.Done()
+			// Alternate an explicit confirmed with an omitted one, so both the
+			// carry-forward path and the explicit path exercise the readback
+			// under concurrent writers to OTHER players.
+			for j := 0; j < 20; j++ {
+				call(name, float64(60+i), &trueVal)
+				call(name, float64(60+i), nil)
+			}
+		}(name, i)
+	}
+	wg.Wait()
+
+	// Every player must have survived — the point of this test is the race
+	// detector, but a lock that serialised writes into oblivion would pass
+	// -race and still be a regression.
+	saved, err := config.Load(tb.ConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Roster.Minutes) != len(codes) {
+		t.Errorf("%d of %d minutes overrides survived; concurrent writes are racing",
+			len(saved.Roster.Minutes), len(codes))
+	}
+}
+
 // TestSuppliedSquadStillGetsTheBank — the balance must not depend on who
 // supplied the fifteen.
 //

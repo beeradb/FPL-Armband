@@ -1665,7 +1665,16 @@ func (t *Toolbox) rosterSets() (lock, start, exclude []int, notes []string) {
 		el := &t.Engine.Boot.Elements[i]
 		byCode[el.Code] = el.ID
 	}
+	// Guarded: t.Cfg is reassigned wholesale by updateConfig, under t.mu, and
+	// the tool runner fans a turn's calls out through an errgroup — so another
+	// tool call's config write can land in the middle of this read. This is the
+	// same torn-read shape minutesOverrideFor exists to prevent on the engine
+	// side, just on the config struct rather than the override maps.
+	// TestConcurrentSetPlayerStatusMinutesCallsDoNotRaceTheConfirmedReadback
+	// found it live, under -race, through this exact call.
+	t.mu.Lock()
 	lockOs, excludeOs, expired := t.Cfg.Roster.Active(gw)
+	t.mu.Unlock()
 	for _, o := range lockOs {
 		id, ok := byCode[o.Code]
 		if !ok {
@@ -1784,10 +1793,21 @@ func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
 				// the existing override) as the one thing t.Cfg now records.
 				// Recomputing it a second time here is exactly the kind of copy
 				// this project has seen drift.
+				//
+				// Taken under t.mu, deliberately a second, separate acquisition
+				// from updateConfig's own: the tool runner fans a turn's calls
+				// out through an errgroup, so another set_player_status call for
+				// a different player can reassign t.Cfg — a whole-struct copy —
+				// between this handler's updateConfig call returning and this
+				// read. An unguarded read here is the exact torn-read shape
+				// minutesOverrideFor exists to prevent on the engine side, just
+				// on Cfg instead of the override maps.
+				t.mu.Lock()
 				confirmed := false
 				if existing, ok := t.Cfg.Roster.MinutesFor(el.Code); ok {
 					confirmed = existing.Confirmed
 				}
+				t.mu.Unlock()
 				t.Engine.SetMinutesOverride(el.Code, *in.Minutes, in.Until, confirmed)
 			} else if mode == "clear" {
 				t.Engine.ClearMinutesOverride(el.Code)
