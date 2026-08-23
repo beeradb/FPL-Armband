@@ -30,10 +30,14 @@ recorded**, and a result that leans on it carries that caveat.
 ## The directory names are labels, not pointers
 
 The `<date>-<sha>` subdirectories are the snapshot directories these came from, kept so a reader can
-tell which sweep produced which cells. ⚠️ **After the planned history rewrite those SHAs will name
-commits that no longer exist.** They are retained anyway, as labels that group cells by the run that
-produced them — **do not try to resolve one, and do not renumber them to match a new history**, which
-would assert a provenance that was never true.
+tell which sweep produced which cells. ⚠️ **CORRECTED 2026-08-22: this was written in the future
+tense about a rewrite that had already happened.** The 2026-08-16 history reset (one root commit,
+`61bf00a`) means most of these SHAs already name commits absent from the published repository —
+recount before quoting one; some predate the reset entirely and never resolve, others survived it as
+directory names carried forward with the data. Either way: **do not try to resolve one, and do not
+renumber them to match a new history**, which would assert a provenance that was never true. The same
+rule applies to `reviews/`'s 79 SHA-keyed directories — see `reviews/README.md` for the dated note
+recording why.
 
 ## Adding to this directory
 

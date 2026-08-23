@@ -8,16 +8,36 @@ haul — the column people quote, and the one that misleads, for a reason that i
 arithmetic rather than a flaw. And most of the constants inside it cannot be
 shown to be optimal, because six seasons of football is not enough data to tell.
 
-Every **model** figure on this page comes from the dated accuracy snapshot in
-[`stats/snapshots/`](../stats/snapshots), which is **generated rather than
-remembered** — regenerated from the diagnostics on every scoring change, stamped
-with the commit and the constants in force. Most figures here are from
-`stats/snapshots/2026-08-10-27740ba`, which is live in the tree and an ancestor
-of `main`. That snapshot is a four-season run and predates some later changes,
-notably the chip modelling. It stays until this page is re-rendered, rather than
-being silently swapped for numbers nobody decided on. Where a section has since
+Every **model** figure on this page comes from a dated accuracy snapshot, which is
+**generated rather than remembered** — regenerated from the diagnostics on every
+scoring change, stamped with the commit and the constants in force. As of
+2026-08-22 the series publishes as a GitHub Release on every push to `main`
+(`.github/workflows/snapshot.yml`) rather than living in the tree — see
+[Releases](https://github.com/beeradb/FPL-Armband/releases) for the current
+record.
+
+⚠️ **The citation below is UNVERIFIABLE as of 2026-08-22, marked rather than
+silently fixed.** Most figures here were from `stats/snapshots/2026-08-10-27740ba`,
+which this page called "live in the tree and an ancestor of `main`" — that was
+already false when the accuracy series still lived in the tree: `27740ba` predates
+the 2026-08-16 history reset and has never resolved on the repository's published
+history (`gh api repos/beeradb/FPL-Armband/commits/27740ba` → 422, checked
+2026-08-22). The directory papered over an already-broken citation; removing it
+as part of externalising the series did not break anything that still worked.
+
+**The headline figures below (29% ordering improvement, 2.6-point bias, 15%
+over-prediction, line-ball with a five-game average on hauls) are retained as
+historical claims, not confirmed against a currently-resolvable snapshot.**
+Whoever next touches this page should re-run the diagnostics
+(`stats/README.md`'s "Snapshots" section) and re-cite a current Release rather
+than assume these numbers still hold — six seasons of football and several scoring
+changes separate this snapshot from `main` today. That snapshot was a four-season
+run and predates some later changes, notably the chip modelling, which is a
+second, independent reason not to treat it as current. Where a section has since
 been re-measured it cites its own snapshot directly — the clean-sheet section is
-the one that has. If this page and a snapshot disagree, the snapshot is right.
+the one that has, and `stats/snapshots/2026-08-15-clean-sheet-2x2/` still exists
+in the tree (it is evidence for a closed finding, not part of the accuracy
+series, and was not touched by the 2026-08-22 removal).
 
 The **harness thresholds** below come from a second source, not that snapshot:
 `stats/out/<sweep>/mde.csv`, rebuilt from committed cells by

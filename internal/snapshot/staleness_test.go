@@ -41,11 +41,25 @@ import (
 //
 // # What to do when this fails
 //
+// ⚠️ **Locally, this now fails on every clean clone, and that is correct — see "The one
+// legitimate absence" below.** Run `FPL_SNAPSHOTS_EXTERNAL=1 go test ./...` to work on
+// anything else. To actually check whether your change moved a figure:
+//
 //	FPL_MODEL_CSV=/tmp/model.csv DIAG=1 go test ./internal/backtest -count=1 \
 //	  -run 'TestDiagCalibrationDrift|TestDiagCleanSheetPoisson|TestDiagPredictionBenchmark|TestDiagNextFivePredictors|TestDiagSixty|TestDiagDefconBias|TestDiagTeamBlend|TestDiagTransferError' \
 //	  -timeout 120m
-//	go run ./cmd/armband snapshot -model /tmp/model.csv
-//	git add stats/snapshots/<new> && git commit ...
+//	go run ./cmd/armband snapshot -model /tmp/model.csv -out /tmp/my-snapshot
+//
+// ⚠️ **Do NOT `git add` the result, and do not let it land under `stats/snapshots/`.**
+// Until 2026-08-22 the second half of this recipe was `git add stats/snapshots/<new> &&
+// git commit`, and every session that followed it literally — this one included, more
+// than once — added another directory to a series that .github/workflows/snapshot.yml
+// already publishes as a Release asset on every push to `main`. 117 of them accumulated
+// this way before anyone noticed the workflow existed. Pass `-out` somewhere outside the
+// repo (the default is `stats/snapshots`, which `.gitignore` now refuses the four
+// canonical files under, precisely so this mistake fails loudly instead of committing
+// cleanly again) and read the rendered `snapshot.md` to see what moved. CI produces and
+// publishes the real record; this is for your own eyes only.
 //
 // ⚠️ **`-count=1` is load-bearing and was missing from this recipe until 2026-08-15.**
 // Without it the SECOND invocation on an unchanged tree returns `ok (cached)`, runs
