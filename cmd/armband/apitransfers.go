@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -52,11 +53,6 @@ func (s *squadServer) apiTransfers(w http.ResponseWriter, r *http.Request) {
 			http.StatusConflict)
 		return
 	}
-	if len(sess.Squad) != 15 {
-		http.Error(w, "Your fifteen is incomplete, so there is no squad to suggest "+
-			"transfers for.", http.StatusConflict)
-		return
-	}
 
 	entry, err := s.entryCached(r.Context(), sess.Entry)
 	if err != nil {
@@ -103,15 +99,22 @@ func (s *squadServer) apiTransfers(w http.ResponseWriter, r *http.Request) {
 	// s.mu.
 	defer s.lockRender("transfers")()
 
-	// sess.Entry, not cfg.EntryID: this is the READER's own squad. sess.Squad, not the
-	// picks just fetched above: the reader has been editing, and the picks are what FPL
-	// holds, not what is on screen. sell is nil — sell-at-market — because
-	// engine.SellPrices is cfg.EntryID's OWN purchase history and handing it to a
-	// visitor's search would apply the house team's prices to a stranger's players. See
-	// buildTransferBoard's own comment for all three.
+	// sess.Entry, not cfg.EntryID: this is the READER's own squad. The reader's CURRENT
+	// pitch, not the picks just fetched above: the reader has been editing, and the
+	// picks are what FPL holds, not what is on screen. sell is nil — sell-at-market —
+	// because engine.SellPrices is cfg.EntryID's OWN purchase history and handing it to
+	// a visitor's search would apply the house team's prices to a stranger's players.
+	// See buildTransferBoard's own comment for all three.
 	cfg := s.effectiveCfgFrom(sess)
+	squad, err := s.resolvedSquadCodes(r.Context(), cfg, sess)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "serve: transfers: resolving the current squad: %v\n", err)
+		http.Error(w, "the suggestion could not be built just now — try again",
+			http.StatusInternalServerError)
+		return
+	}
 	board, why := buildTransferBoard(r.Context(), cfg, s.client, s.engine,
-		sess.Entry, sess.Squad, nil)
+		sess.Entry, squad, nil)
 	if board == nil {
 		fmt.Fprintf(os.Stderr, "serve: transfers: %s\n", why)
 		http.Error(w, "the suggestion could not be built just now — try again",
@@ -133,6 +136,47 @@ func (s *squadServer) apiTransfers(w http.ResponseWriter, r *http.Request) {
 	// same rule stated for /api/state.
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(body)
+}
+
+// resolvedSquadCodes is the reader's current fifteen, by permanent code — sess.Squad
+// directly when the reader has one explicitly stored, or the live-optimised default
+// buildSquadPage would build otherwise.
+//
+// An empty sess.Squad is the ORDINARY state after Optimise or Reset, not a broken one —
+// see session's own doc comment on why the fifteen is only stored once a reader diverges
+// from the model's live answer, to avoid re-running the optimiser on every reload. Before
+// this existed, apiTransfers refused outright whenever sess.Squad was empty ("Your
+// fifteen is incomplete"), which fired for exactly this ordinary case and any reader who
+// had imported a team and then pressed Reset, rather than only for a genuinely corrupt
+// session. buildTransferBoard needs an explicit fifteen and must not re-derive one from
+// FPL's picks (see its own comment: the reader may have edited), so this is the one place
+// that resolves "sess -> current pitch" the way buildState/answerState already do for the
+// main page, rather than a second belief about what "current" means.
+func (s *squadServer) resolvedSquadCodes(ctx context.Context, cfg config.Config, sess session) ([]int, error) {
+	if len(sess.Squad) == 15 {
+		return sess.Squad, nil
+	}
+	b, err := buildSquadPage(ctx, cfg, s.client, s.engine, pageOpts{
+		Weeks:     s.weeks,
+		WantPage:  false,
+		Now:       s.now(),
+		Fixed:     sess.Squad,
+		Seed:      sess.Seed,
+		Optimised: sess.Optimised,
+		Arrange: arrangement{
+			XI: sess.XI, Bench: sess.Bench, Captain: sess.Captain, Vice: sess.Vice,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	codes := make([]int, 0, len(b.Squad.Players))
+	for _, p := range b.Squad.Players {
+		if el := s.engine.Boot.ElementByID(p.ID); el != nil {
+			codes = append(codes, el.Code)
+		}
+	}
+	return codes, nil
 }
 
 // transferDoc is GET /api/transfers' whole response body. A standalone shape rather than
