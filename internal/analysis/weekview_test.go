@@ -93,6 +93,45 @@ func TestBlanksReadTheWeeksOwnSquad(t *testing.T) {
 
 // bootWithFinished is a bootstrap whose only meaningful content is how many
 // gameweeks have finished, which is all GameweeksPlayed reads.
+// TestRebuildCaveatDoesNotDenyFootballThatHasBeenPlayed pins the seventh
+// instance of the live-gameweek-gap family (see inLiveGameweekGap's comment).
+//
+// GameweeksPlayed counts FINISHED events, and FPL does not mark a gameweek
+// finished until bonus is locked, hours after the last whistle. In that span the
+// counter reads 0 while every match has in fact been played — and the aggregates
+// already carry those minutes, so the fifteen has visibly moved on them. Saying
+// "No gameweek has been played" there is false twice: about the football, and
+// about what the picks rest on.
+//
+// Observed live on 2026-08-24 on fplarmband.com/wildcard, with all ten GW1
+// matches played and the squad changing on that data underneath the sentence
+// denying it existed.
+func TestRebuildCaveatDoesNotDenyFootballThatHasBeenPlayed(t *testing.T) {
+	e := &Engine{}
+	e.Weights.BlendMinutesK = 5
+
+	// The gap: no event finished, but a fixture has kicked off.
+	e.Boot = bootWithFinished(0)
+	e.Fixtures = []fpl.Fixture{{Started: true}}
+
+	got := e.rebuildCaveat()
+	if strings.Contains(got, "No gameweek has been played") {
+		t.Errorf("caveat during the live gameweek gap = %q\n"+
+			"want it NOT to claim no gameweek has been played — ten matches had been "+
+			"when this was observed live", got)
+	}
+	if !strings.Contains(got, "not final") {
+		t.Errorf("caveat during the gap = %q, want it to say the gameweek is under way "+
+			"but not final", got)
+	}
+
+	// Genuinely pre-season — nothing kicked off — still gets the original wording.
+	e.Fixtures = []fpl.Fixture{{Started: false}}
+	if got := e.rebuildCaveat(); !strings.Contains(got, "No gameweek has been played") {
+		t.Errorf("pre-season caveat = %q, want the original no-football wording", got)
+	}
+}
+
 func bootWithFinished(n int) *fpl.Bootstrap {
 	b := &fpl.Bootstrap{}
 	for i := 1; i <= 38; i++ {
