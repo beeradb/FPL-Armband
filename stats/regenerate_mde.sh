@@ -90,6 +90,9 @@ run() {
   if Rscript stats/variance_components.R --out="$OUT/$label" "$cells" \
       > "$OUT/$label.log" 2>&1; then
     echo "  ok    $label"
+    # mde_aggregate.py's staleness check needs this sweep's provenance sidecar,
+    # and the sidecar lives beside the cells file, which is known only here.
+    echo "$cells" > "$OUT/$label/source_cells.txt"
   else
     # A sweep whose arms are byte-identical on a metric has zero variance there and
     # R cannot fit it. That is a real property of the arm, not a failure of this

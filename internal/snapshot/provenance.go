@@ -33,6 +33,34 @@ type Provenance struct {
 	DeclaredArms []string // every arm the sweep intended to run, in order
 	Constants    []Constant
 	Env          []Constant
+	// WatchedDigest and WatchedPaths are WatchedDigest's composite and per-path
+	// breakdown (see watched.go) over SnapshotWatchedPaths at Commit. Neither
+	// Commit nor Digest above can answer "is this banked cells file stale":
+	//
+	//   - Commit is a history pointer, and this repository's history was
+	//     squashed at 61bf00a ("FPL Armband v1", 2026-08-16). A commit banked
+	//     before that root is not an ancestor of anything on origin/main any
+	//     more, so `git merge-base --is-ancestor` returns false for it forever
+	//     — not because the content changed, but because the pointer was cut
+	//     loose. Most commit SHAs sitting in banked sidecars are in this state.
+	//   - Digest (constants_digest, from FingerprintOf) hashes config.json's
+	//     modelSubtrees plus env switches — see fingerprint.go — and nothing
+	//     else. It is structurally blind to a change in internal/analysis or
+	//     internal/backtest, since neither is walked to produce it: the code
+	//     that turns those constants into a score can change completely and
+	//     this digest does not move. It is also a false-positive detector in
+	//     the other direction — congestion.status_last_verified is a plain
+	//     documentary date under the "congestion" modelSubtree (see
+	//     internal/analysis/congestion.go's LastVerified, read nowhere) that
+	//     moves this digest without moving anything the model computes.
+	//
+	// WatchedDigest is a content digest over the code and shipped constants
+	// (see watched.go's own comment for why it survives a rebase and the
+	// squash that Commit cannot). Absent on every sidecar written before this
+	// field existed — that is reported as "unknown" by the reader, not
+	// silently treated as a match or a mismatch.
+	WatchedDigest string
+	WatchedPaths  []Constant
 }
 
 const provenanceSuffix = ".provenance.csv"
@@ -97,6 +125,12 @@ func WriteProvenance(path string, p Provenance) error {
 	}
 	for _, c := range p.Env {
 		put("env", c.Path+"\t"+c.Value)
+	}
+	if p.WatchedDigest != "" {
+		put("watched_digest", p.WatchedDigest)
+	}
+	for _, c := range p.WatchedPaths {
+		put("watched_path", c.Path+"\t"+c.Value)
 	}
 	w.Flush()
 	return w.Error()
@@ -164,6 +198,10 @@ func ReadProvenance(path string) (map[string]Provenance, error) {
 			p.Constants = append(p.Constants, Constant{Path: name, Value: rest})
 		case "env":
 			p.Env = append(p.Env, Constant{Path: name, Value: rest})
+		case "watched_digest":
+			p.WatchedDigest = v
+		case "watched_path":
+			p.WatchedPaths = append(p.WatchedPaths, Constant{Path: name, Value: rest})
 		}
 		out[key] = p
 	}

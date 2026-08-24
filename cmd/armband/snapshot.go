@@ -47,6 +47,10 @@ Flags:
   -note string       A caveat to stamp in. Repeatable.
   -no-r              Do not run the R inference; read whatever is already in -inference
   -constants         Print the constants in force at each sweep and exit
+  -watched-digest    Print WatchedDigest's composite over SnapshotWatchedPaths at
+                     HEAD and exit. This is the value stats/mde_aggregate.py shells
+                     out for, to compare against what a banked sweep's provenance
+                     sidecar recorded — see snapshot.Provenance.WatchedDigest.
   -previous string   Diff against this snapshot directory instead of the latest
 
 Every path is optional and a missing input is reported in the snapshot rather
@@ -88,11 +92,13 @@ func runSnapshot(cfg config.Config, args []string) error {
 		// -inference is different and *is* ignored at the directory level: stats/out
 		// holds R's intermediate tables, which are re-derivable from the same CSV on
 		// demand and were never meant to be committed even before this change.
-		outRoot   = fs.String("out", filepath.Join("stats", "snapshots"), "snapshot root")
-		infDir    = fs.String("inference", filepath.Join("stats", "out"), "R output directory")
-		noR       = fs.Bool("no-r", false, "do not run the R inference")
-		showConst = fs.Bool("constants", false, "print the constants in force and exit")
-		prevDir   = fs.String("previous", "", "diff against this snapshot directory")
+		outRoot    = fs.String("out", filepath.Join("stats", "snapshots"), "snapshot root")
+		infDir     = fs.String("inference", filepath.Join("stats", "out"), "R output directory")
+		noR        = fs.Bool("no-r", false, "do not run the R inference")
+		showConst  = fs.Bool("constants", false, "print the constants in force and exit")
+		showDigest = fs.Bool("watched-digest", false,
+			"print the current watched digest for HEAD and exit")
+		prevDir = fs.String("previous", "", "diff against this snapshot directory")
 	)
 	var cellPaths, notes stringList
 	fs.Var(&cellPaths, "cells", "per-cell CSV from a sweep; repeatable")
@@ -100,6 +106,24 @@ func runSnapshot(cfg config.Config, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+
+	if *showDigest {
+		// The one thing a caller outside Go needs and cannot compute itself
+		// without a second implementation of WatchedDigest's walk. See that
+		// function's own comment for why the digest has to be Go's, and
+		// stats/mde_aggregate.py for the caller.
+		root, err := snapshot.RepoRoot(".")
+		if err != nil {
+			return err
+		}
+		digest, _, err := snapshot.WatchedDigest(root, "HEAD", snapshot.SnapshotWatchedPaths)
+		if err != nil {
+			return err
+		}
+		fmt.Println(digest)
+		return nil
+	}
+
 	if len(cellPaths) == 0 {
 		cellPaths = stringList{"/tmp/cells.csv"}
 	}

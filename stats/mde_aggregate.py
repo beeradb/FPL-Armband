@@ -31,6 +31,7 @@ import csv
 import glob
 import os
 import statistics
+import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -114,6 +115,134 @@ def summarise(label, rows, estimator):
           f"  range {min(vals):5.1f}-{max(vals):6.1f}")
 
 
+# --- staleness: is a banked sweep's provenance still true of the code at HEAD? -----
+#
+# `commit` and `constants_digest` — the two fields `stats/*.provenance.csv` carried
+# before this — both fail at this job. `commit` is a history pointer, and this
+# repository's history was squashed at 61bf00a ("FPL Armband v1", 2026-08-16); a
+# commit banked before that root is not an ancestor of anything on origin/main any
+# more, `git merge-base --is-ancestor` says so forever, and that is a property of
+# the pointer rather than of the content. `constants_digest` hashes config.json's
+# modelSubtrees and env switches (see internal/snapshot/fingerprint.go) and nothing
+# else, so it cannot see a change to internal/analysis or internal/backtest by
+# construction — and it moves on congestion.status_last_verified, a documentary date
+# nothing reads, which is a false positive in the other direction.
+#
+# `watched_digest` (internal/snapshot/watched.go's `WatchedDigest`, over
+# `SnapshotWatchedPaths`) is content over the code and the shipped constants
+# together, and it is what `armband snapshot` already keys an accuracy snapshot's
+# staleness on. This wires the same digest to sweep provenance.
+#
+# The comparison is one-directional and cannot be reimplemented here: the digest's
+# definition lives in exactly one place, `internal/snapshot/watched.go`, and a second
+# walk in Python duplicating it is precisely the "one quantity, two implementations"
+# failure this project's own comments name repeatedly. So the current digest is
+# asked of the Go binary that already computes it, once per run, and every sweep
+# below is compared against that one answer.
+
+
+def head_watched_digest():
+    """WatchedDigest's composite over SnapshotWatchedPaths at HEAD, via
+    `armband snapshot -watched-digest` (cmd/armband/snapshot.go).
+
+    Returns (digest, None) on success or (None, reason) on failure. Failure is
+    not fatal to the run — see the caller — because a banked cells file is
+    useful evidence even on a machine that cannot build the Go binary; it just
+    means every sweep reports "unknown" instead of a real comparison.
+    """
+    try:
+        out = subprocess.run(
+            ["go", "run", "./cmd/armband", "snapshot", "-watched-digest"],
+            cwd=ROOT, capture_output=True, text=True, timeout=180)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return None, f"could not run armband snapshot -watched-digest: {e}"
+    if out.returncode != 0:
+        return None, f"armband snapshot -watched-digest failed: {out.stderr.strip()}"
+    digest = out.stdout.strip()
+    if not digest:
+        return None, "armband snapshot -watched-digest printed nothing"
+    return digest, None
+
+
+def provenance_path(cells):
+    """Mirrors snapshot.ProvenancePath (internal/snapshot/provenance.go): trim
+    a trailing .csv, append .provenance.csv. Nothing outside Go read provenance
+    until this script did, so this is the second implementation of that rule —
+    kept to the exact same trim-and-append Go uses, not the anchored-regex form
+    that once let this rule and R's disagree.
+    """
+    base = cells[:-4] if cells.endswith(".csv") else cells
+    return base + ".provenance.csv"
+
+
+def source_cells(label):
+    """The cells path `stats/regenerate_mde.sh` ran for this sweep label.
+
+    Written by that script's `run()` into `$OUT/<label>/source_cells.txt`,
+    because this script only ever sees `$OUT/<label>/mde.csv` and has no other
+    way to find the sidecar beside the cells file that produced it.
+    """
+    p = os.path.join(OUT, label, "source_cells.txt")
+    if not os.path.isfile(p):
+        return None
+    with open(p) as fh:
+        return fh.read().strip()
+
+
+def banked_watched_digest(cells):
+    """The most recently written `watched_digest` row in cells' provenance
+    sidecar, or None if the sidecar is missing or predates this column —
+    every sidecar banked before this change.
+    """
+    if cells is None:
+        return None
+    path = provenance_path(cells)
+    if not os.path.isfile(path):
+        return None
+    digest = None
+    with open(path, newline="") as fh:
+        for row in csv.DictReader(fh):
+            if row.get("key") == "watched_digest" and row.get("value"):
+                digest = row["value"]
+    return digest
+
+
+def report_staleness(sweeps):
+    """Print, per sweep, whether its banked watched_digest matches HEAD's —
+    and an unmissable summary. Never raises and never exits non-zero: a banked
+    cells file predating this change is expected to mismatch, that is a fact
+    about when it was measured rather than a bug in this script, and the tool
+    stays useful on every cells file already on disk.
+    """
+    print("\nProvenance vs the code at HEAD (watched_digest, internal/snapshot/watched.go):")
+    head_digest, head_err = head_watched_digest()
+    if head_err:
+        print(f"  (!) could not compute HEAD's watched digest: {head_err}")
+        print("      every sweep below is reported unknown as a result.")
+
+    stale = matched = unknown = 0
+    for label in sweeps:
+        cells = source_cells(label)
+        banked = banked_watched_digest(cells)
+        if head_digest is None or banked is None:
+            why = "no source_cells.txt (rerun via regenerate_mde.sh)" if cells is None \
+                else ("no provenance sidecar" if not os.path.isfile(provenance_path(cells))
+                      else "sidecar predates the watched_digest column")
+            print(f"  {label:20} unknown   ({why})")
+            unknown += 1
+        elif banked == head_digest:
+            print(f"  {label:20} match")
+            matched += 1
+        else:
+            print(f"  {label:20} *** STALE ***   banked {banked} != HEAD {head_digest}")
+            stale += 1
+
+    print(f"  -> {stale} STALE, {matched} match, {unknown} unknown, of {len(sweeps)} sweeps")
+    if stale:
+        print("     STALE means the code or shipped constants moved since that sweep was "
+              "run — the thresholds below may not describe the code at HEAD.")
+
+
 def main():
     rows, cols = load()
     if not rows:
@@ -133,6 +262,8 @@ def main():
     print(f"wrote {os.path.relpath(AGG, ROOT)} — {len(arms)} arm rows "
           f"from {len(sweeps)} sweeps")
     print(f"  {', '.join(sweeps)}")
+
+    report_staleness(sweeps)
 
     metric = [r for r in arms if r.get("metric") in ("hold", "policy")]
     four = [r for r in metric if grid_seasons(r) == 4]

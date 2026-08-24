@@ -12,6 +12,8 @@ package backtest
 
 import (
 	"os"
+	"path/filepath"
+	"sort"
 	"testing"
 
 	"armband/internal/config"
@@ -41,6 +43,30 @@ func writeSweepProvenance(t *testing.T, sweep string, sink *cellSink,
 	}
 	sha, dirty := snapshot.GitState(".")
 
+	// commit and constants_digest both fail as staleness detectors on this
+	// project's own banked cells — see Provenance.WatchedDigest's comment for
+	// why. WatchedDigest is computed the same way `armband snapshot` computes
+	// it for an accuracy snapshot: root the paths at the repo root, digest HEAD.
+	root, err := snapshot.RepoRoot(".")
+	if err != nil {
+		t.Errorf("cells written without a watched digest: %v", err)
+		return
+	}
+	watchedDigest, perPath, err := snapshot.WatchedDigest(root, "HEAD", snapshot.SnapshotWatchedPaths)
+	if err != nil {
+		t.Errorf("cells written without a watched digest: %v", err)
+		return
+	}
+	paths := make([]string, 0, len(perPath))
+	for p := range perPath {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	var watchedPaths []snapshot.Constant
+	for _, p := range paths {
+		watchedPaths = append(watchedPaths, snapshot.Constant{Path: p, Value: perPath[p]})
+	}
+
 	seasons := make([]string, 0, len(pairs))
 	for _, p := range pairs {
 		// "played<-priors from", because a replay's model is built from the prior
@@ -65,8 +91,67 @@ func writeSweepProvenance(t *testing.T, sweep string, sink *cellSink,
 		Commit: sha, Dirty: dirty, Digest: fp.Digest,
 		Seasons: seasons, StartGWs: starts, BankUpTo: bank,
 		DeclaredArms: arms, Constants: fp.Constants, Env: fp.Env,
+		WatchedDigest: watchedDigest, WatchedPaths: watchedPaths,
 	})
 	if err != nil {
 		t.Errorf("cells written without provenance: %v", err)
+	}
+}
+
+// TestWriteSweepProvenanceRecordsTheWatchedDigest pins that a live sweep's
+// sidecar carries the same watched digest WatchedDigest computes directly for
+// HEAD — the value stats/mde_aggregate.py's staleness check reads.
+//
+// Runs against this checkout rather than a synthetic fixture, and skips if it
+// is not a git checkout, matching TestEverySnapshotCandidateCarriesAKey and
+// TestAKeyDescribesTheCommitItNames in internal/snapshot/watched_test.go.
+func TestWriteSweepProvenanceRecordsTheWatchedDigest(t *testing.T) {
+	if _, err := snapshot.RepoRoot("."); err != nil {
+		t.Skipf("not a git checkout: %v", err)
+	}
+
+	dir := t.TempDir()
+	cells := filepath.Join(dir, "cells.csv")
+	t.Setenv("FPL_CELLS", cells)
+
+	sink, err := openCellSink(cells)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sink.close()
+
+	cfg := config.Config{}
+	pairs := []seasonPair{{PriorName: "2023-24", Name: "2024-25"}}
+	starts := []int{1}
+	variants := []policyVariant{{label: "shipped"}}
+
+	writeSweepProvenance(t, "WATCHEDTEST#1", sink, cfg, variants, pairs, starts)
+	if t.Failed() {
+		t.Fatal("writeSweepProvenance reported a failure before this test could check anything")
+	}
+
+	prov, err := snapshot.ReadProvenance(snapshot.ProvenancePath(cells))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, ok := prov["WATCHEDTEST#1\x00"+sink.run()]
+	if !ok {
+		t.Fatal("no provenance record for the sweep just written")
+	}
+	if p.WatchedDigest == "" {
+		t.Fatal("WatchedDigest was not recorded")
+	}
+
+	root, err := snapshot.RepoRoot(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, _, err := snapshot.WatchedDigest(root, "HEAD", snapshot.SnapshotWatchedPaths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.WatchedDigest != want {
+		t.Errorf("recorded watched digest %s does not match WatchedDigest(HEAD) %s",
+			p.WatchedDigest, want)
 	}
 }
