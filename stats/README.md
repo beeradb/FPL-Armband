@@ -932,7 +932,7 @@ What it buys is degrees of freedom, and the honest arithmetic is:
 and `HOLD`'s own 33 becomes about 22 on the six that ship and about 19 on the seven.
 **POLICY gains nothing** from the seventh: the season 2018-19 unlocks
 is 2019-20, which POLICY has to exclude anyway, so POLICY has six usable seasons either
-way. And the 23 assumes the seventh cell is as quiet as the four that ship, which a
+way. And the 23 assumes the seventh cell is as quiet as the six that ship, which a
 backfilled season is not — read it as the figure if the cells were equivalent.
 
 ### What is checked instead, and it is stronger than it sounds

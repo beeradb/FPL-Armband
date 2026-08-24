@@ -268,18 +268,27 @@ func extendedPairNames() [][2]string {
 // degrees of freedom and no number of entry points moves it. The threshold scales as
 // t_crit(S-1)/sqrt(S):
 //
-//	seasons  df  t_crit  scale vs today  the canonical 39/season becomes
-//	4 (ships) 3   3.182   1.000           39
-//	6         5   2.571   0.660           26
-//	7         6   2.447   0.581           23
+//	seasons        df  t_crit  scale vs FOUR  the canonical 39/season becomes
+//	4 (historical) 3   3.182   1.000          39
+//	6 (ships)      5   2.571   0.660          26
+//	7              6   2.447   0.581          23
 //
-// and `HOLD`'s own 33 becomes about 19. For comparison, the measured alternative —
-// densifying the entry-point grid — buys 20% off the standard error at twelve entry
-// points and cannot move the df at all.
+// ⚠️ The scale column is anchored on the FOUR-season grid, which is the historical row
+// and not what ships. Read row 7 against row 6, not against row 4, or this grid's gain
+// reads as 0.581 when the part still to be had is 0.581/0.660 = 0.88.
+//
+// and `HOLD`'s own 33 becomes about 22 on the six that ship and about 19 on the seven.
+// ⚠️ Quote both halves. "33 becomes 19" is the four-season span, and 33 -> 22 is already
+// banked, so quoting it against this grid credits it with a gain that shipped with
+// extendedPairNames. For comparison, the measured alternative — densifying the
+// entry-point grid — buys 20% off the standard error at twelve entry points and 33% at
+// twenty-four, against this grid's remaining 12%, and cannot move the df at all. On the
+// standard error alone densification is now the larger lever; this grid wins only on df,
+// which densification cannot move.
 //
 // # What that arithmetic assumes, and it is not free
 //
-// It assumes the seventh cell is as quiet as the four that ship, and a backfilled season
+// It assumes the seventh cell is as quiet as the six that ship, and a backfilled season
 // is **not**: its xG sits on a *borrowed* provider offset, and the per-player dispersion
 // two xG models leave — the record puts the p90 of the per-player ratio at 1.54 — is an
 // ordering error no rescaling removes. So read 23 as the figure if the extra cells were
