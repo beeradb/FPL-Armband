@@ -77,8 +77,15 @@ fail=0
 run() {
   local label="$1" cells="$2"
   if [ ! -f "$cells" ]; then
-    echo "SKIP $label — not on disk: $cells"
-    return
+    # A missing input is a rotted path, not an empty result — silently returning
+    # here once cost the canonical median three of its fourteen sweeps (11/184/n=10
+    # instead of 14/264/n=23) and nothing downstream noticed, because the aggregate
+    # still looked like a valid one. That is a different failure than the
+    # oraclechip case below: there the file is present and R has a real reason to
+    # refuse it. Here the file just isn't where this script says it is, so stop
+    # the whole run rather than hand mde_aggregate.py a quieter population.
+    echo "ERROR $label — input file missing from disk: $cells" >&2
+    exit 1
   fi
   if Rscript stats/variance_components.R --out="$OUT/$label" "$cells" \
       > "$OUT/$label.log" 2>&1; then
@@ -112,12 +119,10 @@ run vice6         "$SNAP/2026-08-11-6acc5ad/vice6.csv"
 # regenerated, so this arm's thresholds are unreproducible from code. Do not treat a
 # committed cells file as proof its sweep still exists.
 #
-# ⚠️ hits, teamform and anchored are pointed at $CELLS rather than $SNAP: they were
-# relocated to stats/cells/2026-08-12-4d61058/ by commit c6fb465 ("Relocate the
-# banked cells the R screens read as data"), and this repoint carries forward
-# PR #68's fix (open, not yet merged, at the time of this change) so this script
-# does not silently SKIP three of its fourteen sweeps. The other seven inputs at
-# this snapshot did not move.
+# hits, teamform, and anchored moved out of $SNAP/.../cells/ into $CELLS/... at
+# c6fb465 ("Relocate the banked cells the R screens read as data"); the other
+# seven inputs below did not move. This script kept pointing at the old path for
+# all three, which the missing-file check above used to swallow as a silent SKIP.
 run hits          "$CELLS/2026-08-12-4d61058/hits.csv"
 run teamform      "$CELLS/2026-08-12-4d61058/teamform.csv"
 run oracleminutes "$SNAP/2026-08-12-4d61058/cells/oracleminutes.csv"
