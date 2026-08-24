@@ -448,7 +448,11 @@ let S={
      market arm and vice versa. Neither is armLock itself; both live here rather than on
      PENDING because PENDING is what round-trips to the server and a fetched suggestion
      is not the reader's own session state. */
-  suggest:null, suggestArmed:null,
+  /* suggestPick is which of the EQUIVALENT plans the reader has chosen, defaulting to
+     0. The server sends `equivalent`: how many leading plans it cannot tell apart. Those
+     are offered as choices rather than a ranking, so this is a selection and not a
+     preference the model has an opinion about. */
+  suggest:null, suggestArmed:null, suggestPick:0,
   posFilter:'ALL', q:'', affordOnly:false, showAll:false,
   modelXi:[],
   /* Sort and filter are independent axes and sort survives a filter change -- one state
@@ -1536,9 +1540,19 @@ function renderTransferPanel(){
 
 /* suggestionHtml is S.suggest's own render: nothing (not fetched), a loading line, an error
    box (showImportError's shape -- a toast is the wrong carrier for something the reader
-   must act on), or the fetched plan. Only plans[0] is ever offered for Apply, the same
-   restraint the terminal renderer already applies to its own "also considered" list
-   (transfers.go) -- those exist to be checked against, not clicked. */
+   must act on), or the fetched plan.
+
+   ⚠️ It used to offer plans[0] ALONE, justified here as "the same restraint the terminal
+   renderer applies to its own 'also considered' list -- those exist to be checked against,
+   not clicked". Both halves of that are now wrong. The terminal no longer prints an "also
+   considered" ranking, and the reason is AGENTS.md's argmax box: within the model's own
+   top-20 bias the leader is not better, it is the estimate that got the most flattering
+   noise. Offering only it hands the reader a pick made by noise and calls it a
+   recommendation.
+
+   So the first `equivalent` plans -- the server's own grouping, never re-derived here --
+   are offered as CHOICES, and the reader is told to break the tie on something the model
+   cannot see. Plans beyond that band really are behind and are not offered. */
 function suggestionHtml(){
   const s=S.suggest;
   if(!s) return '';
@@ -1554,7 +1568,9 @@ function suggestionHtml(){
       <button class="btn sm ghost" id="suggestCancel">Dismiss</button>
     </div>`;
   }
-  const p=s.plans&&s.plans[0];
+  const tied=Math.max(1,Math.min(s.equivalent||1,(s.plans||[]).length));
+  const pick=Math.min(S.suggestPick||0,tied-1);
+  const p=s.plans&&s.plans[pick];
   if(!p) return '';
   const declined=s.outcome==='bank';
   const rows=p.moves.map(moveRowHtml).join('');
@@ -1582,7 +1598,21 @@ function suggestionHtml(){
         <button class="btn sm" id="suggestArm">Apply these moves</button>
         <button class="btn sm ghost" id="suggestCancel">Not now</button>
       </div>`;
-  return `${rows}${note}${acts}`;
+  let chooser='';
+  if(tied>1){
+    const opts=s.plans.slice(0,tied).map((q,i)=>{
+      const label=q.moves.map(m=>`${esc(m.out_name)} → ${esc(m.in_name)}`).join(', ');
+      return `<button class="btn sm ${i===pick?'':'ghost'}" data-pick="${i}">`+
+        `+${q.gain_per_gw.toFixed(2)} · ${label}</button>`;
+    }).join('');
+    chooser=`<div class="marketnote" style="display:block;margin:10px 13px 0">`+
+      `<div><b>${tied} moves are the same answer.</b> They land within `+
+      `${(s.separable_band||0).toFixed(2)} points a gameweek of each other, which is what `+
+      `this model over-rates its own top picks by. It cannot separate them — pick on `+
+      `something it cannot see.</div>`+
+      `<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px">${opts}</div></div>`;
+  }
+  return `${chooser}${rows}${note}${acts}`;
 }
 function wireSuggestionControls(){
   const retry=document.getElementById('suggestRetry');
@@ -1590,9 +1620,15 @@ function wireSuggestionControls(){
   const arm=document.getElementById('suggestArm');
   if(arm) arm.onclick=()=>{ S.suggestArmed=0; renderTransferPanel(); };
   const confirmBtn=document.getElementById('suggestConfirm');
-  if(confirmBtn) confirmBtn.onclick=()=>applySuggestion(0);
+  if(confirmBtn) confirmBtn.onclick=()=>applySuggestion(S.suggestPick||0);
   const cancel=document.getElementById('suggestCancel');
-  if(cancel) cancel.onclick=()=>{ S.suggest=null; S.suggestArmed=null; renderTransferPanel(); };
+  if(cancel) cancel.onclick=()=>{ S.suggest=null; S.suggestArmed=null; S.suggestPick=0; renderTransferPanel(); };
+  /* Choosing a different equivalent move DISARMS. The arm-then-confirm pair exists so a
+     single click cannot mutate the squad, and carrying an arm across a change of which
+     move is armed would defeat exactly that. */
+  document.querySelectorAll('[data-pick]').forEach(b=>{
+    b.onclick=()=>{ S.suggestPick=Number(b.dataset.pick)||0; S.suggestArmed=null; renderTransferPanel(); };
+  });
 }
 
 /* suggestTransfers fetches GET /api/transfers and renders the answer read-only -- the first
@@ -1609,7 +1645,7 @@ function suggestTransfers(){
       if(!r.ok) return r.text().then(t=>{throw new Error(t||('the server answered '+r.status));});
       return r.json();
     })
-    .then(doc=>{ S.suggest=doc; renderTransferPanel(); })
+    .then(doc=>{ S.suggest=doc; S.suggestPick=0; renderTransferPanel(); })
     .catch(err=>{ S.suggest={error:err.message}; renderTransferPanel(); });
 }
 
@@ -1633,6 +1669,7 @@ function applySuggestion(i){
   });
   S.suggest=null;
   S.suggestArmed=null;
+  S.suggestPick=0;
 }
 
 /* ============================================================
