@@ -629,3 +629,117 @@ func (e *Engine) ApplyFreeHitToScoring() {
 		e.SetSkipGameweeks(weeks)
 	}
 }
+
+// wantsWeek is the kind of gameweek each chip is anchored to. The wildcard is
+// deliberately absent: no arm of `TestDiagAnchoredChips` plays one, and that
+// file's own "no arm plays a wildcard, and that is the second repair" records
+// why — a wildcard is the largest perturbation available to the path, and
+// holding it fixed installs a worse confound than the one it removes. A chip
+// this package cannot place is left to the manager rather than guessed at.
+var wantsWeek = map[chipKind]string{
+	kindFreeHit:       "blank",
+	kindBenchBoost:    "double",
+	kindTripleCaptain: "double",
+}
+
+// ChipCalendarNotes reports how a declared plan sits against the blanks and
+// doubles the fixture list already shows for the squad actually held.
+//
+// This is the "is it wise" half that `PlayableChips` explicitly leaves alone —
+// "It answers only 'does the competition allow it here', not 'is it wise' …
+// whether a week is a good one for it is the model's" — and that
+// `ValidateChipPlan` does not attempt. The two are kept apart because they fail
+// differently: an illegal week is a mistake to correct, an ordinary week is a
+// judgement to reconsider, and collapsing them would let a legality warning and
+// a suggestion compete for the same line.
+//
+// ⚠️ **It reports FIXTURE FACTS and never a points figure.** "GW29 is a blank
+// for four of your clubs" is settled by the fixture list. What anchoring a chip
+// on the calendar is *worth* is not: the only thing that measures it is a
+// DIAG-only sweep, `TestDiagAnchoredChips`, whose own closing instruction is to
+// "read the lag columns, not the ceiling", and no figure from it ships. So these
+// notes name weeks and players and stop there.
+//
+// ⚠️ **A count of blanks and doubles is not evenly comparable across seasons.**
+// `ChipSetsFor`'s comment records that 11 of the 15 doubling club-gameweeks in
+// the archived first halves are one COVID-rescheduled 2020-21 round. That is a
+// caution about drawing rules from history, not about the current season's own
+// fixture list, which is what this function reads.
+//
+// blanks and doubles are keyed by gameweek and hold the held-squad player names
+// affected, as the caller computed them. An empty result means the plan has
+// nothing to say against — either it fits, or no irregular week is known yet.
+func ChipCalendarNotes(s ChipSchedule, blanks, doubles map[int][]string) []string {
+	weeksOf := func(want string) []int {
+		src := blanks
+		if want == "double" {
+			src = doubles
+		}
+		var out []int
+		for gw, who := range src {
+			if len(who) > 0 {
+				out = append(out, gw)
+			}
+		}
+		sort.Ints(out)
+		return out
+	}
+
+	var notes []string
+	for _, set := range []int{1, 2} {
+		for _, k := range chipKinds {
+			want, anchored := wantsWeek[k]
+			if !anchored {
+				continue
+			}
+			gw := *s.field(k, set)
+			if gw <= 0 {
+				continue
+			}
+			label := chipLabels[string(k)]
+			if set == 2 {
+				label += " (second set)"
+			}
+
+			candidates := weeksOf(want)
+			if len(candidates) == 0 {
+				continue
+			}
+			if hit := affected(blanks, doubles, want, gw); len(hit) > 0 {
+				notes = append(notes, fmt.Sprintf(
+					"%s is planned for GW%d, which is a %s for %s — the plan already sits on the calendar",
+					label, gw, want, strings.Join(hit, ", ")))
+				continue
+			}
+			notes = append(notes, fmt.Sprintf(
+				"%s is planned for GW%d, an ordinary week for your squad. %s known so far: %s",
+				label, gw, plural(want), joinWeeks(candidates, blanks, doubles, want)))
+		}
+	}
+	return notes
+}
+
+// affected returns the held players a gameweek is the wanted kind for.
+func affected(blanks, doubles map[int][]string, want string, gw int) []string {
+	if want == "double" {
+		return doubles[gw]
+	}
+	return blanks[gw]
+}
+
+func plural(want string) string {
+	if want == "double" {
+		return "Doubles"
+	}
+	return "Blanks"
+}
+
+// joinWeeks renders candidate weeks with how many of the held fifteen each hits,
+// so a week touching four players is visibly worth more than one touching one.
+func joinWeeks(gws []int, blanks, doubles map[int][]string, want string) string {
+	parts := make([]string, 0, len(gws))
+	for _, gw := range gws {
+		parts = append(parts, fmt.Sprintf("GW%d (%d)", gw, len(affected(blanks, doubles, want, gw))))
+	}
+	return strings.Join(parts, ", ")
+}
