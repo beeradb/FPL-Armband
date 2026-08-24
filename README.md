@@ -2,7 +2,7 @@
      It is reused here so the mark has one spelling rather than a copy in docs/images/ —
      but its purpose is a 1200x630 social card, so a redesign that adds site copy to it
      changes this banner too. -->
-<img src="internal/webui/assets/static/og-image.png" alt="FPL Armband — a blue captain's armband carrying a white C, above the wordmark FPL Armband and the line 'Your man outside the dressing room.'" width="520">
+<img src="internal/webui/assets/static/og-image.png" alt="FPL Armband — a blue captain's armband carrying a white C, above the wordmark FPL Armband and the line 'Before the team sheet.'" width="520">
 
 A Fantasy Premier League squad optimiser that runs on your machine. The binary is `armband`.
 
