@@ -54,6 +54,37 @@ type ReviewPolicy struct {
 	// after the 4-point cost, required to justify a hit.
 	MinGainForHit float64 `json:"min_net_gain_for_minus_4"`
 
+	// MinSeparableGain is the smallest difference in projected gain this model can
+	// be trusted to mean anything by. Two moves closer together than this are not
+	// "better and worse", they are the same answer twice.
+	//
+	// ⚠️ It is NOT a gate and must not be confused with MinGainForTransfer above.
+	// That one asks "is this move worth making at all". This one asks "can we tell
+	// these two moves apart". A gate compares a gain against a bar; this compares
+	// two gains against each other.
+	//
+	// # Where 0.41 comes from
+	//
+	// docs/accuracy.md measures the model's own top twenty as over-rated by 0.41
+	// points a gameweek, against 2.57 for a five-game average, and says the part
+	// that matters here out loud: "The transfer search picks from the top of that
+	// distribution." So the top of a transfer ranking is flattered by roughly this
+	// much, and a rival within that distance is not distinguishable from it.
+	//
+	// AGENTS.md's argmax box is the reason this field exists rather than a nicer
+	// sort: "take six noisy estimates and keep the biggest: the winner is usually
+	// not the best option, it is the option whose estimate got the most flattering
+	// noise... That is why this record wants a shape rather than a winner, and why
+	// the transfer search -- an argmax over players -- reaches for whichever player
+	// the model most over-rates."
+	//
+	// ⚠️ RE-DERIVE THIS WHEN THE MODEL CHANGES. It is a measured property of the
+	// current scoring, read off a generated accuracy snapshot, not a constant from
+	// theory. A scoring change that alters the top-20 bias makes this stale, and a
+	// stale value here does not error -- it silently narrows or widens the band of
+	// moves a reader is told are equivalent.
+	MinSeparableGain float64 `json:"min_separable_gain"`
+
 	// BankUpTo is how many free transfers may accumulate.
 	//
 	// FPL raised this from 2 to 5 for the 2024-25 season. A replay of an
@@ -269,6 +300,7 @@ func (r ReviewPolicy) EffectiveFloor(gw int) (charge, minGain float64) {
 func DefaultReviewPolicy() ReviewPolicy {
 	return ReviewPolicy{
 		MinGainForTransfer: 0.4,
+		MinSeparableGain:   0.41,
 		MinGainForHit:      3.0,
 		FreeTransferValue:  2.0,
 		BankUpTo:           5,

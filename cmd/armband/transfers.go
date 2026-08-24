@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"armband/internal/analysis"
@@ -67,7 +68,28 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// one says "act next week with two transfers", the other says "your squad is
 	// fine". Printed only when the rule was actually consulted, so a user who has
 	// not switched it on is not told about a decision nobody made.
-	if board.Consulted {
+	// The verdict in words, before the arithmetic that produced it. A reader deciding
+	// whether to open FPL at all needs "act or hold" first; the two package values
+	// underneath are what make it checkable rather than assertable.
+	outcome := board.outcome()
+	if outcome == outcomeBank || outcome == outcomeNothing {
+		fmt.Printf("\n  %s\n", "We'd recommend a hold.")
+	}
+	// The banking rule's own reasoning — but not when the hold above came from an empty
+	// board and the rule reached its comparison with nothing in either arm. The rule's
+	// "not banking" means it did not fire; printed under "we'd recommend a hold" it
+	// reads as a flat contradiction, because the two use the word in different senses.
+	//
+	// ⚠️ Narrowed to BankGuardNone deliberately. A guard means the comparison was never
+	// made for a structural reason — the allowance is already at its ceiling, say — and
+	// that text tells the reader banking is not available to him at all, which is not
+	// the contradiction this suppresses and is worth keeping. An earlier version tested
+	// only !Weighed(), which is ALWAYS true under outcomeNothing (an empty board gives
+	// a zero now-arm, and any positive later-arm would have made this outcomeBank), so
+	// it silently swallowed both guard messages as well.
+	if board.Consulted &&
+		!(outcome == outcomeNothing && board.Advice.Guard == analysis.BankGuardNone &&
+			!board.Advice.Weighed()) {
 		fmt.Printf("\n  %s\n", bankLine(board.Advice))
 	}
 
@@ -77,16 +99,23 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// A banked week names what it declined — "wait" is only actionable if you know
 	// what you are waiting to afford — but as a declined option rather than as a
 	// recommendation, and no team sheet is drawn for a move nobody is making.
-	switch board.outcome() {
+	switch outcome {
 	case outcomeBank:
+		// A declined week still names what it declined, because "wait" is only
+		// actionable if you know what you are waiting to afford. Offered as the
+		// alternative to the recommendation rather than as the recommendation.
 		if len(plans) > 0 {
-			fmt.Printf("\n  %s\n    %s  %s\n", dim("declined this week"),
-				dim(fmt.Sprintf("%+.2f pts/gw", plans[0].GainPerGW)), movesLine(plans[0]))
+			fmt.Printf("\n  %s\n", dim("But if you must make a move:"))
+			printPlanLines(os.Stdout, topPlans(equivalentTo(plans, cfg.Review.MinSeparableGain), 3))
 		}
 		fmt.Println()
 		return nil
 	case outcomeNothing:
-		present.Moves(os.Stdout, analysis.Plan{}, theme)
+		// Distinct from the case above and the difference matters: there the rule
+		// weighed a real move and preferred waiting, here there is no move to weigh.
+		// Collapsing them would offer a reader alternatives that do not exist.
+		fmt.Printf("  %s\n", dim(emptyBoardReason))
+		fmt.Printf("  %s\n\n", dim(bankingIsFirstClass))
 		return nil
 	}
 
@@ -97,17 +126,33 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 	present.Squad(os.Stdout, planSquad(best), theme,
 		fmt.Sprintf("The eleven this would field in GW%d", board.GW))
 
-	if len(plans) > 1 {
-		fmt.Printf("\n  %s\n", dim("also considered"))
-		for _, p := range plans[1:] {
-			fmt.Printf("    %s  %s\n",
-				dim(fmt.Sprintf("%+.2f pts/gw", p.GainPerGW)), movesLine(p))
-		}
-		fmt.Println()
-	}
+	printSeparableBand(os.Stdout, plans, cfg.Review.MinSeparableGain)
 
 	return nil
 }
+
+// emptyBoardReason and bankingIsFirstClass are the two halves of what an empty board
+// says, in one place because THREE surfaces now render the same transferBoard and must
+// not describe the same state three ways — which is the reason transferBoard exists at
+// all. The CLI, `bestPlanForOwnedSquad` (which the page renders as NoPlan) and
+// `apitransfers.go`'s document for the builder all read these.
+//
+// ⚠️ The third arrived while this was being written, carrying its own copy of the same
+// wrong sentence. That is the mirror this constant exists to close, and it will happen
+// again: a fourth surface will be written by someone who has not read this comment. If
+// the wording needs to differ per surface, give boardOutcome a method rather than
+// letting a literal back in.
+//
+// ⚠️ The wording these replaced was "No move clears the threshold this week", and it
+// described a threshold that is not applied: BuildPlans keeps every move with a
+// positive gain and imposes no floor of its own. An empty board means nothing raises
+// the eleven at all, which is a stronger and different statement.
+const (
+	emptyBoardReason = "Nothing on the board would improve this squad, so there is no " +
+		"move to offer even if you wanted one."
+	bankingIsFirstClass = "Banking the transfer is a first-class outcome and usually " +
+		"the right one."
+)
 
 // bestPlanForOwnedSquad returns the best transfer plan for the squad you own,
 // or a plain-language reason there is none.
@@ -126,8 +171,7 @@ func bestPlanForOwnedSquad(ctx context.Context, cfg config.Config, client *fpl.C
 	case outcomeBank:
 		return nil, board.Advice.Explain()
 	case outcomeNothing:
-		return nil, "No move clears the threshold this week. Banking the transfer is a " +
-			"first-class outcome and usually the right one."
+		return nil, emptyBoardReason + " " + bankingIsFirstClass
 	}
 	return &board.Plans[0], ""
 }
@@ -614,3 +658,86 @@ func heldIDs(st analysis.SquadState) []int {
 	}
 	return out
 }
+
+// topPlans returns at most n plans, already ranked by BuildPlans.
+func topPlans(plans []analysis.Plan, n int) []analysis.Plan {
+	if len(plans) < n {
+		return plans
+	}
+	return plans[:n]
+}
+
+// printPlanLines renders plans as one scannable line each: what it is worth, then
+// what it does. The gain leads because it is the column a reader compares on.
+func printPlanLines(w io.Writer, plans []analysis.Plan) {
+	for _, p := range plans {
+		fmt.Fprintf(w, "    %s  %s\n",
+			dim(fmt.Sprintf("%+.2f pts/gw", p.GainPerGW)), movesLine(p))
+	}
+}
+
+// bandEpsilon absorbs float representation error at the edge of the band.
+//
+// Without it, which side of the band a move falls on is decided by arithmetic noise:
+// 1.00-0.59 evaluates to 0.41000000000000003, so a plan sitting EXACTLY 0.41 behind the
+// leader is reported as separable from it while an identical gap computed from different
+// operands is not. That is the arbitrariness this whole band exists to remove, so it
+// cannot be reintroduced by the comparison that implements it.
+//
+// 1e-9 is representation slack, not policy slack: gains carry two decimals of meaning and
+// this is six orders of magnitude below that, so it can never widen the band in a way a
+// reader could notice.
+const bandEpsilon = 1e-9
+
+// equivalentTo returns the leading run of plans this model cannot tell apart from the
+// best one: every plan whose gain is within band of plans[0]'s.
+//
+// plans must already be ranked by gain, which BuildPlans guarantees, so the run is a
+// prefix and the scan can stop at the first plan that falls outside it.
+func equivalentTo(plans []analysis.Plan, band float64) []analysis.Plan {
+	if len(plans) == 0 || band <= 0 {
+		return plans
+	}
+	top := plans[0].GainPerGW
+	for i, p := range plans {
+		if top-p.GainPerGW > band+bandEpsilon {
+			return plans[:i]
+		}
+	}
+	return plans
+}
+
+// printSeparableBand shows the moves that are the same answer as the recommended one,
+// rather than a ranking of runners-up.
+//
+// # Why this is not "also considered"
+//
+// It used to be, and that was the winner's curse rendered as a list. AGENTS.md's argmax
+// box: "take six noisy estimates and keep the biggest: the winner is usually not the
+// best option, it is the option whose estimate got the most flattering noise... That is
+// why this record wants a shape rather than a winner, and why the transfer search -- an
+// argmax over players -- reaches for whichever player the model most over-rates."
+//
+// Printing #2 and #3 UNDER the recommendation says the model ranked them and they lost.
+// It did not: within MinSeparableGain it has no opinion, and presenting one of them as
+// the answer hands the reader a pick made by noise. So the band is stated as a set, and
+// the reader is told what to break the tie on -- something the model cannot see.
+//
+// A single-member band prints nothing. There is no tie to report, and a heading over one
+// row would imply the others were beaten rather than absent.
+func printSeparableBand(w io.Writer, plans []analysis.Plan, band float64) {
+	rest := equivalentTo(plans, band)[1:]
+	if len(rest) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "\n  %s\n", fmt.Sprintf("%d more moves are the same answer as that one.", len(rest)))
+	printPlanLines(w, rest)
+	fmt.Fprintf(w, "  %s\n\n", dim(fmt.Sprintf(
+		"All within %.2f pts/gw of the pick above, which is what this model over-rates "+
+			"its own top picks by. It cannot separate them — break the tie on something "+
+			"it cannot see.", band)))
+}
+
+// defaultSeparableGain is the shipped band, read from config's own defaults so the test
+// that pins it against docs/accuracy.md cannot drift from what actually ships.
+func defaultSeparableGain() float64 { return config.Default().Review.MinSeparableGain }

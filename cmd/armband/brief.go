@@ -587,7 +587,8 @@ func briefOptimal(b *strings.Builder, cfg config.Config, e *analysis.Engine) ([]
 	}
 
 	b.WriteString("---\n\n## Model-optimal squad\n\n")
-	fmt.Fprintf(b, "A multi-dimensional knapsack under FPL's rules, not a recommendation. "+
+	fmt.Fprintf(b, "The best fifteen the model can build under FPL's rules, not a "+
+		"recommendation. "+
 		"Critique it: it cannot see team news, and it optimises a number. "+
 		"Built with £%.1fm (%s). Once the season is running that is the wildcard "+
 		"budget, so this is the fifteen a chip could buy rather than anything "+
@@ -617,6 +618,8 @@ func briefOptimal(b *strings.Builder, cfg config.Config, e *analysis.Engine) ([]
 	fmt.Fprintf(b, "Captain %s, vice %s.\n\n", sq.Captain.Name, sq.ViceCaptain.Name)
 
 	briefSquadTable(b, sq)
+
+	briefWhyThisFifteen(b, e.Weights.Horizon, sq)
 
 	b.WriteString("### Best available by position\n\n")
 	all := e.AllMetrics()
@@ -843,4 +846,74 @@ func briefResearch(b *strings.Builder, e *analysis.Engine, squad []analysis.Play
 		}
 		b.WriteString("\n")
 	}
+}
+
+// briefWhyThisFifteen states what fixed the SHAPE of the optimiser's squad: the money
+// it could not spend, the clubs it could not buy from, and the horizon it scored over.
+//
+// # What it deliberately does NOT do
+//
+// An earlier draft also named the best upgrade the budget could not reach and the cash
+// it would take -- "you would need £3.5m more than you have". Withdrawn on the owner's
+// judgement, and the reasoning is worth keeping because it is a product rule rather
+// than a bug: a reader cannot conjure money, so a shortfall he cannot close is not an
+// option, it is a fact about the world stated back at him.
+//
+// The bank line stays for the opposite reason. It reads as noise at £0.0m, but at £0.1m
+// or £0.2m later in the season it is exactly the constraint deciding what he can do.
+//
+// ⚠️ Do not reintroduce a search here. The withdrawn version ran RankSwaps and got two
+// things wrong that are easy to repeat: it searched e.AllMetrics() rather than the pool
+// Optimize was allowed to use, so it recommended players a standing override had
+// excluded; and it scored candidates on XIValue while calling disagreement with
+// Optimize's own objective a search defect. What replaces it belongs on the transfer
+// surface, where the reader has moves to choose between, and is ranked as a BAND rather
+// than a winner -- see AGENTS.md's argmax box.
+func briefWhyThisFifteen(b *strings.Builder, horizon int, sq *analysis.Squad) {
+	b.WriteString("### Why this fifteen\n\n")
+
+	// Stated in tenths, not by comparing a float to zero: money is counted in tenths
+	// everywhere else in this codebase and £0.04m left is not "some money left".
+	if analysis.Tenths(sq.Remaining) == 0 {
+		b.WriteString("- **The budget is spent**, with nothing left over.\n")
+	} else {
+		fmt.Fprintf(b, "- **£%.1fm left over** after fifteen players.\n", sq.Remaining)
+	}
+
+	var full []string
+	for club, n := range sq.ClubCounts {
+		if n >= analysis.MaxPerClub {
+			full = append(full, club)
+		}
+	}
+	sort.Strings(full)
+	if len(full) > 0 {
+		fmt.Fprintf(b, "- **%s %s full** — %d players each, the most the rules allow, "+
+			"so nobody else from %s could come in.\n",
+			joinAnd(full), plural(len(full), "is", "are"), analysis.MaxPerClub,
+			plural(len(full), "that club", "those clubs"))
+	}
+
+	fmt.Fprintf(b, "- **Picked to score well over the next %d gameweeks**, not just the "+
+		"next one. A good run over those weeks counts for more here than one big "+
+		"fixture.\n\n", horizon)
+}
+
+// joinAnd renders a list the way a sentence needs it: "A", "A and B", "A, B and C".
+// strings.Join with " and " produced "COV and HUL and IPS", which is what prompted this.
+func joinAnd(xs []string) string {
+	switch len(xs) {
+	case 0:
+		return ""
+	case 1:
+		return xs[0]
+	}
+	return strings.Join(xs[:len(xs)-1], ", ") + " and " + xs[len(xs)-1]
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }

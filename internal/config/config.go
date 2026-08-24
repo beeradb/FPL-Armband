@@ -330,6 +330,12 @@ func Load(path string) (Config, error) {
 	if cfg.Review.MinGainForHit <= 0 {
 		cfg.Review.MinGainForHit = d.Review.MinGainForHit
 	}
+	// Every numeric config field needs a backfill so existing config.json files stay
+	// valid; this one arrived after they were written, so without it every deployed
+	// config reads 0 and the band collapses to "nothing is equivalent to anything".
+	if cfg.Review.MinSeparableGain <= 0 {
+		cfg.Review.MinSeparableGain = d.Review.MinSeparableGain
+	}
 	if cfg.Review.FreeTransferValue <= 0 {
 		cfg.Review.FreeTransferValue = d.Review.FreeTransferValue
 	}
