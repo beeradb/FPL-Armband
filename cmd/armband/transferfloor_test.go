@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -37,16 +36,31 @@ import (
 // scaled before it is compared. The emptiness was the symptom; the unscaled compare was
 // the cause.
 func TestTheTransferPoolScalesItsMinutesFloor(t *testing.T) {
-	src, err := os.ReadFile("transfers.go")
-	if err != nil {
-		t.Fatalf("reading transfers.go: %v", err)
+	// ⚠️ EVERY file that builds a transfer candidate pool, not just this package's.
+	//
+	// The first version of this guard read transfers.go alone, and a THIRD live copy of
+	// the same defect sat in internal/agent/tools.go the whole time it was green: the
+	// agent's suggest_transfers built its own pool with a bare `c.Minutes < minMins` and
+	// went on returning nothing while the CLI was fixed and shipped. A guard scoped to
+	// the file whose bug prompted it certifies that one file and nothing else, which on
+	// a defect that exists in three places is worse than no guard, because it reads as
+	// coverage.
+	for _, f := range []string{"transfers.go", "../../internal/agent/tools.go"} {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatalf("reading %s: %v", f, err)
+		}
+		checkScaledFloor(t, f, string(src))
 	}
-	body := string(src)
+}
+
+func checkScaledFloor(t *testing.T, name, body string) {
+	t.Helper()
 
 	if !strings.Contains(body, "ScaledMinMinutesFor(") {
-		t.Error("the transfer pool no longer scales its minutes floor. A season-total " +
-			"floor compared against fresh-season aggregates empties the pool and every " +
-			"transfer surface silently answers \"nothing would improve this squad\".")
+		t.Errorf("%s no longer scales its minutes floor. A season-total floor compared "+
+			"against fresh-season aggregates empties the pool and every transfer surface "+
+			"silently answers \"nothing would improve this squad\".", name)
 	}
 
 	// Any comparison of a player's Minutes against a bare number is the defect returning.
@@ -56,17 +70,35 @@ func TestTheTransferPoolScalesItsMinutesFloor(t *testing.T) {
 	// and failed on the sentence explaining the bug, which names `c.Minutes < 600` as
 	// the thing not to write — a guard that cannot coexist with its own rationale is one
 	// somebody deletes rather than fixes.
-	bare := regexp.MustCompile(`\.Minutes\s*[<>]=?\s*\d`)
-	if m := bare.FindString(stripComments(body)); m != "" {
-		t.Errorf("minutes compared against a literal (%q). The floor is a SEASON TOTAL "+
-			"and must go through ScaledMinMinutesFor first — see this test's comment for "+
-			"what an unscaled compare did on live GW1 data.", m)
+	// Checked per LINE, and a line is clean only if its bound is the scaler itself.
+	//
+	// Two shapes are the defect: a literal (`Minutes < 600`) and an unscaled variable
+	// (`Minutes < minMins`). The third copy was the second kind, so a literal-only scan
+	// would have stayed green through it. But a naive "no identifier after <" rule also
+	// rejects the CORRECT form, `Minutes < t.Engine.ScaledMinMinutesFor(...)`, which is
+	// what the sibling tool in the same file already does — so the test asks whether the
+	// bound is the scaled one rather than what it looks like.
+	for i, line := range strings.Split(stripComments(body), "\n") {
+		if !strings.Contains(line, ".Minutes <") {
+			continue
+		}
+		if strings.Contains(line, "ScaledMinMinutesFor") || strings.Contains(line, "floorFor") {
+			continue
+		}
+		t.Errorf("%s:%d: minutes compared against an unscaled bound:\n\t%s\nThe floor is "+
+			"a SEASON TOTAL and must go through ScaledMinMinutesFor first — see this "+
+			"test's comment for what an unscaled compare did on live GW1 data.",
+			name, i+1, strings.TrimSpace(line))
 	}
 }
 
 // stripComments removes // comment text so a source scan matches code rather than the
 // prose describing it. Crude on purpose: it does not understand strings or block
 // comments, and does not need to — this file's scan only asks about one operator.
+//
+// ⚠️ It is load-bearing. The first draft of this guard scanned the raw file and failed on
+// the sentence explaining the bug, which names the thing not to write — a guard that
+// cannot coexist with its own rationale is one somebody deletes rather than fixes.
 func stripComments(src string) string {
 	var out strings.Builder
 	for _, line := range strings.Split(src, "\n") {
