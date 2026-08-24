@@ -202,10 +202,27 @@ type transferDoc struct {
 	// clears the bar", and empty for a recommendation -- the moves say what to do.
 	Reason string         `json:"reason"`
 	Plans  []transferPlan `json:"plans"`
+
+	// Equivalent is how many of the LEADING plans this model cannot tell apart from
+	// plans[0]. Always >= 1 when there is a plan at all.
+	//
+	// ⚠️ It is computed HERE, not in the client, and that is the point. The threshold is
+	// config.Review.MinSeparableGain and the grouping is equivalentTo(); a client that
+	// re-derived either would be a second implementation of a decision this repository
+	// has already paid for duplicating elsewhere. The client's only job is to render the
+	// first Equivalent plans as choices rather than a ranking.
+	Equivalent int `json:"equivalent"`
+
+	// Band is MinSeparableGain, carried so the page can SAY how close the equivalent
+	// plans are without hard-coding a number that lives in config and is re-derived
+	// whenever the model's top-20 bias is re-measured.
+	Band float64 `json:"separable_band"`
 }
 
-// transferPlan is one candidate package: plans[0] is the recommendation, the rest are
-// "also considered" -- the same distinction the terminal renderer draws (transfers.go).
+// transferPlan is one candidate package. plans[0] leads, but the first `Equivalent` of
+// them are the same answer rather than a ranking -- see that field, and AGENTS.md's argmax
+// box for why offering only the top of a noisy ranking hands the reader a pick made by
+// noise. The terminal renderer draws the same distinction (transfers.go).
 type transferPlan struct {
 	Moves     []viewmodel.Move `json:"moves"`
 	Transfers int              `json:"transfers"`
@@ -244,6 +261,8 @@ func transferAnswer(board *transferBoard, cfg config.Config, boot *fpl.Bootstrap
 	for _, p := range board.Plans {
 		doc.Plans = append(doc.Plans, transferPlanDoc(board, p, boot))
 	}
+	doc.Band = cfg.Review.MinSeparableGain
+	doc.Equivalent = len(equivalentTo(board.Plans, doc.Band))
 	return doc
 }
 
