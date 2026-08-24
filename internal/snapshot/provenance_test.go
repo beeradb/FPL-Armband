@@ -163,6 +163,108 @@ func TestProvenancePathIsDerivedOnce(t *testing.T) {
 	}
 }
 
+// TestProvenanceCarriesTheWatchedDigest pins the mechanism
+// stats/mde_aggregate.py's staleness check depends on: WriteProvenance records
+// the same digest WatchedDigest computes for the commit it stamps, the value
+// round-trips exactly (a real mismatch must read as a mismatch, not get
+// normalised away), and a sidecar written before this field existed reads back
+// as absent rather than as an accidental match.
+//
+// Uses the gitRepo fixture from watched_test.go rather than this checkout, so
+// the digest that "should" round-trip is fixed and known rather than whatever
+// origin/main happens to be today.
+func TestProvenanceCarriesTheWatchedDigest(t *testing.T) {
+	repo := newGitRepo(t)
+	repo.seedWatched()
+	repo.commitAll("base")
+
+	digest, perPath, err := WatchedDigest(repo.dir, "HEAD", SnapshotWatchedPaths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var watched []Constant
+	for _, p := range SnapshotWatchedPaths {
+		watched = append(watched, Constant{Path: p, Value: perPath[p]})
+	}
+
+	dir := t.TempDir()
+	cells := filepath.Join(dir, "cells.csv")
+	if err := WriteProvenance(ProvenancePath(cells), Provenance{
+		Sweep: "SWEEP#1", RunID: "r1", Commit: "deadbeef",
+		WatchedDigest: digest, WatchedPaths: watched,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ReadProvenance(ProvenancePath(cells))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, ok := got["SWEEP#1\x00r1"]
+	if !ok {
+		t.Fatal("no record for the sweep just written")
+	}
+	if p.WatchedDigest != digest {
+		t.Errorf("watched digest round trip: got %s want %s", p.WatchedDigest, digest)
+	}
+	for _, c := range watched {
+		var found bool
+		for _, g := range p.WatchedPaths {
+			if g.Path != c.Path {
+				continue
+			}
+			found = true
+			if g.Value != c.Value {
+				t.Errorf("per-path digest for %s: got %s want %s", c.Path, g.Value, c.Value)
+			}
+		}
+		if !found {
+			t.Errorf("per-path digest for %s did not round trip", c.Path)
+		}
+	}
+
+	// A banked digest that no longer matches HEAD is exactly what a code change
+	// produces. It must stay distinguishable from a match rather than get
+	// coerced into one.
+	repo.write("internal/analysis/score.go", "package analysis\n\nconst K = 24\n")
+	repo.commitAll("move a constant")
+	nowDigest, _, err := WatchedDigest(repo.dir, "HEAD", SnapshotWatchedPaths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nowDigest == p.WatchedDigest {
+		t.Fatal("the fixture did not move the digest, so the mismatch case below proves nothing")
+	}
+	if p.WatchedDigest == nowDigest {
+		t.Error("a stale banked digest read back as matching the current one")
+	}
+
+	// A sidecar written before this column existed — every provenance file
+	// banked in this repository today — must read back as absent, not as a
+	// zero-value that a careless comparison could mistake for a match.
+	dir2 := t.TempDir()
+	cells2 := filepath.Join(dir2, "cells.csv")
+	if err := WriteProvenance(ProvenancePath(cells2), Provenance{
+		Sweep: "OLD#1", RunID: "r1", Commit: "deadbeef", Digest: "cccccccccccc",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	old, err := ReadProvenance(ProvenancePath(cells2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, ok := old["OLD#1\x00r1"]
+	if !ok {
+		t.Fatal("no record for the legacy-shaped sweep just written")
+	}
+	if op.WatchedDigest != "" {
+		t.Errorf("a sidecar with no watched_digest column read back as %q, want absent", op.WatchedDigest)
+	}
+	if len(op.WatchedPaths) != 0 {
+		t.Errorf("a sidecar with no watched_path rows produced %d, want 0", len(op.WatchedPaths))
+	}
+}
+
 // writeCellsFixture writes a cells CSV in the *current* schema, with the layer and
 // captaincy-rung columns blank.
 //

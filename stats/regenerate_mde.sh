@@ -69,6 +69,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 OUT=stats/out
 SNAP=stats/snapshots
+CELLS=stats/cells
 mkdir -p "$OUT"
 
 fail=0
@@ -82,6 +83,9 @@ run() {
   if Rscript stats/variance_components.R --out="$OUT/$label" "$cells" \
       > "$OUT/$label.log" 2>&1; then
     echo "  ok    $label"
+    # mde_aggregate.py's staleness check needs this sweep's provenance sidecar,
+    # and the sidecar lives beside the cells file, which is known only here.
+    echo "$cells" > "$OUT/$label/source_cells.txt"
   else
     # A sweep whose arms are byte-identical on a metric has zero variance there and
     # R cannot fit it. That is a real property of the arm, not a failure of this
@@ -107,10 +111,17 @@ run vice6         "$SNAP/2026-08-11-6acc5ad/vice6.csv"
 # what was measured, and they are why rescuing them mattered — but they cannot be
 # regenerated, so this arm's thresholds are unreproducible from code. Do not treat a
 # committed cells file as proof its sweep still exists.
-run hits          "$SNAP/2026-08-12-4d61058/cells/hits.csv"
-run teamform      "$SNAP/2026-08-12-4d61058/cells/teamform.csv"
+#
+# ⚠️ hits, teamform and anchored are pointed at $CELLS rather than $SNAP: they were
+# relocated to stats/cells/2026-08-12-4d61058/ by commit c6fb465 ("Relocate the
+# banked cells the R screens read as data"), and this repoint carries forward
+# PR #68's fix (open, not yet merged, at the time of this change) so this script
+# does not silently SKIP three of its fourteen sweeps. The other seven inputs at
+# this snapshot did not move.
+run hits          "$CELLS/2026-08-12-4d61058/hits.csv"
+run teamform      "$CELLS/2026-08-12-4d61058/teamform.csv"
 run oracleminutes "$SNAP/2026-08-12-4d61058/cells/oracleminutes.csv"
-run anchored      "$SNAP/2026-08-12-4d61058/cells/anchored.csv"
+run anchored      "$CELLS/2026-08-12-4d61058/anchored.csv"
 run oraclearmband "$SNAP/2026-08-12-4d61058/cells/oraclearmband.csv"
 run oraclegate    "$SNAP/2026-08-12-4d61058/cells/oraclegate.csv"
 run oracleprices  "$SNAP/2026-08-12-4d61058/cells/oracleprices.csv"
