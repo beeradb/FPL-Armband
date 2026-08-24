@@ -1432,6 +1432,16 @@ func cmdChips(ctx context.Context, cfg config.Config, client *fpl.Client, e *ana
 		if !found {
 			fmt.Println("  None of your clubs are affected by the blanks or doubles listed above.")
 		}
+		// Legality was answered above, under ISSUES. This is the separate question
+		// of whether a LEGAL week is a good one — see ChipCalendarNotes on why the
+		// two are kept apart, and on why it names weeks and never a points figure.
+		if notes := analysis.ChipCalendarNotes(plan, blanks, doubles); len(notes) > 0 {
+			fmt.Println("\nPLAN AGAINST THE CALENDAR")
+			for _, n := range notes {
+				fmt.Printf("  - %s\n", n)
+			}
+			fmt.Println("\n  Weeks only. Whether moving a chip onto one pays is not a shipped figure.")
+		}
 	}
 	return nil
 }
