@@ -1042,12 +1042,32 @@ func (t *Toolbox) suggestTransfersFor(ctx context.Context, in suggestTransfersIn
 	// Candidates are filtered before the search, not inside it: a player
 	// who is injured or has barely played is not a transfer target
 	// whatever the model scores him at.
+	// ⚠️ minMins is a SEASON TOTAL and is scaled per club before comparison, exactly as
+	// this file already does at searchPlayers above and as Optimize's own pool filter
+	// does. That comment says why in one line — "the two are one quantity" — and this
+	// loop was the copy that did not obey it.
+	//
+	// Unscaled, on fresh-season aggregates, 0 of 609 players cleared 600 and the most
+	// anyone had played was 90: the pool came back empty and suggest_transfers answered
+	// "nothing would improve this squad" for every caller, for about seven gameweeks.
+	// The same defect was found and fixed in cmd/armband/transfers.go's own pool; this
+	// was the third live copy, and it survived that fix because the guard on it reads
+	// transfers.go and nothing else.
+	scaledFloor := map[int]int{}
+	floorFor := func(teamID int) int {
+		if v, ok := scaledFloor[teamID]; ok {
+			return v
+		}
+		v := t.Engine.ScaledMinMinutesFor(teamID, minMins)
+		scaledFloor[teamID] = v
+		return v
+	}
 	var pool []analysis.PlayerMetrics
 	for _, c := range t.Engine.AllMetrics() {
 		if excluded[c.ID] {
 			continue
 		}
-		if c.Minutes < minMins {
+		if c.Minutes < floorFor(c.TeamID) {
 			continue
 		}
 		if c.Status != "available" && c.Status != "doubtful" {

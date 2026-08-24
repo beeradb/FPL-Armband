@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"armband/internal/analysis"
+	"armband/internal/config"
 )
 
 func gains(gs ...float64) []analysis.Plan {
@@ -105,5 +106,38 @@ func TestTheBandIsNotPresentedAsARanking(t *testing.T) {
 	}
 	if !strings.Contains(got, "cannot see") {
 		t.Errorf("the band should tell the reader what to break the tie on:\n%s", got)
+	}
+}
+
+// The API must tell the client WHICH plans are equivalent, so the page never re-derives
+// the threshold.
+//
+// The band is config.Review.MinSeparableGain and the grouping is equivalentTo(). A client
+// that recomputed either would be a second implementation of a decision this repository
+// has already paid for duplicating elsewhere — and it would drift the first time the
+// top-20 bias is re-measured and the config default moves.
+func TestTheTransferDocumentCarriesTheEquivalentSetAndItsBand(t *testing.T) {
+	cfg := config.Default()
+	band := cfg.Review.MinSeparableGain
+
+	board := transferBoard{Free: 1, Plans: gains(1.00, 0.80, 0.20)}
+	doc := transferAnswer(&board, cfg, nil)
+
+	if doc.Equivalent != 2 {
+		t.Errorf("equivalent = %d, want 2 (1.00 and 0.80 are within %.2f; 0.20 is not)",
+			doc.Equivalent, band)
+	}
+	if doc.Band != band {
+		t.Errorf("separable_band = %v, want the configured %v", doc.Band, band)
+	}
+}
+
+// A one-plan week must report exactly one equivalent, never zero. The page renders the
+// first `equivalent` plans, so a zero here would show the reader nothing at all while the
+// document plainly carries a recommendation.
+func TestASinglePlanReportsOneEquivalentNotZero(t *testing.T) {
+	doc := transferAnswer(&transferBoard{Free: 1, Plans: gains(0.9)}, config.Default(), nil)
+	if doc.Equivalent != 1 {
+		t.Errorf("equivalent = %d, want 1", doc.Equivalent)
 	}
 }

@@ -374,9 +374,41 @@ func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Clie
 	for _, id := range req.ExcludeIDs {
 		excluded[id] = true
 	}
+	// ⚠️ The floor is a SEASON TOTAL and must be scaled to the window FPL's aggregates
+	// actually cover. A bare `c.Minutes < 600` is the same defect ScaledMinMinutesFor
+	// was written for, and its own doc comment describes the symptom exactly: "the
+	// floor stayed at its unscaled 600, and every player in the game failed it against
+	// a fresh-season minutes count."
+	//
+	// That was fixed for Optimize and NOT here, so the two searches disagreed about who
+	// is even a candidate. Measured on the live GW1 data that exposed it: 0 of 609
+	// players had 600+ minutes because the aggregates reset when GW1 completed, and the
+	// most anyone had played was 90. The pool was empty, BuildPlans had nothing to rank,
+	// and every transfer search — `armband transfers`, the agent's suggest_transfers and
+	// the page's Suggest-transfers button alike — answered "nothing would improve this
+	// squad" for every user. Not a wrong answer a reader could argue with: a silent one,
+	// for roughly the first seven gameweeks of every season, until players accumulate
+	// enough minutes to clear a bar meant for a full season.
+	//
+	// Scaled, the same floor reads 600*1/38 = 15 after one gameweek, which a 90-minute
+	// starter clears and a 10-minute substitute does not — which is what it was always
+	// for.
+	//
+	// Memoised per club exactly as Optimize's own floorFor does: inLiveGameweekGap the
+	// window is that club's own finished matches, so it genuinely differs between teams
+	// mid-gameweek.
+	scaledFloor := map[int]int{}
+	floorFor := func(teamID int) int {
+		if v, ok := scaledFloor[teamID]; ok {
+			return v
+		}
+		v := e.ScaledMinMinutesFor(teamID, transferMinSeasonMinutes)
+		scaledFloor[teamID] = v
+		return v
+	}
 	var pool []analysis.PlayerMetrics
 	for _, c := range e.AllMetrics() {
-		if excluded[c.ID] || c.Minutes < 600 {
+		if excluded[c.ID] || c.Minutes < floorFor(c.TeamID) {
 			continue
 		}
 		if c.Status != "available" && c.Status != "doubtful" {
@@ -688,6 +720,16 @@ func printPlanLines(w io.Writer, plans []analysis.Plan) {
 // this is six orders of magnitude below that, so it can never widen the band in a way a
 // reader could notice.
 const bandEpsilon = 1e-9
+
+// transferMinSeasonMinutes is the sample-size floor for a transfer candidate, written
+// as a SEASON TOTAL and scaled per club before use. Too little football behind a player
+// and his per-90 rates are not believable.
+//
+// It matches the 600 Optimize's OptimizeRequest.MinMinutes ships with, deliberately: a
+// player the optimiser would not buy should not be offered as a transfer either, and
+// two different bars would make the squad page and the transfer page disagree about who
+// exists.
+const transferMinSeasonMinutes = 600
 
 // equivalentTo returns the leading run of plans this model cannot tell apart from the
 // best one: every plan whose gain is within band of plans[0]'s.

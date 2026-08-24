@@ -265,6 +265,10 @@ it is replay documentation, needed when running a sweep, not every run. → **ar
   repo — went live 2026-08-22 and was used that same day to check a live-API fix this way before
   it reached production. That class of bug had passed every test and still broken
   `fplarmband.com` within minutes of a deploy earlier the same day.
+  ⚠️ **Verify through the SURFACE the reader uses.** Running the binary and curling the
+  endpoint are not proxies for the page. On 2026-08-23 the CLI was right, `/api/transfers`
+  was right, and the page rendered `plans[0]` of five — found by a person clicking the
+  button, on a candidate two earlier staging deploys had each "verified".
 - **Convert per-gameweek figures by multiplying by 38. Never divide a pooled total by the cell
   count.** The six entry points give cells of 38/33/28/23/18/13 gameweeks (mean 25.5), so
   dividing by 36 understates by about a third.
@@ -387,6 +391,17 @@ it is replay documentation, needed when running a sweep, not every run. → **ar
 Shipped bugs, each now covered by a regression test. Re-introducing one is easy. Full narratives
 in the vault; the lesson and the pinning test here — the test is the guard. →
 **harness-and-inference**, **optimiser-and-squad**, **archive-and-data**
+
+- **A minutes floor written as a season total must be scaled before it is compared, at EVERY
+  call site.** → **transfer-policy**. `buildTransferBoard` filtered on a bare
+  `c.Minutes < 600`; against fresh-season aggregates 0 of 609 players cleared it, so the pool
+  was empty and every transfer surface answered "nothing would improve this squad" for about
+  seven gameweeks. `ScaledMinMinutesFor` already existed for exactly this and had been applied
+  to `Optimize` alone. Pinned by `TestTheTransferPoolScalesItsMinutesFloor` (source scan).
+  ⚠️ **There were THREE copies.** The first fix took one; `internal/agent/tools.go`'s own pool
+  was still unscaled afterwards, while the same file scaled the floor correctly twenty lines
+  above. The guard now reads every file that builds a pool, because one scoped to the file
+  whose bug prompted it reads as coverage and is not.
 
 - **The hit ceiling is a knob, not a clamp, and both expressions of it must move together.** →
   **transfer-policy**. Pinned by `TestTheHitCeilingIsReadByTheFundedPairBranch` (source scan)
