@@ -90,6 +90,24 @@ func (e *Engine) rebuildCaveat() string {
 		return ""
 	}
 	if played == 0 {
+		// ⚠️ GameweeksPlayed counts FINISHED events, so it is still 0 through the
+		// multi-day span between a gameweek's first kickoff and FPL marking it
+		// finished — bonus is not locked until well after the last whistle. Saying
+		// "no gameweek has been played" there is simply false, and it understates
+		// the evidence twice over: FPL's aggregates carry every completed match's
+		// minutes the moment they finish, so the fifteen is already moving on this
+		// season's football even while `played` reads zero. Observed live on
+		// 2026-08-24, when all ten GW1 matches had been played, the wildcard fifteen
+		// visibly changed on that data, and this sentence still claimed none of it
+		// existed. Seventh instance of the family inLiveGameweekGap exists to head
+		// off — see its own comment for the three classes.
+		if e.inLiveGameweekGap() {
+			return "A gameweek is under way but not final yet, so the minutes behind " +
+				"this fifteen are a partial read of this season on top of last, and they " +
+				"will move again once the last match is scored. A wildcard or free hit " +
+				"re-picks all fifteen, which is the decision most exposed to a thin " +
+				"sample; four or five gameweeks settle most roles."
+		}
 		return "No gameweek has been played, so this fifteen rests entirely on last " +
 			"season plus any manual minutes corrections. A wildcard or free hit re-picks " +
 			"all fifteen, which is the decision most exposed to that — the recorded " +
