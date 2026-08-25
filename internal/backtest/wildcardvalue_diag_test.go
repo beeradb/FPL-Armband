@@ -8,8 +8,11 @@ package backtest
 //
 // `TestDiagAnchoredChipDecomposition`'s wildcard block compares a wildcard at a
 // fixed offset against a wildcard on a double: both arms play the chip, so its
-// VALUE cancels and only the TIMING is measured (+15.4 a season, unresolved,
-// and failing five of six leave-one-out subsets). Nothing here has ever measured
+// VALUE cancels and only the TIMING is measured (+6.4 a season-path against a
+// threshold of 27.0, unresolved, and resolving in ZERO of six leave-one-out
+// subsets). ⚠️ That was published as "+15.4 a season, failing five of six" —
+// a per_gw reading of an event count, taken on a dirty tree; both figures are
+// withdrawn. Read the banked cells at --scale=per_path. Nothing here has ever measured
 // what the chip itself buys.
 //
 // # ⚠️ The record says this cannot be measured, and that claim is being tested

@@ -20,7 +20,7 @@ package backtest
 // to the captain of the fielded eleven, drawn from fifteen owned players, so the
 // week was being selected on a signal the squad could not cash in. That dilutes
 // the effect toward zero, and the measurement showed it. ⚠️ The figures that
-// argued this (+4.6 a season against ~+7.8 implied) were per_gw readings of an
+// argued this (+4.6 a season against ~+6.8 implied) were per_gw readings of an
 // event count and are withdrawn; the restricted rule reads +2.25 a season-path
 // against a threshold of 4.19. The DIRECTION of the argument stands — a squad
 // cannot cash a signal it does not own — but it is a design argument now, not a
