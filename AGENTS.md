@@ -701,12 +701,12 @@ from this list is weak evidence of absence — nothing checks it stays complete.
   and from `stats/cells/2026-08-25-f7d2be1b/`; the same arms read ~1.7x larger on the default
   `per_gw` scale, which is wrong for an event count and has now produced a retracted figure
   twice. → **chips**
-- **The anchoring effect decomposes additively (+19.4 across three chips against a bundled
-  +20.6) but only BENCH BOOST resolves on its own** — free hit is the largest component at
-  +14.5 and misses its own threshold of 15.3. Effect size and resolvability are different
-  questions. ⚠️ **Free hit also fails leave-one-season-out in 4 of 6 subsets, with two negative
-  seasons** — it resolves only in the two dropping one of them, so "free hit carries it" is a
-  point estimate LOSO argues against. **The bundle is what resolves.** → **chips**
+- **The anchoring effect decomposes additively and BENCH BOOST is the only chip that resolves
+  on every arm and commit tried** (+4.4 to +5.6, LOSO 6/6). ⚠️ **FREE HIT'S STATUS DEPENDS ON
+  BOTH THE COMMIT AND THE DATA SOURCE**: +14.5/t 2.44 pre-`5b970338`; **+21.0/t 3.60, six of six
+  seasons, RESOLVING** after it; +20.7 with the SE DOUBLED to 11.81 on measured xGC at the same
+  commit. Cells `stats/cells/2026-08-25-xgcarms/`. **Quote none of these without its arm.**
+  → **chips**
 - **The two triple-captain instruments disagree and the replay is no longer the blind one.** Per
   decision the rule delivers +7.95 realised a chip (t 2.92, threshold 7.0); the season-path
   replay of the same rule reads +2.25 against a threshold of 4.19, so it could have resolved that
