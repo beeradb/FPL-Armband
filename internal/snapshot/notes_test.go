@@ -1001,7 +1001,30 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// is stating something readers used to get for free by finding the directory.
 	// Cutting it to fit is the qualifier-dropping failure this comment already
 	// warns against, above. Left just under 1 KB free.
-	const budget = 54 * 1024
+	//
+	// # 56 KB, 2026-08-25 — a shipped constant moved, and three chip entries had to
+	// carry the estimand that decides how to read them
+	//
+	// `MinutesWeight` moved 1.25 -> 1.0, so Constants owes a reader two things it did
+	// not owe before: that the value is a JUDGEMENT rather than a measurement (this
+	// harness cannot locate an optimum on it), and that `MinutesWeightByPosition` is
+	// INERT at the new value — the exponent scales the excess over neutral and there
+	// is none. A reader who misses the second reads a per-position setting as live
+	// when it does nothing.
+	//
+	// The chip entries cost the rest. The anchoring line changed from a "clean null"
+	// to a resolved +20.6 a season-path, and it cannot be stated without its ESTIMAND:
+	// the same arms read ~1.7x larger on the default `per_gw` scale, which is wrong
+	// for an event count and has now produced a retracted figure twice — once
+	// historically, once on 2026-08-25 before review caught it. A bare figure here
+	// would be re-inflated by the next reader who runs the default. The decomposition
+	// line then has to say that the bundle resolves while its LARGEST component does
+	// not, because effect size and resolvability are different questions and the
+	// obvious reading of "free hit carries it" is the wrong one.
+	//
+	// Every one of those is a qualifier carrying the uncertainty, which is the class
+	// this comment says must never be cut to fit. Raised rather than compressed.
+	const budget = 56 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

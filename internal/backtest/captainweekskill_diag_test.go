@@ -41,7 +41,6 @@ package backtest
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"testing"
 
@@ -138,33 +137,36 @@ func TestDiagCaptainWeekSkill(t *testing.T) {
 	if len(bySeason) < 2 {
 		t.Skip("not enough seasons")
 	}
-	// ⚠️ SEASON-CLUSTERED, and this is not a refinement. Cells inside a season
-	// share that season's archive, so treating them as independent draws
-	// overstates t — it did, by 4.11 against 3.48, until review caught it. The
-	// same objection retires the win/loss count: 34 cells are not 34 binomial
-	// trials when the effective n is the season count, so the per-season sign is
-	// reported instead of a "30 of 34" that reads as p ~ 3e-6 and is not.
-	seasonMeans := make([]float64, 0, len(bySeason))
-	for _, s := range seasonNames {
-		seasonMeans = append(seasonMeans, meanOf(bySeason[s]))
-	}
-	mean, se := meanSE(seasonMeans)
-	df := len(seasonMeans) - 1
-	crit := tCrit95(df)
-	pmean := meanOf(projs)
-
+	// ⚠️ NO INFERENCE HERE, deliberately. Season-clustered SEs are computed in
+	// stats/sweep_inference.R and nowhere else, and `TestInferenceLivesInOnePlace`
+	// enforces it — a second implementation is how two stale critical values
+	// survived a grid widening. This block used to compute the clustered SE and t
+	// itself and was caught by that guard.
+	//
+	// The unit here is a DECISION, not a season-path cell, so this is not a sweep
+	// and cannot emit cells for R. What it emits instead is the per-season means,
+	// which is the input any clustered reading needs — and the clustering is then
+	// an explicit choice the reader makes, not one buried in a diagnostic.
+	//
+	// ⚠️ Clustering IS the right reading, and the reason is worth stating where
+	// the numbers are produced: cells inside a season share that season's archive,
+	// so treating them as independent overstates t — it did, 4.11 against 2.92,
+	// until review caught it. The same objection retires a "30 of 34" win count:
+	// 34 cells are not 34 binomial trials when the effective n is the season
+	// count. Read the per-season row, cluster on it, and quote the threshold.
 	fmt.Printf("\ncells %d over %d seasons | anchored better in %d, worse in %d, tied in %d\n",
-		len(diffs), len(seasonMeans), wins, losses, ties)
-	fmt.Printf("per-season mean gain: ")
+		len(diffs), len(seasonNames), wins, losses, ties)
+	fmt.Printf("⚠️ the win/loss count is NOT %d independent trials — the effective n is "+
+		"the season count. Do not read it as a binomial.\n", len(diffs))
+	fmt.Printf("\nper-season mean realised gain (pts/chip) — CLUSTER ON THIS ROW:\n  ")
 	for _, s := range seasonNames {
-		fmt.Printf("%s %+.1f  ", s, meanOf(bySeason[s]))
+		fmt.Printf("%s %+.2f   ", s, meanOf(bySeason[s]))
 	}
-	fmt.Printf("\n")
-	fmt.Printf("realised gain  mean %+.2f pts/chip, season-clustered SE %.2f, t %.2f "+
-		"vs t_crit(%d) %.3f -> %s\n", mean, se, mean/se, df, crit,
-		map[bool]string{true: "RESOLVES", false: "does not resolve"}[math.Abs(mean/se) > crit])
-	fmt.Printf("               detection threshold of this comparison: %.2f pts/chip\n", crit*se)
-	fmt.Printf("projected gain mean %+.2f pts/chip\n", pmean)
+	fmt.Printf("\n\nunclustered cell mean: realised %+.2f, projected %+.2f pts/chip\n",
+		meanOf(diffs), meanOf(projs))
+	fmt.Printf("⚠️ that cell mean carries NO standard error on purpose. Take the SE and t "+
+		"from the per-season row above, against tCrit95(seasons-1), and report the "+
+		"threshold beside the effect.\n")
 	fmt.Printf("\nThe projected column is what the rule BELIEVED it was buying; the\n")
 	fmt.Printf("realised column is what it got. A realised gain near the projected\n")
 	fmt.Printf("one says the projections rank weeks honestly. A realised gain near\n")

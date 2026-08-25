@@ -150,32 +150,59 @@ func TestNextChipFindsTheOneAheadOfTheDecision(t *testing.T) {
 func TestASecondSetChipActuallyPlays(t *testing.T) {
 	cur, prior, base := chipSim(t)
 
-	// A bench boost on 2025-26's only six-club double.
+	// The week to boost is CHOSEN, not hardcoded, and the reason is a real
+	// failure this test hit. It used to boost 2025-26's six-club double at GW33
+	// and assert the season total moved. That asserts two things at once — the
+	// chip is read, AND this squad's bench happened to score that week — and the
+	// second is a property of the squad, which every scoring constant can change.
+	// Shipping MinutesWeight at 1.0 produced a fifteen whose bench recorded no
+	// minutes at all in GW33: `BenchBoost` true, `BenchBoostGain` 0, season total
+	// byte-identical. The chip was read correctly and the test reported "the chip
+	// is not reaching scoring", which is the opposite diagnosis.
+	//
+	// `BenchBoostGain` is recorded on EVERY gameweek as a counterfactual, so the
+	// plain run already knows which weeks have a bench worth boosting. Pick one
+	// from the second set's half of the season and the assertion below tests only
+	// the thing it means to.
+	plain, err := Simulate(cur, prior, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	boostGW := 0
+	for _, wk := range plain.Weeks {
+		if wk.GW >= 20 && wk.BenchBoostGain > 0 {
+			boostGW = wk.GW
+			break
+		}
+	}
+	if boostGW == 0 {
+		t.Skip("no second-set gameweek has a bench worth boosting in this archive; " +
+			"the points assertion below cannot distinguish a zero-value chip from " +
+			"an unread one, so it is not run rather than run vacuously")
+	}
+
 	withChip := base
-	withChip.Chips2 = analysis.ChipPlan{BenchBoost: 33}
+	withChip.Chips2 = analysis.ChipPlan{BenchBoost: boostGW}
 	got, err := Simulate(cur, prior, withChip)
 	if err != nil {
 		t.Fatal(err)
 	}
 	played := false
 	for _, wk := range got.Weeks {
-		if wk.GW == 33 && wk.BenchBoost {
+		if wk.GW == boostGW && wk.BenchBoost {
 			played = true
 		}
-		if wk.BenchBoost && wk.GW != 33 {
+		if wk.BenchBoost && wk.GW != boostGW {
 			t.Errorf("a bench boost played at GW%d, which no set schedules", wk.GW)
 		}
 	}
 	if !played {
-		t.Fatal("a second-set bench boost at GW33 never played — Chips2 is stored and not read")
+		t.Fatalf("a second-set bench boost at GW%d never played — Chips2 is stored and not read", boostGW)
 	}
 
 	// And the empty second set is a true no-op, not merely a harmless-looking one.
-	// Everything recorded from this harness was measured at one set.
-	plain, err := Simulate(cur, prior, base)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Everything recorded from this harness was measured at one set. `plain` is the
+	// run above, which also supplied the week choice.
 	if got.Points == plain.Points {
 		t.Error("playing a bench boost changed nothing; the chip is not reaching scoring")
 	}
