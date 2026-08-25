@@ -164,8 +164,8 @@ func TestDiagCaptainWeekSkill(t *testing.T) {
 	}
 	fmt.Printf("\n\nunclustered cell mean: realised %+.2f, projected %+.2f pts/chip\n",
 		meanOf(diffs), meanOf(projs))
-	fmt.Printf("⚠️ that cell mean carries NO standard error on purpose. Take the SE and t "+
-		"from the per-season row above, against tCrit95(seasons-1), and report the "+
+	fmt.Printf("⚠️ that cell mean carries NO standard error on purpose. Take the SE and t " +
+		"from the per-season row above, against tCrit95(seasons-1), and report the " +
 		"threshold beside the effect.\n")
 	fmt.Printf("\nThe projected column is what the rule BELIEVED it was buying; the\n")
 	fmt.Printf("realised column is what it got. A realised gain near the projected\n")
