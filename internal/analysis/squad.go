@@ -428,6 +428,30 @@ type Squad struct {
 // at all.
 var ObserveOptimize func(time.Duration)
 
+// fillCandidateCost is the greedy fill loop's one point of indirection over
+// the admissibility bound it consults before committing to a candidate — see
+// fillBound's doc for what the shipped bound does and why. Its default body
+// is exactly the expression the loop used to call directly; production code
+// never reassigns it. It exists purely as a seam for
+// TestSquadFillBoundDifferentialAgreesOnLandscapesTheOldBoundAlreadyClears
+// (squadfillbounddiff_test.go), which drives this REAL Optimize call
+// through minCostToFillAsShippedBefore94068f30 — the bound fillBound
+// replaced — to check that the replacement changed nothing on any landscape
+// the old bound already completed, without a second copy of this loop.
+var fillCandidateCost = func(fb *fillBound, pool []PlayerMetrics, selected map[int]PlayerMetrics, posCount, clubCount map[string]int, pending PlayerMetrics, remaining int) int {
+	return fb.cost(posCount, clubCount, boundParams{id: pending.ID, pos: pending.Position, team: pending.Team}, remaining)
+}
+
+// observeGreedySeed, if set, is handed the greedy fill's raw output — the
+// squad selected before DP seeding or the local search runs — and its spend
+// in tenths of a million. Nil in production. Exists so
+// squadfillbounddiff_test.go can inspect the greedy seed in isolation: the
+// DP seeds Optimize builds afterwards (see stage 2 on Optimize's own doc)
+// are constructed independently of the greedy fill and can win regardless of
+// which bound the fill used, which would hide a divergence in the fill loop
+// itself behind an unaffected final answer.
+var observeGreedySeed func(seed []PlayerMetrics, spend int)
+
 func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	if ObserveOptimize != nil {
 		start := time.Now()
@@ -601,11 +625,23 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	clubCount := map[string]int{}
 	spend := 0
 
+	// fb is the two-tier admissible bound's scratch — see its doc for what it
+	// holds and why. Built once from pool, before anything is added, so its
+	// static structure (price order per position and per club) is ready for
+	// the locked-player adds below as well as the greedy fill.
+	fb := buildFillBound(pool)
+
 	add := func(m PlayerMetrics) {
 		selected[m.ID] = m
 		posCount[m.Position]++
 		clubCount[m.Team]++
 		spend += int(m.Price*10 + 0.5)
+		// A locked player can be absent from pool — locks validate against
+		// byID, not the filtered pool — in which case there is nothing in fb
+		// to mark: he was never a bound candidate to begin with.
+		if idx, ok := fb.poolIndexByID[m.ID]; ok {
+			fb.picked[idx] = true
+		}
 	}
 
 	for _, id := range req.LockIDs {
@@ -621,6 +657,30 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	if spend > budget {
 		return nil, fmt.Errorf("locked players cost £%.1fm, over the £%.1fm budget",
 			float64(spend)/10, float64(budget)/10)
+	}
+
+	// Up-front feasibility: the same admissible bound at k=0 (nothing
+	// pending), so "can a legal fifteen be completed at all" is answered by
+	// the identical machinery the fill loop below trusts, rather than a
+	// second implementation of the question. See fillBound.exact.
+	if cost := fb.exact(posCount, clubCount, boundParams{id: -1}); cost >= boundInfeasible {
+		clubCap := fb.numClubs * MaxPerClub
+		if clubCap < SquadSize {
+			plural := "s"
+			if fb.numClubs == 1 {
+				plural = ""
+			}
+			return nil, fmt.Errorf("could not fill a legal 15-man squad: only %d club%s "+
+				"in the pool, so at most %d squad slots are available — relax min_minutes "+
+				"or the exclude list", fb.numClubs, plural, clubCap)
+		}
+		return nil, fmt.Errorf("could not fill a legal 15-man squad: no combination of "+
+			"available players satisfies both the position quotas and the %d-per-club "+
+			"limit — relax min_minutes or the exclude list", MaxPerClub)
+	} else if cost > budget-spend {
+		return nil, fmt.Errorf("could not fill a legal 15-man squad: the cheapest legal "+
+			"completion costs £%.1fm against £%.1fm remaining — try raising the budget",
+			float64(cost)/10, float64(budget-spend)/10)
 	}
 
 	byValue := make([]PlayerMetrics, len(pool))
@@ -642,14 +702,15 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 		if posCount[m.Position] >= squadQuota[m.Position] {
 			return false
 		}
-		if clubCount[m.Team] >= MaxPerClub {
+		if !clubHeadroom(clubCount, m.Team) {
 			return false
 		}
 		return true
 	}
 
 	// Fill greedily, reserving enough budget to complete the remaining slots
-	// with the cheapest available player at each unfilled position.
+	// with the cheapest LEGAL completion — position quotas and the club cap
+	// both — at each unfilled position. See fillBound.cost.
 	for len(selected) < SquadSize {
 		best := -1
 		for i, m := range byValue {
@@ -657,7 +718,8 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 				continue
 			}
 			cost := int(m.Price*10 + 0.5)
-			if spend+cost+minCostToFill(byValue, selected, posCount, clubCount, m) > budget {
+			remaining := budget - spend - cost
+			if fillCandidateCost(fb, pool, selected, posCount, clubCount, m, remaining) > remaining {
 				continue
 			}
 			best = i
@@ -667,6 +729,10 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 			return nil, fmt.Errorf("could not fill a legal 15-man squad within £%.1fm — try raising the budget or relaxing min_minutes", float64(budget)/10)
 		}
 		add(byValue[best])
+	}
+
+	if observeGreedySeed != nil {
+		observeGreedySeed(squadSlice(selected), spend)
 	}
 
 	changes := changeBudget{Max: req.MaxChanges}
@@ -782,47 +848,443 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	return sq, nil
 }
 
-// minCostToFill is the cheapest way to complete the squad after hypothetically
-// adding `pending`, so greedy filling never strands the budget.
-func minCostToFill(pool []PlayerMetrics, selected map[int]PlayerMetrics, posCount, clubCount map[string]int, pending PlayerMetrics) int {
-	need := map[string]int{}
-	for pos, quota := range squadQuota {
-		n := quota - posCount[pos]
-		if pos == pending.Position {
+// boundInfeasible signals that no legal completion exists — either tier's
+// bound overflowing this means the true minimum does too, since a lower
+// bound cannot be infeasible while the truth is not.
+const boundInfeasible = 1 << 30
+
+// boundParams is what fillBound.cost and .exact are being asked to complete
+// AROUND: a real candidate the greedy fill is about to commit to (id, pos and
+// team all set), or the zero value for the up-front check, which asks the
+// identical question about the whole squad with nothing pending — pos and
+// team as "" and id as -1 never match a real player or a real club name, so
+// every subtraction below is simply skipped.
+type boundParams struct {
+	id   int
+	pos  string
+	team string
+}
+
+// fillBound is the greedy fill's admissibility bound: the cheapest way to
+// complete the squad after hypothetically adding the candidate named by
+// boundParams, so the fill never commits to a player that stampedes the
+// budget into a corner it cannot legally get out of.
+//
+// # Why the obvious fix is wrong
+//
+// The true question is "cheapest legal completion under position quotas AND
+// the 3-per-club cap" — a transportation problem over two partition
+// matroids. The tempting patch is a running per-club counter shared across
+// every position as the old sort is walked once. That over-estimates, and is
+// therefore INADMISSIBLE — a bound that can exceed the true cheapest
+// completion silently rejects reachable squads, turning a feasibility bug
+// into a search-quality regression instead of fixing it. Counterexample:
+// cap[A]=1, need one GKP and one DEF; club A has a £4.0m GKP and a £4.0m DEF;
+// the cheapest elsewhere are a £4.5m GKP and a £10.0m DEF. A shared counter
+// spends A's one slot on whichever position it reaches first and pays
+// £14.0m; the true optimum — GKP from A, DEF from elsewhere — is £8.5m.
+//
+// # Two tiers, shipped together
+//
+// Tier 1 (tier1) is a lower bound: for each needed position, walk its
+// candidates price-ascending, giving THAT position the club's FULL headroom
+// on its own (not shared with any other position's walk). Dropping the
+// cross-position sharing constraint can only lower the optimum — for any
+// feasible completion T, T restricted to position p is itself feasible for
+// p's own relaxed subproblem, so tier1's sum is <= cost(T) for every legal T,
+// hence <= the true minimum. And each position's own subproblem — cheapest k
+// under one club's cap — is a partition matroid, so ascending-price greedy is
+// exactly optimal for it. That makes tier1 strictly tighter than the old
+// bound (its feasible set is the old bound's superset), so there is no old
+// bound left to max() against.
+//
+// Tier 1 ALONE still dead-ends in exactly the thin-pool regime that produced
+// the bug, so it must not be described as closing it: cap[A]=1, need one DEF
+// and one FWD, A has a £4.0m DEF and a £4.5m FWD, next cheapest elsewhere are
+// £4.5m and £9.0m. Tier 1 gives each position A's slot for free and reports
+// 8.5; the truth is 9.0, because only one of DEF/FWD can actually come from
+// A. Tier 1 makes the failure rarer, not impossible.
+//
+// Tier 2 (tier2) is the exact answer: a DP over clubs against the SHARED
+// position-need state, so a club's cap really is spent once across every
+// position rather than once per position. Rejection on tier 1 alone is
+// always correct (tier1 <= true), so tier2 only has to run when tier1 says
+// "might be affordable" — cheap-reject, expensive-only-on-accept.
+//
+// The corollary: the bound only changes a decision when
+// old(x) <= remaining < new(x); since new(x) <= true(x), that means x is
+// genuinely uncompletable, and the greedy only ever adds players, so
+// committing to x always ends in the "could not fill" error anyway. So on
+// every landscape where Optimize currently succeeds, the greedy seed this
+// produces is byte-identical to what the old bound produced — only
+// currently-failing runs change behaviour. That collapses the moment either
+// tier over-estimates by even a tenth of a million, which is why
+// admissibility is the one property this file cannot trade away for
+// simplicity or speed.
+//
+// # What is static and what is live
+//
+// fillBound holds only the STRUCTURE built once from pool — which player
+// sits where, and price order within each position and each (position,
+// club) — never a second copy of a quantity that changes during the fill.
+// posCount and clubCount stay the single map Optimize already threads
+// through; tier1 and tier2 read them live on every call rather than
+// mirroring them, which is deliberate: a mirror that can drift out of sync
+// with the map it shadows is this package's signature failure.
+type fillBound struct {
+	// id, price and club are parallel to the pool fillBound was built from.
+	id    []int
+	price []int32
+	club  []int32 // dense club id, see clubIdx
+
+	// picked marks a pool index as already committed to `selected`. Set by
+	// Optimize's add() closure as the fill proceeds; never cleared, because
+	// the greedy fill only ever adds during one Optimize call.
+	picked []bool
+
+	// clubName maps a dense club id back to the name posCount/clubCount are
+	// keyed by, so tier1/tier2 can read those live maps without holding a
+	// second copy of the counts themselves.
+	clubName []string
+	clubIdx  map[string]int32
+	numClubs int
+
+	// poolIndexByID resolves a committed player back to his pool slot so
+	// add() can mark him picked. A locked player can be absent from pool —
+	// locks validate against byID, not the filtered pool — so this needs the
+	// ", ok" guard at every call site; a miss means he was never a bound
+	// candidate to begin with, which is correct, not an error.
+	poolIndexByID map[int]int32
+
+	// posOrder[p] lists pool indices of position p (posIdx order: GKP, DEF,
+	// MID, FWD) in ascending price order, for tier 1's per-position walk.
+	posOrder [4][]int32
+	// clubPosOrder[p][club] is the same, restricted to one club, for tier
+	// 2's per-(club,position) cheapest-k lookup.
+	clubPosOrder [4][][]int32
+
+	// used is tier 1's per-call, per-club counter. Reset at the start of
+	// EVERY position's own walk, not once per tier1() call — Tier 1's
+	// relaxation gives each position the club's full headroom
+	// independently, which is the whole reason it is only a lower bound (see
+	// the type doc). Hoisted here so resetting it is a plain write loop
+	// rather than a fresh map per call.
+	used []int32
+
+	// dp/next are tier 2's DP buffers, sized at the state space's true upper
+	// bound: (GKP need+1) x (DEF need+1) x (MID need+1) x (FWD need+1) <=
+	// 3*6*6*4 = 432 (quotas are 2/5/5/3, plus one each for the zero state).
+	// Fixed rather than grown, so no Tier 2 call ever allocates one.
+	dp, next [432]int
+}
+
+// buildFillBound builds fillBound's static structure once, O(pool log pool).
+// Nothing here changes for the rest of one Optimize call.
+func buildFillBound(pool []PlayerMetrics) *fillBound {
+	fb := &fillBound{
+		clubIdx:       map[string]int32{},
+		poolIndexByID: make(map[int]int32, len(pool)),
+	}
+	n := len(pool)
+	fb.id = make([]int, n)
+	fb.price = make([]int32, n)
+	fb.club = make([]int32, n)
+	fb.picked = make([]bool, n)
+	posOf := make([]int8, n)
+
+	for i, m := range pool {
+		fb.id[i] = m.ID
+		fb.price[i] = int32(priceUnits(m))
+		cid, ok := fb.clubIdx[m.Team]
+		if !ok {
+			cid = int32(len(fb.clubName))
+			fb.clubIdx[m.Team] = cid
+			fb.clubName = append(fb.clubName, m.Team)
+		}
+		fb.club[i] = cid
+		posOf[i] = int8(posIdx(m.Position))
+		fb.poolIndexByID[m.ID] = int32(i)
+	}
+	fb.numClubs = len(fb.clubName)
+	fb.used = make([]int32, fb.numClubs)
+
+	// Ascending-price index lists, built once. Ties are broken by pool
+	// order, which is fine: only price SUMS escape this structure, never
+	// player identities, so tie order here cannot leak into the answer —
+	// this design structurally cannot reproduce the dpSeeds map-order bug
+	// class.
+	type kv struct {
+		idx   int32
+		price int32
+	}
+	var perPos [4][]kv
+	perClubPos := make(map[int32]*[4][]kv, fb.numClubs)
+	for i := 0; i < n; i++ {
+		p := posOf[i]
+		if p < 0 {
+			continue
+		}
+		e := kv{int32(i), fb.price[i]}
+		perPos[p] = append(perPos[p], e)
+		cid := fb.club[i]
+		cp, ok := perClubPos[cid]
+		if !ok {
+			cp = &[4][]kv{}
+			perClubPos[cid] = cp
+		}
+		cp[p] = append(cp[p], e)
+	}
+	sortKV := func(s []kv) {
+		slices.SortFunc(s, func(a, b kv) int { return int(a.price) - int(b.price) })
+	}
+	for p := 0; p < 4; p++ {
+		sortKV(perPos[p])
+		fb.posOrder[p] = make([]int32, len(perPos[p]))
+		for i, e := range perPos[p] {
+			fb.posOrder[p][i] = e.idx
+		}
+		fb.clubPosOrder[p] = make([][]int32, fb.numClubs)
+	}
+	for cid, cp := range perClubPos {
+		for p := 0; p < 4; p++ {
+			sortKV(cp[p])
+			out := make([]int32, len(cp[p]))
+			for i, e := range cp[p] {
+				out[i] = e.idx
+			}
+			fb.clubPosOrder[p][cid] = out
+		}
+	}
+	return fb
+}
+
+// need returns how many of each position are still required (posIdx order),
+// after also reserving one for p.pos if it names a position — used by both
+// tiers so they agree on exactly the same subproblem.
+func fillNeed(posCount map[string]int, p boundParams) (out [4]int, total int) {
+	for i, pos := range posNames {
+		n := squadQuota[pos] - posCount[pos]
+		if pos == p.pos {
 			n--
 		}
-		if n > 0 {
-			need[pos] = n
+		if n < 0 {
+			n = 0
 		}
+		out[i] = n
+		total += n
 	}
-	if len(need) == 0 {
-		return 0
-	}
+	return out, total
+}
 
-	cheapest := map[string][]int{}
-	for _, m := range pool {
-		if _, in := selected[m.ID]; in || m.ID == pending.ID {
-			continue
-		}
-		if need[m.Position] == 0 {
-			continue
-		}
-		cheapest[m.Position] = append(cheapest[m.Position], int(m.Price*10+0.5))
+// cost is the fill loop's hot-path entry point: tier 1's cheap reject first,
+// tier 2's exact answer only when tier 1 does not already settle it. remaining
+// is the budget left AFTER hypothetically paying for p itself, so the caller's
+// "is this candidate affordable" check is simply cost(...) > remaining.
+func (fb *fillBound) cost(posCount, clubCount map[string]int, p boundParams, remaining int) int {
+	b := fb.tier1(posCount, clubCount, p)
+	if b > remaining {
+		// Tier 1 rejecting is always correct on its own (tier1 <= true), so
+		// there is nothing tier 2 could add here except the exact number of
+		// a rejection nobody asked for.
+		return b
 	}
+	return fb.tier2(posCount, clubCount, p)
+}
 
+// exact is the true minimum completion cost, unconditionally — used by the
+// up-front feasibility check, which has no "remaining" to compare against
+// yet and wants a real answer rather than the fill loop's early-reject.
+func (fb *fillBound) exact(posCount, clubCount map[string]int, p boundParams) int {
+	b := fb.tier1(posCount, clubCount, p)
+	if b >= boundInfeasible {
+		return b
+	}
+	return fb.tier2(posCount, clubCount, p)
+}
+
+// tier1 is the per-position, club-relaxed lower bound described on fillBound.
+func (fb *fillBound) tier1(posCount, clubCount map[string]int, p boundParams) int {
+	pendingClub, hasPendingClub := fb.clubIdx[p.team]
+	need, _ := fillNeed(posCount, p)
 	total := 0
-	for pos, n := range need {
-		costs := cheapest[pos]
-		slices.Sort(costs)
-		if len(costs) < n {
-			// Not enough candidates left; signal infeasibility with a huge cost.
-			return 1 << 30
+	for i := 0; i < 4; i++ {
+		if need[i] == 0 {
+			continue
 		}
-		for i := 0; i < n; i++ {
-			total += costs[i]
+		c, ok := fb.tier1Position(i, p.id, clubCount, pendingClub, hasPendingClub, need[i])
+		if !ok {
+			return boundInfeasible
 		}
+		total += c
 	}
 	return total
+}
+
+// tier1Position finds the cheapest `need` candidates of position p (posIdx
+// index), giving the position the WHOLE of every club's headroom to itself —
+// see the admissibility argument on fillBound.
+func (fb *fillBound) tier1Position(pos int, pendingID int, clubCount map[string]int, pendingClub int32, hasPendingClub bool, need int) (int, bool) {
+	for i := range fb.used {
+		fb.used[i] = 0
+	}
+	got, cost := 0, 0
+	for _, idx := range fb.posOrder[pos] {
+		if fb.picked[idx] || int(fb.id[idx]) == pendingID {
+			continue
+		}
+		cid := fb.club[idx]
+		limit := int32(MaxPerClub) - int32(clubCount[fb.clubName[cid]])
+		if hasPendingClub && cid == pendingClub {
+			limit--
+		}
+		if limit < 0 {
+			// canAdd already guarantees clubCount[p.team] < MaxPerClub before
+			// a real pending player is added, so this means that
+			// precondition broke somewhere upstream. Clamped rather than
+			// left negative — not because a negative value would compare
+			// differently here (fb.used starts at 0, and 0 < a negative
+			// number is already false) but so nothing downstream that reads
+			// `limit` as a capacity ever sees an impossible one.
+			limit = 0
+		}
+		if fb.used[cid] >= limit {
+			continue
+		}
+		fb.used[cid]++
+		cost += int(fb.price[idx])
+		got++
+		if got == need {
+			return cost, true
+		}
+	}
+	return 0, false
+}
+
+// tier2 is the exact bound: a DP over clubs, folding each club's own
+// cheapest allocation across ALL FOUR positions into one state indexed by
+// remaining need — so a club's 3-player cap is spent once, shared across
+// positions, rather than once per position as tier 1 allows. See fillBound's
+// doc for why this only runs on tier 1's accept path.
+func (fb *fillBound) tier2(posCount, clubCount map[string]int, p boundParams) int {
+	need, total := fillNeed(posCount, p)
+	if total == 0 {
+		return 0
+	}
+	pendingClub, hasPendingClub := fb.clubIdx[p.team]
+
+	dims := [4]int{need[0] + 1, need[1] + 1, need[2] + 1, need[3] + 1}
+	size := dims[0] * dims[1] * dims[2] * dims[3]
+	idx := func(g, d, m, f int) int { return ((g*dims[1]+d)*dims[2]+m)*dims[3] + f }
+
+	dp := fb.dp[:size]
+	next := fb.next[:size]
+	for i := range dp {
+		dp[i] = boundInfeasible
+	}
+	dp[idx(need[0], need[1], need[2], need[3])] = 0
+
+	var cum [4][4]int // cum[pos][k] = price of the k cheapest at this club, this position
+	var cumLen [4]int // how many of cum[pos] are filled in, including cum[pos][0]=0
+
+	for cid := int32(0); cid < int32(fb.numClubs); cid++ {
+		headroom := MaxPerClub - clubCount[fb.clubName[cid]]
+		if hasPendingClub && cid == pendingClub {
+			headroom--
+		}
+		if headroom <= 0 {
+			continue
+		}
+		anyCandidate := false
+		for pos := 0; pos < 4; pos++ {
+			maxK := headroom
+			if need[pos] < maxK {
+				maxK = need[pos]
+			}
+			cumLen[pos] = fb.cumulative(pos, cid, p.id, maxK, &cum[pos])
+			if cumLen[pos] > 1 {
+				anyCandidate = true
+			}
+		}
+		if !anyCandidate {
+			continue
+		}
+
+		copy(next, dp)
+		for g := 0; g <= need[0]; g++ {
+			maxG := cumLen[0] - 1
+			if maxG > g {
+				maxG = g
+			}
+			for d := 0; d <= need[1]; d++ {
+				maxD := cumLen[1] - 1
+				if maxD > d {
+					maxD = d
+				}
+				for m := 0; m <= need[2]; m++ {
+					maxM := cumLen[2] - 1
+					if maxM > m {
+						maxM = m
+					}
+					for f := 0; f <= need[3]; f++ {
+						maxF := cumLen[3] - 1
+						if maxF > f {
+							maxF = f
+						}
+						base := dp[idx(g, d, m, f)]
+						if base >= boundInfeasible {
+							continue
+						}
+						for ag := 0; ag <= maxG; ag++ {
+							for ad := 0; ad <= maxD; ad++ {
+								if ag+ad > headroom {
+									break
+								}
+								for am := 0; am <= maxM; am++ {
+									if ag+ad+am > headroom {
+										break
+									}
+									for af := 0; af <= maxF; af++ {
+										if ag+ad+am+af > headroom {
+											break
+										}
+										cost := base + cum[0][ag] + cum[1][ad] + cum[2][am] + cum[3][af]
+										ni := idx(g-ag, d-ad, m-am, f-af)
+										if cost < next[ni] {
+											next[ni] = cost
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		copy(dp, next)
+	}
+
+	return dp[idx(0, 0, 0, 0)]
+}
+
+// cumulative fills cum[0..k] with the price of the k cheapest available
+// (unpicked, non-pending) candidates at (position pos, club cid), k capped
+// at maxK (<= MaxPerClub, so cum's fixed [4]int never overflows), and
+// returns how many entries it wrote — k+1, since cum[0] is always the empty
+// allocation at price 0.
+func (fb *fillBound) cumulative(pos int, cid int32, pendingID int, maxK int, cum *[4]int) int {
+	cum[0] = 0
+	got := 0
+	for _, idx := range fb.clubPosOrder[pos][cid] {
+		if got >= maxK {
+			break
+		}
+		if fb.picked[idx] || int(fb.id[idx]) == pendingID {
+			continue
+		}
+		got++
+		cum[got] = cum[got-1] + int(fb.price[idx])
+	}
+	return got + 1
 }
 
 // cheapestByPosition returns the n cheapest candidates per position — the
@@ -875,6 +1337,16 @@ func clubCountAfter(counts map[string]int, leaving, joining string) int {
 		return c
 	}
 	return c + 1
+}
+
+// clubHeadroom reports whether club has a free slot under the MaxPerClub
+// cap, given the squad-in-progress counts. The one-line seam canAdd and the
+// fill loop route the plain "is there room to add one more" question
+// through, so it and clubCountAfter (the "after a simultaneous leave and
+// join" question) stay two names for two different questions rather than
+// each being re-derived at its call site.
+func clubHeadroom(counts map[string]int, club string) bool {
+	return counts[club] < MaxPerClub
 }
 
 // clubsLegalAfterPair checks the 3-per-club limit for a simultaneous two-player

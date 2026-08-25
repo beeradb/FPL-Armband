@@ -810,37 +810,52 @@ func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	b.Saves90 = mix(b.Saves90, base.Saves90, w)
 	b.Yellow90 = mix(b.Yellow90, base.Yellow90, w)
 	b.Red90 = mix(b.Red90, base.Red90, w)
-	// Volume shrinks ONLY in the live gap this was reported and reproduced
-	// in — GameweeksPlayed() still 0, SeasonHasStarted() already true (see
-	// this function's own comment for why that is where a no-prior debutant
-	// reads as fully nailed off a single match). Past that window a no-prior
-	// player accumulates real CURRENT-season evidence of his own — n90 grows
-	// every week he plays regardless of whether he ever gets a prior SEASON
-	// on file — and w above is already correctly close to 1 by then, so the
-	// unshrunk mid-season population this once touched (freeHitSquad's cheap
-	// fodder among them) is not this bug's population and does not need
-	// this fix. Scoped here rather than left unconditional after
-	// TestFreeHitNeverFieldsABlankingClub (2021-22 GW18) showed the
-	// unconditional version pushing mid-season fodder below the minutes
-	// floor even through the BlendMinutesK/GateMinutesPerMatch narrowing
-	// below — the population past the gap was never who this needed to
-	// protect.
-	if e.GameweeksPlayed() == 0 {
-		// GateMinutesPerMatch is captured BEFORE the volume mix, so the
-		// eligibility floor keeps judging "does he currently get picked" off
-		// what he has actually done, unshrunk — see this function's own
-		// comment on why that gate must not move even though Score does.
-		b.GateMinutesPerMatch = b.MinutesPerMatch
-		b.GateMinutesSet = true
-		// Volume uses BlendMinutesK, not LeagueShrinkK — the same split the
-		// established-prior path two screens down already keeps (BlendRateK
-		// for rates, BlendMinutesK for MinutesPerMatch/StartShare, shipped
-		// at 5 against 8). Reusing LeagueShrinkK here would conflate two
-		// quantities that path deliberately tunes apart.
-		wMin := n90 / (n90 + e.Weights.BlendMinutesK)
-		b.MinutesPerMatch = mix(b.MinutesPerMatch, base.MinutesPerMatch, wMin)
-		b.StartShare = mix(b.StartShare, base.StartShare, wMin)
-	}
+	// Volume shrinks unconditionally, like every rate above it.
+	//
+	// ⚠️ IT WAS GATED ON `e.GameweeksPlayed() == 0` UNTIL 2026-08-25, AND THE
+	// GATE WAS A WORKAROUND FOR A BUG IN THE OPTIMISER, NOT A STATEMENT ABOUT
+	// EVIDENCE. Do not reintroduce it. The history is worth the lines because
+	// the same mistake has now been made twice.
+	//
+	// e41d5bd2 (2026-08-23) added the volume shrink and scoped it to the live
+	// GW1 gap, reasoning that past that window "n90 grows every week he plays
+	// ... and w above is already correctly close to 1 by then". That is false
+	// exactly where it has to be true. GameweeksPlayed() counts FINISHED
+	// gameweeks, so the gate shut the instant GW1 went final — at n90 = 1,
+	// where wMin = 1/(1+5) = 1/6, not near 1. A debutant with one 90-minute
+	// appearance therefore read 90.0 minutes and a 1.00 start share: perfect
+	// certainty about the player the model knew least about. Observed live on
+	// 2026-08-25 with three promoted-club players in a published wildcard XI.
+	//
+	// The gate looked load-bearing because removing it failed
+	// TestFreeHitNeverFieldsABlankingClub at 2021-22 GW18. That failure was
+	// not real. A legal fifteen existed at £65.3m against the £82.0m budget —
+	// £16.7m of headroom — and Optimize reported it could not be built,
+	// because its admissibility bound ignored the three-per-club cap and let a
+	// one-shot greedy walk into a corner it could not reverse. Shrinking
+	// minutes cannot change a price; it changed ValueScore, hence the sort
+	// order, hence which corner. Feasibility depended on score order. That is
+	// fixed in fillBound (squad.go), and with it fixed this shrink is
+	// unconditional and that test passes across all 12 blank gameweeks.
+	//
+	// TestAFinishedGameweekDoesNotMakeADebutantLookNailed pins the property
+	// this restores: flipping Event.Finished alone, with no new football
+	// played, must not change a debutant's reported volume.
+	//
+	// GateMinutesPerMatch is captured BEFORE the volume mix, so the
+	// eligibility floor keeps judging "does he currently get picked" off what
+	// he has actually done, unshrunk — see this function's own comment on why
+	// that gate must not move even though Score does.
+	b.GateMinutesPerMatch = b.MinutesPerMatch
+	b.GateMinutesSet = true
+	// Volume uses BlendMinutesK, not LeagueShrinkK — the same split the
+	// established-prior path two screens down already keeps (BlendRateK for
+	// rates, BlendMinutesK for MinutesPerMatch/StartShare, shipped at 5
+	// against 8). Reusing LeagueShrinkK here would conflate two quantities
+	// that path deliberately tunes apart.
+	wMin := n90 / (n90 + e.Weights.BlendMinutesK)
+	b.MinutesPerMatch = mix(b.MinutesPerMatch, base.MinutesPerMatch, wMin)
+	b.StartShare = mix(b.StartShare, base.StartShare, wMin)
 	b.Weight = w
 	return b
 }

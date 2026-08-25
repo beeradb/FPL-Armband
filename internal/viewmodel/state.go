@@ -181,6 +181,23 @@ type ChipTeam struct {
 	// KeptIDs marks which of XI/Bench the account already holds, so the client can
 	// draw a NEW mark without a second list.
 	KeptIDs []int `json:"kept_ids,omitempty"`
+
+	// RebuildFailed is analysis.WeekView.RebuildFailed verbatim: the wildcard or
+	// free hit could not be rebuilt this gameweek, so XI/Bench/Changes/Out above
+	// describe the account's CURRENT squad passed straight through, not a fresh
+	// recommendation. Without this, a failed rebuild and a genuine "the model
+	// confirms your fifteen already" verdict both arrive here as Changes: 0,
+	// Out: nil -- indistinguishable, and /api/wildcard is public, ungated, and
+	// cached for 300s, so that silence would have been served to every reader.
+	// See analysis.WeekView.RebuildFailed for the full defect history.
+	RebuildFailed bool `json:"rebuild_failed,omitempty"`
+	// RebuildCaveat is analysis.WeekView.Caveat, copied only when RebuildFailed
+	// is true -- a fixed sentence, not a formatted error (AssemblyBudget's and
+	// Optimize's own error text stay server-side; see rebuildFailedCaveat's own
+	// comment for why: this route takes no per-reader input and a diagnostic
+	// message is exactly the class of detail a sibling change already had to
+	// strip from this payload once, for leaking the operator's chip strategy).
+	RebuildCaveat string `json:"rebuild_caveat,omitempty"`
 }
 
 // Transfers is the transfer bar and panel's whole state: the free-transfer allowance, what

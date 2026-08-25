@@ -178,9 +178,18 @@ func (s *squadServer) apiChipTeams(w http.ResponseWriter, r *http.Request) {
 		ci.FreeHitUnavailable = fmt.Sprintf(
 			"The free hit is not open in gameweek %d — FPL does not allow it yet.", event.ID)
 	}
-	if wc != nil && wc.Caveat != "" {
+	// WeekView.Caveat is dual-purpose: a thin-evidence note when Rebuilt, or a
+	// "this did not run" note when RebuildFailed (mutually exclusive, see its
+	// own comment). Only the thin-evidence flavour belongs at PAGE level --
+	// it applies to whichever chip actually rebuilt, so it reads fine on
+	// either tab. A RebuildFailed caveat is chip-specific (a wildcard failing
+	// says nothing about the free hit, or vice versa) and travels instead
+	// through ChipTeam.RebuildCaveat, set per chip in buildChipTeam. Gating
+	// on Rebuilt here keeps a failed wildcard's caveat from also appearing
+	// while a reader is looking at a free hit that rebuilt fine.
+	if wc != nil && wc.Rebuilt && wc.Caveat != "" {
 		ci.Caveat = wc.Caveat
-	} else if fh != nil {
+	} else if fh != nil && fh.Rebuilt && fh.Caveat != "" {
 		ci.Caveat = fh.Caveat
 	}
 

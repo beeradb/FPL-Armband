@@ -412,6 +412,8 @@ func (e *Engine) polish(start []PlayerMetrics, pool []PlayerMetrics, budget int,
 	// purpose: the tool runner runs searches concurrently, and shared mutable
 	// state on Engine is the recorded concurrent-map-write hazard.
 	sc := &xiScratch{}
+	// Likewise the funded-upgrade phase's own scratch — see fundingScratch.
+	fs := &fundingScratch{}
 
 	// Steepest-ascent local search: repeatedly apply the single swap that
 	// improves the objective most, until no swap helps.
@@ -453,12 +455,11 @@ func (e *Engine) polish(start []PlayerMetrics, pool []PlayerMetrics, budget int,
 					if newSpend > budget {
 						continue
 					}
-					// Club limit, ignoring the player being removed.
-					c := clubCount[in.Team]
-					if out.Team == in.Team {
-						c--
-					}
-					if c >= MaxPerClub {
+					// Club limit after the swap: out leaves, in joins. Same
+					// question runPairs asks via clubCountAfter below —
+					// provably identical to a hand-rolled counter, so it is
+					// one implementation rather than two of the same check.
+					if clubCountAfter(clubCount, out.Team, in.Team) > MaxPerClub {
 						continue
 					}
 
@@ -580,7 +581,7 @@ func (e *Engine) polish(start []PlayerMetrics, pool []PlayerMetrics, budget int,
 	}
 	runFunded := func() {
 		for iter := 0; iter < 30; iter++ {
-			cand, score, cost, ok := e.fundedUpgrade(current, selected, clubCount,
+			cand, score, cost, ok := e.fundedUpgrade(sc, fs, current, selected, clubCount,
 				spend, budget, frontierByPos,
 				benchWeight, boost, locked, mustStart, bestScore, changes, spent)
 			if !ok {
@@ -678,6 +679,15 @@ func repairClubs(squad []PlayerMetrics, pool []PlayerMetrics, budget int) []Play
 			if in[cand.ID] || cand.Position != gone.Position {
 				continue
 			}
+			// Deliberately NOT clubCountAfter/clubHeadroom: this squad is
+			// already illegal (that is why repairClubs is running at all),
+			// so counts[cand.Team] can already be over MaxPerClub for a club
+			// OTHER than gone's — the shared helpers assume a legal starting
+			// point and would reject a same-club replacement that is exactly
+			// what is wanted here (cand.Team == gone.Team keeps the count
+			// unchanged, which is always allowed regardless of how high it
+			// already sits). Folding this in would change what
+			// dpseedorder_test.go pins.
 			if counts[cand.Team] >= MaxPerClub && cand.Team != gone.Team {
 				continue
 			}

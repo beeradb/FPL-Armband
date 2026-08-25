@@ -416,6 +416,110 @@ func TestMinutesEvidenceIsTheClubsOwnMatches(t *testing.T) {
 	}
 }
 
+// TestAFinishedGameweekDoesNotMakeADebutantLookNailed is the second occurrence
+// of the exact defect e41d5bd2 (2026-08-23) fixed once already, one call site
+// over.
+//
+// shrinkToLeague shrinks a no-prior player's RATE terms unconditionally, on
+// n90 = el.Minutes/90 — real, current-season evidence that never resets. It
+// shrinks the VOLUME terms (MinutesPerMatch, StartShare) only inside
+// `if e.GameweeksPlayed() == 0`, gated on a different quantity entirely: how
+// many gameweeks FPL has marked Finished, not how much of the player's own
+// evidence has accumulated. GameweeksPlayed() flips a gameweek to Finished
+// the instant every fixture in it has blown its final whistle — a
+// bookkeeping event that carries no new football for a player whose own
+// club has already played and stopped. A debutant whose one ninety-minute
+// appearance was his club's only match so far reads shrunk while that
+// gameweek is still open, then, at the exact instant the LAST OTHER club's
+// fixture in the gameweek finishes, reads raw: MinutesPerMatch jumps to
+// 90.0 and StartShare to 1.00, though not one additional minute of his own
+// was played anywhere.
+//
+// e41d5bd2's own comment defended the boundary this way: "a no-prior
+// player's OWN current-season n90 grows every week he plays regardless of
+// whether he ever gets a prior SEASON on file, so the shrink weight is
+// already correctly near 1 by then [past GameweeksPlayed()==0]." That
+// reasoning holds many weeks into a season, and is false at the exact
+// boundary this test sits on: at n90 = 1 (one 90-minute debut), wMin =
+// n90/(n90+BlendMinutesK) = 1/6 — nowhere near 1 — so the gate does not
+// merely stop shrinking a population that has outgrown the need, it stops
+// shrinking THIS population mid-correction, at its single most extreme
+// weight.
+//
+// This test does not assert a shrunk value, a cutoff, or a gate condition —
+// the fix shape is an open prototype landing separately. It asserts the
+// discontinuity itself is absent: two engines, identical in every respect
+// except whether the gameweek already played is flagged Finished, must
+// report the same MinutesPerMatch (via ExpectedMinutes) and StartShare for
+// the debutant. No new football happened between the two states, so on
+// this model's own terms no answer may change.
+//
+// The league rate the debutant shrinks toward is rebuilt LOCALLY below,
+// rather than left as partialGameweekEngine hands it back, because that
+// helper's own established player carries a full-SEASON minutes total
+// (3000/33) against a fixture list holding a single match — fine for the
+// three other tests in this file that use the helper and never look at the
+// league rate, but it makes calibrateLeagueRates divide a season total by
+// one match and report an impossible ~3000-minute, ~33-start "average" for
+// a single game, which is what a shrink toward it looks like a jump UP
+// rather than the down-toward-a-plausible-average shrink the real defect
+// produces.
+func TestAFinishedGameweekDoesNotMakeADebutantLookNailed(t *testing.T) {
+	live, debutantLive := partialGameweekEngine(t)
+	finished, debutantFinished := partialGameweekEngine(t)
+	finished.Boot.Events[0].Finished = true // the gameweek is now marked over
+
+	// Give the established player a one-match line instead of a season
+	// total — a substitute appearance, on the field for 60 minutes without
+	// starting — so the recalibrated league rate is a plausible per-match
+	// figure (60 minutes, 0 start share) rather than a season total divided
+	// by one match. Identical on both engines, and recalibrated after the
+	// Finished flip so each engine's own matchesAvailable is used, though it
+	// resolves to the same window (1) on both — see DataWindow/
+	// inLiveGameweekGap's own comments for why.
+	establishedLive := &live.Boot.Elements[0]
+	establishedFinished := &finished.Boot.Elements[0]
+	establishedLive.Minutes, establishedLive.Starts = 60, 0
+	establishedFinished.Minutes, establishedFinished.Starts = 60, 0
+	live.calibrateLeagueRates()
+	finished.calibrateLeagueRates()
+
+	if live.GameweeksPlayed() != 0 {
+		t.Fatalf("setup: GameweeksPlayed() = %d on the live engine, want 0", live.GameweeksPlayed())
+	}
+	if finished.GameweeksPlayed() != 1 {
+		t.Fatalf("setup: GameweeksPlayed() = %d on the finished engine, want 1", finished.GameweeksPlayed())
+	}
+	for _, e := range []*Engine{live, finished} {
+		if !e.SeasonHasStarted() {
+			t.Fatal("setup: SeasonHasStarted() is false; the fixture setup is not exercising the gap")
+		}
+	}
+
+	live.Priors = fakePriors{}     // nobody has a prior
+	finished.Priors = fakePriors{} // identical: nobody has a prior
+	debutantLive.Minutes, debutantLive.Starts = 90, 1
+	debutantFinished.Minutes, debutantFinished.Starts = 90, 1 // identical debut, on the identical fixture
+
+	mLive := live.Metrics(debutantLive)
+	mFinished := finished.Metrics(debutantFinished)
+
+	t.Logf("GameweeksPlayed=0: expected minutes %.3f, start share %.3f", mLive.ExpectedMinutes, mLive.StartShare)
+	t.Logf("GameweeksPlayed=1: expected minutes %.3f, start share %.3f", mFinished.ExpectedMinutes, mFinished.StartShare)
+
+	const tolerance = 1e-9
+	if diff := math.Abs(mFinished.ExpectedMinutes - mLive.ExpectedMinutes); diff > tolerance {
+		t.Errorf("expected minutes moved from %.3f to %.3f purely because the gameweek "+
+			"flipped to Finished — no new football was played, so shrinkToLeague's volume "+
+			"gate must not change the answer here", mLive.ExpectedMinutes, mFinished.ExpectedMinutes)
+	}
+	if diff := math.Abs(mFinished.StartShare - mLive.StartShare); diff > tolerance {
+		t.Errorf("start share moved from %.3f to %.3f purely because the gameweek flipped "+
+			"to Finished — no new football was played, so shrinkToLeague's volume gate "+
+			"must not change the answer here", mLive.StartShare, mFinished.StartShare)
+	}
+}
+
 // TestMinutesEvidenceIgnoresAMatchStillInProgress guards the sibling mistake to the one
 // above, at a finer grain: a fixture that has KICKED OFF but has not yet locked in its
 // final numbers is not a match's worth of evidence, it is a partial one. el.Minutes for

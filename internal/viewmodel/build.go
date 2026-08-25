@@ -678,6 +678,19 @@ func buildChipTeam(wv analysis.WeekView, budget float64, codes map[int]int,
 		XIScore:    wv.XIScore,
 		Expected:   wv.Expected,
 		ClubCounts: map[string]int{},
+		// wv.RebuildFailed is the one signal that tells a reader (and this
+		// function's own Changes/Out below) "the model never looked" from "the
+		// model looked and nothing changed" -- see ChipTeam.RebuildFailed's own
+		// comment.
+		RebuildFailed: wv.RebuildFailed,
+	}
+	if wv.RebuildFailed {
+		// wv.Caveat is dual-purpose on WeekView -- a thin-evidence note when
+		// Rebuilt, a "did not run" note when RebuildFailed, never both at once
+		// (see WeekView.Caveat's own comment). Only copy it here under
+		// RebuildFailed, so RebuildCaveat never carries the OTHER message under
+		// the wrong name.
+		ct.RebuildCaveat = wv.Caveat
 	}
 
 	// The opponent chip for THIS gameweek, never the model's forward-looking

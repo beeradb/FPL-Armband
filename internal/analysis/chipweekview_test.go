@@ -95,4 +95,75 @@ func TestChipWeekViewRefusesAGameweekBehindTheDeadline(t *testing.T) {
 		t.Error("ChipWeekView rebuilt a squad for gameweek 1, whose fixtures " +
 			"have all finished -- nobody could still play a wildcard into it")
 	}
+	// A closed gameweek is never eligible to rebuild in the first place -- it
+	// is not the same zero-Rebuilt state as an eligible rebuild that failed,
+	// and RebuildFailed must not blur the two together.
+	if v.RebuildFailed {
+		t.Error("ChipWeekView marked a closed gameweek as a FAILED rebuild; " +
+			"it was never eligible to rebuild at all, so RebuildFailed should " +
+			"stay false here")
+	}
+}
+
+// TestAFailedRebuildIsDistinguishableFromAConfirmedNoChangeRebuild pins the
+// defect this exists to fix: before RebuildFailed existed, a wildcard/free-hit
+// rebuild that COULD NOT RUN (Optimize errored) and one that ran and
+// confirmed the caller's own squad was already optimal both left Squad equal
+// to the squad passed in and Rebuilt false -- indistinguishable downstream.
+// buildChipTeam (internal/viewmodel/build.go) diffs Squad against the
+// account's real fifteen to report Changes/Out, so a FAILED rebuild rendered
+// as "0 changes, nothing transferred out": a confident answer, no error, no
+// caveat, served publicly and cached for 300s by /api/wildcard
+// (cmd/armband/chipteams.go). This asserts the two states now read
+// differently on WeekView itself, which is where buildChipTeam reads them
+// from.
+func TestAFailedRebuildIsDistinguishableFromAConfirmedNoChangeRebuild(t *testing.T) {
+	squad := []PlayerMetrics{{ID: 1}, {ID: 2}}
+
+	t.Run("failed rebuild", func(t *testing.T) {
+		e := chipViewTestEngine(t)
+		// A budget too small to buy even one of this pool's £4.5m players (all
+		// NowCost: 45) forces Optimize to fail on infeasibility -- a stand-in
+		// for any Optimize error, since ChipWeekView's error path does not
+		// discriminate by cause (see AGENTS.md: "a design defect in the error
+		// path... misfires identically for any cause of Optimize failure").
+		tiny := 1
+		e.SquadValue, e.Bank = &tiny, new(int)
+
+		v := e.ChipWeekView(squad, 1, "Wildcard", OptimizeRequest{})
+		if v.Rebuilt {
+			t.Fatal("Optimize should have failed against a £0.1m budget, but " +
+				"v.Rebuilt is true")
+		}
+		if !v.RebuildFailed {
+			t.Fatal("a wildcard was eligible (open gameweek, chip named) but " +
+				"Optimize could not complete it, so RebuildFailed must be true")
+		}
+		if v.Caveat == "" {
+			t.Error("a failed rebuild must say so in Caveat -- silence here is " +
+				"exactly the defect: the page would show the squad with no " +
+				"warning at all")
+		}
+		if len(v.Squad) != len(squad) || v.Squad[0].ID != squad[0].ID {
+			t.Errorf("a failed rebuild must leave Squad as the squad passed in, "+
+				"got %+v", v.Squad)
+		}
+	})
+
+	t.Run("confirmed no-change rebuild", func(t *testing.T) {
+		e := chipViewTestEngine(t)
+		// A generous budget lets Optimize actually run and succeed. Whatever
+		// fifteen it returns, success is signalled by Rebuilt alone --
+		// RebuildFailed must be false here even though nothing about a
+		// two-player placeholder squad looks "changed" by eye.
+		v := e.ChipWeekView(squad, 1, "Wildcard", OptimizeRequest{})
+		if !v.Rebuilt {
+			t.Fatal("Optimize should have succeeded against the ample default " +
+				"budget chipViewTestEngine sets, but v.Rebuilt is false")
+		}
+		if v.RebuildFailed {
+			t.Error("a successful rebuild must never also read as a failed " +
+				"one -- the two are meant to be mutually exclusive")
+		}
+	})
 }
