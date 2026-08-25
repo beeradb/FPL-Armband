@@ -163,6 +163,19 @@ func TestEnvSwitchListIsComplete(t *testing.T) {
 		// Where the prediction benchmark writes its per-gameweek sufficient
 		// statistics. An output path, so it cannot change a measured number.
 		"FPL_PREDICTION_CSV": true,
+		// Where the xGC-reconstruction dump writes, and which seasons it covers.
+		// Both are read ONLY by TestDiagXGCDump, which reads
+		// `clubXGAPerGameweek` and writes a CSV. It computes nothing on the
+		// scoring or replay path and mutates no season, so a sweep run with
+		// either set computes exactly what the shipped defaults compute — the
+		// same argument as FPL_REPLAY_HTML/FPL_REPLAY_GWS above, where narrowing
+		// what is rendered cannot reach a decision.
+		//
+		// ⚠️ _SEASONS narrows the dump, not the replay. If this switch ever comes
+		// to select seasons for something that SCORES, it belongs in envSwitches
+		// instead — the exemption is about where it is read, not about its name.
+		"FPL_XGCDUMP":         true,
+		"FPL_XGCDUMP_SEASONS": true,
 		// Where the clean-sheet diagnostic dumps one row per team-match, for
 		// stats/cs_calibration.R to fit per observation rather than on the six
 		// bucket means it prints. An output path: the rows written are the same
