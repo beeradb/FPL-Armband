@@ -269,6 +269,43 @@ type Season struct {
 	// unset.
 	Absent []string `json:"absent,omitempty"`
 
+	// StrengthAbsent declares that this season's teams.csv carries NO club
+	// strength ratings, and that this is a property of the source rather than a
+	// damaged cache.
+	//
+	// ⚠️ DECLARED, never inferred, and that is the whole point of the field.
+	// `hasTeamStrength` treats an all-zero teams table as a stale cache and makes
+	// `Load` refetch — which is correct, because that shape is what a file written
+	// by an older parser looks like. Without a declaration there is no way to tell
+	// "the source has no ratings" from "the parser did not read them", and the two
+	// need opposite handling. A bare zero must keep failing.
+	//
+	// # Why a season would have none
+	//
+	// FPL publishes `strength_*` in `bootstrap-static` for the LIVE season only,
+	// and the archive's teams.csv begins at 2019-20. For 2016-17, 2017-18 and
+	// 2018-19 the ratings were never archived: the upstream file 404s, and the
+	// only surviving copies are mid-season Wayback captures of FPL's own API,
+	// which have already absorbed results. Using those would put hindsight into a
+	// pre-season prior — the leakage class this package catalogues — so a season
+	// wired from them is NOT what this field is for.
+	//
+	// # What the engine then does, which is why this is safe
+	//
+	// Nothing special, and nothing new. `analysis.priorFromStrength` already
+	// degrades: it uses the granular 1000-1400 ratings only above 100, falls back
+	// to the coarse 1-5 rating, and where a club has neither it leaves both priors
+	// at `leagueAverageGoals`. That path exists because the granular numbers are
+	// unpopulated live in August, so it is exercised every pre-season already.
+	//
+	// So a declared-absent season starts with every club at league average and
+	// learns actual strength from actual results through the shipped blend —
+	// point-in-time, with no hindsight anywhere. ⚠️ **That is a different
+	// estimand, not a free extra season**: fixture difficulty is flat until the
+	// blend moves, so no figure from such a season is comparable with one measured
+	// where FPL's own ratings were available. Label it; do not pool it silently.
+	StrengthAbsent bool `json:"strength_absent,omitempty"`
+
 	// XGRepair reports what the 2022-23 expected-goals repair did on THIS load.
 	//
 	// Not serialised: it is a statement about this load rather than data about the
@@ -539,7 +576,8 @@ func Load(ctx context.Context, cacheDir, season string) (*Season, error) {
 	if b, err := os.ReadFile(path); err == nil {
 		var s Season
 		if err := json.Unmarshal(b, &s); err == nil && len(s.Players) > 0 &&
-			s.parsedByThisVersion() && s.hasTeamStrength() && s.hasAvailability() &&
+			s.parsedByThisVersion() && s.hasTeamStrength() &&
+			s.strengthDeclarationIsConsistent() && s.hasAvailability() &&
 			s.hasStarts() && s.hasRestartGameweeks() && s.absentIsConsistent() &&
 			s.RowGuards != nil && s.RowGuards.Guards >= rowGuardCount {
 			return repaired(&s)
@@ -1019,16 +1057,65 @@ func (s *Season) hasAvailability() bool {
 }
 
 // hasTeamStrength reports whether the cached season carries FPL's pre-season
-// club strength ratings. Same schema check as the kickoff times: every season's
-// teams.csv has them, so their absence means the file predates the parser
-// reading them.
+// club strength ratings. Same schema check as the kickoff times: every season
+// whose teams.csv HAS them must show them, so their absence means the file
+// predates the parser reading them.
+//
+// ⚠️ The check is deliberately asymmetric, and each branch answers a different
+// question:
+//
+//   - `StrengthAbsent` — the source has no ratings, DECLARED. Accept.
+//   - a non-empty table with any non-zero rating — parsed fine. Accept.
+//   - a non-empty table, all zero, NOT declared — indistinguishable from a file
+//     an older parser wrote, so treat it as a stale cache and refetch. **This
+//     must keep failing**; it is the case the guard exists for.
+//   - an empty table — the season is prior-only and says so in `Absent`.
+//
+// Reading the declaration first is what lets a legitimately strengthless season
+// exist without weakening the guard for everything else. Inferring it from the
+// zeros instead would delete the guard, because the two look identical.
 func (s *Season) hasTeamStrength() bool {
+	// Declared absence beats inspection: see Season.StrengthAbsent for why the
+	// engine is safe without ratings, and for why a bare zero is not enough.
+	if s.StrengthAbsent {
+		return true
+	}
+	return s.carriesAnyStrength() || len(s.Teams) == 0
+}
+
+// carriesAnyStrength reports whether ANY club has a rating. Literally that, and
+// nothing else — an empty table returns false here, because "there are no clubs"
+// and "the clubs have no ratings" are different facts and the callers need them
+// apart. hasTeamStrength adds the empty case back; the consistency check below
+// must not.
+func (s *Season) carriesAnyStrength() bool {
 	for _, t := range s.Teams {
 		if t.StrengthAttackHome > 0 || t.StrengthDefenceHome > 0 {
 			return true
 		}
 	}
-	return len(s.Teams) == 0
+	return false
+}
+
+// strengthDeclarationIsConsistent reports whether `StrengthAbsent` describes the
+// teams table it sits beside.
+//
+// ⚠️ A season may not wear the label falsely, and the reason is downstream of
+// this package. The declaration is the ONLY thing telling a later reader that
+// the season's fixture difficulty started flat and was learned from results
+// rather than given by FPL — which makes its figures a different estimand.
+// A season that claims absence while carrying real ratings gets pooled with
+// ordinary seasons and nothing objects, which is the mislabelling this whole
+// field exists to prevent.
+//
+// The check is one-directional on purpose: carrying ratings WITHOUT declaring
+// anything is the ordinary case and must stay legal. Only the claim is checked,
+// never the silence.
+func (s *Season) strengthDeclarationIsConsistent() bool {
+	if !s.StrengthAbsent {
+		return true
+	}
+	return !s.carriesAnyStrength()
 }
 
 func fetch(ctx context.Context, season string) (*Season, error) {
