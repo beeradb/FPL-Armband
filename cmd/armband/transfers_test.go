@@ -347,3 +347,42 @@ func TestEverySelfParsingCommandIsDispatchedBeforeTheGuard(t *testing.T) {
 		}
 	}
 }
+
+// TestTheTransfersBankLineNamesTheChipPlan pins the second consumer of
+// EffectiveHorizon's reason string.
+//
+// The chip plan has ALWAYS been in the banking arithmetic — liveHorizon calls
+// EffectiveHorizon — but the reason was discarded with `h, _ :=` and nothing
+// printed it, so the effect was invisible. Measured on the house squad at GW2 on
+// 2026-08-24: moving the planned wildcard from GW6 to GW4 took the arms from
+// "now 3.74 · waiting 2.31" to "now 0.87 · waiting 0.00" while the recommended
+// transfers, their gain and their hinge were byte-identical. Two runs differing
+// only in a number, with nothing saying why, is the shape this scan exists to
+// stop coming back.
+//
+// A source scan rather than a behaviour test on purpose: the STRING is already
+// pinned by analysis.TestWildcardShortensHorizon, and what is new here is only
+// that a second command reads it. Re-deriving the wording here would be a second
+// implementation of one quantity, which is this project's signature failure.
+func TestTheTransfersBankLineNamesTheChipPlan(t *testing.T) {
+	src, err := os.ReadFile("transfers.go")
+	if err != nil {
+		t.Fatalf("reading transfers.go: %v", err)
+	}
+	s := string(src)
+
+	i := strings.Index(s, "bankLine(board.Advice)")
+	if i < 0 {
+		t.Fatal("bankLine call not found — this scan is anchored on it and needs updating")
+	}
+	after := s[i:]
+	if j := strings.Index(after, "\n\t}"); j > 0 {
+		after = after[:j]
+	}
+	if !strings.Contains(after, "EffectiveHorizon") {
+		t.Error("the banking line no longer names the chip plan.\n" +
+			"liveHorizon puts the planned wildcard into `now` and `waiting`; if nothing " +
+			"prints EffectiveHorizon's reason beside them, a reader sees the arithmetic " +
+			"move with no explanation. See this test's own comment for the measurement.")
+	}
+}
