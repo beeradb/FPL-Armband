@@ -209,7 +209,8 @@ func tcMatchupControl(cur *Season, start int, capXP map[int]float64) analysis.Ch
 //	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest -run TestDiagTripleCaptainMatchup -v -timeout 45m
 //
 // That test placed the chip on the best remaining DOUBLE and found nothing
-// (-1.1 points a season, below its own ~5.6 detection threshold). But a
+// (-0.75 a season-path, below its own detection threshold of 2.0 — both read
+// at --scale=per_path on the banked cells). But a
 // doubles-only rule is only the second-half half of real practice, and it left
 // the chip unplayed in 16 of 36 cells for want of a second double. This is the
 // other half.
@@ -252,7 +253,8 @@ func TestDiagTripleCaptainMatchup(t *testing.T) {
 	runPolicySweep(t, arms, starts)
 
 	fmt.Printf("\nRead against TestDiagAnchoredChipDecomposition's triple-captain\n")
-	fmt.Printf("block (-0.029 pts/gw, doubles-only rule, unresolved). A materially\n")
+	fmt.Printf("block (-0.75 a season-path at --scale=per_path, doubles-only rule,\n")
+	fmt.Printf("unresolved against a threshold of 2.0). A materially\n")
 	fmt.Printf("larger effect here would say the chip IS worth timing and the\n")
 	fmt.Printf("earlier null was about the RULE rather than about the chip.\n")
 }
@@ -281,7 +283,7 @@ func TestDiagAnchoredChipDecomposition(t *testing.T) {
 	}
 
 	fmt.Printf("\nRead each chip's block against the bundled result in\n")
-	fmt.Printf("TestDiagAnchoredChips (+1.645 pts/gw at 4gw sight, bench boost +\n")
+	fmt.Printf("TestDiagAnchoredChips (+20.6 a season-path at 4gw sight, bench boost +\n")
 	fmt.Printf("free hit + triple captain together, no wildcard). Wildcard has no\n")
 	fmt.Printf("bundled figure to compare against — this is its first measurement.\n")
 }

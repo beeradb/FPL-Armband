@@ -1,0 +1,7 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagTripleCaptainMatchup#1,1787692320-1534083,policy,"triple captain, best projected matchup",1,"triple captain, fixed offset (control)",0.13537811702380706,36,-
+TestDiagTripleCaptainMatchup#1,1787692320-1534083,policy_xpoints,"triple captain, best projected matchup",1,"triple captain, fixed offset (control)",0.1481359504854615,36,-
+TestDiagTripleCaptainMatchup#1,1787692320-1534083,hold,"triple captain, best projected matchup",1,"triple captain, fixed offset (control)",0,36,-
+TestDiagTripleCaptainMatchup#1,1787692320-1534083,hold_xpoints,"triple captain, best projected matchup",1,"triple captain, fixed offset (control)",0,36,-
+TestDiagTripleCaptainMatchup#1,1787692320-1534083,hold_fixedcap,"triple captain, best projected matchup",1,"triple captain, fixed offset (control)",0,36,-
+TestDiagTripleCaptainMatchup#1,1787692320-1534083,hold_nocap,"triple captain, best projected matchup",1,"triple captain, fixed offset (control)",0,36,-
