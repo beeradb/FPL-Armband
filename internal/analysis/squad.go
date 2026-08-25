@@ -428,6 +428,30 @@ type Squad struct {
 // at all.
 var ObserveOptimize func(time.Duration)
 
+// fillCandidateCost is the greedy fill loop's one point of indirection over
+// the admissibility bound it consults before committing to a candidate — see
+// fillBound's doc for what the shipped bound does and why. Its default body
+// is exactly the expression the loop used to call directly; production code
+// never reassigns it. It exists purely as a seam for
+// TestSquadFillBoundDifferentialAgreesOnLandscapesTheOldBoundAlreadyClears
+// (squadfillbounddiff_test.go), which drives this REAL Optimize call
+// through minCostToFillAsShippedBefore94068f30 — the bound fillBound
+// replaced — to check that the replacement changed nothing on any landscape
+// the old bound already completed, without a second copy of this loop.
+var fillCandidateCost = func(fb *fillBound, pool []PlayerMetrics, selected map[int]PlayerMetrics, posCount, clubCount map[string]int, pending PlayerMetrics, remaining int) int {
+	return fb.cost(posCount, clubCount, boundParams{id: pending.ID, pos: pending.Position, team: pending.Team}, remaining)
+}
+
+// observeGreedySeed, if set, is handed the greedy fill's raw output — the
+// squad selected before DP seeding or the local search runs — and its spend
+// in tenths of a million. Nil in production. Exists so
+// squadfillbounddiff_test.go can inspect the greedy seed in isolation: the
+// DP seeds Optimize builds afterwards (see stage 2 on Optimize's own doc)
+// are constructed independently of the greedy fill and can win regardless of
+// which bound the fill used, which would hide a divergence in the fill loop
+// itself behind an unaffected final answer.
+var observeGreedySeed func(seed []PlayerMetrics, spend int)
+
 func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	if ObserveOptimize != nil {
 		start := time.Now()
@@ -695,7 +719,7 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 			}
 			cost := int(m.Price*10 + 0.5)
 			remaining := budget - spend - cost
-			if fb.cost(posCount, clubCount, boundParams{id: m.ID, pos: m.Position, team: m.Team}, remaining) > remaining {
+			if fillCandidateCost(fb, pool, selected, posCount, clubCount, m, remaining) > remaining {
 				continue
 			}
 			best = i
@@ -705,6 +729,10 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 			return nil, fmt.Errorf("could not fill a legal 15-man squad within £%.1fm — try raising the budget or relaxing min_minutes", float64(budget)/10)
 		}
 		add(byValue[best])
+	}
+
+	if observeGreedySeed != nil {
+		observeGreedySeed(squadSlice(selected), spend)
 	}
 
 	changes := changeBudget{Max: req.MaxChanges}
