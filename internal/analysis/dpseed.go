@@ -453,12 +453,11 @@ func (e *Engine) polish(start []PlayerMetrics, pool []PlayerMetrics, budget int,
 					if newSpend > budget {
 						continue
 					}
-					// Club limit, ignoring the player being removed.
-					c := clubCount[in.Team]
-					if out.Team == in.Team {
-						c--
-					}
-					if c >= MaxPerClub {
+					// Club limit after the swap: out leaves, in joins. Same
+					// question runPairs asks via clubCountAfter below —
+					// provably identical to a hand-rolled counter, so it is
+					// one implementation rather than two of the same check.
+					if clubCountAfter(clubCount, out.Team, in.Team) > MaxPerClub {
 						continue
 					}
 
@@ -678,6 +677,15 @@ func repairClubs(squad []PlayerMetrics, pool []PlayerMetrics, budget int) []Play
 			if in[cand.ID] || cand.Position != gone.Position {
 				continue
 			}
+			// Deliberately NOT clubCountAfter/clubHeadroom: this squad is
+			// already illegal (that is why repairClubs is running at all),
+			// so counts[cand.Team] can already be over MaxPerClub for a club
+			// OTHER than gone's — the shared helpers assume a legal starting
+			// point and would reject a same-club replacement that is exactly
+			// what is wanted here (cand.Team == gone.Team keeps the count
+			// unchanged, which is always allowed regardless of how high it
+			// already sits). Folding this in would change what
+			// dpseedorder_test.go pins.
 			if counts[cand.Team] >= MaxPerClub && cand.Team != gone.Team {
 				continue
 			}

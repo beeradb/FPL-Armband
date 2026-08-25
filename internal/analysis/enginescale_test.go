@@ -1,7 +1,9 @@
 package analysis
 
 import (
+	"fmt"
 	"math"
+	"sort"
 	"testing"
 
 	"armband/internal/fpl"
@@ -200,15 +202,36 @@ func TestTheEngineScaleReachesBaseXP90(t *testing.T) {
 // The events are populated because `buildFixtureIndex` reads `NextEvent`, and none
 // are finished: a fixture is not what any of these tests are about, and leaving the
 // season un-started keeps every other term out of the way.
+//
+// Teams are derived from whatever team ids the elements themselves reference,
+// rather than hardcoded to one — squad-construction fixtures
+// (squadclubtrap_test.go) need several clubs to exercise the 3-per-club cap,
+// and every caller here that still passes single-team fixtures gets exactly
+// the one team it always did, just built the same way as everyone else
+// instead of as a special case.
 func scaleEngine(t *testing.T, els ...fpl.Element) *Engine {
 	t.Helper()
+	teamIDs := map[int]bool{1: true} // the historical default, kept for els with no Team set
+	for _, e := range els {
+		if e.Team != 0 {
+			teamIDs[e.Team] = true
+		}
+	}
+	ids := make([]int, 0, len(teamIDs))
+	for id := range teamIDs {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+
 	b := &fpl.Bootstrap{
-		Teams: []fpl.Team{{ID: 1, Name: "Test", ShortName: "TST"}},
 		ElementTypes: []fpl.ElementType{
 			{ID: 1, SingularNameShort: "GKP"}, {ID: 2, SingularNameShort: "DEF"},
 			{ID: 3, SingularNameShort: "MID"}, {ID: 4, SingularNameShort: "FWD"},
 		},
 		Elements: append([]fpl.Element(nil), els...),
+	}
+	for _, id := range ids {
+		b.Teams = append(b.Teams, fpl.Team{ID: id, Name: fmt.Sprintf("Test%d", id), ShortName: fmt.Sprintf("T%02d", id)})
 	}
 	for i := 1; i <= 38; i++ {
 		b.Events = append(b.Events, fpl.Event{ID: i})
