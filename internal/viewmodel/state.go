@@ -131,12 +131,13 @@ type ChipTeams struct {
 	WildcardUnavailable string    `json:"wildcard_unavailable,omitempty"`
 	FreeHitUnavailable  string    `json:"free_hit_unavailable,omitempty"`
 
-	// PlanWildcardGW and PlanFreeHitGW are the next gameweek the CONFIGURED plan
-	// puts each chip in, at or after Event, from ChipSchedule.Next -- which reads
-	// both sets, so a second-set chip is found rather than silently missed. Zero
-	// when nothing is planned ahead. It is a hypothesis and the copy says so.
-	PlanWildcardGW int `json:"plan_wildcard_gw,omitempty"`
-	PlanFreeHitGW  int `json:"plan_free_hit_gw,omitempty"`
+	// ⚠️ The CONFIGURED chip plan is deliberately NOT on this type. It used to be,
+	// as plan_wildcard_gw and plan_free_hit_gw, and it was served to every visitor
+	// of /api/wildcard -- publishing which gameweek this account intends to play
+	// its wildcard and free hit. That is the operator's own strategy, it is not
+	// something a reader of a hypothetical squad needs, and nothing on any page
+	// ever rendered it. PlayedWildcardGW below is different and stays: it is FPL's
+	// own public record of chips already used, not a statement of intent.
 
 	// PlayedWildcardGW and PlayedFreeHitGW are gameweeks this account has ACTUALLY
 	// played each chip in, from fpl.EntryHistory.Chips -- FPL's own record, not the

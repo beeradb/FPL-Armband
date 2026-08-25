@@ -166,8 +166,6 @@ type ChipTeamsInput struct {
 	WildcardUnavailable string
 	FreeHitUnavailable  string
 
-	PlanWildcardGW   int
-	PlanFreeHitGW    int
 	PlayedWildcardGW []int
 	PlayedFreeHitGW  []int
 
@@ -648,8 +646,6 @@ func buildChipTeams(in Input) *ChipTeams {
 		Caveat:              ci.Caveat,
 		WildcardUnavailable: ci.WildcardUnavailable,
 		FreeHitUnavailable:  ci.FreeHitUnavailable,
-		PlanWildcardGW:      ci.PlanWildcardGW,
-		PlanFreeHitGW:       ci.PlanFreeHitGW,
 		PlayedWildcardGW:    ci.PlayedWildcardGW,
 		PlayedFreeHitGW:     ci.PlayedFreeHitGW,
 	}
