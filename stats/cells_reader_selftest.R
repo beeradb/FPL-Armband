@@ -25,7 +25,7 @@
 # an invariance that holds *for the same reason the fix was needed* is an
 # acceptance test for collateral damage, not evidence about the fix.
 #
-# # The four dark paths
+# # The five dark paths
 #
 #   1. A multi-block file with OVERLAPPING cell labels. This is the live one:
 #      `grid_width.R` keyed cells on `season@start_gw` and never blocked, so every
@@ -35,6 +35,8 @@
 #   3. Empty fields in a CHARACTER column, the one case where `na.strings` changes
 #      anything at all.
 #   4. Infeasible rows, which no banked file has.
+#   5. An arm whose observed t is EXACTLY zero, which made the wild bootstrap's
+#      tie guard fire and took the entire run's output with it.
 
 local({
   a <- commandArgs(trailingOnly = FALSE)
@@ -142,6 +144,46 @@ note("4. infeasible rows, of which the bank has none")
 check("infeasible flagged", sum(num$infeasible), 1)
 check("and it is the row it should be",
       num$variant[num$infeasible], "arm")
+
+# --- 5. an arm whose observed t is exactly zero -----------------------------
+#
+# The wild bootstrap's tie guard asserts that six enumerated draws must reproduce
+# |t| exactly: the CR2 t is homogeneous of degree 0 in the cluster weights, and six
+# draws give every movable cluster the same Webb weight. That argument is sound.
+# The tolerance testing it was `1e-9 * abs(chk)` — purely RELATIVE — which collapses
+# to 0 when the arm's mean is 0. "Tied" then means "bit-exactly zero", and floating
+# point delivered only 2 of the 6.
+#
+# ⚠️ Not a hypothetical. On 2026-08-24 a plain MINHL run over the six-season
+# `extended` grid aborted with NO OUTPUT AT ALL — every metric, every arm — because
+# one arm (`hold_nocap_points` / `half-life 8`) cancelled to a mean of 0. An
+# exactly-inert arm is an ordinary thing for a sweep to contain, and its p is 1.
+#
+# ⚠️ **The fixture is the REAL 36 cells, and a synthetic one did not reproduce.**
+# The first draft here built six clusters from small integers whose means cancelled
+# in pairs — and THE TEST PASSED AGAINST THE UNFIXED CODE, asserting nothing.
+#
+# The discriminator is not the observed t. Both fixtures have `chk` exactly 0, so
+# both give the old relative tolerance `1e-9 * abs(chk)` a value of exactly 0. What
+# differs is whether the six DRAWS the guard counts on cancel exactly. Those six are
+# the six constant Webb weights, and only ±1 is exact in binary floating point. On
+# the real cells:
+#
+#   w = ±1.2247448713915889 (±sqrt(1.5))  ->  t* = ∓5.972e-18   not zero
+#   w = ±1                                ->  t* =  0.000e+00   zero
+#   w = ±0.70710678118654757 (±sqrt(0.5)) ->  t* = ∓7.844e-17   not zero
+#
+# so 2 of 6 tied under a zero tolerance and the guard fired. The synthetic integers
+# cancelled under every weight, all six tied, and the guard was satisfied. Real
+# cells leave residue; round numbers do not.
+note("")
+note("5. a near-zero-t arm returns p = 1 rather than aborting the run")
+zero_arm <- read_sidecar(file.path(td, "cells_zero_t_arm.csv"))
+check("the fixture has its 36 cells", nrow(zero_arm), 36)
+check("which cancel to a zero mean", mean(zero_arm$diff), 0)
+z <- tryCatch(wild_cluster_p_season(zero_arm),
+              error = function(e) list(p = paste("ABORTED:", conditionMessage(e))))
+check("p is 1, and the guard did not fire", z$p, 1)
 
 hr()
 if (failures > 0) {

@@ -635,6 +635,22 @@ wild_cluster_p <- function(d, cluster) {
   # to a last-bit difference between two implementations — and the floor depends
   # on those six ties being counted.
   thr <- abs(chk) * (1 - 1e-9)
+  # ⚠️ ABSOLUTE FLOOR, deliberately. The tie tolerance below was purely relative
+  # (`1e-9 * abs(chk)`), which collapses to exactly 0 when the observed t is 0 — and
+  # then "tied" degenerates into "bit-exactly zero", which floating point does not
+  # oblige. Measured 2026-08-24 on MINHL/extended, arm `hold_nocap_points` /
+  # `half-life 8`, whose mean is exactly 0: 2 of the 6 came back exact, the guard
+  # fired, and the whole run aborted with no output. The homogeneity argument the
+  # guard rests on is unaffected — it is the tolerance that was wrong, not the 6.
+  #
+  # Note what the run was aborting over: with `chk` 0, `thr` is 0 too, every draw
+  # satisfies `abs(ts) >= thr`, and p is exactly 1. The guard was killing the run on
+  # the one arm whose answer was never in question.
+  #
+  # For `abs(chk) >= 1` this is identical to the old expression. `ties` feeds the
+  # guard and nothing else — `p` comes from `count` and `thr` — so this cannot move
+  # a published number.
+  tie_tol <- 1e-9 * max(abs(chk), 1)
   for (from in seq(1, total, by = WCB_CHUNK)) {
     to <- min(from + WCB_CHUNK - 1, total)
     idx <- from:to
@@ -656,7 +672,7 @@ wild_cluster_p <- function(d, cluster) {
                  S, S_eff, flr))
     }
     count <- count + sum(abs(ts) >= thr)
-    ties <- ties + sum(abs(abs(ts) - abs(chk)) <= 1e-9 * abs(chk))
+    ties <- ties + sum(abs(abs(ts) - abs(chk)) <= tie_tol)
   }
   if (ties < 6) {
     fail("the enumeration found ", ties, " draws tying |t| where the ",
