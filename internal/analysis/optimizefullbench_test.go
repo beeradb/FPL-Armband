@@ -241,25 +241,48 @@ func BenchmarkGreedyFill(b *testing.B) {
 // pattern — confirmed safe by reading both dpSeeds and seedFor, neither of
 // which reads any field off the receiver; the receiver exists only so
 // dpSeeds can call e.seedFor as a method.
+//
+// # Why there are two budget arms
+//
+// combine (dpseed.go) is O(budget^2), so what budget the DP runs at matters a
+// great deal to what this benchmark reports. The original, single-arm version
+// ran at budget = benchSquad's own cost + 60 — 1740 + 60 = 1800 tenths for
+// benchSquad(benchPool(n)) — which is not what a real Optimize call does: a
+// real call runs the DP at req.Budget, DefaultBudget (1000 tenths) absent an
+// override. 1800 against 1000 is not a small difference once squared, and it
+// made this benchmark report roughly 91ms/op where the true cost at the
+// budget Optimize actually uses is roughly 30ms/op.
+//
+// "tight" is kept, unrenamed, so a regression here is still visible against
+// its own prior numbers; "DefaultBudget" is the one that describes
+// production and is the one to quote.
 func BenchmarkDPSeeds(b *testing.B) {
 	for _, n := range []int{200, 600} {
-		b.Run(fmt.Sprintf("pool%d", n), func(b *testing.B) {
-			pool := benchPool(n)
-			squad := benchSquad(pool)
-			spend := 0
-			for _, p := range squad {
-				spend += priceUnits(p)
-			}
-			budget := spend + 60
-			e := &Engine{}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				seeds := e.dpSeeds(pool, budget, nil)
-				if len(seeds) == 0 {
-					b.Fatal("no seeds")
+		pool := benchPool(n)
+		squad := benchSquad(pool)
+		spend := 0
+		for _, p := range squad {
+			spend += priceUnits(p)
+		}
+		e := &Engine{}
+		arms := []struct {
+			name   string
+			budget int
+		}{
+			{"tight", spend + 60},
+			{"DefaultBudget", DefaultBudget},
+		}
+		for _, arm := range arms {
+			b.Run(fmt.Sprintf("pool%d/%s", n, arm.name), func(b *testing.B) {
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					seeds := e.dpSeeds(pool, arm.budget, nil)
+					if len(seeds) == 0 {
+						b.Fatal("no seeds")
+					}
 				}
-			}
-		})
+			})
+		}
 	}
 }

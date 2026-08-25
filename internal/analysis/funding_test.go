@@ -62,7 +62,8 @@ func TestFundingCombosSpreadsAcrossSlots(t *testing.T) {
 	for i := range w {
 		w[i] = 1
 	}
-	combos := fundingCombos(current, selected, clubCount, cheap,
+	fs := &fundingScratch{}
+	combos := fundingCombos(fs, current, selected, clubCount, cheap,
 		map[int]bool{}, map[int]bool{}, 15, 6, w, 0)
 	if len(combos) == 0 {
 		t.Fatal("no funding combination found for a £1.5m shortfall")
@@ -120,7 +121,8 @@ func TestFundingCombosGivesUpWhenItCannotPay(t *testing.T) {
 	for i := range w {
 		w[i] = 1
 	}
-	for _, combo := range fundingCombos(current, selected, clubCount, cheap,
+	fs := &fundingScratch{}
+	for _, combo := range fundingCombos(fs, current, selected, clubCount, cheap,
 		map[int]bool{}, map[int]bool{}, 500, 6, w, 0) {
 		freed := 0
 		for idx, in := range combo {
@@ -148,7 +150,8 @@ func TestFundingCombosNeverSellsALockedPlayer(t *testing.T) {
 		w[i] = 1
 	}
 	locked := map[int]bool{current[0].ID: true, current[2].ID: true}
-	for _, combo := range fundingCombos(current, selected, clubCount, cheap,
+	fs := &fundingScratch{}
+	for _, combo := range fundingCombos(fs, current, selected, clubCount, cheap,
 		map[int]bool{}, locked, 15, 6, w, 0) {
 		for idx := range combo {
 			if locked[current[idx].ID] {
@@ -185,7 +188,9 @@ func TestFundedUpgradeBeatsSingleDowngrade(t *testing.T) {
 	const benchWeight = 0.15
 	before := objectiveWith(current, benchWeight, nil, false)
 
-	got, score, cost, ok := e.fundedUpgrade(current, selected, clubCount,
+	sc := &xiScratch{}
+	fs := &fundingScratch{}
+	got, score, cost, ok := e.fundedUpgrade(sc, fs, current, selected, clubCount,
 		spend, budget, frontierByPos, benchWeight, false, map[int]bool{}, nil, before,
 		changeBudget{}, 0)
 	if !ok {

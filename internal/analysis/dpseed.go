@@ -412,6 +412,8 @@ func (e *Engine) polish(start []PlayerMetrics, pool []PlayerMetrics, budget int,
 	// purpose: the tool runner runs searches concurrently, and shared mutable
 	// state on Engine is the recorded concurrent-map-write hazard.
 	sc := &xiScratch{}
+	// Likewise the funded-upgrade phase's own scratch — see fundingScratch.
+	fs := &fundingScratch{}
 
 	// Steepest-ascent local search: repeatedly apply the single swap that
 	// improves the objective most, until no swap helps.
@@ -579,7 +581,7 @@ func (e *Engine) polish(start []PlayerMetrics, pool []PlayerMetrics, budget int,
 	}
 	runFunded := func() {
 		for iter := 0; iter < 30; iter++ {
-			cand, score, cost, ok := e.fundedUpgrade(current, selected, clubCount,
+			cand, score, cost, ok := e.fundedUpgrade(sc, fs, current, selected, clubCount,
 				spend, budget, frontierByPos,
 				benchWeight, boost, locked, mustStart, bestScore, changes, spent)
 			if !ok {
