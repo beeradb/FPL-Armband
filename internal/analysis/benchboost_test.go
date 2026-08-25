@@ -49,7 +49,8 @@ func TestBenchBoostBuildsARealBench(t *testing.T) {
 		t.Skip("solves the squad twice")
 	}
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
-	skipDuringLiveGW1Gap(t, e)
+	// A boosted bench can only differ from an ordinary one once enough of the league carries a score to make bench quality purchasable.
+	skipUntilLiveEvidence(t, e, corroboratingMatches)
 
 	ordinary, err := e.Optimize(OptimizeRequest{Budget: DefaultBudget})
 	if err != nil {

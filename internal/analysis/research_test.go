@@ -68,7 +68,9 @@ func TestResearchTargetsStayBounded(t *testing.T) {
 // these players starting, and last season's minutes do not establish that.
 func TestResearchTargetsIncludeShakySquadMembers(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
-	skipDuringLiveGW1Gap(t, e)
+	// minutesCorroborated needs corroboratingMatches (2) before a squad member
+	// can read "nailed" rather than "likely starter".
+	skipUntilLiveEvidence(t, e, corroboratingMatches)
 	sq, err := e.Optimize(OptimizeRequest{
 		Budget: DefaultBudget, MinMinutes: 600, MinExpectedMinutes: 55, BenchWeight: 0.02,
 	})

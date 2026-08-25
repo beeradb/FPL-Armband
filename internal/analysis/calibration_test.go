@@ -30,7 +30,8 @@ func TestCalibrationRatioGuardsThinSamples(t *testing.T) {
 // forwards are not taxed by the defenders' poor xG conversion.
 func TestExpectedStatsAreCalibratedPerPosition(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
-	skipDuringLiveGW1Gap(t, e)
+	// Conversion rates are degenerate on one match of xA -- every position converts at exactly 1.000, which is the absence of data rather than a calibration.
+	skipUntilLiveEvidence(t, e, corroboratingMatches)
 	if len(e.xScale) == 0 {
 		t.Fatal("no calibration was computed")
 	}

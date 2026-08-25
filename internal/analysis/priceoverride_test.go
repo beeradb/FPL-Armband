@@ -25,7 +25,8 @@ func TestPriceOverrideReshapesTheSquad(t *testing.T) {
 	// down to bench fodder by the unscaled minutes floor, so `best` was a £4.0m
 	// body who left the pool ALTOGETHER once the reprice took him past
 	// BenchFodderPrice. The assertion held because the bug held.
-	skipDuringLiveGW1Gap(t, e)
+	// One gameweek makes a cheap player look elite: measured 2026-08-25, the top score in the league was a GBP4.5m defender off a single 90 minutes, and a +GBP6.0m reprice could not dislodge him.
+	skipUntilLiveEvidence(t, e, corroboratingMatches)
 	req := OptimizeRequest{
 		Budget: DefaultBudget, MinMinutes: 600, MinExpectedMinutes: 55,
 		BenchWeight: DefaultBenchWeight,

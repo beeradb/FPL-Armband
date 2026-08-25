@@ -7,7 +7,9 @@ import (
 func seedPool(t *testing.T) (*Engine, []PlayerMetrics) {
 	t.Helper()
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
-	skipDuringLiveGW1Gap(t, e)
+	// Every squad-building test downstream needs enough of the league to carry a
+	// score; after one gameweek only the players who happened to play do.
+	skipUntilLiveEvidence(t, e, corroboratingMatches)
 	var pool []PlayerMetrics
 	for _, m := range e.AllMetrics() {
 		if m.Status == "injured" || m.Status == "suspended" || m.Status == "unavailable" {

@@ -45,6 +45,47 @@ func skipDuringLiveGW1Gap(t *testing.T, e *Engine) {
 	}
 }
 
+// skipUntilLiveEvidence skips while the live season has played fewer than
+// `matches` gameweeks, for a test whose subject needs that much accumulated
+// evidence to exist at all.
+//
+// # Why the gap guard above is not enough, and what that cost
+//
+// `skipDuringLiveGW1Gap` closes the mid-GW1 window — the days when some clubs
+// have played and some have not — and its reasoning about that DATA MIX is
+// right. What it is not is a statement about how much evidence a test needs,
+// and on 2026-08-25 the difference took **twelve tests** down across this
+// package and `internal/agent`, the morning GW1 finished, on code nobody had
+// touched. Measured that day, one gameweek in: 612 players, **307 with a
+// non-zero score**, `DataWindow() == 1`. Nothing was broken. There was one match
+// of football, and a rested player reads zero rather than "no evidence yet".
+//
+// So the guard closed a window one week wide in front of tests needing anywhere
+// from two matches to ten, and they began failing the moment it stopped.
+//
+// # The threshold belongs to the CALLER
+//
+// It differs by an order of magnitude between them, so one shared number would
+// be wrong for most:
+//
+//   - `corroboratingMatches` (2) is this package's own bar for "this player's
+//     minutes are trustworthy" — the floor for anything reading minutes.
+//   - the set-piece duty test wants 900 minutes, i.e. ten full matches.
+//
+// ⚠️ **Prefer making a test season-independent over skipping it.** `chips_test.go`
+// now expresses its gameweeks relative to `upcomingGW` and is asserted all year;
+// that is strictly better than going quiet for ten months. A skip is the
+// fallback for tests whose subject genuinely IS accumulated evidence.
+func skipUntilLiveEvidence(t *testing.T, e *Engine, matches int) {
+	t.Helper()
+	skipDuringLiveGW1Gap(t, e)
+	if played := e.GameweeksPlayed(); e.SeasonHasStarted() && played < matches {
+		t.Skipf("live season has played %d gameweek(s); this test needs %d before "+
+			"its subject exists in the data. Not a defect — see "+
+			"skipUntilLiveEvidence. Asserts again from GW%d.", played, matches, matches)
+	}
+}
+
 // playGameweeks marks the first n gameweeks finished, so the engine believes
 // that much of the season has been played.
 //
@@ -109,9 +150,21 @@ func findEverPresent(t *testing.T, e *Engine) *fpl.Element {
 // about 1% of true value, and nothing recovers until roughly GW29.
 func TestDataWindowTracksTheSeason(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
-	if got := e.DataWindow(); got != GameweeksPerSeason {
-		t.Errorf("pre-season data window is %d, want %d — FPL still holds last "+
-			"season's totals, so the window is a full season", got, GameweeksPerSeason)
+	// ⚠️ PRE-SEASON ONLY, and it used to assert unconditionally.
+	//
+	// The window is a full season precisely because FPL still holds last
+	// season's totals — which stops being true the moment GW1 completes, when
+	// `DataWindow()` correctly drops to 1. Asserting 38 in-season demands the
+	// bug this test exists to prevent. It failed every branch's CI from the
+	// morning GW1 finished, on behaviour that was right.
+	//
+	// The simulated sweep below is unaffected and is the real regression guard:
+	// `playGameweeks` drives the window explicitly, so it holds in any week.
+	if !e.SeasonHasStarted() {
+		if got := e.DataWindow(); got != GameweeksPerSeason {
+			t.Errorf("pre-season data window is %d, want %d — FPL still holds last "+
+				"season's totals, so the window is a full season", got, GameweeksPerSeason)
+		}
 	}
 
 	el := findEverPresent(t, e)
