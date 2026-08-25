@@ -124,6 +124,12 @@ func TestDPSeedsReachAPremiumWhenItDominates(t *testing.T) {
 // with no visible failure — the seeds were simply never the best answer.
 func TestSeedBudgetLeavesRoomForThePremiums(t *testing.T) {
 	e, pool := seedPool(t)
+	// The ONE seedPool caller with an evidence dependency, so the guard lives
+	// here rather than in the helper — see seedPool's own note. This asserts the
+	// best-funded seed SPENDS its budget, and it cannot until enough of the
+	// league carries a score worth buying: measured 2026-08-25, one gameweek in,
+	// the best-funded seed reached only £88.5m of £100.0m.
+	skipUntilLiveEvidence(t, e, corroboratingMatches)
 	var dearest float64
 	for _, p := range pool {
 		if p.Score > 0 && p.Price > dearest {
