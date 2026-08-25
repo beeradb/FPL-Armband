@@ -278,7 +278,7 @@ func randFundingFixture(rng *rand.Rand) (current, pool []PlayerMetrics) {
 			Position: pos,
 			Team:     teams[rng.Intn(len(teams))],
 			Price:    float64(30+rng.Intn(100)) / 10, // 3.0-12.9
-			Score:    float64(rng.Intn(120)) * 0.05,   // coarse grid, ties common
+			Score:    float64(rng.Intn(120)) * 0.05,  // coarse grid, ties common
 			Status:   "available",
 		}
 	}
