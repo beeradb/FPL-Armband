@@ -198,3 +198,48 @@ func TestTheExternalXGCSwitchWorksOnACacheHit(t *testing.T) {
 			"bytes carry the overlay, which is exactly what repaired() exists to prevent")
 	}
 }
+
+// 2022-23 carries NATIVE xGC from GW16, and the overlay must stop at GW15.
+//
+// ⚠️ This is the boundary the reconstruction's own comment says "is how the
+// two-thirds season got repaired with a leak in the first place". The overlay
+// inherits the window from `xgRepairs` rather than restating it, and this is what
+// proves the inheritance actually holds — a second copy of the boundary that had
+// drifted would look exactly like a working one until someone counted.
+func TestExternalXGCStopsAtTheNativeBoundary(t *testing.T) {
+	dir := externalDirOrSkip(t)
+	cfg := loadConfig(t)
+	t.Setenv("FPL_XGC_EXTERNAL_DIR", dir)
+
+	s, err := Load(context.Background(), cfg.CacheDir, "2022-23")
+	if err != nil {
+		t.Skipf("archive unreachable: %v", err)
+	}
+	filled := map[int]int{}
+	var nativeAfterWindow int
+	for _, id := range sortedSeasonPlayerIDs(s) {
+		for gw, g := range s.Players[id].GWs {
+			switch {
+			case g.XGCReconstructed:
+				filled[gw]++
+			case g.XGC != 0 && gw > 15:
+				nativeAfterWindow++
+			}
+		}
+	}
+	for gw := 16; gw <= 38; gw++ {
+		if filled[gw] > 0 {
+			t.Errorf("GW%d carries %d filled rows — the overlay has crossed into "+
+				"the native window and is overwriting FPL's own published xGC",
+				gw, filled[gw])
+		}
+	}
+	if filled[15] == 0 {
+		t.Error("GW15 carries no filled rows — the window is not being reached at all")
+	}
+	if nativeAfterWindow == 0 {
+		t.Error("no native xGC rows survive after GW15, which is what this boundary protects")
+	}
+	t.Logf("2022-23: filled GW1=%d GW15=%d GW16=%d; native rows after the window %d; applied %d",
+		filled[1], filled[15], filled[16], nativeAfterWindow, s.XGCExternal.Applied)
+}
