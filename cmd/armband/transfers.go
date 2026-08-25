@@ -91,6 +91,21 @@ func cmdTransfers(ctx context.Context, cfg config.Config, client *fpl.Client,
 		!(outcome == outcomeNothing && board.Advice.Guard == analysis.BankGuardNone &&
 			!board.Advice.Weighed()) {
 		fmt.Printf("\n  %s\n", bankLine(board.Advice))
+		// ⚠️ The chip plan is ALREADY in the two numbers above — liveHorizon calls
+		// EffectiveHorizon and has always discarded its reason — but nothing said
+		// so, and the effect is large enough that silence misleads. Measured
+		// 2026-08-24 on the house squad at GW2: moving the planned wildcard from
+		// GW6 to GW4 took the banking arms from "now 3.74 · waiting 2.31" to
+		// "now 0.87 · waiting 0.00" while the recommended transfers, their gain
+		// and their hinge stayed byte-identical. A reader comparing the two runs
+		// could see the arithmetic move and had nothing telling him why.
+		//
+		// `armband chips` has always printed this; `transfers` reads the same
+		// plan through the same function and did not. One fact, one wording, both
+		// commands.
+		if _, why := e.EffectiveHorizon(cfg.Chips); why != "" {
+			fmt.Printf("    %s\n", dim(why+" — a transfer made now earns over fewer weeks"))
+		}
 	}
 
 	// Both renderers switch on transferBoard.outcome and nothing else, which is
