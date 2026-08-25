@@ -1753,6 +1753,24 @@ type SimConfig struct {
 	// realised points, final minutes — is a different thing and belongs in
 	// `Oracles`, where it gets stamped on every cell.
 	ChipPlanner func(cur *Season, start int) analysis.ChipPlan
+
+	// ChipPlannerXP is ChipPlanner for a rule that needs the model's own
+	// per-gameweek projections rather than only the fixture calendar — "play the
+	// triple captain where the best available player has the best fixture",
+	// which the calendar alone cannot express.
+	//
+	// It receives `capXP`, the highest single-player projected score in each
+	// gameweek, computed by BestCaptainXPByGameweek from an engine built at the
+	// planning cutoff. See captainweek.go for why that is projections rather
+	// than hindsight, and for the one thing it deliberately does not model.
+	//
+	// A second field rather than a wider ChipPlanner signature: twenty existing
+	// planners want only the calendar, and widening the one signature would make
+	// every one of them carry an argument it does not read. Setting both is a
+	// caller asking two things to decide one quantity, and ChipPlannerXP wins for
+	// the same reason a planner wins over a literal Chips — it is the more
+	// specific request.
+	ChipPlannerXP func(cur *Season, start int, capXP map[int]float64) analysis.ChipPlan
 }
 
 // startGW is the gameweek to begin at, defaulting to 1.
@@ -1789,7 +1807,38 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// a function of the fixture calendar, which differs per season. Resolving here
 	// keeps the anchoring rule in the diagnostic that is asking the question
 	// rather than putting a policy into the harness.
-	if cfg.ChipPlanner != nil {
+	// ChipPlannerXP first: it is the more specific request, and building the
+	// projection engine is wasted work if a calendar-only planner is going to
+	// overwrite the answer anyway.
+	if cfg.ChipPlannerXP != nil {
+		// DEDICATED engines, built here and discarded. BestCaptainXPByGameweek
+		// rewrites the skip set to isolate one gameweek at a time, and doing that
+		// to the engine a simulation scores against would silently change every
+		// number downstream of it.
+		//
+		// Two of them, and the split is the point. "Who is my best player" is a
+		// SEASON question, asked on the shipped horizon, where Score is the blend
+		// of priors and current-season evidence this project already ranks players
+		// on. "Which week is his best" is a PER-WEEK question and needs horizon 1.
+		//
+		// ⚠️ Horizon 1 is load-bearing, not a tuning choice.
+		// `Engine.FixtureLoadInScore` is true only there: at the shipped horizon of
+		// 5 the score is a five-week average and does NOT carry `FixtureLoad`, so a
+		// doubling club looks exactly like a single-fixture one and half the
+		// strategy — play the chip on a double — is invisible. Measured before this
+		// line existed: the best projected score took FOUR distinct values across a
+		// season, quantised by FPL's integer difficulty, with nothing near a
+		// double's; at horizon 1 it takes fourteen.
+		seasonEngine, _ := EngineAt(cur, prior, cfg.startGW(), cfg)
+		candidates := TopCaptainCandidates(seasonEngine, captainCandidates)
+
+		planCfg := cfg
+		planCfg.Weights.Horizon = 1
+		planEngine, _ := EngineAt(cur, prior, cfg.startGW(), planCfg)
+		capXP := BestCaptainXPByGameweek(planEngine, cfg.startGW(), candidates)
+		sch := SplitChipSets(cur.Name, cfg.ChipPlannerXP(cur, cfg.startGW(), capXP))
+		cfg.Chips, cfg.Chips2 = sch.First, sch.Second
+	} else if cfg.ChipPlanner != nil {
 		// Routed into the sets the season granted them from, rather than dropped
 		// wholesale into the first. A planner answers "which week", and which SET
 		// that week draws from is a fact about FPL's calendar that every planner
