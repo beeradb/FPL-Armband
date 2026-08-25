@@ -31,7 +31,11 @@ var fixtureNow = time.Date(2026, 8, 19, 13, 48, 0, 0, time.UTC)
 // EntryID is left at zero deliberately. It is what keeps the build off the network — the
 // transfer board returns early with a stated reason rather than fetching an owned squad —
 // and it is also the honest state for a pre-season page, where there is no squad to price.
-func fixtureServer(t *testing.T) *squadServer {
+//
+// Takes testing.TB rather than *testing.T so a *testing.B can build the same real,
+// no-network engine a correctness test does — the optimizer benchmarks need exactly this
+// fixture and nothing here uses anything narrower than Helper/Fatalf.
+func fixtureServer(t testing.TB) *squadServer {
 	t.Helper()
 	return fixtureServerNamed(t, nil)
 }
@@ -39,7 +43,7 @@ func fixtureServer(t *testing.T) *squadServer {
 // fixtureServerNamed is fixtureServer with a hook to rename a player before the engine is
 // built. It exists for the escaping test, which needs a name the browser would execute if
 // the client interpolated it raw.
-func fixtureServerNamed(t *testing.T, rename func(name string) string) *squadServer {
+func fixtureServerNamed(t testing.TB, rename func(name string) string) *squadServer {
 	t.Helper()
 	dir := filepath.Join("..", "..", "data", "captures", capture.LiveCapture)
 	boot, fixtures, err := capture.Replay(dir)
