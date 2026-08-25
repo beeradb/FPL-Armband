@@ -34,6 +34,15 @@ func externalDirOrSkip(t *testing.T) string {
 // a public clone has started reading a source it does not have.
 func TestExternalXGCIsOffByDefault(t *testing.T) {
 	t.Setenv("FPL_XGC_EXTERNAL_DIR", "")
+	// SetXGCExternalDir is process-global, so this restores whatever a config
+	// load left behind. A test that permanently clears it would silently disarm
+	// every later test in the binary that reads the configured value rather than
+	// the environment — cross-test contamination through package state, which
+	// this package has a standing rule about.
+	xgcExternalMu.RLock()
+	prev := xgcExternalDir
+	xgcExternalMu.RUnlock()
+	t.Cleanup(func() { SetXGCExternalDir(prev) })
 	SetXGCExternalDir("")
 	if got := externalXGCDir(); got != "" {
 		t.Fatalf("external xGC resolved to %q with nothing configured", got)
