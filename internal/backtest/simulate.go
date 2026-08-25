@@ -1829,12 +1829,23 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 		// line existed: the best projected score took FOUR distinct values across a
 		// season, quantised by FPL's integer difficulty, with nothing near a
 		// double's; at horizon 1 it takes fourteen.
-		seasonEngine, _ := EngineAt(cur, prior, cfg.startGW(), cfg)
+		// ⚠️ `start-1`, not `start`. EngineAt's `through` is the LAST COMPLETED
+		// gameweek — the same convention PointInTime takes and the same one
+		// Simulate uses for its opening squad (`start-1`) and its weekly view
+		// (`gw-1`). Passing `start` here accumulated gameweek `start`'s own
+		// minutes, points, xG and scorelines into the season the planner reads,
+		// revealed its results to the attack/defence bands, and quoted
+		// post-gameweek prices — one gameweek of hindsight, available to the
+		// anchored arm only, since the control planner ignores capXP entirely.
+		// Corrected 2026-08-25 after review.
+		through := cfg.startGW() - 1
+
+		seasonEngine, _ := EngineAt(cur, prior, through, cfg)
 		candidates := TopCaptainCandidates(seasonEngine, captainCandidates)
 
 		planCfg := cfg
 		planCfg.Weights.Horizon = 1
-		planEngine, _ := EngineAt(cur, prior, cfg.startGW(), planCfg)
+		planEngine, _ := EngineAt(cur, prior, through, planCfg)
 		capXP := BestCaptainXPByGameweek(planEngine, cfg.startGW(), candidates)
 		sch := SplitChipSets(cur.Name, cfg.ChipPlannerXP(cur, cfg.startGW(), capXP))
 		cfg.Chips, cfg.Chips2 = sch.First, sch.Second

@@ -189,8 +189,16 @@ func tcMatchupAnchored(cur *Season, start int, capXP map[int]float64) analysis.C
 // the triple captain, expressed in the ChipPlannerXP signature so both arms of
 // this comparison are wired through the identical path — the difference between
 // the arms is the RULE, not which planner field they happen to use.
-func tcMatchupControl(cur *Season, start int, _ map[int]float64) analysis.ChipPlan {
+func tcMatchupControl(cur *Season, start int, capXP map[int]float64) analysis.ChipPlan {
 	var p analysis.ChipPlan
+	// Matched to the anchored arm: if that arm cannot place the chip in this
+	// cell, neither does this one. Otherwise a cell where only one arm plays a
+	// chip contributes a chip-vs-no-chip difference into a mean labelled
+	// "timing" — the defect `pairMatchedChips` exists to prevent in the sibling
+	// blocks, which this comparison was asserting rather than enforcing.
+	if tcMatchupAnchored(cur, start, capXP).TripleCaptain == 0 {
+		return p
+	}
 	p.TripleCaptain = controlWeeks(cur, start).TripleCaptain
 	return p
 }
@@ -220,11 +228,26 @@ func TestDiagTripleCaptainMatchup(t *testing.T) {
 	fmt.Printf("places it in the gameweek whose best available player projects\n")
 	fmt.Printf("highest, from an engine built at the entry cutoff. Metric: POLICY.\n")
 
+	// ⚠️ WeeklyXI is PINNED, and without it this comparison could not work.
+	// `runPolicySweep` builds cells at WeeklyXI false, which leaves the weekly
+	// view at the shipped horizon of 5 — where `FixtureLoadInScore` is false and
+	// the captain is chosen by an engine that cannot see a double gameweek. The
+	// rule times the chip on FixtureLoad (that is what horizon 1 buys) and the
+	// simulation would then armband whoever a load-blind engine ranked first, so
+	// the chip would be timed on a signal it could not cash. Both arms set it, so
+	// the contrast stays clean either way — but the anchored arm is the one that
+	// needs it.
 	arms := []policyVariant{
 		{label: "triple captain, fixed offset (control)",
-			apply: func(sc *SimConfig) { sc.ChipPlannerXP = tcMatchupControl }},
+			apply: func(sc *SimConfig) {
+				sc.WeeklyXI = true
+				sc.ChipPlannerXP = tcMatchupControl
+			}},
 		{label: "triple captain, best projected matchup",
-			apply: func(sc *SimConfig) { sc.ChipPlannerXP = tcMatchupAnchored }},
+			apply: func(sc *SimConfig) {
+				sc.WeeklyXI = true
+				sc.ChipPlannerXP = tcMatchupAnchored
+			}},
 	}
 	runPolicySweep(t, arms, starts)
 

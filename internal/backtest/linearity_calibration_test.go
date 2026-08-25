@@ -31,6 +31,8 @@ import (
 	"math"
 	"os"
 	"testing"
+
+	"armband/internal/analysis"
 )
 
 func TestDiagMinutesLinearity(t *testing.T) {
@@ -126,9 +128,11 @@ func TestDiagMinutesLinearity(t *testing.T) {
 	fmt.Printf("full matches. Below 1 means playing less costs him rate as well as\n")
 	fmt.Printf("minutes, which is what an exponent above 1 prices. 'implied' is the\n")
 	fmt.Printf("exponent that reproduces the ratio at the observed partial length.\n")
+	// Read from the engine rather than re-derived here: an inline copy of the
+	// formula printed "midfielders effectively 1.0000" while the model used a
+	// different number, which defeats the comparison this line exists for.
 	fmt.Printf("Shipped: %.2f global, midfielders effectively %.4f.\n",
-		cfg.Weights.MinutesWeight,
-		1+(cfg.Weights.MinutesWeight-1)*cfg.Weights.MinutesWeightByPosition["MID"])
+		cfg.Weights.MinutesWeight, analysis.MinutesExponentForPosition(cfg.Weights, "MID"))
 
 	for _, pos := range []int{1, 2, 3, 4} {
 		a := by[pos]

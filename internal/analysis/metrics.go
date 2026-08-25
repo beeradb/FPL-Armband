@@ -426,6 +426,14 @@ func DefaultWeights() Weights {
 		// user's call, 2026-08-25: ship neutral (1.0) rather than defend a value this
 		// harness shows is un-locatable. See AGENTS.md's Constants section and
 		// TestRetractedFiguresAreNotQuotedAsCurrent's minutes-convexity entries.
+		//
+		// ⚠️ At 1.0 this makes MinutesWeightByPosition INERT — minutesExponent
+		// scales the excess over neutral, and at w=1 there is none, so MID's 0.75
+		// stops applying. That is accepted rather than worked around: the arm that
+		// chose 1.0 varied only this weight, so it measured MID at exponent 1.0 too,
+		// and shipping anything else would ship a configuration no sweep tested. The
+		// MID plateau/cliff finding is parked at w=1.25, not discarded; re-measuring
+		// it at 1.0 is what would revive it.
 		MinutesWeight: 1.0,
 		// Midfielders carry three quarters of the rotation severity. This was
 		// nearly deleted as an unmeasured assertion — swept against the old
@@ -2163,57 +2171,60 @@ func reliabilityFrom(b blend, exponent float64) float64 {
 	return clamp(math.Pow(w*minutesShare+(1-w)*startShare, exponent), 0, 1)
 }
 
-// minutesWeightSeverityReference is the global MinutesWeight the per-position
-// scale in MinutesWeightByPosition was actually measured against — 1.25, what
-// shipped when the MID plateau/cliff sweep ran (226-point spread, plateau 0 to
-// 0.75, cliff at 0.9; see AGENTS.md's Constants section).
+// MinutesExponentForPosition is the convexity exponent a position is scored at,
+// reachable without an Engine so a diagnostic can report the shipped value
+// without rebuilding one.
 //
-// It anchors minutesExponent's per-position gap so a later change to the LIVE
-// global weight cannot silently erase a separately-measured per-position
-// finding. Before 2026-08-25 the per-position scale was applied to (w-1), the
-// live weight's own excess over neutral — so moving the global weight exactly
-// to neutral (w=1) forced every position to the same exponent regardless of
-// its scale, because scale multiplies a zero. That coupling was not part of
-// deciding MinutesWeight itself, and TestMidfieldMinutesWeightIsRelaxed is what
-// holds the two apart.
-const minutesWeightSeverityReference = 1.25
+// It is THE implementation — `minutesExponent` delegates to it — because a
+// caller re-deriving `1 + (w-1)*scale` inline is a second implementation of a
+// scored quantity, and this record has been bitten twice by exactly that shape
+// (baseXP90 against fixtureSensitivePart). A diagnostic printing a number the
+// model does not use is worse than one printing nothing, since the comparison
+// is the whole point.
+//
+// pos is the short position name: GKP, DEF, MID, FWD.
+func MinutesExponentForPosition(w Weights, pos string) float64 {
+	g := w.MinutesWeight
+	if g <= 0 {
+		g = 1
+	}
+	if minutesWeightSet {
+		g = minutesWeightOverride
+	}
+	scale, ok := w.MinutesWeightByPosition[pos]
+	if v, over := posMinutesScaleOverride[pos]; over {
+		scale, ok = v, true
+	}
+	if !ok {
+		return g
+	}
+	if scale < 0 {
+		scale = 0
+	}
+	// Scale the severity — the excess over neutral — not the exponent itself,
+	// so 0.75 means "three quarters as harsh", not "an exponent of 0.75".
+	//
+	// ⚠️ At g = 1 this is inert: (g-1) is zero, so every position returns 1
+	// whatever its scale, and MinutesWeightByPosition stops doing anything.
+	// That is a real consequence of shipping MinutesWeight at 1.0 and it is
+	// deliberate — see DefaultWeights. A 2026-08-25 attempt to decouple the two
+	// (anchoring the per-position gap to the weight the scale was measured at,
+	// 1.25) was REVERTED the same day for two reasons: it shipped a midfielder
+	// exponent of 0.9375 that no sweep ever tested — the arm that chose 1.0
+	// varied only this global weight and therefore scored MID at 1.0 — and,
+	// unlike this expression, it was not self-protecting. `1 + (g-1)*scale` is
+	// >= 1-scale >= 0 for any g >= 0; the anchored form returns a NEGATIVE
+	// exponent at low g, and a negative exponent inverts the whole term
+	// (math.Pow(share, -x) > 1, clamped to 1), so a player with no minutes
+	// would read as fully reliable. FPL_MINUTES_WEIGHT=0 reaches exactly that.
+	return 1 + (g-1)*scale
+}
 
 // minutesExponent returns the convexity exponent for a position. Above 1 the
 // rotation penalty is disproportionate; the per-position scale attenuates how
 // much of that severity applies.
 func (e *Engine) minutesExponent(elementType int) float64 {
-	w := e.Weights.MinutesWeight
-	if w <= 0 {
-		w = 1
-	}
-	if minutesWeightSet {
-		w = minutesWeightOverride
-	}
-	pos := e.Boot.PositionShort(elementType)
-	scale, ok := e.Weights.MinutesWeightByPosition[pos]
-	if v, over := posMinutesScaleOverride[pos]; over {
-		scale, ok = v, true
-	}
-	if !ok {
-		return w
-	}
-	if scale < 0 {
-		scale = 0
-	}
-	if scale == 1 {
-		// No differentiation was ever measured for this position: track the
-		// live global weight exactly, same as before.
-		return w
-	}
-	// A fixed absolute gap below the live global weight, sized so it
-	// reproduces the exact measured exponent at the reference weight this
-	// position's scale was swept against (1 + (1.25-1)*0.75 = 1.1875 for
-	// MID) rather than a fraction of whatever the live weight happens to be.
-	// scale=0 is the one case not directly measured at any weight but 1.25:
-	// it now tracks the live weight net of the full reference excess, rather
-	// than pinning to neutral regardless of w.
-	gap := (minutesWeightSeverityReference - 1) * (1 - scale)
-	return w - gap
+	return MinutesExponentForPosition(e.Weights, e.Boot.PositionShort(elementType))
 }
 
 // expectedMinutes is the average minutes per gameweek across the matches the

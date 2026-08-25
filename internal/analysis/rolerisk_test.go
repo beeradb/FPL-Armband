@@ -131,18 +131,30 @@ func TestMidfieldMinutesWeightIsRelaxed(t *testing.T) {
 	// Re-run against minutes-only reliability it spans 226, and 0.9 and above
 	// fall off a cliff. The two are coupled: the old mix credited a substituted
 	// starter for having started, and midfielders are who that was propping up.
-	if !(midExp < defExp) {
-		t.Errorf("midfield exponent %.4f should be below defence %.4f", midExp, defExp)
+	// ⚠️ At the shipped MinutesWeight of 1.0 the per-position scale is INERT —
+	// minutesExponent scales the excess over neutral and there is none — so MID
+	// and DEF are equal and this cannot be a strict inequality. That is the
+	// accepted consequence of shipping 1.0; see DefaultWeights. The check that
+	// still bites is the one below, at the weight the scale was measured at.
+	if midExp > defExp {
+		t.Errorf("midfield exponent %.4f should not exceed defence %.4f", midExp, defExp)
 	}
-	// Since 2026-08-25 the gap is fixed at the reference weight (1.25) the MID
-	// scale was actually measured against, not a fraction of whatever the live
-	// global weight is — see minutesExponent's doc comment. Reproduces the
-	// original measured value (1.1875) when the global weight is still 1.25;
-	// diverges from the old formula now that the shipped default is 1.0.
-	gap := (minutesWeightSeverityReference - 1) * (1 - 0.75)
-	want := w.MinutesWeight - gap
-	if diff := midExp - want; diff > 1e-9 || diff < -1e-9 {
-		t.Errorf("midfield exponent %.4f, want %.4f", midExp, want)
+
+	// The measured value, hard-coded rather than recomputed from the same
+	// expression the implementation uses. A test that rebuilds the formula from
+	// the same symbols passes whatever those symbols become — it pins the shape
+	// and not the number. 1.1875 is what the MID plateau/cliff sweep scored at,
+	// and it is the thing that must not move.
+	probe := w
+	probe.MinutesWeight = 1.25
+	at125 := roleEngine(t, probe, DefaultRoleRisk())
+	if got := at125.minutesExponent(3); math.Abs(got-1.1875) > 1e-9 {
+		t.Errorf("at MinutesWeight 1.25 the midfield exponent is %.4f, want the "+
+			"measured 1.1875 — the per-position scale has moved off the value "+
+			"its 226-point plateau/cliff sweep was run at", got)
+	}
+	if got := at125.minutesExponent(2); math.Abs(got-1.25) > 1e-9 {
+		t.Errorf("at MinutesWeight 1.25 the defence exponent is %.4f, want 1.25", got)
 	}
 	t.Logf("exponents — MID %.4f, DEF %.4f, global %.2f", midExp, defExp, w.MinutesWeight)
 }

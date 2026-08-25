@@ -69,14 +69,18 @@ func TestDiagCaptainWeekSkill(t *testing.T) {
 		for _, start := range starts {
 			sc := SimConfig{Weights: cfg.Weights, StartGW: start}
 
-			seasonEngine, boot := EngineAt(pair.Cur, pair.Prior, start, sc)
+			// start-1: EngineAt's `through` is the last COMPLETED gameweek. See
+			// the ChipPlannerXP branch in Simulate for what passing `start` cost.
+			through := start - 1
+
+			seasonEngine, boot := EngineAt(pair.Cur, pair.Prior, through, sc)
 			cands := TopCaptainCandidates(seasonEngine, captainCandidates)
 			if len(cands) == 0 {
 				continue
 			}
 			weekCfg := sc
 			weekCfg.Weights.Horizon = 1
-			weekEngine, _ := EngineAt(pair.Cur, pair.Prior, start, weekCfg)
+			weekEngine, _ := EngineAt(pair.Cur, pair.Prior, through, weekCfg)
 			capXP := BestCaptainXPByGameweek(weekEngine, start, cands)
 			if len(capXP) == 0 {
 				continue

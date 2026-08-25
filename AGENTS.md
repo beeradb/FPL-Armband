@@ -680,10 +680,9 @@ from this list is weak evidence of absence — nothing checks it stays complete.
   calibrating it.** → **constants-and-sweeps**
 - **No scoring constant with banked `HOLD` cells is measurably a schedule.** →
   **constants-and-sweeps**
-- **`MinutesWeight` moved from 1.25 to 1.0 on 2026-08-25.** A Holm-corrected re-sweep found 1.25
-  was the worst of five tested values on a real, jagged response surface the harness cannot
-  locate an optimum on; the user chose neutral over defending an un-locatable value. →
-  **constants-and-sweeps**
+- **`MinutesWeight` ships at 1.0 from 2026-08-25: a judgement to ship neutral, not a
+  measurement — this harness cannot locate an optimum on it.** ⚠️ At 1.0
+  `MinutesWeightByPosition` is inert. → **constants-and-sweeps**
 
 ### Chips
 
