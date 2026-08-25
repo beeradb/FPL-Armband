@@ -539,7 +539,10 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **Twelve cells could not resolve 37 points a season.** → **constants-and-sweeps**
 - **Do not unify the transfer searches.** → **transfer-policy**
 - **Do not build a state trigger for the wildcard, and do not read a wildcard replay as a
-  valuation.** → **chips**
+  valuation.** ⚠️ **The valuation half was deliberately re-opened on 2026-08-25 and the line
+  SURVIVED** — a wildcard-against-no-wildcard arm reproduces the null it predicts, so the
+  prohibition now rests on a measurement rather than only on the argument. Read it as tested,
+  not as untouched. The trigger half is unre-examined. → **chips**
 - **Do not add a lock.** → **optimiser-and-squad**
 - **Do not scope the local test run to the packages a change touches.** Built and measured 2026-08-19: the Go test cache already does it, and better — it tracks the cross-package source scans an import graph cannot see, so a hand-derived scope skips exactly the guards this record pins its shipped bugs with. → **work/ruled-out/scope-the-test-run-and-move-the-suite-to-ci**
 - **Do not memoise `blankRate`.** Answer-exact and measured no faster —
@@ -687,8 +690,17 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 ### Chips
 
 - **All four chips are modelled, and the replay cannot value a wildcard.** → **chips**
-- **Anchoring the chips on the calendar is a clean null as a measurement, and "anchoring is
-  worth nothing" is not established.** → **chips**
+- **Anchoring the chips on the calendar resolves at +20.6 points a season-path (4gw sight,
+  CR2 t 3.63, threshold 14.5), superseding the "clean null" reading.** ⚠️ Quote it `per_path`
+  and from `stats/cells/2026-08-25-f7d2be1b/`; the same arms read ~1.7x larger on the default
+  `per_gw` scale, which is wrong for an event count and has now produced a retracted figure
+  twice. → **chips**
+- **The anchoring effect decomposes additively (+19.4 across three chips against a bundled
+  +20.6) but only BENCH BOOST resolves on its own** — free hit is the largest component at
+  +14.5 and misses its own threshold of 15.3. Effect size and resolvability are different
+  questions. → **chips**
+- **The wildcard's own value stays unmeasurable here — a wildcard against no wildcard is a tie
+  (−7.6, threshold 18.2) because this policy has nothing for it to undo.** → **chips**
 - **A bench-boost PLACEMENT contrast is measurable at a threshold of 2.65 — the comparison, not
   the effect.** → **chips**
 - **`OptionPricing.CongestionSensitivity = 0` means the DEFAULT of 1.0, not off.** → **chips**
