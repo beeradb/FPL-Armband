@@ -130,13 +130,13 @@ var retractedFigures = []retracted{
 		figure:  "−0.709",
 		what:    "the minutes-convexity exponent's effect against exponent 1.00",
 		context: []string{"minutesweight", "convexity", "exponent"},
-		now:     "re-swept with every sign flipped; the shipped 1.25 is the worst of five",
+		now:     "re-swept with every sign flipped; 1.25 was the worst of five and no longer ships — the user moved the default to 1.0 (neutral) on 2026-08-25 rather than defend an un-locatable optimum",
 	},
 	{
 		figure:  "−0.717",
 		what:    "the minutes-convexity exponent's effect against exponent 1.00",
 		context: []string{"minutesweight", "convexity", "exponent"},
-		now:     "re-swept with every sign flipped; the shipped 1.25 is the worst of five",
+		now:     "re-swept with every sign flipped; 1.25 was the worst of five and no longer ships — the user moved the default to 1.0 (neutral) on 2026-08-25 rather than defend an un-locatable optimum",
 	},
 	{
 		figure: "322",

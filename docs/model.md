@@ -566,7 +566,7 @@ rating        = minutes_share ^ minutes_weight
 ```
 
 `minutes_weight` above 1 makes the penalty **convex**, so rotation risk is punished
-disproportionately rather than linearly. Default 1.25.
+disproportionately rather than linearly. Default 1.0 (neutral) since 2026-08-25; it was 1.25.
 
 > **Retired: the start-share blend.** This term used to be
 > `0.6 × minutes_share + 0.4 × start_share` — the share of gameweeks in which he started — on the
@@ -651,9 +651,13 @@ setting's severity:
 exponent = 1 + (minutes_weight − 1) × position_scale
 ```
 
-Midfielders default to **0.75**, i.e. three quarters of the severity everyone else gets. At
-`minutes_weight` 1.25 that is a gentle nudge, not a large shift. To relax midfielders meaningfully,
-lower the scale to ~0.5 rather than raising the global weight.
+Midfielders default to **0.75**, i.e. three quarters of the severity everyone else gets.
+
+⚠️ **At the shipped `minutes_weight` of 1.0 this setting does nothing at all.** The formula scales
+the *excess over neutral*, and at 1.0 there is no excess — every position gets exponent 1.0
+whatever its scale. The per-position figures are live only when the global weight is away from 1;
+at the previous default of 1.25 midfielders scored at 1.1875, a gentle nudge rather than a large
+shift. To make the per-position setting bite again you have to move the global weight first.
 
 **The original justification for relaxing midfielders was wrong, and the knob is load-bearing
 anyway.** The stated reason was that midfield returns accrue in the minutes actually played, unlike

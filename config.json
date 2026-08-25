@@ -17,7 +17,7 @@
     "fixture_weight": 0.65,
     "set_piece_weight": 0,
     "bench_weight": 0.1,
-    "minutes_weight": 1.25,
+    "minutes_weight": 1.0,
     "minutes_weight_by_position": {
       "DEF": 1,
       "FWD": 1,

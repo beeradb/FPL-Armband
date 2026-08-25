@@ -1234,11 +1234,11 @@ func TestDiagProjection(t *testing.T) {
 	// cost — the shape across five settings is worth more here than a marginally
 	// stronger adjusted p-value on any one of them.
 	if want("MINW") {
-		fmt.Printf("\n=== minutes convexity exponent (ships 1.25). Metric: HOLD.\n")
+		fmt.Printf("\n=== minutes convexity exponent (ships 1.0). Metric: HOLD.\n")
 		var v []policyVariant
 		for _, x := range []float64{1.25, 1.0, 1.15, 1.5, 1.75} {
 			label := fmt.Sprintf("exponent %.2f", x)
-			if x == 1.25 {
+			if x == 1.0 {
 				label += " (ships)"
 			}
 			v = append(v, policyVariant{label: label, apply: func(sc *SimConfig) {

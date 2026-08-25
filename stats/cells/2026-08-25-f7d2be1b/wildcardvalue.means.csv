@@ -1,0 +1,7 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagWildcardValue#1,1787687758-1468509,policy,wildcard at a fixed offset,1,no wildcard (control),-0.31455025643622114,36,-
+TestDiagWildcardValue#1,1787687758-1468509,policy_xpoints,wildcard at a fixed offset,1,no wildcard (control),-0.31569901395608213,36,-
+TestDiagWildcardValue#1,1787687758-1468509,hold,wildcard at a fixed offset,1,no wildcard (control),0,36,-
+TestDiagWildcardValue#1,1787687758-1468509,hold_xpoints,wildcard at a fixed offset,1,no wildcard (control),0,36,-
+TestDiagWildcardValue#1,1787687758-1468509,hold_fixedcap,wildcard at a fixed offset,1,no wildcard (control),0,36,-
+TestDiagWildcardValue#1,1787687758-1468509,hold_nocap,wildcard at a fixed offset,1,no wildcard (control),0,36,-
