@@ -7,9 +7,18 @@ import (
 func seedPool(t *testing.T) (*Engine, []PlayerMetrics) {
 	t.Helper()
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
-	// Every squad-building test downstream needs enough of the league to carry a
-	// score; after one gameweek only the players who happened to play do.
-	skipUntilLiveEvidence(t, e, corroboratingMatches)
+	// ⚠️ NO evidence guard here, deliberately. One sat here briefly and was wrong.
+	//
+	// This helper has NINE callers and exactly ONE of them —
+	// TestSeedBudgetLeavesRoomForThePremiums — depends on how much football has
+	// been played. Guarding the helper silenced eight tests that were passing,
+	// among them TestOptimizerResultIsLegal and TestSeedOrderIsDeterministic,
+	// which assert legality and determinism against whatever pool exists and hold
+	// in any week of any season.
+	//
+	// A guard in a shared helper takes its blast radius from the HELPER, not from
+	// the problem. Put it in the caller that needs it.
+	skipDuringLiveGW1Gap(t, e)
 	var pool []PlayerMetrics
 	for _, m := range e.AllMetrics() {
 		if m.Status == "injured" || m.Status == "suspended" || m.Status == "unavailable" {
