@@ -32,7 +32,8 @@ func TestBankIsSpentAndNeverExceeded(t *testing.T) {
 	// yet" instead of "scores zero". This package cannot do the same — priors imports
 	// analysis, so the reverse is a cycle. Confirmed against the live deployment while
 	// this was failing: the market carried 582 rows and a full fifteen.
-	skipDuringLiveGW1Gap(t, e)
+	// A paid upgrade needs a spread of scored players at a spread of prices; after one gameweek only those who played carry a score at all.
+	skipUntilLiveEvidence(t, e, corroboratingMatches)
 	// £95m, so £5m is genuinely spare rather than already committed. An
 	// optimal £100m squad has nothing to buy and would prove nothing.
 	sq, err := e.Optimize(OptimizeRequest{

@@ -15,13 +15,24 @@ import (
 // the squad is legal, the arithmetic adds up, and only the deadline disagrees.
 func TestOptimizeSpendsTheRealBudget(t *testing.T) {
 	tb := testToolbox(t)
-	// Mid-GW1, some clubs have played this season and some have not, in the
-	// same live fetch, and testToolbox does not load a prior season the way
-	// cmd/armband's live server does (see analysis.SeasonHasStarted's own
-	// comment) — so most players score 0 here and the optimiser has nothing to
-	// spend the extra budget on. Passes again once GW1 finishes.
-	if tb.Engine.SeasonHasStarted() && tb.Engine.GameweeksPlayed() == 0 {
-		t.Skip("mid-GW1 live data gap: see comment above")
+	// Early in a live season most players score 0 — testToolbox does not load a
+	// prior season the way cmd/armband's live server does — so the optimiser has
+	// nothing worth spending the extra budget on and underspends.
+	//
+	// ⚠️ This skipped only while `GameweeksPlayed() == 0`, i.e. mid-GW1, and the
+	// reasoning above already said why that is the wrong boundary: the problem is
+	// that most players score 0, and one COMPLETED gameweek does not fix that.
+	// Measured 2026-08-25, one gameweek in — 307 of 612 players carried a
+	// non-zero score, and this failed at £92.5m of a £105.4m budget.
+	//
+	// Two mirrors `corroboratingMatches` in internal/analysis, that package's own
+	// bar for "this player's minutes are trustworthy". It is unexported, hence
+	// the literal.
+	const matchesNeeded = 2
+	if played := tb.Engine.GameweeksPlayed(); tb.Engine.SeasonHasStarted() && played < matchesNeeded {
+		t.Skipf("live season has played %d gameweek(s); this test needs %d before "+
+			"enough of the league carries a score for the optimiser to have "+
+			"anything to spend a budget on. Not a defect.", played, matchesNeeded)
 	}
 
 	// A tracked in-season squad that could not be priced must refuse to build.

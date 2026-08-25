@@ -12,6 +12,28 @@ import (
 // about — the second set has its own tests in chipschedule_test.go.
 func one(p ChipPlan) ChipSchedule { return ChipSchedule{First: p} }
 
+// upcomingGW is the gameweek `EffectiveHorizon` and `ValidateChipPlan` measure
+// everything else against — `Boot.NextEvent().ID`, or 1 when there is no next
+// event.
+//
+// ⚠️ Every chip gameweek in this file is expressed RELATIVE to it, and that is
+// not tidiness. `chipEngine` fetches the LIVE bootstrap, so "the upcoming
+// gameweek" moves with the real season — while these tests used to hardcode
+// `Wildcard: 3` and assert a two-gameweek horizon, which is the right answer
+// only while `upcomingGW == 1`. They passed all pre-season and went red the
+// morning GW1 finished, on code nobody had touched, and took two other packages'
+// CI down with them.
+//
+// Relative arithmetic beats skipping the window: the assertions stay live all
+// season instead of going quiet for the ten months when a regression is most
+// likely to reach them.
+func upcomingGW(e *Engine) int {
+	if next := e.Boot.NextEvent(); next != nil {
+		return next.ID
+	}
+	return 1
+}
+
 func chipEngine(t *testing.T, plan ChipSchedule) *Engine {
 	t.Helper()
 	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
@@ -96,10 +118,22 @@ func TestAFullyPlannedCurrentSetIsClean(t *testing.T) {
 	// absence of problems to mean anything.
 	var plan ChipSchedule
 	used := map[int]bool{}
+	up := upcomingGW(e)
 	for _, w := range e.ChipWindows() {
+		// ⚠️ Not `w.Start` — a window that OPENED in the past is still current,
+		// and placing a chip at its start plants it in a gameweek that has
+		// already gone. That is what ValidateChipPlan rejected as "Triple Captain
+		// planned for GW1, which has already passed" the morning GW1 finished:
+		// the window still starts at 1 all season, so this test broke itself.
 		gw := w.Start
+		if gw < up {
+			gw = up
+		}
 		for used[gw] && gw < w.Stop {
 			gw++
+		}
+		if gw > w.Stop {
+			continue // window has closed; nothing legal to place in it
 		}
 		used[gw] = true
 		if err := plan.Set(w.Name, gw); err != nil {
@@ -155,9 +189,14 @@ func TestWildcardShortensHorizon(t *testing.T) {
 		t.Errorf("unplanned chips should leave the horizon alone, got %d (%s)", full, why)
 	}
 
-	short, why := e.EffectiveHorizon(one(ChipPlan{Wildcard: 3}))
+	// Two gameweeks out from whatever is upcoming, not a hardcoded GW3 — see
+	// upcomingGW. EffectiveHorizon's span is `gw - nextGW`, so this asks for 2
+	// in every week of the season rather than only in the first.
+	wc := upcomingGW(e) + 2
+	short, why := e.EffectiveHorizon(one(ChipPlan{Wildcard: wc}))
 	if short != 2 {
-		t.Errorf("wildcard at GW3 from GW1 should give a 2-gameweek horizon, got %d", short)
+		t.Errorf("wildcard at GW%d, two out from the upcoming GW%d, should give a "+
+			"2-gameweek horizon, got %d", wc, upcomingGW(e), short)
 	}
 	if why == "" {
 		t.Error("horizon reduction reported without an explanation")
@@ -179,22 +218,24 @@ func TestAFreeHitDoesNotShortenTheHorizon(t *testing.T) {
 	skipDuringLiveGW1Gap(t, e)
 	full := e.Weights.Horizon
 
-	got, why := e.EffectiveHorizon(one(ChipPlan{FreeHit: 3}))
+	// Relative to the upcoming gameweek, not a hardcoded GW3 — see upcomingGW.
+	up := upcomingGW(e)
+	got, why := e.EffectiveHorizon(one(ChipPlan{FreeHit: up + 2}))
 	if got != full {
-		t.Errorf("free hit at GW3 shortened the horizon to %d (%q) — it replaces one "+
-			"gameweek's eleven, not the squad, and the fifteen is handed back at GW4",
-			got, why)
+		t.Errorf("free hit at GW%d shortened the horizon to %d (%q) — it replaces one "+
+			"gameweek's eleven, not the squad, and the fifteen is handed back the "+
+			"week after", up+2, got, why)
 	}
 	if why != "" {
 		t.Errorf("free hit reported a horizon reduction: %q", why)
 	}
 
 	// And the wildcard still wins when both are planned, because that one really
-	// does end the squad.
-	both, why := e.EffectiveHorizon(one(ChipPlan{FreeHit: 2, Wildcard: 4}))
+	// does end the squad. Three gameweeks out gives a span of 3.
+	both, why := e.EffectiveHorizon(one(ChipPlan{FreeHit: up + 1, Wildcard: up + 3}))
 	if both != 3 {
-		t.Errorf("free hit GW2 + wildcard GW4 from GW1 should give 3 gameweeks, got %d (%q)",
-			both, why)
+		t.Errorf("free hit GW%d + wildcard GW%d, from the upcoming GW%d, should give "+
+			"3 gameweeks, got %d (%q)", up+1, up+3, up, both, why)
 	}
 }
 
