@@ -8,12 +8,15 @@ package backtest
 //
 // `TestDiagTripleCaptainMatchup` asks whether timing the chip on projected
 // points beats a fixed offset, scored on POLICY over a season path. That
-// comparison carries a detection threshold of about 11.3 points a season, while
-// the gain the projections themselves imply is about 6.8. **A perfect rule would
-// capture 6.8 and still read "unresolved".** So a null there is a fact about the
-// instrument, not about the projections, and it cannot answer the question the
-// product actually turns on: if our own expected points cannot pick the week,
-// the feature has no basis.
+// comparison's detection threshold is 4.19 a season-path and it reads +2.25.
+//
+// ⚠️ The original justification for this file was that the replay's threshold
+// (11.3) EXCEEDED the gain the projections imply (~6.8), so a perfect rule would
+// still read "unresolved". Both numbers were per_gw readings of an event count
+// and that argument is withdrawn — the replay can resolve an effect this size.
+// What survives is that this instrument is far better powered and answers a
+// different question, the one the product turns on: if our own expected points
+// cannot pick the week, the feature has no basis.
 //
 // This measures that directly. It compares the REALISED points the chosen
 // captain actually scored in the chosen week against the same player in the

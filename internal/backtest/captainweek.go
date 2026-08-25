@@ -19,8 +19,12 @@ package backtest
 // scorer was that week. A manager does not own that player. The chip is applied
 // to the captain of the fielded eleven, drawn from fifteen owned players, so the
 // week was being selected on a signal the squad could not cash in. That dilutes
-// the effect toward zero, and the measurement showed it: +4.6 points a season
-// against roughly +7.8 implied by the projections the rule was reading.
+// the effect toward zero, and the measurement showed it. ⚠️ The figures that
+// argued this (+4.6 a season against ~+7.8 implied) were per_gw readings of an
+// event count and are withdrawn; the restricted rule reads +2.25 a season-path
+// against a threshold of 4.19. The DIRECTION of the argument stands — a squad
+// cannot cash a signal it does not own — but it is a design argument now, not a
+// measured one.
 //
 // The fix is `topN`: rank players once on the SEASON view, keep the few a
 // manager would plausibly own and captain, and time the chip on those. It is a

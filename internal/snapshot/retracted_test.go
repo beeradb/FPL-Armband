@@ -224,8 +224,22 @@ var retractedFigures = []retracted{
 		what:    "the gain from anchoring the chips on the calendar",
 		context: []string{"anchor", "chip", "calendar"},
 		now: "refuted as a measurement — four estimators, the largest t is 1.39, and Holm " +
-			"adjusts every p to 1.000. Note this does NOT establish that anchoring is " +
-			"worth nothing; the arms are unresolved and sit on provenance-dirty cells",
+			"adjusts every p to 1.000. ⚠️ This does NOT establish that anchoring is worth " +
+			"nothing: it now RESOLVES at +20.6 a season-path (4gw sight, CR2 t 3.63, " +
+			"threshold 14.5) on clean banked cells at stats/cells/2026-08-25-f7d2be1b",
+	},
+	{
+		figure: "+63",
+		what: "the gain from anchoring the chips on the calendar, published 2026-08-25 " +
+			"and wrong in two independent ways at once",
+		// "anchor"/"chip"/"calendar" name the quantity; +63 is otherwise an
+		// ordinary two-digit figure anywhere in the record.
+		context: []string{"anchor", "chip", "calendar"},
+		now: "+20.6 a season-path, CR2 t 3.63, threshold 14.5. The +63 was read on the " +
+			"default per_gw scale — wrong for an event count, ~1.7x inflation — AND " +
+			"measured on a tree carrying an uncommitted MinutesWeight change while its " +
+			"sidecar stamped a commit shipping the old value. Read the sidecar's dirty " +
+			"flag, and pass --scale=per_path",
 	},
 	{
 		figure: "0.977",

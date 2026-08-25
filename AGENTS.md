@@ -496,9 +496,11 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   NOT be built on the horizon-1 week engine — a wildcard planned for a heavy blank returns a
   free-hit squad that is then *kept*.
 - **An anchored-chip arm silently lost every 2025-26 cell** — a plan went into the FIRST set
-  wholesale; repaired by `backtest.SplitChipSets`. ⚠️ No anchored-chip cells are banked
-  anywhere — nothing that used one can be re-derived, only re-measured; the census was 0 of 24
-  refused. → **chips**
+  wholesale; repaired by `backtest.SplitChipSets`. ✅ **Anchored-chip cells are now banked**, at
+  `stats/cells/2026-08-25-f7d2be1b/` (bundled arms, per-chip decomposition, wildcard value) and
+  `stats/cells/2026-08-25-tcmatchup/` (triple captain on opponent quality). ⚠️ **Read them with
+  `--scale=per_path`** — a chip is an event count, and the default per-gameweek scale inflates
+  these arms by roughly 1.7x. → **chips**
 - **`Optimize` is not run-to-run deterministic unless it is made so.**
   `TestSeedOrderIsDeterministic`, `TestBandAssignmentIsDeterministic`,
   `TestBandTiesBreakTowardTheLowerClubID`. ⚠️ Every pre-fix `BandStrength` figure carries that
@@ -698,7 +700,14 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **The anchoring effect decomposes additively (+19.4 across three chips against a bundled
   +20.6) but only BENCH BOOST resolves on its own** — free hit is the largest component at
   +14.5 and misses its own threshold of 15.3. Effect size and resolvability are different
-  questions. → **chips**
+  questions. ⚠️ **Free hit also fails leave-one-season-out in 4 of 6 subsets, with two negative
+  seasons** — it resolves only in the two dropping one of them, so "free hit carries it" is a
+  point estimate LOSO argues against. **The bundle is what resolves.** → **chips**
+- **The two triple-captain instruments disagree and the replay is no longer the blind one.** Per
+  decision the rule delivers +7.95 realised a chip (t 2.92, threshold 7.0); the season-path
+  replay of the same rule reads +2.25 against a threshold of 4.19, so it could have resolved that
+  and did not. Ownership is the leading and untested explanation. ⚠️ The old "the replay's
+  threshold exceeds the effect" defence was a `per_gw` artefact and is withdrawn. → **chips**
 - **The wildcard's own value stays unmeasurable here — a wildcard against no wildcard is a tie
   (−7.6, threshold 18.2) because this policy has nothing for it to undo.** → **chips**
 - **A bench-boost PLACEMENT contrast is measurable at a threshold of 2.65 — the comparison, not
