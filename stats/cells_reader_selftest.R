@@ -161,12 +161,21 @@ check("and it is the row it should be",
 #
 # ⚠️ **The fixture is the REAL 36 cells, and a synthetic one did not reproduce.**
 # The first draft here built six clusters from small integers whose means cancelled
-# in pairs. Their t came out as exactly 0.0, the relative tolerance came out as
-# exactly 0, and all six draws returned exactly 0.0 — so the guard was satisfied and
-# THE TEST PASSED AGAINST THE UNFIXED CODE. The live arm's t is -7.5e-17, not zero:
-# a tolerance of 1e-9 * 7.5e-17 = 7.5e-26 against inter-draw noise of order 1e-17.
-# The trigger is a t near zero by INEXACT cancellation, which is not a thing round
-# numbers do.
+# in pairs — and THE TEST PASSED AGAINST THE UNFIXED CODE, asserting nothing.
+#
+# The discriminator is not the observed t. Both fixtures have `chk` exactly 0, so
+# both give the old relative tolerance `1e-9 * abs(chk)` a value of exactly 0. What
+# differs is whether the six DRAWS the guard counts on cancel exactly. Those six are
+# the six constant Webb weights, and only ±1 is exact in binary floating point. On
+# the real cells:
+#
+#   w = ±1.2247448713915889 (±sqrt(1.5))  ->  t* = ∓5.972e-18   not zero
+#   w = ±1                                ->  t* =  0.000e+00   zero
+#   w = ±0.70710678118654757 (±sqrt(0.5)) ->  t* = ∓7.844e-17   not zero
+#
+# so 2 of 6 tied under a zero tolerance and the guard fired. The synthetic integers
+# cancelled under every weight, all six tied, and the guard was satisfied. Real
+# cells leave residue; round numbers do not.
 note("")
 note("5. a near-zero-t arm returns p = 1 rather than aborting the run")
 zero_arm <- read_sidecar(file.path(td, "cells_zero_t_arm.csv"))
