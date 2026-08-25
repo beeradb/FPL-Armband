@@ -3,6 +3,7 @@ package analysis
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // WeekView is one gameweek of the horizon: the eleven that would actually be
@@ -57,12 +58,34 @@ type WeekView struct {
 	// following week; a wildcard's is kept, and that difference is the whole
 	// reason the two chips are planned differently.
 	Rebuilt bool
+	// RebuildFailed is true when a wildcard or free hit WAS eligible to rebuild
+	// this gameweek -- Chip named one of them and the gameweek was still open --
+	// but the rebuild could not be completed: AssemblyBudget errored, or
+	// Optimize did. Squad is then the squad PASSED IN, unchanged, same as when
+	// Rebuilt is false for any other reason (a Bench Boost/Triple Captain week,
+	// or a closed gameweek).
+	//
+	// It exists to keep those two zero-Rebuilt cases from reading the same way.
+	// Before this field, a failed Optimize call and a genuine "the model
+	// confirms your current fifteen" verdict were indistinguishable downstream:
+	// both left Squad equal to the squad passed in, both left Rebuilt false, and
+	// buildChipTeam (internal/viewmodel/build.go) diffs Squad against the
+	// account's real fifteen to report Changes/Out -- so a FAILED rebuild
+	// rendered as "0 changes, nothing transferred out", a confident answer with
+	// no error and no caveat, on /api/wildcard, which is public, ungated, and
+	// cached for 300s. RebuildFailed is the one bit that lets a reader (and
+	// buildChipTeam) tell "the model looked and nothing changed" from "the model
+	// never looked".
+	RebuildFailed bool
 	// Squad is the fifteen this week is scored on — the one passed in, or the
-	// rebuilt one when Rebuilt is true.
+	// rebuilt one when Rebuilt is true. Still the one passed in when
+	// RebuildFailed is true.
 	Squad []PlayerMetrics
-	// Caveat warns that a rebuilt squad rests on thin evidence. Empty when there
-	// is nothing to say — see rebuildCaveat, which measures it rather than
-	// assuming a gameweek number.
+	// Caveat is prose for a reader. It carries two DIFFERENT warnings,
+	// mutually exclusive because Rebuilt and RebuildFailed cannot both be true:
+	// rebuildCaveat's thin-evidence note when Rebuilt, or a plain "this rebuild
+	// did not run" statement when RebuildFailed. Empty otherwise -- see
+	// rebuildCaveat and rebuildFailedCaveat.
 	Caveat string
 }
 
@@ -126,6 +149,28 @@ func (e *Engine) rebuildCaveat() string {
 		"re-picks all fifteen on that mix, and it is the decision most exposed to a thin "+
 		"sample; four or five gameweeks settle most roles.",
 		played, noun, verb, share*100, (1-share)*100)
+}
+
+// rebuildFailedCaveat states plainly that a wildcard or free-hit rebuild did
+// not run, so the reader does not mistake the squad shown for a
+// recommendation.
+//
+// It deliberately says nothing about WHY -- not AssemblyBudget's error text,
+// not Optimize's. This document is /api/wildcard: public, unauthenticated,
+// and cached for every reader (see cmd/armband/chipteams.go's own comment for
+// why that is safe only because the route takes no per-reader input). A
+// diagnostic message is exactly the kind of detail a sibling change had to
+// strip from this same payload for leaking the operator's own chip strategy
+// (plan_wildcard_gw/plan_free_hit_gw) -- so this stays a fixed sentence, not
+// a formatted error.
+func rebuildFailedCaveat(chip string) string {
+	// chip is "Wildcard" or "Free Hit" -- lowercased here so it reads as a
+	// sentence rather than a proper-noun label, matching rebuildCaveat's own
+	// register ("a wildcard or free hit re-picks all fifteen").
+	return fmt.Sprintf(
+		"The %s could not be rebuilt for this gameweek, so what is shown below "+
+			"is your CURRENT squad, unchanged — not a recommendation, and not a "+
+			"suggestion to hold. Try reloading in a moment.", strings.ToLower(chip))
 }
 
 // Blanks lists the squad members whose club has no fixture that week. They are
@@ -208,7 +253,7 @@ func (e *Engine) ChipWeekView(squad []PlayerMetrics, gw int, chip string,
 	// Failing to price it is reported by leaving the squad alone rather than
 	// by inventing £100m, since a fifteen built on money that does not exist
 	// is a recommendation that dies at the deadline.
-	weekSquad, rebuilt := squad, false
+	weekSquad, rebuilt, rebuildFailed := squad, false, false
 	// Nobody can chip into a gameweek whose deadline has passed. ChipWeekView
 	// takes no clock, so it cannot check the deadline directly the way
 	// nextOpenEvent does -- but a gameweek every one of whose fixtures has
@@ -217,6 +262,13 @@ func (e *Engine) ChipWeekView(squad []PlayerMetrics, gw int, chip string,
 	// closed gameweek gets the squad back unrebuilt rather than a fifteen for
 	// a chip nobody could actually have played.
 	if (chip == "Wildcard" || chip == "Free Hit") && !e.gameweekClosed(gw) {
+		// Eligible to rebuild as of here -- set the failure bit now and clear
+		// it only on confirmed success below. Every early exit from this
+		// block (AssemblyBudget's error, Optimize's) then leaves
+		// rebuildFailed true rather than silently false; see
+		// WeekView.RebuildFailed's own comment for why the silent case was a
+		// live bug.
+		rebuildFailed = true
 		if budget, _, err := e.AssemblyBudget(); err == nil {
 			rebuildReq := req
 			rebuildReq.Budget = budget
@@ -265,7 +317,7 @@ func (e *Engine) ChipWeekView(squad []PlayerMetrics, gw int, chip string,
 				rebuildReq.ExcludeIDs = append(append([]int(nil), rebuildReq.ExcludeIDs...), wk.ElementsWithoutFixtures()...)
 			}
 			if built, err := builder.Optimize(rebuildReq); err == nil && built != nil {
-				weekSquad, rebuilt = built.Players, true
+				weekSquad, rebuilt, rebuildFailed = built.Players, true, false
 			}
 		}
 	}
@@ -301,10 +353,14 @@ func (e *Engine) ChipWeekView(squad []PlayerMetrics, gw int, chip string,
 	xi, bench, formation := BestXI(scored)
 	v := WeekView{
 		Event: gw, XI: xi, Bench: bench, Formation: formation,
-		Opponents: opponents, Chip: chip, Rebuilt: rebuilt, Squad: scored,
+		Opponents: opponents, Chip: chip, Rebuilt: rebuilt,
+		RebuildFailed: rebuildFailed, Squad: scored,
 	}
-	if rebuilt {
+	switch {
+	case rebuilt:
 		v.Caveat = e.rebuildCaveat()
+	case rebuildFailed:
+		v.Caveat = rebuildFailedCaveat(chip)
 	}
 	ranked := append([]PlayerMetrics(nil), xi...)
 	sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].Score > ranked[j].Score })

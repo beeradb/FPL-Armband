@@ -50,6 +50,13 @@ function render(){
     : 'This fifteen is built for this gameweek only — the permanent squad comes straight back afterwards.';
 
   const notes = [];
+  // rebuild_failed is chip-specific -- t is already the tab in view, so this
+  // never shows a wildcard's failure while looking at the free hit or the
+  // reverse. It goes first and uses the same "bad" styling as the budget
+  // warning: unlike CT.caveat (thin evidence, still a real recommendation)
+  // this means the fifteen below is NOT one -- it is today's squad, unrebuilt.
+  if(t.rebuild_failed) notes.push(`<div class="chipcaveat bad">${esc(t.rebuild_caveat ||
+    'This could not be rebuilt for this gameweek — what is shown is the current squad, unchanged, not a recommendation.')}</div>`);
   if(CT.caveat) notes.push(`<div class="chipcaveat">${esc(CT.caveat)}</div>`);
   if(CT.budget_warning) notes.push(`<div class="chipcaveat bad">${esc(CT.budget_warning)}</div>`);
   bodyEl.innerHTML = notes.join('') + ArmbandProjection.pitch(t);

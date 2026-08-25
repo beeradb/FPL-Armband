@@ -131,10 +131,20 @@ function pitch(t){
    since those are ChipTeams-level facts, not per-chip ones — this function
    still just reads what it is handed. */
 function header(t){
-  const changes = t.changes || 0;
+  // t.changes is 0 both when a rebuild confirmed the current fifteen was
+  // already optimal AND when the rebuild never ran at all (Optimize failed,
+  // so the squad passed straight through unchanged) -- see
+  // analysis.WeekView.RebuildFailed for the full account of why those two
+  // are not the same statement. "0/15 change" reads as the former; a reader
+  // seeing it after a failure would take it as the model's answer, which it
+  // is not. rebuild_failed swaps in a dash instead of a count that was never
+  // computed.
+  const changeStat = t.rebuild_failed
+    ? '<span class="chipstat"><b>—</b> change</span>'
+    : `<span class="chipstat"><b>${t.changes || 0}/15</b> change</span>`;
   const budget = t.budget!=null ? `£${t.budget.toFixed(1)}m to spend` : '';
   return `
-    <span class="chipstat"><b>${changes}/15</b> change</span>
+    ${changeStat}
     ${budget ? `<span class="chipstat">${esc(budget)}</span>` : ''}
     <span class="chipstat"><b>${t.expected.toFixed(1)}</b> pts expected</span>
   `;
