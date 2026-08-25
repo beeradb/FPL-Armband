@@ -76,8 +76,8 @@ func TestDiagEntryDensity(t *testing.T) {
 		t.Skip("set DIAG=1")
 	}
 	starts := sweepStarts()
-	fmt.Printf("\n=== entry-point density: MinutesWeight 1.25 vs 1.00 at %d starts. "+
-		"Metric: HOLD.\n", len(starts))
+	fmt.Printf("\n=== entry-point density: MinutesWeight 1.25 vs 1.00 (positive control, "+
+		"1.25 no longer ships) at %d starts. Metric: HOLD.\n", len(starts))
 	if len(starts) <= 6 {
 		fmt.Printf("NOTE: running at the shipped grid — %d cells per arm, and no pair "+
 			"closer than five gameweeks. Set FPL_SWEEP_STARTS to densify.\n",
@@ -87,7 +87,7 @@ func TestDiagEntryDensity(t *testing.T) {
 	var v []policyVariant
 	for _, x := range []float64{1.25, 1.0} {
 		label := fmt.Sprintf("exponent %.2f", x)
-		if x == 1.25 {
+		if x == 1.0 {
 			label += " (ships)"
 		}
 		v = append(v, policyVariant{label: label, apply: func(sc *SimConfig) {

@@ -662,6 +662,8 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **The transfer path's noise, measured cleanly, is 303 points of spread.** → **transfer-policy**
 - **`MinGainHit` 3.0 stands, the hits mostly pay, and nothing ships.** →
   **transfer-policy**
+- **The flat `free_transfer_value` ladder resolves nothing — 2.0 ships unchanged,
+  measured-and-unresolved rather than untested.** → **transfer-policy**
 
 ### Constants
 
@@ -677,6 +679,10 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **Calibrate against data, not intuition — and check what a multiplier multiplies before
   calibrating it.** → **constants-and-sweeps**
 - **No scoring constant with banked `HOLD` cells is measurably a schedule.** →
+  **constants-and-sweeps**
+- **`MinutesWeight` moved from 1.25 to 1.0 on 2026-08-25.** A Holm-corrected re-sweep found 1.25
+  was the worst of five tested values on a real, jagged response surface the harness cannot
+  locate an optimum on; the user chose neutral over defending an un-locatable value. →
   **constants-and-sweeps**
 
 ### Chips

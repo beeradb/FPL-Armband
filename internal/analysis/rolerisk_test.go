@@ -134,7 +134,13 @@ func TestMidfieldMinutesWeightIsRelaxed(t *testing.T) {
 	if !(midExp < defExp) {
 		t.Errorf("midfield exponent %.4f should be below defence %.4f", midExp, defExp)
 	}
-	want := 1 + (w.MinutesWeight-1)*0.75
+	// Since 2026-08-25 the gap is fixed at the reference weight (1.25) the MID
+	// scale was actually measured against, not a fraction of whatever the live
+	// global weight is — see minutesExponent's doc comment. Reproduces the
+	// original measured value (1.1875) when the global weight is still 1.25;
+	// diverges from the old formula now that the shipped default is 1.0.
+	gap := (minutesWeightSeverityReference - 1) * (1 - 0.75)
+	want := w.MinutesWeight - gap
 	if diff := midExp - want; diff > 1e-9 || diff < -1e-9 {
 		t.Errorf("midfield exponent %.4f, want %.4f", midExp, want)
 	}
