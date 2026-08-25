@@ -398,8 +398,22 @@ func TestSquadFillBoundDifferentialAgreesOnLandscapesTheOldBoundAlreadyClears(t 
 // million: the one failure mode 94068f30's own commit message calls out as
 // turning this from a bug fix into an unswept search-quality regression, and
 // exactly what TestSquadFillBoundDifferentialAgreesOnLandscapesTheOldBoundAlready
-// Clears exists to catch if fillBound ever regresses into it. Requires the
-// comparison to reject every landscape it runs on.
+// Clears exists to catch if fillBound ever regresses into it.
+//
+// ⚠️ REQUIRES AT LEAST ONE LANDSCAPE TO REJECT, NOT ALL OF THEM, AND THE
+// DIFFERENCE IS THE POINT. Measured 2026-08-25: of the 7 landscapes in scope,
+// exactly 2 catch a +£0.1m over-estimation — "6 clubs, moderate roster, tight
+// budget" and "10 clubs, deep roster, moderate budget", both at zero budget
+// headroom. The other 5 pass unchanged under the inflated bound, two of them
+// carrying £9-14m of slack.
+//
+// That is the honest shape of this guard: an admissibility regression only
+// changes a decision where the budget actually binds, so a generously-funded
+// landscape cannot see one however hard it looks. Do not read this test as
+// broad-spectrum coverage, and do not "strengthen" it by requiring every
+// landscape to reject — that assertion is false and would fail on a correct
+// implementation. If more coverage is wanted the answer is more tight-budget
+// landscapes, not a stricter predicate over these.
 func TestSquadFillBoundDifferentialHasTeeth(t *testing.T) {
 	inflated := func(fb *fillBound, pool []PlayerMetrics, selected map[int]PlayerMetrics, posCount, clubCount map[string]int, pending PlayerMetrics, remaining int) int {
 		b := fb.cost(posCount, clubCount, boundParams{id: pending.ID, pos: pending.Position, team: pending.Team}, remaining)
