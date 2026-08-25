@@ -1111,11 +1111,41 @@ func (s *Season) carriesAnyStrength() bool {
 // The check is one-directional on purpose: carrying ratings WITHOUT declaring
 // anything is the ordinary case and must stay legal. Only the claim is checked,
 // never the silence.
+//
+// ⚠️ It asks a BROADER question than `hasTeamStrength`, and the difference is the
+// whole reason this is a separate function rather than a `!hasTeamStrength()`.
+// `hasTeamStrength` inspects the granular attack/defence pair only — which is
+// correct for it, because a file with those unset is what an older parser wrote.
+// But `analysis.priorFromStrength` also reads the COARSE rating, `t.Strength`,
+// falling back to `t.StrengthOverallHome`, and `fpl.Team.Strength`'s own comment
+// says the coarse value is **"pre-season … the *only* one"**.
+//
+// So a teams table carrying coarse ratings and nothing else still produces
+// club-DIFFERENTIATED priors through `coarseConceded`/`coarseScored`. Checking
+// only the granular pair here would accept `StrengthAbsent` on such a season,
+// and the label would then assert flat difficulty for a season that has none of
+// the sort — which is exactly the mislabelling the field exists to prevent, with
+// the guard nodding it through.
 func (s *Season) strengthDeclarationIsConsistent() bool {
 	if !s.StrengthAbsent {
 		return true
 	}
-	return !s.carriesAnyStrength()
+	return !s.carriesAnyUsableStrength()
+}
+
+// carriesAnyUsableStrength reports whether ANY field `priorFromStrength` can act
+// on is populated — granular or coarse. Broader than `carriesAnyStrength` by the
+// coarse pair, deliberately; see `strengthDeclarationIsConsistent`.
+func (s *Season) carriesAnyUsableStrength() bool {
+	for _, t := range s.Teams {
+		if t.StrengthAttackHome > 0 || t.StrengthAttackAway > 0 ||
+			t.StrengthDefenceHome > 0 || t.StrengthDefenceAway > 0 ||
+			t.StrengthOverallHome > 0 || t.StrengthOverallAway > 0 ||
+			t.Strength > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func fetch(ctx context.Context, season string) (*Season, error) {

@@ -98,3 +98,47 @@ func TestDeclaringStrengthAbsentWhileCarryingRatingsIsRejected(t *testing.T) {
 			"was called inconsistent")
 	}
 }
+
+// A season carrying ONLY the coarse 1-5 rating may not declare absence either,
+// and this is the case a `!hasTeamStrength()` check would have waved through.
+//
+// `hasTeamStrength` inspects the granular attack/defence pair alone — right for
+// it, since a file with those unset is what an older parser wrote. But
+// `analysis.priorFromStrength` also reads `t.Strength`, falling back to
+// `t.StrengthOverallHome`, and `fpl.Team.Strength` says the coarse value is
+// "pre-season … the *only* one". A coarse-only table therefore still produces
+// club-DIFFERENTIATED priors through coarseConceded/coarseScored.
+//
+// So declaring StrengthAbsent on it would assert flat difficulty for a season
+// that has nothing of the sort — the exact mislabelling the field exists to
+// prevent, nodded through by the guard meant to catch it.
+func TestCoarseOnlyRatingsAlsoRefuseTheAbsenceDeclaration(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		team fpl.Team
+	}{
+		{"coarse 1-5 only", fpl.Team{ID: 1, Name: "A", Strength: 4}},
+		{"coarse in overall_home, as FPL ships it pre-season",
+			fpl.Team{ID: 1, Name: "A", StrengthOverallHome: 1290}},
+		{"away granular only", fpl.Team{ID: 1, Name: "A", StrengthAttackAway: 1250}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &Season{Name: "2016-17", Teams: []fpl.Team{tc.team}, StrengthAbsent: true}
+			if s.strengthDeclarationIsConsistent() {
+				t.Errorf("a season carrying %s declared StrengthAbsent and the guard "+
+					"accepted it. priorFromStrength can act on that field, so the "+
+					"season's clubs are differentiated and the label is a lie — and "+
+					"the label is the only thing keeping such a season out of a "+
+					"pooled comparison.", tc.name)
+			}
+		})
+	}
+
+	// And the genuinely empty case still passes, or the flag is unusable.
+	allZero := &Season{Name: "2016-17", StrengthAbsent: true,
+		Teams: []fpl.Team{{ID: 1, Name: "A"}, {ID: 2, Name: "B"}}}
+	if !allZero.strengthDeclarationIsConsistent() {
+		t.Fatal("a teams table with every strength field at zero was refused the " +
+			"declaration; that is the one shape the flag exists for")
+	}
+}
