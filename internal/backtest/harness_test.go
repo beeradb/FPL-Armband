@@ -468,6 +468,13 @@ func loadConfig(t *testing.T) config.Config {
 	if !filepath.IsAbs(cfg.CacheDir) {
 		cfg.CacheDir = filepath.Join(filepath.Dir(path), cfg.CacheDir)
 	}
+	// The xGC source, resolved here because this is where the shipped config is
+	// read. Relative for the same reason CacheDir is, and set even when empty so
+	// a test that ran under one arm cannot leave the next one selected.
+	if d := cfg.XGCExternalDir; d != "" && !filepath.IsAbs(d) {
+		cfg.XGCExternalDir = filepath.Join(filepath.Dir(path), d)
+	}
+	SetXGCExternalDir(cfg.XGCExternalDir)
 	return cfg
 }
 
@@ -540,7 +547,11 @@ func loadSeason(t *testing.T, cfg config.Config, name string) *Season {
 	// whichever directory won the race to populate the map. A stale parser's
 	// output read as current is the failure this package records as "a cache
 	// version is not a schema check", and the key costs nothing.
-	key := cfg.CacheDir + "|" + name
+	// Keyed on the external xGC directory as well, because the overlay is applied
+	// on the way out of Load and two arms of one process would otherwise share a
+	// season loaded under whichever ran first — a sweep comparing two data sets
+	// while reporting one. See xgcexternal.go.
+	key := cfg.CacheDir + "|" + externalXGCDir() + "|" + name
 	seasonMu.Lock()
 	defer seasonMu.Unlock()
 	if s, ok := seasonCache[key]; ok {

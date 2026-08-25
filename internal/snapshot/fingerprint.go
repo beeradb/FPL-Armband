@@ -173,6 +173,12 @@ var envSwitches = []string{
 	// defender and keeper in four seasons with neither term — 26-45% of their
 	// points — and picks a different squad as a result.
 	"FPL_NO_XGC_REPAIR",
+	// Selects a measured per-match xGC source in place of the reconstruction for
+	// the seasons FPL never backfilled. It changes what a season HOLDS, so two
+	// sweeps that disagree about it are measuring different archives — the same
+	// reason the three switches around it are fingerprinted, arriving from the
+	// other direction: this one adds data rather than removing it.
+	"FPL_XGC_EXTERNAL_DIR",
 	// Restores the rank reconstruction of the starting eleven in place of the
 	// recorded starts harvested from Understat.
 	//

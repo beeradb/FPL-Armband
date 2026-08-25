@@ -655,7 +655,19 @@ func clubXGAPerGameweek(s *Season, scale float64) map[[2]int]float64 {
 // fixture that gameweek — see xgcRepairResult.NoClubMatch for why it is counted rather
 // than silently skipped.
 func reconstructedXGC(s *Season, scale float64) (map[int]map[int]float64, int) {
-	xga, matches := clubXGAPerGameweek(s, scale), clubMatches(s)
+	return proratedClubXGC(s, clubXGAPerGameweek(s, scale))
+}
+
+// proratedClubXGC shares a club-level (club, gameweek) quantity out across that
+// club's players by minutes, and is the ONE implementation of that step.
+//
+// It was extracted from reconstructedXGC when a measured per-match source was
+// added beside the reconstruction: the two differ only in where the club figure
+// comes from, and a second copy of the proration would be one quantity with two
+// implementations — this package's signature failure, and the one the doubles
+// counter and the appearance estimator have each already produced once.
+func proratedClubXGC(s *Season, xga map[[2]int]float64) (map[int]map[int]float64, int) {
+	matches := clubMatches(s)
 	var noMatch int
 	out := make(map[int]map[int]float64, len(s.Players))
 	for _, id := range sortedSeasonPlayerIDs(s) {

@@ -496,11 +496,15 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   NOT be built on the horizon-1 week engine — a wildcard planned for a heavy blank returns a
   free-hit squad that is then *kept*.
 - **An anchored-chip arm silently lost every 2025-26 cell** — a plan went into the FIRST set
-  wholesale; repaired by `backtest.SplitChipSets`. ✅ **Anchored-chip cells are now banked**, at
-  `stats/cells/2026-08-25-f7d2be1b/` (bundled arms, per-chip decomposition, wildcard value) and
-  `stats/cells/2026-08-25-tcmatchup/` (triple captain on opponent quality). ⚠️ **Read them with
-  `--scale=per_path`** — a chip is an event count, and the default per-gameweek scale inflates
-  these arms by roughly 1.7x. → **chips**
+  wholesale; repaired by `backtest.SplitChipSets`. ✅ **Anchored-chip cells are banked**, at
+  `stats/cells/2026-08-25-f7d2be1b/` (bundled, per-chip, wildcard value) and
+  `2026-08-25-tcmatchup/` (triple captain on matchup). ⚠️ **Read with `--scale=per_path`** —
+  a chip is an event count, and per-gameweek inflates these ~1.7x. → **chips**
+- **xGC has two sources; the DEFAULT IS THE RECONSTRUCTION.** `XGCExternalDir` /
+  `FPL_XGC_EXTERNAL_DIR` selects measured per-match xGC for 2020-21, 2021-22, 2022-23
+  GW1-15; empty (the shipped config) selects the reconstruction. ⚠️ An unresolvable
+  directory is a hard ERROR, never a fall back; the switch is fingerprinted, so a cell
+  states its arm. ⚠️ **The two arms are not comparable.** → **archive-and-data**
 - **`Optimize` is not run-to-run deterministic unless it is made so.**
   `TestSeedOrderIsDeterministic`, `TestBandAssignmentIsDeterministic`,
   `TestBandTiesBreakTowardTheLowerClubID`. ⚠️ Every pre-fix `BandStrength` figure carries that

@@ -126,6 +126,28 @@ type Config struct {
 	// leaves it "" for any config.json that predates the field, which is the
 	// correct "disabled" state, not an omission that needs correcting.
 	SnapshotDir string `json:"snapshot_dir"`
+
+	// XGCExternalDir names a directory of measured per-match expected-goals-
+	// conceded files, used in place of the reconstruction for the seasons FPL
+	// never backfilled. Empty — the zero value, Default()'s value, and this
+	// repository's shipped config.json — selects the reconstruction, which is
+	// what every clone reads.
+	//
+	// ⚠️ **Setting it is a deliberate estimator swap, and the price is that every
+	// figure measured on the reconstruction becomes incomparable with one
+	// measured after.** It is an operator's choice about which archive a process
+	// replays, not a tuning knob.
+	//
+	// ⚠️ **Naming a directory that does not resolve is a hard error out of
+	// backtest.Load, not a fall back.** A source that silently degrades to the
+	// reconstruction is indistinguishable from one that worked, which is how two
+	// incomparable sweeps come to look like one. See internal/backtest/
+	// xgcexternal.go for the whole argument.
+	//
+	// Like SnapshotDir this needs no backfill in Load: Default() leaves it "",
+	// and unmarshalling a config.json that predates the field leaves it "",
+	// which is the correct disabled state rather than an omission.
+	XGCExternalDir string `json:"xgc_external_dir"`
 }
 
 func Default() Config {
