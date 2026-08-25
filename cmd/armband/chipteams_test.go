@@ -206,3 +206,40 @@ func TestNextOpenEventMatchesTheRailsCurrent(t *testing.T) {
 		t.Errorf("rail's Current gameweek = %d, nextOpenEvent = %d, want equal", railCurrent, want.ID)
 	}
 }
+
+// TestChipTeamsDoesNotPublishOurOwnChipPlan pins a privacy boundary rather than a
+// behaviour: /api/wildcard is ungated, so anything on it is public.
+//
+// It used to carry plan_wildcard_gw and plan_free_hit_gw, straight from
+// cfg.Chips — the gameweeks this account intends to play its wildcard and free
+// hit. Observed live on 2026-08-24 returning 6 and 16 to anyone who asked. No
+// page ever rendered them, so it was strategy published for nothing.
+//
+// The distinction worth keeping: PLAYED chips may stay. FPL publishes those
+// itself on the entry's own history, so repeating them reveals nothing. What a
+// manager INTENDS is not public anywhere else, and this is the surface that
+// would have made it so.
+func TestChipTeamsDoesNotPublishOurOwnChipPlan(t *testing.T) {
+	s := fixtureServer(t)
+	s.wildcardEnabled = true
+
+	w := getChipTeams(t, s, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET %s = %d, want 200", routeWildcardState, w.Code)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decoding the response: %v", err)
+	}
+	body := w.Body.String()
+
+	for _, leak := range []string{"plan_wildcard_gw", "plan_free_hit_gw"} {
+		if bytes.Contains(w.Body.Bytes(), []byte(leak)) {
+			t.Errorf("%s is on the public wildcard payload.\n"+
+				"That is which gameweek this account plans to play the chip in, on an "+
+				"ungated route, and no page renders it. See this test's comment.\n"+
+				"body: %.400s", leak, body)
+		}
+	}
+}

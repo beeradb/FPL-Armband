@@ -164,8 +164,6 @@ func (s *squadServer) apiChipTeams(w http.ResponseWriter, r *http.Request) {
 		BudgetWarning:    s.engine.Budget.Warning(),
 		Wildcard:         wc,
 		FreeHit:          fh,
-		PlanWildcardGW:   s.cfg.Chips.Next(analysis.SlotWildcard, event.ID),
-		PlanFreeHitGW:    s.cfg.Chips.Next(analysis.SlotFreeHit, event.ID),
 		PlayedWildcardGW: playedWildcard,
 		PlayedFreeHitGW:  playedFreeHit,
 		TodaySquad:       todaySquad,
