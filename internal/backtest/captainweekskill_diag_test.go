@@ -41,6 +41,7 @@ package backtest
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"testing"
 
@@ -64,6 +65,8 @@ func TestDiagCaptainWeekSkill(t *testing.T) {
 	var diffs []float64
 	var projs []float64
 	var wins, losses, ties int
+	bySeason := map[string][]float64{}
+	var seasonNames []string
 
 	for _, pair := range loadPairsOrSkip(t, cfg) {
 		for _, start := range starts {
@@ -88,9 +91,13 @@ func TestDiagCaptainWeekSkill(t *testing.T) {
 
 			aGW := tcMatchupAnchored(pair.Cur, start, capXP).TripleCaptain
 			cGW := tcMatchupControl(pair.Cur, start, capXP).TripleCaptain
-			if aGW == 0 || cGW == 0 || aGW == cGW {
+			if aGW == 0 || cGW == 0 {
 				continue
 			}
+			// ⚠️ A cell where the two rules AGREE is a true zero and stays in the
+			// denominator. Dropping it would make this "mean gain per DISCORDANT
+			// decision", which is not what the figure is read as and inflates any
+			// season-scale conversion built on it.
 
 			// Who the rule would actually captain in each week: the best of the
 			// candidates in THAT week, which is the same choice the timing rule
@@ -105,6 +112,10 @@ func TestDiagCaptainWeekSkill(t *testing.T) {
 			cReal := realisedPoints(pair.Cur, cID, cGW)
 			d := float64(aReal - cReal)
 			diffs = append(diffs, d)
+			if _, seen := bySeason[pair.Cur.Name]; !seen {
+				seasonNames = append(seasonNames, pair.Cur.Name)
+			}
+			bySeason[pair.Cur.Name] = append(bySeason[pair.Cur.Name], d)
 			projs = append(projs, aProj-cProj)
 			switch {
 			case d > 0:
@@ -124,15 +135,36 @@ func TestDiagCaptainWeekSkill(t *testing.T) {
 		}
 	}
 
-	if len(diffs) < 2 {
-		t.Skip("not enough comparable cells")
+	if len(bySeason) < 2 {
+		t.Skip("not enough seasons")
 	}
-	mean, se := meanSE(diffs)
-	pmean, _ := meanSE(projs)
-	fmt.Printf("\ncells %d | anchored better in %d, worse in %d, tied in %d\n",
-		len(diffs), wins, losses, ties)
-	fmt.Printf("realised gain  mean %+.2f pts, SE %.2f, t %.2f\n", mean, se, mean/se)
-	fmt.Printf("projected gain mean %+.2f pts\n", pmean)
+	// ⚠️ SEASON-CLUSTERED, and this is not a refinement. Cells inside a season
+	// share that season's archive, so treating them as independent draws
+	// overstates t — it did, by 4.11 against 3.48, until review caught it. The
+	// same objection retires the win/loss count: 34 cells are not 34 binomial
+	// trials when the effective n is the season count, so the per-season sign is
+	// reported instead of a "30 of 34" that reads as p ~ 3e-6 and is not.
+	seasonMeans := make([]float64, 0, len(bySeason))
+	for _, s := range seasonNames {
+		seasonMeans = append(seasonMeans, meanOf(bySeason[s]))
+	}
+	mean, se := meanSE(seasonMeans)
+	df := len(seasonMeans) - 1
+	crit := tCrit95(df)
+	pmean := meanOf(projs)
+
+	fmt.Printf("\ncells %d over %d seasons | anchored better in %d, worse in %d, tied in %d\n",
+		len(diffs), len(seasonMeans), wins, losses, ties)
+	fmt.Printf("per-season mean gain: ")
+	for _, s := range seasonNames {
+		fmt.Printf("%s %+.1f  ", s, meanOf(bySeason[s]))
+	}
+	fmt.Printf("\n")
+	fmt.Printf("realised gain  mean %+.2f pts/chip, season-clustered SE %.2f, t %.2f "+
+		"vs t_crit(%d) %.3f -> %s\n", mean, se, mean/se, df, crit,
+		map[bool]string{true: "RESOLVES", false: "does not resolve"}[math.Abs(mean/se) > crit])
+	fmt.Printf("               detection threshold of this comparison: %.2f pts/chip\n", crit*se)
+	fmt.Printf("projected gain mean %+.2f pts/chip\n", pmean)
 	fmt.Printf("\nThe projected column is what the rule BELIEVED it was buying; the\n")
 	fmt.Printf("realised column is what it got. A realised gain near the projected\n")
 	fmt.Printf("one says the projections rank weeks honestly. A realised gain near\n")
