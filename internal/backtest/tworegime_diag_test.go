@@ -29,7 +29,7 @@ package backtest
 //  2. **The bundle is confined to GW20+**, where the calendar features are.
 //  3. **Triple captain is placed LAST**, on the best gameweek still free after
 //     the other three have taken theirs — rather than being given the
-//     *second*-best double, which is why it goes unplaced in 16 of 36 cells.
+//     *second*-best double, which is why it goes unplaced in 13 of 36 cells.
 //
 // # ⚠️ It replays every season under TODAY'S chip rules, on purpose
 //
@@ -171,7 +171,7 @@ func bundleFrom(cur *Season, after, lag int) analysis.ChipPlan {
 	}
 	// ⚠️ Triple captain LAST and always placeable: the best remaining double if
 	// one is free, otherwise the first free week. The anchored arm's rule leaves
-	// it unplaced in 16 of 36 cells, which is a chip not played rather than a
+	// it unplaced in 13 of 36 cells, which is a chip not played rather than a
 	// chip timed badly.
 	if p.TripleCaptain == 0 {
 		for gw := after + 1; gw <= 38; gw++ {
@@ -279,6 +279,6 @@ func TestDiagTwoRegimeChips(t *testing.T) {
 
 	fmt.Printf("\n⚠️ Read against TestDiagAnchoredChips, which is a DIFFERENT arm:\n")
 	fmt.Printf("three chips not four, spread over all 38 gameweeks, and a triple\n")
-	fmt.Printf("captain that goes unplaced in 16 of 36 cells. These cells are not\n")
+	fmt.Printf("captain that goes unplaced in 13 of 36 cells. These cells are not\n")
 	fmt.Printf("comparable with those and must not be differenced against them.\n")
 }

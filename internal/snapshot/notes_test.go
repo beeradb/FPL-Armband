@@ -995,9 +995,11 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// The Chips section gained two results that a reader cannot act on without their
 	// conditions. **The two-regime chip strategy** — spend both sets, bundle the
 	// calendar chips in the second half, triple captain last — reads +38.1 a
-	// season-path on the legacy reconstruction and +38.4 on measured xGC, and it is
-	// the only chip result here that agrees across the two sources. It cannot be
-	// stated without saying which sources, because that agreement IS the finding;
+	// season-path on the legacy reconstruction and +38.4 on measured xGC, resolving
+	// on both. ⚠️ It is NOT the only result that agrees across sources — bench boost
+	// does too, at a higher t — so it is the LARGEST effect and not the most robust,
+	// and the first write-up of this comment claimed otherwise. It cannot be stated
+	// without saying which sources, because that agreement is half the finding;
 	// without saying a third of it is the arithmetic of not letting a set expire;
 	// and without saying it replays every season under today's two-set rules, which
 	// contradicts a standing rule two sections away.
@@ -1012,7 +1014,7 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// Two rounds of compression were tried first and both degraded the entries they
 	// touched: "threshold" to "thr", and the clause explaining WHY the wildcard is
 	// unmeasurable. That is the qualifier-dropping this comment forbids, so it was
-	// reverted and the budget raised instead. About 700 bytes free.
+	// reverted and the budget raised instead. About 1.8 KB free.
 	//
 	// # 54 KB, 2026-08-22 — the accuracy series stopped being committed, and AGENTS.md
 	// owed the reader the new rule, not a smaller file

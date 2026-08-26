@@ -1223,13 +1223,17 @@ var allowedGridLabels = []struct{ file, fragment, why string }{
 			"one arm and 3-5 for the others. The counts belong to that run, not to this one",
 	},
 	{
-		"tworegime_diag_test.go", "unplaced in 16 of 36 cells",
+		"tworegime_diag_test.go", "unplaced in 13 of 36 cells",
 		"a recorded result belonging to a DIFFERENT test's grid: it is how often " +
-			"TestDiagAnchoredChips leaves the triple captain unplayed, printed here " +
-			"as the reason these two arms are not comparable. Deriving it from THIS " +
-			"grid would relabel that measurement with a run it did not come from, " +
-			"which is worse than the literal — FPL_SWEEP_SEASONS moves this grid and " +
-			"not the anchored arm's recorded 16 of 36",
+			"TestDiagAnchoredChips leaves the triple captain unplayed, counted as " +
+			"triple_captain_gw == 0 in stats/cells/2026-08-25-f7d2be1b/anchored.csv " +
+			"and identical across all five arms there. Printed here as the reason " +
+			"these two arms are not comparable. Deriving it from THIS grid would " +
+			"relabel that measurement with a run it did not come from — " +
+			"FPL_SWEEP_SEASONS moves this grid and not that recorded 13 of 36. " +
+			"⚠️ It first said SIXTEEN, and the exemption was granted before the count " +
+			"was checked against the cells; the file it came from is named above so " +
+			"the next reader can check rather than trust",
 	},
 	{
 		"harness_test.go", "need at least two entry points",
