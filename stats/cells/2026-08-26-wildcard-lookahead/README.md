@@ -51,7 +51,7 @@ could still exist; this one does not.
 **2. The shipped rule is negative and takes MORE hits than not having it** —
 −3.53 a season-path, 2.06 hits per cell against the control's 1.94. A wildcard
 repairs the squad for free, so a rule that fires well should leave the policy
-taking FEWER hits. This one fires earliest of all (median GW 10) and does the
+taking FEWER hits. This one fires earliest of all (median GW 9) and does the
 opposite. It reproduces `2026-08-26-wildcard-attribution/`'s −8.08 at a different
 bar and configuration: same sign, same story, neither resolving.
 

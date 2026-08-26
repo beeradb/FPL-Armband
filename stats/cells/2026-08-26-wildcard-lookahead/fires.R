@@ -34,3 +34,21 @@ cat("\n⚠️ `wc_trig_gw` is the FIRST firing, not the only one — chips come 
 cat("sets from 2025-26. This sweep is confined to GW1-19, one set, so first and\n")
 cat("only coincide here; they do not in general.\n")
 cat("\n⚠️ Read the fire count before reading any null in the README's table.\n")
+
+# The same rows as markdown, so the README's table is REGENERATED rather than
+# hand-copied.
+#
+# ⚠️ **Hand-copying is how three medians got into the README wrong and how one of
+# them then survived a correction.** The fix pass updated the table and missed the
+# same number written out in prose twenty lines below, so the README disagreed
+# with itself about one arm. Emitting the rows makes the table a diff against this
+# output; nothing can make the prose one, which is why the prose should quote as
+# few numbers as it can get away with.
+cat("\n--- README table rows, regenerate rather than retype ---\n")
+for (v in unique(d$variant)) {
+  a <- d[d$variant == v, ]
+  gws <- a$wc_trig_gw[!is.na(a$wc_trig_gw) & a$wc_trig_gw > 0]
+  cat(sprintf("| %s | %d/%d | %s | %.2f |\n", v, length(gws), nrow(a),
+              if (length(gws)) format(median(gws)) else "—",
+              mean(a$hits, na.rm = TRUE)))
+}
