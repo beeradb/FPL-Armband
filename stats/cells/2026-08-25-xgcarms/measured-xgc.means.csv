@@ -1,0 +1,25 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagAnchoredChipDecomposition#1,1787696113-1576283,policy,"wildcard, anchored (4gw sight)",1,"wildcard, fixed offset (control)",-0.09429987724228796,36,-
+TestDiagAnchoredChipDecomposition#1,1787696113-1576283,policy_xpoints,"wildcard, anchored (4gw sight)",1,"wildcard, fixed offset (control)",-0.3112104649530758,36,-
+TestDiagAnchoredChipDecomposition#1,1787696113-1576283,hold,"wildcard, anchored (4gw sight)",1,"wildcard, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#1,1787696113-1576283,hold_xpoints,"wildcard, anchored (4gw sight)",1,"wildcard, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#1,1787696113-1576283,hold_fixedcap,"wildcard, anchored (4gw sight)",1,"wildcard, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#1,1787696113-1576283,hold_nocap,"wildcard, anchored (4gw sight)",1,"wildcard, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#2,1787696113-1576283,policy,"bench boost, anchored (4gw sight)",1,"bench boost, fixed offset (control)",0.18042095063452812,36,-
+TestDiagAnchoredChipDecomposition#2,1787696113-1576283,policy_xpoints,"bench boost, anchored (4gw sight)",1,"bench boost, fixed offset (control)",0.2535908861418764,36,-
+TestDiagAnchoredChipDecomposition#2,1787696113-1576283,hold,"bench boost, anchored (4gw sight)",1,"bench boost, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#2,1787696113-1576283,hold_xpoints,"bench boost, anchored (4gw sight)",1,"bench boost, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#2,1787696113-1576283,hold_fixedcap,"bench boost, anchored (4gw sight)",1,"bench boost, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#2,1787696113-1576283,hold_nocap,"bench boost, anchored (4gw sight)",1,"bench boost, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#3,1787696113-1576283,policy,"free hit, anchored (4gw sight)",1,"free hit, fixed offset (control)",0.9910206187856841,36,-
+TestDiagAnchoredChipDecomposition#3,1787696113-1576283,policy_xpoints,"free hit, anchored (4gw sight)",1,"free hit, fixed offset (control)",0.7160461821788306,36,-
+TestDiagAnchoredChipDecomposition#3,1787696113-1576283,hold,"free hit, anchored (4gw sight)",1,"free hit, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#3,1787696113-1576283,hold_xpoints,"free hit, anchored (4gw sight)",1,"free hit, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#3,1787696113-1576283,hold_fixedcap,"free hit, anchored (4gw sight)",1,"free hit, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#3,1787696113-1576283,hold_nocap,"free hit, anchored (4gw sight)",1,"free hit, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#4,1787696113-1576283,policy,"triple captain, anchored (4gw sight)",1,"triple captain, fixed offset (control)",0.05244310559909376,36,-
+TestDiagAnchoredChipDecomposition#4,1787696113-1576283,policy_xpoints,"triple captain, anchored (4gw sight)",1,"triple captain, fixed offset (control)",0.0290015434807906,36,-
+TestDiagAnchoredChipDecomposition#4,1787696113-1576283,hold,"triple captain, anchored (4gw sight)",1,"triple captain, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#4,1787696113-1576283,hold_xpoints,"triple captain, anchored (4gw sight)",1,"triple captain, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#4,1787696113-1576283,hold_fixedcap,"triple captain, anchored (4gw sight)",1,"triple captain, fixed offset (control)",0,36,-
+TestDiagAnchoredChipDecomposition#4,1787696113-1576283,hold_nocap,"triple captain, anchored (4gw sight)",1,"triple captain, fixed offset (control)",0,36,-

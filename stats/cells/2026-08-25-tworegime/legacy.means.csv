@@ -1,0 +1,13 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagTwoRegimeChips#1,1787705185-1618773,policy,"second set only, bundled (2 sets, FIRST SET WASTED)",1,"both sets, fixed offsets (control, 2 sets)",1.2092980419162729,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,policy,two-regime: early wildcard + second-half bundle (2 sets),2,"both sets, fixed offsets (control, 2 sets)",1.5705560948219224,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,policy_xpoints,"second set only, bundled (2 sets, FIRST SET WASTED)",1,"both sets, fixed offsets (control, 2 sets)",0.9523324447899234,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,policy_xpoints,two-regime: early wildcard + second-half bundle (2 sets),2,"both sets, fixed offsets (control, 2 sets)",1.2930308846237843,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,hold,"second set only, bundled (2 sets, FIRST SET WASTED)",1,"both sets, fixed offsets (control, 2 sets)",0,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,hold,two-regime: early wildcard + second-half bundle (2 sets),2,"both sets, fixed offsets (control, 2 sets)",0,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,hold_xpoints,"second set only, bundled (2 sets, FIRST SET WASTED)",1,"both sets, fixed offsets (control, 2 sets)",0,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,hold_xpoints,two-regime: early wildcard + second-half bundle (2 sets),2,"both sets, fixed offsets (control, 2 sets)",0,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,hold_fixedcap,"second set only, bundled (2 sets, FIRST SET WASTED)",1,"both sets, fixed offsets (control, 2 sets)",0,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,hold_fixedcap,two-regime: early wildcard + second-half bundle (2 sets),2,"both sets, fixed offsets (control, 2 sets)",0,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,hold_nocap,"second set only, bundled (2 sets, FIRST SET WASTED)",1,"both sets, fixed offsets (control, 2 sets)",0,36,-
+TestDiagTwoRegimeChips#1,1787705185-1618773,hold_nocap,two-regime: early wildcard + second-half bundle (2 sets),2,"both sets, fixed offsets (control, 2 sets)",0,36,-

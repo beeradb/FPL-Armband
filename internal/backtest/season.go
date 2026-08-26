@@ -250,6 +250,13 @@ type Season struct {
 	Teams    []fpl.Team      `json:"teams"`
 	Fixtures []fpl.Fixture   `json:"fixtures"`
 
+	// XGCExternal reports what the measured per-match xGC source did to this
+	// season, and is `json:"-"` for the reason XGRepair is: it describes this
+	// load rather than the season, and baking it into the cache would make the
+	// two arms indistinguishable on a cache hit. Zero-valued when the source is
+	// not selected, which is the default and every public clone.
+	XGCExternal XGCExternalResult `json:"-"`
+
 	// Absent names the archive files this season does not publish, and is what
 	// makes it PriorOnly.
 	//
@@ -617,6 +624,17 @@ func Load(ctx context.Context, cacheDir, season string) (*Season, error) {
 // `XGRepair` is `json:"-"` because it is a report about this load rather than data
 // about the season.
 func repaired(s *Season) (*Season, error) {
+	// The measured per-match xGC source, BEFORE the repair rather than after.
+	// applyXGCRepair fills only a zero, so writing measured values first makes
+	// the reconstruction a no-op exactly where this reached and leaves it in
+	// charge everywhere it did not. Reversing the two would have the
+	// reconstruction win every row and this write nothing, silently. See
+	// xgcexternal.go.
+	ext, err := s.applyExternalXGC()
+	if err != nil {
+		return nil, err
+	}
+	s.XGCExternal = ext
 	rep, err := s.applyXGRepair()
 	if err != nil {
 		return nil, err

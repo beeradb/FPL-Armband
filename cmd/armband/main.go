@@ -194,6 +194,11 @@ func run() error {
 	if *f.cacheDir != "" {
 		cfg.CacheDir = *f.cacheDir
 	}
+	// The xGC source for every season this process loads. Empty — the shipped
+	// config's value and every clone's — selects the reconstruction. Set
+	// unconditionally so the resolved value is this config's rather than
+	// whatever a previous caller left behind. See internal/backtest/xgcexternal.go.
+	backtest.SetXGCExternalDir(cfg.XGCExternalDir)
 	// Diagnostic sweeps, before anything is built from the config. See sweep.go.
 	applyWeightOverrides(&cfg)
 

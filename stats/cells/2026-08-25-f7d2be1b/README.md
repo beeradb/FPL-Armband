@@ -72,3 +72,28 @@ one, and must not be quoted as measured.
 chip at all: **−7.6 a season-path, t −1.07, threshold 18.2.** A tie. Four of six
 seasons negative, two clearly positive, LOSO 0 of 6. The standing claim that this
 policy has nothing for a wildcard to undo reproduces.
+
+---
+
+## ⚠️ These cells PREDATE `5b970338` (PR #82) and are not a baseline for anything after it
+
+Added 2026-08-25, after the fact. These were produced inside PR #83 (`74d7fe1f`).
+**PR #82 merged AFTER #83** — the order on `origin/main` is `74d7fe1f` (#83) then
+`5b970338` (#82) — and #82 rewrites `internal/analysis/blend.go`, `dpseed.go` and
+`funding.go`, which is squad construction on the scored path.
+
+**So a new arm measured on today's `main` cannot be differenced against these.**
+The gap would carry #82's squad-feasibility change as well as whatever the new
+arm varies, and attributing the whole of it to the new arm is the
+estimator-swap-reads-as-a-data-change error arriving from the other side.
+
+**How this was caught, because the tell generalises**: an arm varying only the
+xGC source for 2020-21/2021-22/2022-23-GW15 moved **2024-25 and 2025-26** as
+well — seasons the source cannot touch, and whose priors it cannot touch either.
+**A deterministic replay cannot move a season whose inputs did not change.** When
+it does, something outside the declared variable moved.
+
+**What they are still good for**: they remain the complete, `dirty=false` record
+of what PR #83 measured, and every figure in the 2026-08-25 chip notes re-derives
+from them exactly. **Re-deriving a published figure: yes. Serving as the control
+arm for a new comparison: no — run the control at the same commit.**

@@ -496,11 +496,15 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   NOT be built on the horizon-1 week engine — a wildcard planned for a heavy blank returns a
   free-hit squad that is then *kept*.
 - **An anchored-chip arm silently lost every 2025-26 cell** — a plan went into the FIRST set
-  wholesale; repaired by `backtest.SplitChipSets`. ✅ **Anchored-chip cells are now banked**, at
-  `stats/cells/2026-08-25-f7d2be1b/` (bundled arms, per-chip decomposition, wildcard value) and
-  `stats/cells/2026-08-25-tcmatchup/` (triple captain on opponent quality). ⚠️ **Read them with
-  `--scale=per_path`** — a chip is an event count, and the default per-gameweek scale inflates
-  these arms by roughly 1.7x. → **chips**
+  wholesale; repaired by `backtest.SplitChipSets`. ✅ **Anchored-chip cells are banked**, at
+  `stats/cells/2026-08-25-f7d2be1b/` (bundled, per-chip, wildcard value) and
+  `2026-08-25-tcmatchup/` (triple captain on matchup). ⚠️ **Read with `--scale=per_path`** —
+  a chip is an event count, and per-gameweek inflates these ~1.7x. → **chips**
+- **xGC has two sources; the DEFAULT IS THE RECONSTRUCTION.** `XGCExternalDir` /
+  `FPL_XGC_EXTERNAL_DIR` selects measured per-match xGC for 2020-21, 2021-22, 2022-23
+  GW1-15; empty (the shipped config) selects the reconstruction. ⚠️ An unresolvable
+  directory is a hard ERROR, never a fall back; the switch is fingerprinted, so a cell
+  states its arm. ⚠️ **The two arms are not comparable.** → **archive-and-data**
 - **`Optimize` is not run-to-run deterministic unless it is made so.**
   `TestSeedOrderIsDeterministic`, `TestBandAssignmentIsDeterministic`,
   `TestBandTiesBreakTowardTheLowerClubID`. ⚠️ Every pre-fix `BandStrength` figure carries that
@@ -692,17 +696,19 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 ### Chips
 
 - **All four chips are modelled, and the replay cannot value a wildcard.** → **chips**
-- **Anchoring the chips on the calendar resolves at +20.6 points a season-path (4gw sight,
-  CR2 t 3.63, threshold 14.5), superseding the "clean null" reading.** ⚠️ Quote it `per_path`
-  and from `stats/cells/2026-08-25-f7d2be1b/`; the same arms read ~1.7x larger on the default
-  `per_gw` scale, which is wrong for an event count and has now produced a retracted figure
-  twice. → **chips**
-- **The anchoring effect decomposes additively (+19.4 across three chips against a bundled
-  +20.6) but only BENCH BOOST resolves on its own** — free hit is the largest component at
-  +14.5 and misses its own threshold of 15.3. Effect size and resolvability are different
-  questions. ⚠️ **Free hit also fails leave-one-season-out in 4 of 6 subsets, with two negative
-  seasons** — it resolves only in the two dropping one of them, so "free hit carries it" is a
-  point estimate LOSO argues against. **The bundle is what resolves.** → **chips**
+- **SPENDING BOTH CHIP SETS AS A MANAGER DOES IS THE STRONGEST CHIP RESULT HERE**: first set
+  spent before it expires, wildcard/free hit/bench boost bundled on the second-half calendar,
+  triple captain last. **+38.1 a season-path (t 4.51, thr 21.7) on legacy and +38.4 (t 4.43) on
+  measured xGC, 6/6 seasons each** — the only chip result agreeing across both sources. ⚠️ A third
+  is arithmetic: a set unplayed by GW19 is lost, worth +11.9-15.6 alone. Replays every season
+  under today's two-set rules on purpose. `2026-08-25-tworegime/`. → **chips**
+- **⚠️ EVERY OTHER CHIP FIGURE DEPENDS ON THE COMMIT AND THE xGC SOURCE — quote none without its
+  arm.** Calendar anchoring: +27.0 at 4gw sight (t 5.33) on legacy, RESOLVING; +26.4 on measured
+  with the SE doubled 5.06→11.41, t 2.32, NOT resolving — only the full-sight hindsight arm
+  survives there. Free hit: +14.5/t 2.44 pre-`5b970338`, +21.0/t 3.60 after it, +20.7 with SE
+  11.81 on measured. **Bench boost is the only component resolving on every arm and commit**
+  (+4.4-5.6, LOSO 6/6). ⚠️ `per_path` always — `per_gw` is wrong for an event count and has
+  produced two retracted figures. `2026-08-25-anchored-xgcarms/`, `-xgcarms/`. → **chips**
 - **The two triple-captain instruments disagree and the replay is no longer the blind one.** Per
   decision the rule delivers +7.95 realised a chip (t 2.92, threshold 7.0); the season-path
   replay of the same rule reads +2.25 against a threshold of 4.19, so it could have resolved that

@@ -1223,6 +1223,15 @@ var allowedGridLabels = []struct{ file, fragment, why string }{
 			"one arm and 3-5 for the others. The counts belong to that run, not to this one",
 	},
 	{
+		"tworegime_diag_test.go", "unplaced in 16 of 36 cells",
+		"a recorded result belonging to a DIFFERENT test's grid: it is how often " +
+			"TestDiagAnchoredChips leaves the triple captain unplayed, printed here " +
+			"as the reason these two arms are not comparable. Deriving it from THIS " +
+			"grid would relabel that measurement with a run it did not come from, " +
+			"which is worse than the literal — FPL_SWEEP_SEASONS moves this grid and " +
+			"not the anchored arm's recorded 16 of 36",
+	},
+	{
 		"harness_test.go", "need at least two entry points",
 		"a minimum a parser enforces, not a description of any grid: parseSweepStarts " +
 			"rejects FPL_SWEEP_STARTS with fewer than two, whatever the default is",

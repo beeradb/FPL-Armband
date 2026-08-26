@@ -989,6 +989,31 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// against twice above. Left about 3 KB free rather than repeating the 14-byte
 	// and 74-byte near-misses.
 	//
+	// # 58 KB, 2026-08-25 — two measured findings landed with banked cells, and the
+	// alternative was dropping qualifiers this comment already forbids twice
+	//
+	// The Chips section gained two results that a reader cannot act on without their
+	// conditions. **The two-regime chip strategy** — spend both sets, bundle the
+	// calendar chips in the second half, triple captain last — reads +38.1 a
+	// season-path on the legacy reconstruction and +38.4 on measured xGC, and it is
+	// the only chip result here that agrees across the two sources. It cannot be
+	// stated without saying which sources, because that agreement IS the finding;
+	// without saying a third of it is the arithmetic of not letting a set expire;
+	// and without saying it replays every season under today's two-set rules, which
+	// contradicts a standing rule two sections away.
+	//
+	// **And every other chip figure became conditional on both the commit and the
+	// xGC source on the same day.** Calendar anchoring resolves on legacy and does
+	// not on measured; free hit reads three different values at three arms. A
+	// one-line "anchoring is worth +20.6" is now actively wrong, and the replacement
+	// has to carry the arms or it will be quoted bare — which is precisely the
+	// failure that produced this session's whole correction pass.
+	//
+	// Two rounds of compression were tried first and both degraded the entries they
+	// touched: "threshold" to "thr", and the clause explaining WHY the wildcard is
+	// unmeasurable. That is the qualifier-dropping this comment forbids, so it was
+	// reverted and the budget raised instead. About 700 bytes free.
+	//
 	// # 54 KB, 2026-08-22 — the accuracy series stopped being committed, and AGENTS.md
 	// owed the reader the new rule, not a smaller file
 	//
@@ -1024,7 +1049,7 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	//
 	// Every one of those is a qualifier carrying the uncertainty, which is the class
 	// this comment says must never be cut to fit. Raised rather than compressed.
-	const budget = 56 * 1024
+	const budget = 58 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.
