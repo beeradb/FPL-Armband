@@ -183,6 +183,13 @@ var envSwitches = []string{
 	// published. Diagnostic only, and the most invasive switch in this list: an
 	// arm that sets it is not replaying the archive at all.
 	"FPL_XGC_FORCE",
+	// Which horizon the template diagnostic reads the optimum on. It is a
+	// diagnostic-only lens, but it changes WHICH SQUAD is called optimal — a
+	// horizon-1 optimum chases the imminent fixture and churns far wider than a
+	// season-long one — so two runs that disagree about it are not measuring the
+	// same concentration. Fingerprinted for the same reason the repair switches
+	// are: a reading whose lens is not recorded cannot be compared with another.
+	"FPL_TEMPLATE_HORIZON",
 	// Restores the rank reconstruction of the starting eleven in place of the
 	// recorded starts harvested from Understat.
 	//

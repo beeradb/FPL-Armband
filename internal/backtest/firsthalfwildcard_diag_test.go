@@ -5,6 +5,8 @@ import (
 	"os"
 	"sort"
 	"testing"
+
+	"armband/internal/stats"
 )
 
 // WHEN SHOULD THE FIRST-HALF WILDCARD BE PLAYED?
@@ -202,7 +204,7 @@ func TestDiagFirstHalfWildcardWeek(t *testing.T) {
 	}
 	sort.Float64s(oracles)
 	fmt.Printf("\ncells %d | oracle week: min %.0f median %.0f max %.0f\n",
-		len(cells), oracles[0], oracles[len(oracles)/2], oracles[len(oracles)-1])
+		len(cells), oracles[0], stats.Median(oracles), oracles[len(oracles)-1])
 	fmt.Printf("(columns after `carried` are REGRET against that cell's own oracle)\n\n")
 	fmt.Printf("%8s %10s %8s\n", "fixed at", "mean regret", "n")
 	for _, f := range []int{4, 6, 8, 10, 12} {

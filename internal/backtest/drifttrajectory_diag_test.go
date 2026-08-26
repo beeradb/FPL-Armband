@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"armband/internal/analysis"
+	"armband/internal/stats"
 )
 
 // IS THE GAP FROM IDEAL MONOTONIC, AND DOES IT PLATEAU?
@@ -318,7 +319,7 @@ func TestDiagDriftTrajectory(t *testing.T) {
 		}
 	}
 	fmt.Printf("cells %d | mean rho %+.3f | median %+.3f | rising in %d of %d\n",
-		len(spear), meanOf(spear), spear[len(spear)/2], pos, len(spear))
+		len(spear), meanOf(spear), stats.Median(spear), pos, len(spear))
 	fmt.Printf("mean fraction of weeks where the gap grew: %.3f (0.5 is a coin flip)\n",
 		meanOf(incUp))
 	fmt.Printf("⚠️ rho near +1 is monotone RISING; near 0 is a walk; the plateau\n")
@@ -794,7 +795,7 @@ func printFirstHalfChoice(runs []driftRun) {
 	fmt.Printf("on any state rule is the regret a fixed calendar rule already pays.\n")
 
 	fmt.Printf("\nDO THE OPTIMA MOVE? oracle week spread: min %.0f median %.0f max %.0f\n",
-		minOf(oracles), medianOf(oracles), maxOf(oracles))
+		minOf(oracles), stats.Median(oracles), maxOf(oracles))
 	fmt.Printf("correlation between EARLY drift (weeks 1-4, all a live rule can see)\n")
 	fmt.Printf("and the oracle week: %+.3f over %d cells\n", corrOf(earlies, oracles), len(rows))
 	fmt.Printf("⚠️ A NEGATIVE correlation is the detectable case — a squad drifting fast\n")
@@ -826,12 +827,6 @@ func minOf(v []float64) float64 {
 		}
 	}
 	return m
-}
-
-func medianOf(v []float64) float64 {
-	c := append([]float64(nil), v...)
-	sort.Float64s(c)
-	return c[len(c)/2]
 }
 
 // weekBand groups a decision by how much season had been played when it was
