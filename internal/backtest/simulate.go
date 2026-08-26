@@ -1754,6 +1754,36 @@ type SimConfig struct {
 	// `Oracles`, where it gets stamped on every cell.
 	ChipPlanner func(cur *Season, start int) analysis.ChipPlan
 
+	// ChipScheduleP plans BOTH chip sets at once, for a strategy that differs
+	// between the halves of a season rather than only in which week a chip lands.
+	//
+	// ⚠️ It exists because `ChipPlanner` structurally cannot express one: a
+	// `ChipPlan` holds ONE slot per chip, so a planner returning one cannot put a
+	// wildcard in the first set and another in the second — and "wildcard early if
+	// the squad is bad, then rebuild into the doubles" is two wildcards. Routing a
+	// single plan through `SplitChipSets` picks the set from the gameweek and can
+	// therefore only ever fill one of them.
+	//
+	// It takes precedence over both other planners, and it is NOT routed through
+	// `SplitChipSets` — a scheduler has already decided which set each chip draws
+	// from, and re-routing by gameweek would overwrite that decision with a guess.
+	// It is still validated.
+	ChipScheduleP func(cur *Season, start int) analysis.ChipSchedule
+
+	// ChipSets replays a season under a declared number of chip sets instead of
+	// the number it granted. Zero — every ordinary caller — asks the season.
+	//
+	// ⚠️ Set it to 2 and a pre-2025-26 season is replayed under TODAY'S rules:
+	// eight chips where four were available. That is a deliberate counterfactual
+	// and it scores a game nobody played, which is its purpose — the points,
+	// minutes and fixtures are real and only the allowance is invented. See
+	// ChipSetsForced for what survives the override and what does not.
+	//
+	// ⚠️ It is a SimConfig field and NOT fingerprinted, so it does not reach the
+	// cell sidecar. **Put it in the arm label** or a reader cannot tell two
+	// otherwise-identical arms apart.
+	ChipSets int
+
 	// ChipPlannerXP is ChipPlanner for a rule that needs the model's own
 	// per-gameweek projections rather than only the fixture calendar — "play the
 	// triple captain where the best available player has the best fixture",
@@ -1847,7 +1877,10 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 		planCfg.Weights.Horizon = 1
 		planEngine, _ := EngineAt(cur, prior, through, planCfg)
 		capXP := BestCaptainXPByGameweek(planEngine, cfg.startGW(), candidates)
-		sch := SplitChipSets(cur.Name, cfg.ChipPlannerXP(cur, cfg.startGW(), capXP))
+		sch := SplitChipSetsWith(cur.Name, cfg.ChipSets, cfg.ChipPlannerXP(cur, cfg.startGW(), capXP))
+		cfg.Chips, cfg.Chips2 = sch.First, sch.Second
+	} else if cfg.ChipScheduleP != nil {
+		sch := cfg.ChipScheduleP(cur, cfg.startGW())
 		cfg.Chips, cfg.Chips2 = sch.First, sch.Second
 	} else if cfg.ChipPlanner != nil {
 		// Routed into the sets the season granted them from, rather than dropped
@@ -1862,7 +1895,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 		// the planner is the one that was asked for; the alternative — merging —
 		// would let a stale literal collide with a planned week and be refused by
 		// the validator for a reason nobody wrote.
-		sch := SplitChipSets(cur.Name, cfg.ChipPlanner(cur, cfg.startGW()))
+		sch := SplitChipSetsWith(cur.Name, cfg.ChipSets, cfg.ChipPlanner(cur, cfg.startGW()))
 		cfg.Chips, cfg.Chips2 = sch.First, sch.Second
 	}
 	// And the chip plan, which FPL constrains in ways a config file does not:
@@ -1876,7 +1909,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// that matter. That is the recorded rule about naming the CONSUMER rather
 	// than a package, arriving from the other side — and the precedent is
 	// DefconScoredIn, which is enforced in here for exactly this reason.
-	if err := ValidateChipSets(cur.Name, cfg.Chips, cfg.Chips2); err != nil {
+	if err := ValidateChipSetsWith(cur.Name, cfg.ChipSets, cfg.Chips, cfg.Chips2); err != nil {
 		return nil, err
 	}
 	// And the hindsight, for the same reason: an oracle bit with no hook behind

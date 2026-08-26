@@ -28,6 +28,37 @@ func ChipSetsFor(season string) int {
 	return 2
 }
 
+// ChipSetsForced is a deliberate counterfactual: replay an older season under
+// TODAY'S chip rules rather than the ones it was played under.
+//
+// ⚠️ **This is exactly what the warning above tells you not to do, and it is
+// enabled on purpose.** The user's ruling, 2026-08-25: *"We can retroactively
+// project the current chip rules backwards. The data is still valid... We are
+// just applying current chip rules to old data, but the underlying points are
+// the same."*
+//
+// **That is right, and the warning above conflates two things.** Player scores,
+// minutes and fixtures are untouched; only the chip ALLOWANCE is counterfactual.
+// For a product that has to advise under the current rules, "what is today's chip
+// strategy worth on real football" is the question, and history is a supply of
+// fixtures rather than a claim about what anyone did. It scores a game nobody
+// played, and that is the point of it.
+//
+// ⚠️ **What survives the override is the POWER warning, and it is not small.**
+// Across all six archived first halves there are 15 doubling club-gameweeks out
+// of 189, and 11 of those 15 are one COVID-rescheduled 2020-21 round. So a
+// first-half chip arm is collinear with "a chip on a plain week" in five seasons
+// of six: granting a second set backwards buys chip observations whose first half
+// can distinguish almost nothing. **Expect the extra set to add variance and
+// little signal**, and never read a null in a projected first half as a fact
+// about chips.
+//
+// ⚠️ **A figure measured under this is not comparable with one measured without
+// it.** It is a different game. It is not fingerprinted — it is a SimConfig
+// field, so it lands in the cell's own arm label rather than in the sidecar's
+// environment block; label the arm.
+const ChipSetsForced = 2
+
 // chipSlot names one of the four chips. These are `analysis.ChipSchedule`'s own
 // slot names with the set suffix left off, which that package reads as the first
 // set — the helpers below always ask across both sets, so the suffix would be
@@ -101,7 +132,21 @@ func anyChips(p analysis.ChipPlan) bool { return p != analysis.ChipPlan{} }
 // refuses it — the split moves a chip between sets and never moves its week. That
 // is deliberate: a planner that collides with itself has a bug this must not hide.
 func SplitChipSets(season string, p analysis.ChipPlan) analysis.ChipSchedule {
-	if ChipSetsFor(season) < 2 {
+	return splitChipSets(ChipSetsFor(season), p)
+}
+
+// SplitChipSetsWith is SplitChipSets under an explicit set count, for an arm
+// deliberately replaying an older season under today's rules. `sets` of 0 means
+// "ask the season", which is every ordinary caller. See ChipSetsForced.
+func SplitChipSetsWith(season string, sets int, p analysis.ChipPlan) analysis.ChipSchedule {
+	if sets <= 0 {
+		sets = ChipSetsFor(season)
+	}
+	return splitChipSets(sets, p)
+}
+
+func splitChipSets(sets int, p analysis.ChipPlan) analysis.ChipSchedule {
+	if sets < 2 {
 		return analysis.ChipSchedule{First: p}
 	}
 	var out analysis.ChipSchedule
@@ -154,7 +199,20 @@ func SplitChipSets(season string, p analysis.ChipPlan) analysis.ChipSchedule {
 // result is a season with two bench boosts in the first half. Nothing downstream
 // would report that, and the points would look ordinary.
 func ValidateChipSets(season string, first, second analysis.ChipPlan) error {
-	sets := ChipSetsFor(season)
+	return validateChipSets(season, ChipSetsFor(season), first, second)
+}
+
+// ValidateChipSetsWith validates under an explicit set count, so an arm replaying
+// an older season under today's rules is checked against the rules it declares
+// rather than refused by the ones the season had. `sets` of 0 asks the season.
+func ValidateChipSetsWith(season string, sets int, first, second analysis.ChipPlan) error {
+	if sets <= 0 {
+		sets = ChipSetsFor(season)
+	}
+	return validateChipSets(season, sets, first, second)
+}
+
+func validateChipSets(season string, sets int, first, second analysis.ChipPlan) error {
 	if anyChips(second) && sets < 2 {
 		return fmt.Errorf("%s granted one set of chips, not two: "+
 			"the reset arrived for 2025-26, and replaying an older season under it "+

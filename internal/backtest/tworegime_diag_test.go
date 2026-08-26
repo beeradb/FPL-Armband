@@ -31,22 +31,31 @@ package backtest
 //     the other three have taken theirs — rather than being given the
 //     *second*-best double, which is why it goes unplaced in 16 of 36 cells.
 //
-// # ⚠️ Two things this canNOT do, and neither is a detail
+// # ⚠️ It replays every season under TODAY'S chip rules, on purpose
 //
-// **It cannot give a season two chip sets that season did not have.**
-// `ChipSetsFor` returns 1 before 2025-26, so five of the six seasons hold a
-// single set of four chips for the whole year. The record's own standing rule is
-// *"do not project the two-set chip rule backwards to buy chip observations"*,
-// and this obeys it: the bundle is one set, placed late.
+// `ChipSets: 2` gives all six seasons two sets, which five of them did not have.
+// The record's standing rule says not to, and the user overrode it 2026-08-25:
+// *"We are just applying current chip rules to old data, but the underlying
+// points are the same."* That is right — scores, minutes and fixtures are
+// untouched and only the ALLOWANCE is counterfactual, which is the question a
+// product advising under current rules actually has.
 //
-// **It cannot express the reactive first half at all.** `analysis.ChipPlan` has
-// one slot per chip, so a planner returning a `ChipPlan` cannot hold both a
-// first-half wildcard and a second-half one — that needs `analysis.ChipSchedule`,
-// which this seam does not carry. "Wildcard if your team is bad" also needs a
-// squad-quality signal during the run, which a plan resolved up front cannot see.
-// `xiDriftOf` is the signal and it now exists; the seam does not. **So this tests
-// the second-half bundle and NOT the two-regime strategy**, and a null here says
-// nothing about the first half.
+// ⚠️ **The POWER half of that warning survives and is carried here.** Across the
+// six archived first halves there are 15 doubling club-gameweeks out of 189, and
+// 11 of the 15 are one COVID-rescheduled 2020-21 round. **A first-half chip arm
+// is collinear with "a chip on a plain week" in five seasons of six**, so the
+// projected first set buys observations that can distinguish almost nothing.
+// Expect variance, not signal, from that half — and never read a null there as a
+// fact about chips.
+//
+// # ⚠️ The first-half wildcard is placed by OFFSET, not by squad quality
+//
+// The rule is *"you mostly just wildcard if your team is bad"*, which is a
+// condition on the squad and not a position on the calendar. Measuring it needs a
+// squad-quality reading DURING the run; `xiDriftOf` is that reading and it now
+// exists, but the planner seam resolves a whole season up front and cannot see a
+// live squad. **So the first set here is a placeholder and this arm does not test
+// the reactive rule.** A null in the first half says nothing about it.
 
 import (
 	"fmt"
@@ -56,10 +65,33 @@ import (
 	"armband/internal/analysis"
 )
 
-// secondHalfBundle is the user's rule expressed as a plan.
+// twoRegimeSchedule is the user's rule expressed across BOTH chip sets: a
+// first-set wildcard early, and the other three bundled on the second-half
+// calendar with the triple captain placed last.
+func twoRegimeSchedule(lag int) func(cur *Season, start int) analysis.ChipSchedule {
+	return func(cur *Season, start int) analysis.ChipSchedule {
+		var sch analysis.ChipSchedule
+		// First set: the wildcard only. Placed by offset because the rule it
+		// stands in for is a condition on the squad, not the calendar — see the
+		// file header. It must land before the reset or it is not a first-set
+		// chip at all.
+		if wc := start + 4; wc < ChipResetGW {
+			sch.First.Wildcard = wc
+		}
+		from := ChipResetGW - 1
+		if start > from {
+			from = start
+		}
+		sch.Second = bundleFrom(cur, from, lag)
+		return sch
+	}
+}
+
+// secondHalfBundle is the same bundle without the first-set wildcard, so the two
+// can be told apart: it isolates "the bundle is worth placing on the calendar"
+// from "and an early wildcard is worth having as well".
 func secondHalfBundle(lag int) func(cur *Season, start int) analysis.ChipPlan {
 	return func(cur *Season, start int) analysis.ChipPlan {
-		// Never before the reset week, and never before entry.
 		from := ChipResetGW - 1
 		if start > from {
 			from = start
@@ -141,16 +173,19 @@ func TestDiagTwoRegimeChips(t *testing.T) {
 	fmt.Printf("\n=== the second-half bundle: wildcard + free hit + bench boost on\n")
 	fmt.Printf("the calendar after GW%d, triple captain placed last on what is\n", ChipResetGW-1)
 	fmt.Printf("left. Control plays the same FOUR chips at fixed offsets.\n")
-	fmt.Printf("⚠️ One chip set: five of six seasons had only one, and this does\n")
-	fmt.Printf("not project the two-set rule backwards. Metric: POLICY.\n")
+	fmt.Printf("⚠️ TWO chip sets in every season, including five that had one:\n")
+	fmt.Printf("today's rules on old football, deliberately. Metric: POLICY.\n")
 
+	// ⚠️ Every arm declares ChipSets: 2 in its LABEL as well as its config,
+	// because that field is not fingerprinted and a sidecar cannot tell these
+	// cells from ones measured under the rules the seasons actually had.
 	arms := []policyVariant{
-		{label: "four chips, fixed offsets (control)",
-			apply: func(sc *SimConfig) { sc.ChipPlanner = fourChipControl }},
-		{label: "second-half bundle (4gw sight)",
-			apply: func(sc *SimConfig) { sc.ChipPlanner = secondHalfBundle(4) }},
-		{label: "second-half bundle (full sight)",
-			apply: func(sc *SimConfig) { sc.ChipPlanner = secondHalfBundle(fullSight) }},
+		{label: "four chips, fixed offsets (control, 2 sets)",
+			apply: func(sc *SimConfig) { sc.ChipSets = 2; sc.ChipPlanner = fourChipControl }},
+		{label: "second-half bundle, 4gw sight (2 sets)",
+			apply: func(sc *SimConfig) { sc.ChipSets = 2; sc.ChipPlanner = secondHalfBundle(4) }},
+		{label: "two-regime: early wildcard + second-half bundle (2 sets)",
+			apply: func(sc *SimConfig) { sc.ChipSets = 2; sc.ChipScheduleP = twoRegimeSchedule(4) }},
 	}
 	runPolicySweep(t, arms, starts)
 
