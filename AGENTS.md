@@ -696,17 +696,19 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 ### Chips
 
 - **All four chips are modelled, and the replay cannot value a wildcard.** → **chips**
-- **Anchoring the chips on the calendar resolves at +20.6 points a season-path (4gw sight,
-  CR2 t 3.63, threshold 14.5), superseding the "clean null" reading.** ⚠️ Quote it `per_path`
-  and from `stats/cells/2026-08-25-f7d2be1b/`; the same arms read ~1.7x larger on the default
-  `per_gw` scale, which is wrong for an event count and has now produced a retracted figure
-  twice. → **chips**
-- **The anchoring effect decomposes additively and BENCH BOOST is the only chip that resolves
-  on every arm and commit tried** (+4.4 to +5.6, LOSO 6/6). ⚠️ **FREE HIT'S STATUS DEPENDS ON
-  BOTH THE COMMIT AND THE DATA SOURCE**: +14.5/t 2.44 pre-`5b970338`; **+21.0/t 3.60, six of six
-  seasons, RESOLVING** after it; +20.7 with the SE DOUBLED to 11.81 on measured xGC at the same
-  commit. Cells `stats/cells/2026-08-25-xgcarms/`. **Quote none of these without its arm.**
-  → **chips**
+- **SPENDING BOTH CHIP SETS AS A MANAGER DOES IS THE STRONGEST CHIP RESULT HERE**: first set
+  spent before it expires, wildcard/free hit/bench boost bundled on the second-half calendar,
+  triple captain last. **+38.1 a season-path (t 4.51, thr 21.7) on legacy and +38.4 (t 4.43) on
+  measured xGC, 6/6 seasons each** — the only chip result agreeing across both sources. ⚠️ A third
+  is arithmetic: a set unplayed by GW19 is lost, worth +11.9-15.6 alone. Replays every season
+  under today's two-set rules on purpose. `2026-08-25-tworegime/`. → **chips**
+- **⚠️ EVERY OTHER CHIP FIGURE DEPENDS ON THE COMMIT AND THE xGC SOURCE — quote none without its
+  arm.** Calendar anchoring: +27.0 at 4gw sight (t 5.33) on legacy, RESOLVING; +26.4 on measured
+  with the SE doubled 5.06→11.41, t 2.32, NOT resolving — only the full-sight hindsight arm
+  survives there. Free hit: +14.5/t 2.44 pre-`5b970338`, +21.0/t 3.60 after it, +20.7 with SE
+  11.81 on measured. **Bench boost is the only component resolving on every arm and commit**
+  (+4.4-5.6, LOSO 6/6). ⚠️ `per_path` always — `per_gw` is wrong for an event count and has
+  produced two retracted figures. `2026-08-25-anchored-xgcarms/`, `-xgcarms/`. → **chips**
 - **The two triple-captain instruments disagree and the replay is no longer the blind one.** Per
   decision the rule delivers +7.95 realised a chip (t 2.92, threshold 7.0); the season-path
   replay of the same rule reads +2.25 against a threshold of 4.19, so it could have resolved that
