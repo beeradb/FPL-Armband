@@ -181,7 +181,12 @@ read_provenance <- function(ps) {
     names(pr)[1:4] <- c("sweep", "run_id", "key", "value")
     keep <- pr[pr$key %in% c("commit", "dirty", "constants_digest", "env", "constant"), ]
     if (!nrow(keep)) next
-    keep$file <- basename(p)
+    # ⚠️ The FULL path, not basename(p). Two runs banked in different
+    # directories are both `cells.csv` — that is the ordinary shape of a sweep
+    # output — and grouping on the basename collapsed them into one group, so
+    # the fatal across-FILES check degraded into the across-BLOCKS warning.
+    # Demonstrated on this tool's own author differencing two of his own runs.
+    keep$file <- p
     out <- rbind(out, keep)
   }
   out
@@ -200,7 +205,7 @@ check_shared_code_state <- function(ps, vary) {
   d <- pr[pr$key == "dirty" & tolower(pr$value) == "true", ]
   if (nrow(d)) {
     note("  ⚠️ dirty=true in ", nrow(d), " block(s): ",
-         paste(unique(paste0(d$file, ":", d$sweep)), collapse = ", "))
+         paste(unique(paste0(basename(d$file), ":", d$sweep)), collapse = ", "))
     note("     The sidecar cannot say what was measured. The delta's CONTENT is",
          " unrecoverable; its EFFECT is testable by re-running at the stamped",
          " commit.")
@@ -228,7 +233,7 @@ check_shared_code_state <- function(ps, vary) {
     if (any(per_file > 1)) {
       mixed <- names(per_file)[per_file > 1]
       note("  ⚠️ ", label, " differs BETWEEN BLOCKS inside ",
-           paste(mixed, collapse = ", "),
+           paste(basename(mixed), collapse = ", "),
            " — each block is its own two-arm comparison and is internally",
            " consistent, so this does not invalidate one. It DOES mean blocks",
            " in this file must not be differenced against each other.")
@@ -238,7 +243,7 @@ check_shared_code_state <- function(ps, vary) {
     sets <- tapply(rows$value, rows$file, function(v) paste(sort(unique(v)), collapse = "|"))
     if (length(unique(sets)) < 2) return(NULL)
     paste0(label, " differs BETWEEN the input files (",
-           paste(paste0(names(sets), "=", substr(sets, 1, 12)), collapse = "; "), ")")
+           paste(paste0(basename(names(sets)), "=", substr(sets, 1, 12)), collapse = "; "), ")")
   }
 
   bad <- disagree("commit", "commit")
