@@ -1673,6 +1673,26 @@ type SimConfig struct {
 	// unattributable. Sharing the curve leaves exactly one variable.
 	WildcardDriftBar float64
 
+	// WildcardTriggerFirstHalfOnly confines the wildcard rule to the first chip
+	// set — gameweeks before ChipResetGW.
+	//
+	// ⚠️ **The window is a proxy for "no double to anchor to", which is the real
+	// condition.** A wildcard aimed at a double is a calendar decision; one with
+	// no such target is a decision about the squad, and those are different
+	// rules that happen to be separated by the reset week. Second-half
+	// wildcard timing is a CALENDAR question — anchor it on the doubles — and
+	// that is measured elsewhere. What is unknown is the first half, where there
+	// is almost nothing to anchor to: two doubling gameweeks in GW1-19 across six
+	// seasons against forty after. The rule there is a condition on the SQUAD,
+	// which is what XI drift reads.
+	//
+	// Without this gate the two questions ride in one arm: a bar that fires early
+	// is also a bar that has spent its first-set wildcard, and a bar that fires
+	// late is really a second-half rule. The first version of the drift sweep had
+	// exactly that confound and its ladder read as "higher bars are better" when
+	// it was measuring "do not waste the only wildcard".
+	WildcardTriggerFirstHalfOnly bool
+
 	// RecordRepairCost fills SimResult.RepairSeries: the held-versus-fresh
 	// distance, observed every gameweek on the evolving fifteen and on the frozen
 	// opening one.
@@ -2054,7 +2074,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// One state per triggered chip, so a rule fires at most once and never in a
 	// gameweek another chip already occupies. `triggered` is what makes a fired
 	// chip visible to the week's scoring switch; the mediators record why.
-	trig := newChipTriggers(cfg)
+	trig := newChipTriggers(cfg, cur.Name)
 
 	for gw := start; gw <= 38; gw++ {
 		week := Week{GW: gw}
@@ -2096,7 +2116,9 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 			// Each is behind its own switch, and neither implies the other or the
 			// free-transfer taper. See chiptriggers.go for why that independence
 			// is load-bearing rather than tidy.
-			if trig.eligible(slotWildcard, gw, cfg.WildcardTrigger) {
+			wcOn := cfg.WildcardTrigger &&
+				(!cfg.WildcardTriggerFirstHalfOnly || gw < ChipResetGW)
+			if trig.eligible(slotWildcard, gw, wcOn) {
 				// The allowance the week will actually have: the accrual below
 				// runs inside every branch of this switch, so reading `free` raw
 				// would price the repair against one transfer too few and make

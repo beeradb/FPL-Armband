@@ -88,19 +88,34 @@ func oneWeekEngine(b *fpl.Bootstrap, fx []fpl.Fixture, w analysis.Weights,
 // switch, which is a fourth reader.
 type chipTriggers struct {
 	cfg SimConfig
-	// fired maps a chip slot to the gameweek its rule played it in, 0 for a rule
-	// that has not fired.
-	fired map[chipSlot]int
+	// firedAll maps a chip slot to EVERY gameweek its rule played it in — one per
+	// chip set, not one per season. See firedWeeks for why a single week was
+	// wrong and how it hid.
+	firedAll map[chipSlot][]int
+	// reset is the first gameweek of the second set for this run, or 0 when the
+	// season grants one set. Resolved once at construction from the season's own
+	// rule or the arm's ChipSets override, so the firing rule and SplitChipSetsWith
+	// cannot disagree about where the boundary is.
+	reset int
 	// med is each rule's funnel. Pointers so a caller can accumulate into one
 	// without re-storing it, which is the shape that lost a count once already.
 	med map[chipSlot]*ChipTriggerMediator
 }
 
-func newChipTriggers(cfg SimConfig) *chipTriggers {
+func newChipTriggers(cfg SimConfig, season string) *chipTriggers {
+	sets := cfg.ChipSets
+	if sets <= 0 {
+		sets = ChipSetsFor(season)
+	}
+	reset := 0
+	if sets >= 2 {
+		reset = ChipResetGW
+	}
 	t := &chipTriggers{
-		cfg:   cfg,
-		fired: map[chipSlot]int{},
-		med:   map[chipSlot]*ChipTriggerMediator{},
+		cfg:      cfg,
+		reset:    reset,
+		firedAll: map[chipSlot][]int{},
+		med:      map[chipSlot]*ChipTriggerMediator{},
 	}
 	for _, k := range []chipSlot{slotWildcard, slotFreeHit, slotBenchBoost} {
 		t.med[k] = &ChipTriggerMediator{}
@@ -117,7 +132,15 @@ func (t *chipTriggers) plays(k chipSlot, gw int) bool {
 	if t == nil {
 		return false
 	}
-	return t.cfg.plays(k, gw) || (t.fired[k] != 0 && t.fired[k] == gw)
+	if t.cfg.plays(k, gw) {
+		return true
+	}
+	for _, w := range t.firedWeeks(k) {
+		if w == gw {
+			return true
+		}
+	}
+	return false
 }
 
 // anyPlays is whether ANY chip occupies this gameweek, planned or fired.
@@ -160,6 +183,36 @@ func (t *chipTriggers) anyPlays(gw int) bool {
 // handled by the bar: `triggerWindow` gives the option the expiry of whichever set
 // this gameweek falls in, so a first-set chip in a two-set season is priced against
 // GW19 and the decay takes its bar to zero there.
+// firedWeeks is every gameweek this rule has already spent the chip in.
+//
+// ⚠️ A slice, not a single week, because **FPL grants TWO sets** from 2025-26 and
+// a rule that stops at one is not playing the game — it spends a first-half
+// wildcard and then declines the second-half one, or holds out for the doubles
+// and lets the first set expire unused. A set unplayed by the GW19 deadline is
+// LOST, which the two-regime chip work measured as worth +11.9 to +15.6 a
+// season-path on its own.
+//
+// The first version tracked one week per slot and every arm of the drift sweep
+// therefore spent a single wildcard. That did not read as a bug: it read as
+// "higher bars are better", because a low bar burned the only wildcard in GW14
+// and left nothing for the second half. **The rule was answering a question
+// nobody asked.**
+func (t *chipTriggers) firedWeeks(k chipSlot) []int {
+	if t == nil {
+		return nil
+	}
+	return t.firedAll[k]
+}
+
+// setOfGW is which chip set a gameweek draws from. One set means every week is
+// set 1, so a one-set season keeps the old once-a-season behaviour exactly.
+func (t *chipTriggers) setOfGW(gw int) int {
+	if t.reset > 0 && gw >= t.reset {
+		return 2
+	}
+	return 1
+}
+
 func (t *chipTriggers) eligible(k chipSlot, gw int, on bool) bool {
 	if t == nil || !on {
 		return false
@@ -171,8 +224,13 @@ func (t *chipTriggers) eligible(k chipSlot, gw int, on bool) bool {
 	if m := t.med[k]; m != nil {
 		m.OfferedWeeks++
 	}
-	if t.fired[k] != 0 {
-		return false
+	// Once per SET, not once per season — see firedWeeks. The season string is
+	// not available here, so the set is resolved by the caller's own gameweek
+	// against the same reset week SplitChipSetsWith uses.
+	for _, w := range t.firedAll[k] {
+		if t.setOfGW(w) == t.setOfGW(gw) {
+			return false
+		}
 	}
 	// Both sets, and the whole season rather than the remainder — `Weeks` asks a
 	// bare slot name, which `ChipSchedule` reads across both sets. A conservative
@@ -232,7 +290,7 @@ func (t *chipTriggers) consultAt(k chipSlot, gw int, value float64, ok bool,
 	if value <= bar {
 		return false
 	}
-	t.fired[k] = gw
+	t.firedAll[k] = append(t.firedAll[k], gw)
 	m.FiredGW, m.FiredValue, m.FiredBar = gw, value, bar
 	return true
 }

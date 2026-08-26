@@ -133,7 +133,7 @@ func TestTheOptionValueLeversAreIndependent(t *testing.T) {
 		}
 		// And the trigger machinery agrees: with one lever on, the other two
 		// chips are ineligible in every gameweek whatever the calendar says.
-		trig := newChipTriggers(sc)
+		trig := newChipTriggers(sc, "2024-25")
 		for _, k := range []struct {
 			slot chipSlot
 			on   bool

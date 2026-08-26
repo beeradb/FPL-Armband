@@ -1,6 +1,13 @@
 package backtest
 
-// Does triggering the wildcard on XI DRIFT beat triggering it on repair cost?
+// WHEN DO YOU PLAY A WILDCARD THAT HAS NO DOUBLE TO ANCHOR TO?
+//
+// That is the whole question here, and the first-half window is only where it
+// happens to be true. A wildcard aimed at a double gameweek is a CALENDAR
+// decision and is measured elsewhere — anchor it on the biggest double within
+// sight. A wildcard with no such target is a decision about the SQUAD: play it
+// when the squad is bad enough. This asks what "bad enough" means, and whether
+// the measure the shipped rule uses can express it.
 //
 //	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest \
 //	    -run TestDiagWildcardDriftTrigger -v -timeout 90m
@@ -51,7 +58,10 @@ import (
 // after entry, with cells from 0.35 to 11.46. A bar above the top of that range
 // never fires and a bar below the bottom fires in week one, so the ladder spans
 // the middle where the rule can actually discriminate.
-var wildcardDriftBars = []float64{1.5, 3.0, 5.0, 8.0}
+// ⚠️ Bracketing the FIRST-HALF drift distribution, which is tighter than the
+// whole-season one: a squad five gameweeks past entry has not had long to drift.
+// A bar above the top never fires and one below the bottom fires in week one.
+var wildcardDriftBars = []float64{1.0, 2.0, 3.0, 5.0}
 
 func TestDiagWildcardDriftTrigger(t *testing.T) {
 	if os.Getenv("DIAG") == "" {
@@ -59,7 +69,11 @@ func TestDiagWildcardDriftTrigger(t *testing.T) {
 	}
 	starts := sweepStarts()
 
-	fmt.Printf("\n=== wildcard trigger: XI DRIFT against REPAIR COST. Metric: POLICY.\n")
+	fmt.Printf("\n=== FIRST-HALF wildcard trigger: XI DRIFT against REPAIR COST.\n")
+	fmt.Printf("Confined to GW1-%d. Second-half timing is a CALENDAR question —\n", ChipResetGW-1)
+	fmt.Printf("anchor on the doubles — and is measured elsewhere; the first half\n")
+	fmt.Printf("has two doubling gameweeks in six seasons, so the rule there is a\n")
+	fmt.Printf("condition on the SQUAD. Metric: POLICY.\n")
 	fmt.Printf("Control plays no wildcard trigger at all, so each arm is read\n")
 	fmt.Printf("against not having the rule rather than against the other rule.\n")
 	fmt.Printf("Both arms keep the option-value decay — same curve, different base\n")
@@ -70,15 +84,19 @@ func TestDiagWildcardDriftTrigger(t *testing.T) {
 	arms := []policyVariant{
 		{label: "no wildcard trigger (control)",
 			apply: func(sc *SimConfig) { sc.WildcardTrigger = false }},
-		{label: "trigger on repair cost (shipped rule)",
-			apply: func(sc *SimConfig) { sc.WildcardTrigger = true }},
+		{label: "first-half trigger on repair cost (shipped rule)",
+			apply: func(sc *SimConfig) {
+				sc.WildcardTrigger = true
+				sc.WildcardTriggerFirstHalfOnly = true
+			}},
 	}
 	for _, b := range wildcardDriftBars {
 		bar := b
 		arms = append(arms, policyVariant{
-			label: fmt.Sprintf("trigger on XI drift > %.1f pts/gw", bar),
+			label: fmt.Sprintf("first-half trigger on XI drift > %.1f pts/gw", bar),
 			apply: func(sc *SimConfig) {
 				sc.WildcardTrigger = true
+				sc.WildcardTriggerFirstHalfOnly = true
 				sc.WildcardDriftBar = bar
 			},
 		})
