@@ -758,7 +758,7 @@ from this list is weak evidence of absence — nothing checks it stays complete.
   Free hit: +14.5/t 2.44 pre-`5b970338`, +21.0/t 3.60 after it, +20.7 with SE
   11.81 on measured. **Bench boost is the only component resolving on every arm and commit**
   (+4.4-5.6, LOSO 6/6). ⚠️ `per_path` always — `per_gw` is wrong for an event count and has
-  produced two retracted figures. `2026-08-25-anchored-xgcarms/`, `-xgcarms/`. → **chips**
+  produced two retracted figures. `2026-08-25-anchored-xgcarms/`, `2026-08-25-xgcarms/`. → **chips**
 - **The two triple-captain instruments disagree and the replay is no longer the blind one.** Per
   decision the rule delivers +7.95 realised a chip (t 2.92, threshold 7.0); the season-path
   replay of the same rule reads +2.25 against a threshold of 4.19, so it could have resolved that
