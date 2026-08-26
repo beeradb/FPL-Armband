@@ -1646,6 +1646,25 @@ type SimConfig struct {
 	// the two scoring chips, in points of one week's gain.
 	WildcardReservation, BenchBoostBar, FreeHitBar float64
 
+	// WildcardDriftBar replaces the wildcard trigger's READING as well as its
+	// bar: fire when the fielded eleven is more than this many expected points
+	// behind the eleven an unconstrained optimum would field. Zero — every
+	// existing caller — leaves the repair-cost rule in place.
+	//
+	// ⚠️ **This is a different RULE, not a different unit for the same one, and
+	// the arms must be read that way.** The shipped trigger asks "what would
+	// repairing by transfers cost in hits", which is a MOVE COUNT wearing points
+	// and scores a 4.0m bench swap like a lost captain — the objection
+	// `xidrift.go` was built for. This asks "how far behind is the eleven", which
+	// is the quantity a manager is deciding about.
+	//
+	// ⚠️ **It does NOT go through `analysis.ChipBarAt`**, which prices a one-off
+	// hit cost and decays it through the option window. Drift is a per-gameweek
+	// rate; comparing a rate against that price would report the mismatch as a
+	// result. So this arm also loses the option-value decay, and that is a real
+	// difference between the arms rather than a detail — say so in any write-up.
+	WildcardDriftBar float64
+
 	// RecordRepairCost fills SimResult.RepairSeries: the held-versus-fresh
 	// distance, observed every gameweek on the evolving fifteen and on the frozen
 	// opening one.
@@ -2079,9 +2098,17 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 				if avail < cfg.BankUpTo {
 					avail++
 				}
-				cost, ok := repairCost(pe, cur, w, held, gw, avail, minExp, cfg)
-				trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardReservation,
-					pe.HoldingCongestion(held, gw, cfg.OptionPricing), cost, ok)
+				// One Optimize, both readings — repairChanges already builds the
+				// fresh fifteen and discards it, and Optimize is the expensive
+				// call in this package.
+				cost, drift, ok := repairCostAndDrift(pe, cur, w, held, gw, avail, minExp, cfg)
+				if cfg.WildcardDriftBar > 0 {
+					bar := cfg.WildcardDriftBar
+					trig.consultAt(slotWildcard, gw, drift, ok, func() float64 { return bar })
+				} else {
+					trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardReservation,
+						pe.HoldingCongestion(held, gw, cfg.OptionPricing), cost, ok)
+				}
 			}
 			if trig.eligible(slotFreeHit, gw, cfg.FreeHitTrigger) {
 				// ⚠️ **This is the most expensive line in the option-value work

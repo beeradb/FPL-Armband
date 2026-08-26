@@ -200,12 +200,32 @@ func (t *chipTriggers) eligible(k chipSlot, gw int, on bool) bool {
 func (t *chipTriggers) consult(k chipSlot, gw int, season string, base, load float64,
 	value float64, ok bool) bool {
 
+	return t.consultAt(k, gw, value, ok, func() float64 {
+		return analysis.ChipBarAt(base, triggerWindow(season, gw), gw, load, t.cfg.OptionPricing)
+	})
+}
+
+// consultAt is `consult` with the bar supplied rather than derived, for a rule
+// whose reading is not in the units `ChipBarAt` was fitted to.
+//
+// ⚠️ **This exists because a bar is calibrated against a QUANTITY, and swapping
+// the quantity under it is not a change of units.** `ChipBarAt` prices a
+// one-off repair cost in hit points and decays it through the option window;
+// the XI-drift rule reads a PER-GAMEWEEK rate. Routing drift through that bar
+// would compare a rate against a price and report the mismatch as a strategy
+// result — the estimator-swap error this record has made twice in one day.
+//
+// The bar is a thunk so the expensive `ChipBarAt` call is still made only after
+// `ok`, exactly as before.
+func (t *chipTriggers) consultAt(k chipSlot, gw int, value float64, ok bool,
+	barOf func() float64) bool {
+
 	m := t.med[k]
 	m.ConsultedWeeks++
 	if !ok {
 		return false
 	}
-	bar := analysis.ChipBarAt(base, triggerWindow(season, gw), gw, load, t.cfg.OptionPricing)
+	bar := barOf()
 	m.WeighedWeeks++
 	m.ValueSum += value
 	m.BarSum += bar
