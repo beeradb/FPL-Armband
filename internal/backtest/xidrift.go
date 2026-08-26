@@ -273,6 +273,16 @@ func wildcardValueOverNext(drift []float64, changes, free, bankUpTo int) Wildcar
 // counts the repair a healthy week needs and **understates a thin squad**, the
 // same trade `xiPoints` makes and for the same reason.
 //
+// **`SimConfig.BenchWeight` is the obvious repair and is deliberately NOT used
+// here yet.** The optimiser already credits a bench place at a fraction of a
+// starting one — `repairSquad` passes `openingBenchWeight()` — so weighting a
+// bench replacement rather than dropping it is expressible today and would sit
+// between this count and `changesBetween`. Left for a second pass on the user's
+// call: *"this is where bench weight might be useful. Let's start without it
+// though."* Starting with the sharp version makes the bench's contribution
+// measurable as a difference, rather than baked in from the first arm where
+// nothing could attribute it.
+//
 // ⚠️ It is a COUNT, deliberately, because it feeds a hit price and hits are
 // integers. The points-weighted version of the same question is `xiDriftOf`, and
 // the two answer different halves: how many transfers, and how much they are
