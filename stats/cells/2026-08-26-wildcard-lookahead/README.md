@@ -16,13 +16,13 @@ reads against not having the rule rather than against the other rules.
 | arm | mean | CR2 SE | t | threshold | fired | med GW | hits/cell |
 |---|---:|---:|---:|---:|---|---|---:|
 | *control: no trigger* | — | — | — | — | 0/36 | — | 1.94 |
-| cost, raw count, bar 12 — **the shipped rule** | **−3.53** | 3.66 | −0.97 | 9.4 | 22/36 | 10 | **2.06** |
+| cost, raw count, bar 12 — **the shipped rule** | **−3.53** | 3.66 | −0.97 | 9.4 | 22/36 | 9 | **2.06** |
 | single-week drift > 3.0 (horizon-5) | +3.50 | 4.36 | 0.80 | 11.2 | 15/36 | 15 | 1.69 |
-| lookahead value > 40 (horizon-1) | +1.67 | 4.31 | 0.39 | 11.1 | 14/36 | 15 | 1.69 |
+| lookahead value > 40 (horizon-1) | +1.67 | 4.31 | 0.39 | 11.1 | 14/36 | 14 | 1.69 |
 | lookahead value > 55 | +6.11 | 7.32 | 0.84 | 18.8 | 7/36 | 18 | 1.53 |
 | lookahead value > 70 | +1.42 | 1.42 | 1.00 | 3.6 | **4/36** | 18 | 1.86 |
 | lookahead value > 85 | +1.42 | 1.42 | 1.00 | 3.6 | **4/36** | 18 | 1.86 |
-| lookahead value > 100 | +1.33 | 1.33 | 1.00 | 3.4 | **4/36** | 19 | 1.86 |
+| lookahead value > 100 | +1.33 | 1.33 | 1.00 | 3.4 | **4/36** | 18.5 | 1.86 |
 
 `t_crit` 2.571 at df 5. **No arm reaches half its threshold.**
 
@@ -30,8 +30,15 @@ reads against not having the rule rather than against the other rules.
 
 **1. The two readings are the same ranking in different units.** Compare the only
 two arms that fire at a comparable rate — drift > 3.0 at 15/36 and lookahead > 40
-at 14/36. They pick the **same median gameweek (15)**, take the **same hits per
-cell (1.69)**, and their effects differ by less than half a standard error. The
+at 14/36. They pick **adjacent median gameweeks — 15 and 14** — take the **same
+hits per cell (1.69)**, and their effects differ by less than half a standard
+error.
+
+⚠️ **This said "the same median gameweek (15)" until the counts got a committed
+generator.** They are one week apart, not identical. The upper-median slip that
+produced the wrong number is described under Reproducing; the argument is
+unchanged by one gameweek, but "the same" was a stronger claim than the data
+made and it was the sentence the whole finding turned on. The
 two readings correlate **0.884** on the bracketing cells
 (`TestDiagWildcardLookaheadValue`), and this is what that correlation looks like
 in a sweep.
@@ -82,5 +89,24 @@ DIAG=1 FPL_CELLS=stats/cells/2026-08-26-wildcard-lookahead/lookahead.csv \
 ⚠️ `-count=1` is not optional: a cells file is a side effect the Go test cache
 cannot see, and a cached run prints a full table and writes nothing.
 ⚠️ `FPL_CELLS` APPENDS — delete the file, never overwrite it.
+
+## ⚠️ The medians in this table were WRONG until 2026-08-26
+
+The effects and standard errors have always come from `stats/sweep_inference.R`,
+which is committed. **The fire counts, median gameweeks and hits per cell did
+not** — they were derived once with an ad-hoc script that was never committed, so
+nothing could reproduce them and nothing could check them.
+
+Both failures duly happened. The script took the **upper** element for an
+even-length list instead of the median, so three of seven medians were one rung
+too high: the shipped rule read 10 rather than **9**, lookahead > 40 read 15
+rather than **14**, and lookahead > 100 read 19 rather than **18.5**. The second
+of those was load-bearing — it was the "same median gameweek" the headline claim
+rested on.
+
+`fires.R` is now committed beside this README and regenerates all three columns
+through `stats/cells_common.R`. **A number the README leans on with no generator
+is not a measurement**, which the directory next door had just been corrected for
+in the same session.
 
 Read the fire count before reading any null in this table.

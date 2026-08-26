@@ -568,10 +568,13 @@ by deleting the list, and do not re-derive a verdict from a title alone.
   and it does not.** `WildcardDriftBar` reads the horizon-5 engine where `FixtureLoadInScore()`
   is FALSE, so it is a five-week average blind to the doubles inside its own window;
   `WildcardLookaheadBar` re-reads one gameweek at a time at horizon 1, where fixture load IS
-  scored. At matched fire rate — 14 and 15 of 36 — the two pick the **same median gameweek
-  (15)**, take the **same hits (1.69/cell)**, and differ by +1.67 against +3.50 with thresholds
-  above 11. The readings correlate **0.884**. ⚠️ This says the two RANK weeks alike; it is not
-  evidence that fixture awareness is worthless elsewhere. → **chips**
+  scored. At matched fire rate — 14 and 15 of 36 — the two pick **adjacent median
+  gameweeks (14 and 15)**, take the **same hits (1.69/cell)**, and differ by +1.67 against +3.50
+  with thresholds above 11. The readings correlate **0.884**. ⚠️ This says the two RANK weeks
+  alike; it is not evidence that fixture awareness is worthless elsewhere. ⚠️ **It read "the same
+  median gameweek" until the fire counts got a committed generator** — the ad-hoc script behind
+  them took the upper element of an even-length list, so three of seven medians read one rung
+  high. Regenerate with that directory's `fires.R`, never by hand. → **chips**
 - **Do not add a lock.** → **optimiser-and-squad**
 - **Do not scope the local test run to the packages a change touches.** Built and measured 2026-08-19: the Go test cache already does it, and better — it tracks the cross-package source scans an import graph cannot see, so a hand-derived scope skips exactly the guards this record pins its shipped bugs with. → **work/ruled-out/scope-the-test-run-and-move-the-suite-to-ci**
 - **Do not memoise `blankRate`.** Answer-exact and measured no faster —
@@ -755,7 +758,7 @@ from this list is weak evidence of absence — nothing checks it stays complete.
   Free hit: +14.5/t 2.44 pre-`5b970338`, +21.0/t 3.60 after it, +20.7 with SE
   11.81 on measured. **Bench boost is the only component resolving on every arm and commit**
   (+4.4-5.6, LOSO 6/6). ⚠️ `per_path` always — `per_gw` is wrong for an event count and has
-  produced two retracted figures. `2026-08-25-anchored-xgcarms/`, `-xgcarms/`. → **chips**
+  produced two retracted figures. `2026-08-25-anchored-xgcarms/`, `2026-08-25-xgcarms/`. → **chips**
 - **The two triple-captain instruments disagree and the replay is no longer the blind one.** Per
   decision the rule delivers +7.95 realised a chip (t 2.92, threshold 7.0); the season-path
   replay of the same rule reads +2.25 against a threshold of 4.19, so it could have resolved that
