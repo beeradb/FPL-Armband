@@ -46,11 +46,20 @@ package backtest
 // here is well-fitted to a replay that is as blind to that value as the rule is**,
 // so a low winning bar should be read with that in mind rather than adopted.
 //
-// ⚠️ And `changes` is still `changesBetween` — a raw count over all fifteen, in
-// which a £4.0m bench swap scores like a lost captain. That is the objection
-// `xidrift.go` exists for, and it means "four hits" here counts four SWAPS rather
-// than four swaps worth paying for. Fixing that changes the input to this ladder,
-// not the ladder's shape.
+// # ⚠️ The input is corrected here, and that is why the ladder is worth running
+//
+// The ladder arms count `changesInXI` — the STARTERS a fresh optimum would
+// replace — not `changesBetween`'s raw count over all fifteen. On the raw count,
+// "four hits" means four swaps, and a swap can be £4.0m of bench fodder nobody
+// would pay for. **Measured, that input produces a rule that leaves the policy
+// taking MORE hits (+0.58) and losing 7.4 points where it fires**, which is the
+// opposite of what a free repair is for. See
+// `stats/cells/2026-08-26-wildcard-noanchor`.
+//
+// So sweeping a bar in hits on the raw count would locate the best threshold for
+// the wrong ruler. The shipped arm is kept at the shipped bar on the RAW count,
+// so the 12-point rung beside it isolates the INPUT change at one bar while the
+// ladder sweeps the BAR with the input held fixed.
 
 import (
 	"fmt"
@@ -94,19 +103,27 @@ func TestDiagWildcardReservation(t *testing.T) {
 	arms := []policyVariant{
 		{label: "no wildcard trigger (control)",
 			apply: func(sc *SimConfig) { sc.WildcardTrigger = false }},
+		// The shipped rule at the shipped bar, on the RAW count — the arm the
+		// ladder has to beat, and the one measured to increase hits.
+		{label: "reservation 12 pts, RAW count — SHIPPED",
+			apply: func(sc *SimConfig) {
+				sc.WildcardTrigger = true
+				sc.WildcardTriggerFirstHalfOnly = true
+				sc.WildcardReservation = 12
+			}},
 	}
 	for _, r := range wildcardReservations {
 		res := r
-		label := fmt.Sprintf("reservation %.0f pts (%.0f hits)", res, res/HitCost)
-		if res == 12 {
-			label += " — SHIPPED"
-		}
 		arms = append(arms, policyVariant{
-			label: label,
+			// Every ladder arm counts XI-only, so the ladder sweeps the BAR with
+			// the input held fixed. The 12-point rung against the arm above it is
+			// the input change on its own, at one bar.
+			label: fmt.Sprintf("reservation %.0f pts (%.1f hits), XI-only count", res, res/HitCost),
 			apply: func(sc *SimConfig) {
 				sc.WildcardTrigger = true
 				sc.WildcardTriggerFirstHalfOnly = true
 				sc.WildcardReservation = res
+				sc.RepairCountsXIOnly = true
 			},
 		})
 	}

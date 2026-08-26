@@ -397,7 +397,13 @@ func repairCostAndDrift(e *analysis.Engine, cur *Season, wal *wallet, held []int
 	if !ok {
 		return 0, 0, false
 	}
+	// ⚠️ WHICH COUNT feeds the hit price is a config choice, because the raw one
+	// is measurably wrong for it: fired on `changesBetween`, the shipped wildcard
+	// rule leaves the policy taking MORE hits. See changesInXI.
 	changes := changesBetween(held, fresh)
+	if cfg.RepairCountsXIOnly {
+		changes = changesInXI(e, held, fresh)
+	}
 	return repairCostOf(changes, free), xiPoints(e, fresh) - xiPoints(e, held), true
 }
 

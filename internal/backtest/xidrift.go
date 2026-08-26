@@ -243,3 +243,57 @@ func wildcardValueOverNext(drift []float64, changes, free, bankUpTo int) Wildcar
 	out.PeakAt = bestAt
 	return out
 }
+
+// changesInXI counts the held players a fresh optimum would replace who are
+// actually in the held squad's best ELEVEN.
+//
+// # Why the raw count is the wrong input to a hit price
+//
+// `changesBetween` counts every held player absent from `fresh`, over all
+// fifteen. A £4.0m bench-fodder swap therefore scores exactly like losing a
+// captain, and `repairCostOf` then prices both at four points. The user's
+// objection is the whole reason this exists: *"switching a benched player is
+// basically never worth a transfer. Unless you highly doubt a starter will
+// play."*
+//
+// Measured, that input produces a rule that does the opposite of its purpose:
+// fired on a raw count, the shipped wildcard trigger leaves the policy taking
+// MORE hits (+0.58) and losing points, because it burns the chip on a squad whose
+// "three changes" are swaps nobody would pay for — and the fresh squad then still
+// needs repairing. See stats/cells/2026-08-26-wildcard-noanchor.
+//
+// # What counts
+//
+// A held player replaced by the optimum, who starts in the held squad's own best
+// eleven. Not the bench, because a bench difference that never reaches the pitch
+// is not a transfer anyone takes.
+//
+// ⚠️ **The bench is excluded, not free.** An eleven is drawn from fifteen, so a
+// weak bench fields a worse eleven the moment anyone is injured or rotated. This
+// counts the repair a healthy week needs and **understates a thin squad**, the
+// same trade `xiPoints` makes and for the same reason.
+//
+// ⚠️ It is a COUNT, deliberately, because it feeds a hit price and hits are
+// integers. The points-weighted version of the same question is `xiDriftOf`, and
+// the two answer different halves: how many transfers, and how much they are
+// worth.
+func changesInXI(e *analysis.Engine, held, fresh []int) int {
+	want := make(map[int]bool, len(fresh))
+	for _, id := range fresh {
+		want[id] = true
+	}
+	var ms []analysis.PlayerMetrics
+	for _, id := range held {
+		if el := e.Boot.ElementByID(id); el != nil {
+			ms = append(ms, e.Metrics(el))
+		}
+	}
+	xi, _, _ := analysis.BestXI(ms)
+	n := 0
+	for _, p := range xi {
+		if !want[p.ID] {
+			n++
+		}
+	}
+	return n
+}

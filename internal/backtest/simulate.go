@@ -1693,6 +1693,19 @@ type SimConfig struct {
 	// it was measuring "do not waste the only wildcard".
 	WildcardTriggerFirstHalfOnly bool
 
+	// RepairCountsXIOnly prices the repair on the starters a fresh optimum would
+	// replace, rather than on every held player it would replace.
+	//
+	// ⚠️ **The raw count is measurably the wrong input to a hit price.** Fired on
+	// it, the shipped wildcard rule leaves the policy taking MORE hits (+0.58) and
+	// losing points where it fires, because "three changes" over fifteen can be
+	// three bench swaps nobody would pay for — so the chip is burnt on a squad
+	// that did not need rebuilding and the fresh squad still needs repairing.
+	//
+	// False, every existing caller, keeps the shipped behaviour. See changesInXI
+	// for what the count excludes and what that costs.
+	RepairCountsXIOnly bool
+
 	// RecordRepairCost fills SimResult.RepairSeries: the held-versus-fresh
 	// distance, observed every gameweek on the evolving fifteen and on the frozen
 	// opening one.
