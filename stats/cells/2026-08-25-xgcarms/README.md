@@ -83,8 +83,8 @@ selection, which is where xGC acts.
 ⚠️ **It cuts both ways and neither way is established.** Either the transport step
 smooths a variance that is really there, or the measured source injects one that
 is not. Nothing here separates those, and
-`2026-08-24-fotmob-is-opta-...` is explicit that the source is shown only to be
-"not worse", never more accurate.
+the accuracy work behind the source is explicit that it is shown only to be
+"not worse" than what ships, never more accurate.
 
 ### 3. ⚠️ PR #82 changed free hit more than the data source did
 

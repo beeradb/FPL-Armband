@@ -190,4 +190,4 @@ ORACLEGATE#1,1786399233-64710,constant,"weights.tournament_absences[4].players	4
 ORACLEGATE#1,1786399233-64710,constant,weights.tournament_absences[5].matches	3
 ORACLEGATE#1,1786399233-64710,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 ORACLEGATE#1,1786399233-64710,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-ORACLEGATE#1,1786399233-64710,env,FPL_CONFIG	/home/bbowman.guest/fpl/.claude/worktrees/oracle-harness/config.json
+ORACLEGATE#1,1786399233-64710,env,FPL_CONFIG	path:bfc310c856e9

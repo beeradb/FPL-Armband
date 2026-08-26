@@ -262,6 +262,34 @@ var modelSubtrees = []string{"weights", "congestion", "role_risk", "review_polic
 //
 // cfg is taken as any so this package does not import config, which imports
 // analysis: the snapshot renderer is a leaf and should stay one.
+// envPathValued names the fingerprinted switches whose value is a FILESYSTEM
+// PATH rather than a setting, so the sidecar records a digest of it instead of
+// the path itself.
+//
+// ⚠️ **A provenance sidecar is committed to a PUBLIC repository**, and a path
+// names the machine it was measured on. One of these switches also names a data
+// source that may not be published at all, so writing its directory into a
+// banked cells file publishes both the host layout and the source. That happened:
+// three sidecars banked on 2026-08-25 carry an absolute path and reached
+// `origin/main` before this existed.
+//
+// A digest keeps everything the fingerprint is FOR. Two runs against different
+// directories still differ, which is the whole job — the guard in
+// `stats/sweep_inference.R` compares values for inequality and never reads them.
+// What is lost is the ability to tell WHICH directory from the sidecar alone,
+// and that is the thing that must not be in there.
+var envPathValued = map[string]bool{
+	"FPL_XGC_EXTERNAL_DIR": true,
+	"FPL_CONFIG":           true,
+}
+
+// pathFingerprint renders a path as a short digest, tagged so a reader knows a
+// digest is what they are looking at rather than a corrupted value.
+func pathFingerprint(v string) string {
+	sum := sha256.Sum256([]byte(v))
+	return fmt.Sprintf("path:%x", sum[:6])
+}
+
 func FingerprintOf(cfg any) (Fingerprint, error) {
 	b, err := json.Marshal(cfg)
 	if err != nil {
@@ -293,6 +321,8 @@ func FingerprintOf(cfg any) (Fingerprint, error) {
 			// tested for presence rather than value, so record it as set.
 			if v == "" {
 				v = "(set, empty)"
+			} else if envPathValued[k] {
+				v = pathFingerprint(v)
 			}
 			env = append(env, Constant{Path: k, Value: v})
 		}

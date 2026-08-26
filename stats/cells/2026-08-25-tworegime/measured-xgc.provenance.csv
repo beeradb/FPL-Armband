@@ -201,7 +201,7 @@ TestDiagTwoRegimeChips#1,1787705708-1621095,constant,"weights.tournament_absence
 TestDiagTwoRegimeChips#1,1787705708-1621095,constant,weights.tournament_absences[5].matches	3
 TestDiagTwoRegimeChips#1,1787705708-1621095,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 TestDiagTwoRegimeChips#1,1787705708-1621095,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-TestDiagTwoRegimeChips#1,1787705708-1621095,env,FPL_XGC_EXTERNAL_DIR	/work/drop/fotmob-cache
+TestDiagTwoRegimeChips#1,1787705708-1621095,env,FPL_XGC_EXTERNAL_DIR	path:811de8b2c8b1
 TestDiagTwoRegimeChips#1,1787705708-1621095,watched_digest,d07ffa93596ce0da2943bf842c118297cedd56cb7342ab7d1ed5e31f4a04f5e2
 TestDiagTwoRegimeChips#1,1787705708-1621095,watched_path,config.json	cd2a6f289eafd7b9ff596d3b69f76b958bbb942bfe160bc41ae651f6c2fef969
 TestDiagTwoRegimeChips#1,1787705708-1621095,watched_path,internal/analysis	ea72afc2de81fc274bc1c7c7ec622d5c04a9e47fc94fe485add1c633573043a5

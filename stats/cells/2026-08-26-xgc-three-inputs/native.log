@@ -1,0 +1,191 @@
+=== RUN   TestDiagAnchoredChips
+
+=== does anchoring the chips on the calendar beat placing them by week?
+Every arm plays the SAME chips: bench boost, free hit, triple captain.
+NO ARM PLAYS A WILDCARD. Holding it at a common week made the
+full-sight arm the only one boosting a wildcard-rebuilt squad — 30 of
+30 cells against 3-5 for the lag arms — which is a bigger confound
+than the GW4 one it was removing. Every arm now boosts a squad built
+for something else, so that floor cancels.
+What varies is placement: the control uses fixed offsets from entry,
+which is what every earlier chip measurement here used, and the
+anchored arms read the fixture calendar.
+**The full-sight arm is a target, not a policy**: FPL announces
+doubles as cup rounds resolve. The lag arms are what a manager runs,
+and they will not spend a chip on a week involving fewer than 4 clubs.
+**Read points per season-path, not per gameweek.** Three chips are an
+event count, and dividing a one-off by weeks played inflates the late
+entries — see the harness-and-inference note.
+
+  2023-24   @1   anchored WC 0 BB34 FH29 TC37 (3 chips) | control WC 0 BB 7 FH11 TC14 (3)
+  2023-24   @6   anchored WC 0 BB34 FH29 TC37 (3 chips) | control WC 0 BB12 FH16 TC19 (3)
+  2023-24   @11  anchored WC 0 BB34 FH29 TC37 (3 chips) | control WC 0 BB17 FH21 TC24 (3)
+  2023-24   @16  anchored WC 0 BB34 FH29 TC37 (3 chips) | control WC 0 BB22 FH26 TC29 (3)
+  2023-24   @21  anchored WC 0 BB34 FH29 TC37 (3 chips) | control WC 0 BB27 FH31 TC34 (3)
+  2023-24   @26  anchored WC 0 BB34 FH29 TC37 (3 chips) | control WC 0 BB32 FH36 TC38 (3)
+  2024-25   @1   anchored WC 0 BB33 FH29 TC 0 (2 chips) | control WC 0 BB 7 FH11 TC 0 (2)
+  2024-25   @6   anchored WC 0 BB33 FH29 TC 0 (2 chips) | control WC 0 BB12 FH16 TC 0 (2)
+  2024-25   @11  anchored WC 0 BB33 FH29 TC 0 (2 chips) | control WC 0 BB17 FH21 TC 0 (2)
+  2024-25   @16  anchored WC 0 BB33 FH29 TC 0 (2 chips) | control WC 0 BB22 FH26 TC 0 (2)
+  2024-25   @21  anchored WC 0 BB33 FH29 TC 0 (2 chips) | control WC 0 BB27 FH31 TC 0 (2)
+  2024-25   @26  anchored WC 0 BB33 FH29 TC 0 (2 chips) | control WC 0 BB32 FH36 TC 0 (2)
+  2025-26   @1   anchored WC 0 BB33 FH34 TC 0 (2 chips) | control WC 0 BB 7 FH11 TC 0 (2)
+  2025-26   @6   anchored WC 0 BB33 FH34 TC 0 (2 chips) | control WC 0 BB12 FH16 TC 0 (2)
+  2025-26   @11  anchored WC 0 BB33 FH34 TC 0 (2 chips) | control WC 0 BB17 FH21 TC 0 (2)
+  2025-26   @16  anchored WC 0 BB33 FH34 TC 0 (2 chips) | control WC 0 BB22 FH26 TC 0 (2)
+  2025-26   @21  anchored WC 0 BB33 FH34 TC 0 (2 chips) | control WC 0 BB27 FH31 TC 0 (2)
+  2025-26   @26  anchored WC 0 BB33 FH34 TC 0 (2 chips) | control WC 0 BB32 FH36 TC 0 (2)
+
+variant                     gw1      gw6     gw11     gw16     gw21     gw26    POLICY |      HOLD   moves
+chips at fixed offsets from entry     7006     5970     5049     4130     3327     2312     27794 |     23687     431
+chips anchored on the calendar (full sight)     6963     6076     5128     4275     3426     2414     28282 |     23687     422
+anchored, 2 gameweeks of sight     7052     6030     5077     4277     3368     2434     28238 |     23687     430
+anchored, 4 gameweeks of sight     6993     6088     5145     4288     3431     2414     28359 |     23687     422
+anchored, 6 gameweeks of sight     6993     6088     5145     4288     3431     2414     28359 |     23687     422
+
+--- POLICY (the weekly transfer decision) ---
+Paired against "chips at fixed offsets from entry" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+chips anchored on the calendar (full sight)   +1.364       18
+    early (prior-led)    +0.347        6
+    middle               +1.521        6
+    late (season-led)    +2.224        6
+anchored, 2 gameweeks of sight   +1.227       18
+    early (prior-led)    +0.505        6
+    middle               +1.232        6
+    late (season-led)    +1.944        6
+anchored, 4 gameweeks of sight   +1.509       18
+    early (prior-led)    +0.539        6
+    middle               +1.716        6
+    late (season-led)    +2.271        6
+anchored, 6 gameweeks of sight   +1.509       18
+    early (prior-led)    +0.539        6
+    middle               +1.716        6
+    late (season-led)    +2.271        6
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- POLICY on accumulated xPoints (instrument; read beside POLICY) ---
+Paired against "chips at fixed offsets from entry" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+chips anchored on the calendar (full sight)   +0.997       18
+    early (prior-led)    +0.612        6
+    middle               +0.955        6
+    late (season-led)    +1.426        6
+anchored, 2 gameweeks of sight   +0.708       18
+    early (prior-led)    +0.508        6
+    middle               +0.837        6
+    late (season-led)    +0.780        6
+anchored, 4 gameweeks of sight   +1.134       18
+    early (prior-led)    +0.778        6
+    middle               +1.103        6
+    late (season-led)    +1.523        6
+anchored, 6 gameweeks of sight   +1.134       18
+    early (prior-led)    +0.778        6
+    middle               +1.103        6
+    late (season-led)    +1.523        6
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD (the opening fifteen; use this for scoring constants) ---
+Paired against "chips at fixed offsets from entry" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+chips anchored on the calendar (full sight)   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 2 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 4 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 6 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD on accumulated xPoints (instrument; read beside HOLD) ---
+Paired against "chips at fixed offsets from entry" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+chips anchored on the calendar (full sight)   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 2 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 4 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 6 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with the armband pinned to the day-one pick (diagnostic instrument) ---
+Paired against "chips at fixed offsets from entry" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+chips anchored on the calendar (full sight)   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 2 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 4 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 6 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with nobody doubled (diagnostic instrument; not what FPL pays) ---
+Paired against "chips at fixed offsets from entry" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+chips anchored on the calendar (full sight)   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 2 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 4 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+anchored, 6 gameweeks of sight   +0.000       18
+    early (prior-led)    +0.000        6
+    middle               +0.000        6
+    late (season-led)    +0.000        6
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+Cells written. Now: Rscript stats/sweep_inference.R <the FPL_CELLS path>
+
+Read the lag columns, not the ceiling. Full sight is hindsight; two
+to six gameweeks is what FPL actually gives you. If the value survives
+at four it is strategy; if it only exists at full sight it is not.
+--- PASS: TestDiagAnchoredChips (266.88s)
+PASS
+ok  	armband/internal/backtest	266.890s

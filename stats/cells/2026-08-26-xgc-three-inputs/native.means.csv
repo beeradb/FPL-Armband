@@ -1,0 +1,25 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+ANCHORED#1,1787764127-1803155,policy,chips anchored on the calendar (full sight),1,chips at fixed offsets from entry,1.364026250467899,18,-
+ANCHORED#1,1787764127-1803155,policy,"anchored, 2 gameweeks of sight",2,chips at fixed offsets from entry,1.2268003135661425,18,-
+ANCHORED#1,1787764127-1803155,policy,"anchored, 4 gameweeks of sight",3,chips at fixed offsets from entry,1.5086511434718928,18,-
+ANCHORED#1,1787764127-1803155,policy,"anchored, 6 gameweeks of sight",4,chips at fixed offsets from entry,1.5086511434718928,18,-
+ANCHORED#1,1787764127-1803155,policy_xpoints,chips anchored on the calendar (full sight),1,chips at fixed offsets from entry,0.9973358515923434,18,-
+ANCHORED#1,1787764127-1803155,policy_xpoints,"anchored, 2 gameweeks of sight",2,chips at fixed offsets from entry,0.708388326960894,18,-
+ANCHORED#1,1787764127-1803155,policy_xpoints,"anchored, 4 gameweeks of sight",3,chips at fixed offsets from entry,1.1344024873005165,18,-
+ANCHORED#1,1787764127-1803155,policy_xpoints,"anchored, 6 gameweeks of sight",4,chips at fixed offsets from entry,1.1344024873005165,18,-
+ANCHORED#1,1787764127-1803155,hold,chips anchored on the calendar (full sight),1,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold,"anchored, 2 gameweeks of sight",2,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold,"anchored, 4 gameweeks of sight",3,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold,"anchored, 6 gameweeks of sight",4,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_xpoints,chips anchored on the calendar (full sight),1,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_xpoints,"anchored, 2 gameweeks of sight",2,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_xpoints,"anchored, 4 gameweeks of sight",3,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_xpoints,"anchored, 6 gameweeks of sight",4,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_fixedcap,chips anchored on the calendar (full sight),1,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_fixedcap,"anchored, 2 gameweeks of sight",2,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_fixedcap,"anchored, 4 gameweeks of sight",3,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_fixedcap,"anchored, 6 gameweeks of sight",4,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_nocap,chips anchored on the calendar (full sight),1,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_nocap,"anchored, 2 gameweeks of sight",2,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_nocap,"anchored, 4 gameweeks of sight",3,chips at fixed offsets from entry,0,18,-
+ANCHORED#1,1787764127-1803155,hold_nocap,"anchored, 6 gameweeks of sight",4,chips at fixed offsets from entry,0,18,-

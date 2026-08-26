@@ -203,7 +203,7 @@ ANCHORED#1,1787702178-1596158,constant,"weights.tournament_absences[4].players	4
 ANCHORED#1,1787702178-1596158,constant,weights.tournament_absences[5].matches	3
 ANCHORED#1,1787702178-1596158,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 ANCHORED#1,1787702178-1596158,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-ANCHORED#1,1787702178-1596158,env,FPL_XGC_EXTERNAL_DIR	/work/drop/fotmob-cache
+ANCHORED#1,1787702178-1596158,env,FPL_XGC_EXTERNAL_DIR	path:811de8b2c8b1
 ANCHORED#1,1787702178-1596158,watched_digest,77de9c5ca0fb568dc2fc8d54b6a9310f5e2256d9e4f346835878e39842048f9f
 ANCHORED#1,1787702178-1596158,watched_path,config.json	cd2a6f289eafd7b9ff596d3b69f76b958bbb942bfe160bc41ae651f6c2fef969
 ANCHORED#1,1787702178-1596158,watched_path,internal/analysis	ea72afc2de81fc274bc1c7c7ec622d5c04a9e47fc94fe485add1c633573043a5
