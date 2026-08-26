@@ -248,9 +248,16 @@ func TestWildcardValueOverNextPricesTheLookahead(t *testing.T) {
 
 	// The general statement, so the degeneracy cannot be reintroduced quietly
 	// after a fix or missed if the shape changes.
+	//
+	// ⚠️ **20,000 draws because that is the number the write-up quotes.** The
+	// first version ran 5,000 while the note beside it claimed 20,000, taken from
+	// a scratch test that was deleted — so the note's headline figure was not
+	// reproducible from a checkout at all. A count in a record that no committed
+	// code produces is not a measurement, and the cheap fix is to make the code
+	// produce it rather than to quietly restate the claim smaller.
 	t.Run("no non-negative series ever peaks in the future", func(t *testing.T) {
 		r := rand.New(rand.NewSource(1))
-		for i := 0; i < 5000; i++ {
+		for i := 0; i < 20000; i++ {
 			d := make([]float64, 1+r.Intn(8))
 			for j := range d {
 				d[j] = r.Float64() * 30
@@ -287,6 +294,36 @@ func TestWildcardValueOverNextPricesTheLookahead(t *testing.T) {
 		}
 		if got.Now != got.Value[0] {
 			t.Errorf("Now = %v but Value[0] = %v; they are the same reading", got.Now, got.Value[0])
+		}
+	})
+
+	// ⚠️ **The degeneracy is a property of the INPUT, not of the function**, and
+	// this is the case that establishes that rather than leaving it assumed: a
+	// series allowed to go negative CAN peak in the future, because a negative
+	// week makes `sum(drift[k:])` rise as that week is passed.
+	//
+	// No frequency is asserted. How often it happens is entirely an artefact of
+	// the draw distribution, and an earlier write-up quoted one seed's answer —
+	// "6,735 of 20,000" — as though it described the football. It does not: a
+	// negative week is the held eleven out-scoring the rebuilt one, which is
+	// noise, and `TestDiagWildcardLookaheadValue` finds it in 0 of 36 real cells.
+	t.Run("a negative week CAN produce a future peak", func(t *testing.T) {
+		r := rand.New(rand.NewSource(2))
+		var peaked int
+		for i := 0; i < 20000; i++ {
+			d := make([]float64, 1+r.Intn(8))
+			for j := range d {
+				d[j] = r.Float64()*30 - 10
+			}
+			if wildcardValueOverNext(d, r.Intn(15), r.Intn(5), 1+r.Intn(5)).PeakAt != 0 {
+				peaked++
+			}
+		}
+		if peaked == 0 {
+			t.Error("no negative-drift series peaked in 20000 draws. Then the " +
+				"degeneracy is a property of the FUNCTION rather than of " +
+				"non-negative input, and the finding that reads it the other way " +
+				"needs rewriting, not this test.")
 		}
 	})
 

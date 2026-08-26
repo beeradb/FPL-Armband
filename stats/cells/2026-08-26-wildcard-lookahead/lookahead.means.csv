@@ -1,0 +1,43 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy,"cost, raw count, bar 12 (the shipped rule)",1,no wildcard trigger (control),0.001495421689929049,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy,"single-week drift > 3.0 (horizon-5, NOT fixture-aware)",2,no wildcard trigger (control),0.12231019467861574,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy,"lookahead value > 40 (horizon-1, fixture-aware)",3,no wildcard trigger (control),0.04999082301713879,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy,"lookahead value > 55 (horizon-1, fixture-aware)",4,no wildcard trigger (control),0.18728165109744055,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy,"lookahead value > 70 (horizon-1, fixture-aware)",5,no wildcard trigger (control),0.05366478063846457,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy,"lookahead value > 85 (horizon-1, fixture-aware)",6,no wildcard trigger (control),0.05366478063846457,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy,"lookahead value > 100 (horizon-1, fixture-aware)",7,no wildcard trigger (control),0.05113952811321197,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy_xpoints,"cost, raw count, bar 12 (the shipped rule)",1,no wildcard trigger (control),0.10341794961657413,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy_xpoints,"single-week drift > 3.0 (horizon-5, NOT fixture-aware)",2,no wildcard trigger (control),0.2285284948767712,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy_xpoints,"lookahead value > 40 (horizon-1, fixture-aware)",3,no wildcard trigger (control),0.14097432683835423,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy_xpoints,"lookahead value > 55 (horizon-1, fixture-aware)",4,no wildcard trigger (control),0.2582614476515725,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy_xpoints,"lookahead value > 70 (horizon-1, fixture-aware)",5,no wildcard trigger (control),0.05389217236916899,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy_xpoints,"lookahead value > 85 (horizon-1, fixture-aware)",6,no wildcard trigger (control),0.05389217236916899,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,policy_xpoints,"lookahead value > 100 (horizon-1, fixture-aware)",7,no wildcard trigger (control),0.04273593067209743,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold,"cost, raw count, bar 12 (the shipped rule)",1,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold,"single-week drift > 3.0 (horizon-5, NOT fixture-aware)",2,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold,"lookahead value > 40 (horizon-1, fixture-aware)",3,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold,"lookahead value > 55 (horizon-1, fixture-aware)",4,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold,"lookahead value > 70 (horizon-1, fixture-aware)",5,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold,"lookahead value > 85 (horizon-1, fixture-aware)",6,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold,"lookahead value > 100 (horizon-1, fixture-aware)",7,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_xpoints,"cost, raw count, bar 12 (the shipped rule)",1,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_xpoints,"single-week drift > 3.0 (horizon-5, NOT fixture-aware)",2,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_xpoints,"lookahead value > 40 (horizon-1, fixture-aware)",3,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_xpoints,"lookahead value > 55 (horizon-1, fixture-aware)",4,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_xpoints,"lookahead value > 70 (horizon-1, fixture-aware)",5,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_xpoints,"lookahead value > 85 (horizon-1, fixture-aware)",6,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_xpoints,"lookahead value > 100 (horizon-1, fixture-aware)",7,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_fixedcap,"cost, raw count, bar 12 (the shipped rule)",1,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_fixedcap,"single-week drift > 3.0 (horizon-5, NOT fixture-aware)",2,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_fixedcap,"lookahead value > 40 (horizon-1, fixture-aware)",3,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_fixedcap,"lookahead value > 55 (horizon-1, fixture-aware)",4,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_fixedcap,"lookahead value > 70 (horizon-1, fixture-aware)",5,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_fixedcap,"lookahead value > 85 (horizon-1, fixture-aware)",6,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_fixedcap,"lookahead value > 100 (horizon-1, fixture-aware)",7,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_nocap,"cost, raw count, bar 12 (the shipped rule)",1,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_nocap,"single-week drift > 3.0 (horizon-5, NOT fixture-aware)",2,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_nocap,"lookahead value > 40 (horizon-1, fixture-aware)",3,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_nocap,"lookahead value > 55 (horizon-1, fixture-aware)",4,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_nocap,"lookahead value > 70 (horizon-1, fixture-aware)",5,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_nocap,"lookahead value > 85 (horizon-1, fixture-aware)",6,no wildcard trigger (control),0,36,-
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,hold_nocap,"lookahead value > 100 (horizon-1, fixture-aware)",7,no wildcard trigger (control),0,36,-

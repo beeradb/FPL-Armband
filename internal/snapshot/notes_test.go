@@ -989,6 +989,31 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// against twice above. Left about 3 KB free rather than repeating the 14-byte
 	// and 74-byte near-misses.
 	//
+	// # 62 KB, 2026-08-26 — a Closed line was WRONG, and correcting it costs more
+	// than leaving it did
+	//
+	// "Do not build a state trigger for the wildcard ... The trigger half is
+	// unre-examined" was false in both clauses by the time it was read: #94 had
+	// built exactly that trigger and landed it, and the trigger half had been
+	// measured twice. A Closed line that misdescribes the code is worse than a
+	// missing one — it is the file's highest-authority section, and a reader who
+	// trusts it rebuilds or avoids the wrong thing.
+	//
+	// The replacement is longer because a prohibition resting on measurement has
+	// to carry the measurement. The old line asserted; the new one reports three
+	// arms, their thresholds, and the fire counts — and the fire counts are not
+	// optional, because the three highest bars read as small positive effects
+	// while firing in 4 of 36 cells. Dropping them to save bytes would turn an
+	// inert arm into a promising one.
+	//
+	// A second line was added beside it for the same reason: the fixture-aware
+	// reading was built, swept, and found to rank weeks the same way as the
+	// reading it was meant to improve on. That is a result somebody will
+	// otherwise spend a day rediscovering, and it is exactly what this section is
+	// for.
+	//
+	// Raised by 2 KB, ~1.5 KB free.
+
 	// # 60 KB, 2026-08-26 — the xGC-arm question was answered, and the answer needs
 	// its BANDS or it inverts
 	//
@@ -1077,7 +1102,7 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	//
 	// Every one of those is a qualifier carrying the uncertainty, which is the class
 	// this comment says must never be cut to fit. Raised rather than compressed.
-	const budget = 60 * 1024
+	const budget = 62 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

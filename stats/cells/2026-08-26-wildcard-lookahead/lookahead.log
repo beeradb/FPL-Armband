@@ -1,0 +1,241 @@
+=== RUN   TestDiagWildcardLookaheadTrigger
+
+=== the wildcard priced across a RUN of gameweeks, against one week
+Confined to GW1-19, where there is no double to anchor to and the
+rule is a condition on the SQUAD rather than on the calendar.
+Every arm sets its bar EXPLICITLY: sweepConfig does not map
+config.OptionValue into SimConfig, so an arm that omits it runs at a
+bar of zero and fires on anything positive. Metric: POLICY.
+⚠️ Read `--scale=per_path`: a chip is an event count.
+⚠️ The wc_trig_* columns say how often each rule FIRED. An arm that
+never fired is inert, not neutral, and reads identically to the
+control — check the fire count before reading a null.
+
+variant                     gw1      gw6     gw11     gw16     gw21     gw26    POLICY |      HOLD   moves
+no wildcard trigger (control)    13219    11462     9882     8135     6435     4595     53728 |     46811     919
+cost, raw count, bar 12 (the shipped rule)    12828    11534     9906     8303     6435     4595     53601 |     46811    1072
+single-week drift > 3.0 (horizon-5, NOT fixture-aware)    13227    11499     9940     8158     6435     4595     53854 |     46811    1041
+lookahead value > 40 (horizon-1, fixture-aware)    13263    11482     9855     8158     6435     4595     53788 |     46811    1034
+lookahead value > 55 (horizon-1, fixture-aware)    13291    11576     9893     8158     6435     4595     53948 |     46811     966
+lookahead value > 70 (horizon-1, fixture-aware)    13213    11485     9893     8158     6435     4595     53779 |     46811     946
+lookahead value > 85 (horizon-1, fixture-aware)    13213    11485     9893     8158     6435     4595     53779 |     46811     946
+lookahead value > 100 (horizon-1, fixture-aware)    13213    11482     9893     8158     6435     4595     53776 |     46811     947
+
+--- POLICY (the weekly transfer decision) ---
+Paired against "no wildcard trigger (control)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+cost, raw count, bar 12 (the shipped rule)   +0.001       36
+    early (prior-led)    -0.676       12
+    middle               +0.680       12
+    late (season-led)    +0.000       12
+single-week drift > 3.0 (horizon-5, NOT fixture-aware)   +0.122       36
+    early (prior-led)    +0.111       12
+    middle               +0.256       12
+    late (season-led)    +0.000       12
+lookahead value > 40 (horizon-1, fixture-aware)   +0.050       36
+    early (prior-led)    +0.147       12
+    middle               +0.003       12
+    late (season-led)    +0.000       12
+lookahead value > 55 (horizon-1, fixture-aware)   +0.187       36
+    early (prior-led)    +0.446       12
+    middle               +0.116       12
+    late (season-led)    +0.000       12
+lookahead value > 70 (horizon-1, fixture-aware)   +0.054       36
+    early (prior-led)    +0.045       12
+    middle               +0.116       12
+    late (season-led)    +0.000       12
+lookahead value > 85 (horizon-1, fixture-aware)   +0.054       36
+    early (prior-led)    +0.045       12
+    middle               +0.116       12
+    late (season-led)    +0.000       12
+lookahead value > 100 (horizon-1, fixture-aware)   +0.051       36
+    early (prior-led)    +0.037       12
+    middle               +0.116       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- POLICY on accumulated xPoints (instrument; read beside POLICY) ---
+Paired against "no wildcard trigger (control)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+cost, raw count, bar 12 (the shipped rule)   +0.103       36
+    early (prior-led)    -0.385       12
+    middle               +0.696       12
+    late (season-led)    +0.000       12
+single-week drift > 3.0 (horizon-5, NOT fixture-aware)   +0.229       36
+    early (prior-led)    +0.303       12
+    middle               +0.382       12
+    late (season-led)    +0.000       12
+lookahead value > 40 (horizon-1, fixture-aware)   +0.141       36
+    early (prior-led)    +0.274       12
+    middle               +0.149       12
+    late (season-led)    +0.000       12
+lookahead value > 55 (horizon-1, fixture-aware)   +0.258       36
+    early (prior-led)    +0.650       12
+    middle               +0.125       12
+    late (season-led)    +0.000       12
+lookahead value > 70 (horizon-1, fixture-aware)   +0.054       36
+    early (prior-led)    +0.037       12
+    middle               +0.125       12
+    late (season-led)    +0.000       12
+lookahead value > 85 (horizon-1, fixture-aware)   +0.054       36
+    early (prior-led)    +0.037       12
+    middle               +0.125       12
+    late (season-led)    +0.000       12
+lookahead value > 100 (horizon-1, fixture-aware)   +0.043       36
+    early (prior-led)    +0.003       12
+    middle               +0.125       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD (the opening fifteen; use this for scoring constants) ---
+Paired against "no wildcard trigger (control)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+cost, raw count, bar 12 (the shipped rule)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+single-week drift > 3.0 (horizon-5, NOT fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 40 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 55 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 70 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 85 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 100 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD on accumulated xPoints (instrument; read beside HOLD) ---
+Paired against "no wildcard trigger (control)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+cost, raw count, bar 12 (the shipped rule)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+single-week drift > 3.0 (horizon-5, NOT fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 40 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 55 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 70 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 85 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 100 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with the armband pinned to the day-one pick (diagnostic instrument) ---
+Paired against "no wildcard trigger (control)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+cost, raw count, bar 12 (the shipped rule)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+single-week drift > 3.0 (horizon-5, NOT fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 40 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 55 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 70 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 85 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 100 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with nobody doubled (diagnostic instrument; not what FPL pays) ---
+Paired against "no wildcard trigger (control)" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+cost, raw count, bar 12 (the shipped rule)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+single-week drift > 3.0 (horizon-5, NOT fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 40 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 55 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 70 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 85 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+lookahead value > 100 (horizon-1, fixture-aware)   +0.000       36
+    early (prior-led)    +0.000       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+Cells written. Now: Rscript stats/sweep_inference.R <the FPL_CELLS path>
+
+Read the SHAPE across the ladder, not any single arm: a plateau with
+a cliff is what this project accepts as evidence for a knob, and one
+arm clearing a threshold is not.
+--- PASS: TestDiagWildcardLookaheadTrigger (2205.77s)
+PASS
+ok  	armband/internal/backtest	2205.803s
