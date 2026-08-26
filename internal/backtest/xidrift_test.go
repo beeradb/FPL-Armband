@@ -3,6 +3,7 @@ package backtest
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"sort"
 	"testing"
@@ -177,4 +178,124 @@ func corrOf(a, b []float64) float64 {
 		return 0
 	}
 	return num / math.Sqrt(da*db)
+}
+
+// TestWildcardValueOverNextPricesTheLookahead pins the pure arithmetic of the
+// lookahead pricing, which had NO coverage at all until the rule that reads it
+// was wired.
+//
+// ⚠️ **Both `xiDriftSeries` and `wildcardValueOverNext` shipped uncalled.** A
+// grep of the package at the merge of #94 found neither reachable from any test,
+// diagnostic or production path — the tests in this file exercise `xiPoints`,
+// `xiDriftOf` and `repairSquad` and stop short of both. They were described in
+// that PR as "built, tested and unused"; only two of those three were true.
+// These cases exist so the trigger reading them is standing on something.
+func TestWildcardValueOverNextPricesTheLookahead(t *testing.T) {
+	// A flat series with the repair already affordable: no hits either way, so
+	// the value is only the drift still ahead, which can only fall as weeks are
+	// spent suffering it. Waiting is never better, so the peak is now.
+	t.Run("flat drift with a free repair peaks now", func(t *testing.T) {
+		got := wildcardValueOverNext([]float64{2, 2, 2, 2}, 1, 1, 5)
+		if got.PeakAt != 0 {
+			t.Errorf("PeakAt = %d, want 0: every week waited spends drift that "+
+				"cannot be recovered and buys no hit saving", got.PeakAt)
+		}
+		if got.Now != 8 {
+			t.Errorf("Now = %v, want 8 — the whole series, with no hit cost to add", got.Now)
+		}
+		for i := 1; i < len(got.Value); i++ {
+			if got.Value[i] > got.Value[i-1] {
+				t.Fatalf("Value rose at k=%d on a flat series: %v", i, got.Value)
+			}
+		}
+	})
+
+	// ⚠️ **PeakAt IS DEGENERATE: it is 0 for every non-negative drift series, so a
+	// rule gating on `PeakAt == 0` is inert by construction.** This case was
+	// written expecting the opposite — a cliff in week 3 ought to be worth
+	// waiting for — and it failed, which is how the degeneracy was found. It is
+	// kept, inverted, as the pin.
+	//
+	// The arithmetic makes it unavoidable. `Value[k]` is
+	// `sum(drift[k:]) + repairCostOf(changes, free+k)`, and BOTH terms are
+	// non-increasing in k: remaining drift can only shrink as weeks are spent
+	// suffering it, and the avoided hit cost can only fall as free transfers
+	// accrue. A sum of two non-increasing terms is non-increasing, so the argmax
+	// is always k=0. `[0 0 0 40]` with six changes reads 60, 56, 52, 48, 4.
+	//
+	// **This is not a bug in the arithmetic; it is a missing term.** With the
+	// rebuild target held FIXED — one `fresh` squad optimised today and scored in
+	// every future week — playing immediately is genuinely optimal, because
+	// waiting spends drift to buy nothing. Real managers wait because the rebuild
+	// they would do in three weeks is a DIFFERENT and better-informed squad aimed
+	// at a different fixture run. That is term 3 in wildcardValueOverNext's own
+	// doc comment, the one it says it cannot price — and without it the function
+	// is not merely "systematically early" as that comment warns, it has no
+	// timing content at all.
+	//
+	// Pricing it properly needs `fresh` re-optimised at each k, which is one
+	// `Optimize` per lookahead week per decision — the expensive call in this
+	// package, and the reason it was not simply done here.
+	t.Run("PeakAt is degenerate: a future cliff still peaks now", func(t *testing.T) {
+		got := wildcardValueOverNext([]float64{0, 0, 0, 40}, 6, 1, 5)
+		if got.PeakAt != 0 {
+			t.Fatalf("PeakAt = %d. If this now finds a future peak the degeneracy "+
+				"has been fixed — check that a rule gating on PeakAt == 0 is still "+
+				"the rule you want, and rewrite this test rather than deleting it: "+
+				"%v", got.PeakAt, got.Value)
+		}
+	})
+
+	// The general statement, so the degeneracy cannot be reintroduced quietly
+	// after a fix or missed if the shape changes.
+	t.Run("no non-negative series ever peaks in the future", func(t *testing.T) {
+		r := rand.New(rand.NewSource(1))
+		for i := 0; i < 5000; i++ {
+			d := make([]float64, 1+r.Intn(8))
+			for j := range d {
+				d[j] = r.Float64() * 30
+			}
+			changes, free, cap := r.Intn(15), r.Intn(5), 1+r.Intn(5)
+			if got := wildcardValueOverNext(d, changes, free, cap); got.PeakAt != 0 {
+				t.Fatalf("PeakAt = %d on non-negative drift %v (changes %d, free %d, cap %d): %v",
+					got.PeakAt, d, changes, free, cap, got.Value)
+			}
+		}
+	})
+
+	// The hit saving is what makes waiting pay, and it stops paying at the bank
+	// cap: once the allowance stops accruing, waiting only spends drift. So a
+	// peak can never sit past the week the cap is reached.
+	t.Run("the hit saving stops at the bank cap", func(t *testing.T) {
+		const free, cap = 1, 2
+		got := wildcardValueOverNext([]float64{0, 0, 0, 0, 0, 0}, 6, free, cap)
+		if got.PeakAt > cap-free {
+			t.Errorf("PeakAt = %d, past the %d weeks it takes to reach the bank cap "+
+				"of %d from %d free. Beyond that the allowance no longer grows, so "+
+				"waiting buys nothing and the value must be flat, not rising: %v",
+				got.PeakAt, cap-free, cap, free, got.Value)
+		}
+	})
+
+	// Value has one entry per k in 0..len(drift) INCLUSIVE — playing after the
+	// whole lookahead is a real option and reads zero drift remaining.
+	t.Run("Value covers every k including one past the series", func(t *testing.T) {
+		drift := []float64{1, 2, 3}
+		got := wildcardValueOverNext(drift, 0, 0, 5)
+		if len(got.Value) != len(drift)+1 {
+			t.Errorf("len(Value) = %d, want %d", len(got.Value), len(drift)+1)
+		}
+		if got.Now != got.Value[0] {
+			t.Errorf("Now = %v but Value[0] = %v; they are the same reading", got.Now, got.Value[0])
+		}
+	})
+
+	// A rule reading this must not fire on an empty lookahead, and the boundary
+	// is silent rather than a panic today.
+	t.Run("an empty series is a single zero-drift option", func(t *testing.T) {
+		got := wildcardValueOverNext(nil, 3, 0, 5)
+		if len(got.Value) != 1 || got.PeakAt != 0 {
+			t.Errorf("nil drift gave Value %v PeakAt %d, want one entry at k=0", got.Value, got.PeakAt)
+		}
+	})
 }

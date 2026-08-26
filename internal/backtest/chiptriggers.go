@@ -405,7 +405,7 @@ func triggerWindow(season string, gw int) analysis.OptionWindow {
 func repairCost(e *analysis.Engine, cur *Season, wal *wallet, held []int, gw, free int,
 	minExp float64, cfg SimConfig) (cost float64, ok bool) {
 
-	cost, _, ok = repairCostAndDrift(e, cur, wal, held, gw, free, minExp, cfg)
+	cost, _, _, _, ok = repairCostAndDrift(e, cur, wal, held, gw, free, minExp, cfg)
 	return cost, ok
 }
 
@@ -429,22 +429,28 @@ func repairCost(e *analysis.Engine, cur *Season, wal *wallet, held []int, gw, fr
 // PER-GAMEWEEK rate, and `ChipBarAt` was calibrated against the first. Swapping
 // the estimator under a bar fitted to the other is the error this record has
 // already made twice in one day. Measure the disagreement first, then decide.
+// ⚠️ **It returns the FRESH FIFTEEN and its change count too**, which the
+// lookahead rule needs and which this function already builds and used to throw
+// away. `Optimize` is the expensive call in this package, so a caller that
+// rebuilt the optimum to get at it would have paid twice for the one call this
+// function exists to make once. `changes` is returned already resolved through
+// `RepairCountsXIOnly`, so a caller cannot pick the wrong count by accident.
 func repairCostAndDrift(e *analysis.Engine, cur *Season, wal *wallet, held []int,
-	gw, free int, minExp float64, cfg SimConfig) (cost, drift float64, ok bool) {
+	gw, free int, minExp float64, cfg SimConfig) (cost, drift float64, fresh []int, changes int, ok bool) {
 
 	budget := wal.value(cur, held, gw-1)
-	fresh, ok := repairSquad(e, held, budget, minExp, cfg)
+	fresh, ok = repairSquad(e, held, budget, minExp, cfg)
 	if !ok {
-		return 0, 0, false
+		return 0, 0, nil, 0, false
 	}
 	// ⚠️ WHICH COUNT feeds the hit price is a config choice, because the raw one
 	// is measurably wrong for it: fired on `changesBetween`, the shipped wildcard
 	// rule leaves the policy taking MORE hits. See changesInXI.
-	changes := changesBetween(held, fresh)
+	changes = changesBetween(held, fresh)
 	if cfg.RepairCountsXIOnly {
 		changes = changesInXI(e, held, fresh)
 	}
-	return repairCostOf(changes, free), xiPoints(e, fresh) - xiPoints(e, held), true
+	return repairCostOf(changes, free), xiPoints(e, fresh) - xiPoints(e, held), fresh, changes, true
 }
 
 // repairChanges is how many of the held fifteen a fresh unconstrained optimum
@@ -704,4 +710,15 @@ func freeHitValue(e *analysis.Engine, cur *Season, wal *wallet, held []int, gw i
 		return analysis.XIValue(xi)
 	}
 	return value(temp) - value(held), true
+}
+
+// wildcardLookahead is how many gameweeks the lookahead wildcard rule prices
+// across. Zero takes the decision horizon — the window the ordinary transfer
+// decision is already judged over, so the chip is not being asked about a run of
+// fixtures the rest of the engine cannot see.
+func (c SimConfig) wildcardLookahead() int {
+	if c.WildcardLookahead > 0 {
+		return c.WildcardLookahead
+	}
+	return c.decisionHorizon()
 }
