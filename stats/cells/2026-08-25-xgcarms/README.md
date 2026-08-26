@@ -15,6 +15,23 @@ verified by `git diff -U0`. A deterministic replay cannot differ across it. The
 two sidecars therefore differ in exactly one field, and that field is the
 declared variable.
 
+
+## ⚠️ What the two arm names mean, in plain terms
+
+**"reconstruction" is the LEGACY method and has nothing to do with any external
+provider.** FPL never published `expected_goals_conceded` for 2018-19 through
+2022-23 GW15, so `xgcrepair.go` derives it: take each club's OPPONENTS' expected
+goals from the archive and share that across the club's own players by minutes.
+It is a transport step on data the archive already holds. **This is what every
+public clone reads.**
+
+**"measured xGC" is the external per-match source** an operator supplies via
+`FPL_XGC_EXTERNAL_DIR` — real per-match numbers rather than a derivation.
+
+So: *reconstruction = legacy = shipped default*; *measured = the operator's
+source*. Neither is "the FPL data" and neither is fabricated; they are two ways of
+filling the same hole.
+
 ## Read them with the right estimand
 
 ⚠️ `Rscript stats/sweep_inference.R --scale=per_path`, NOT the default. A chip is
