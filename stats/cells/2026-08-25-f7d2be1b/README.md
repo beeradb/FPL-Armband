@@ -38,6 +38,18 @@ different test file, off the scored path — so the uncommitted delta during blo
 this cannot be verified from the record**, which is the principle the paragraph
 above states. Treat **+5.6, +14.5 and −0.75** as measured on an unverifiable tree.
 
+✅ **RESOLVED 2026-08-25 by re-run.** `TestDiagAnchoredChipDecomposition` was re-run
+on a verified-clean checkout at `3b8bf1ab` (all four blocks `dirty=false`) and
+compared cell-for-cell against this file: **288 of 288 identical, zero POLICY or
+HOLD differences, max delta 0.** So **+5.6, +14.5 and −0.75 stand** — the
+uncommitted delta touched nothing the scored path reads. Cells at
+`stats/cells/2026-08-25-decomp-rerun/`.
+
+⚠️ **That is "confirmed by re-run", NOT "clean".** This sidecar still records
+`dirty=true` and always will. What the flag costs is a re-run instead of a lookup —
+and this one was one `git gc` from impossible, since `3b8bf1ab` is orphaned by PR
+#83's squash.
+
 ⚠️ **How the false claim survived a check.** It was verified with
 `awk '$3=="dirty"{print $4; exit}'`, which stops at the first row — block #1, the
 only clean one. **A provenance check that reads one row and generalises to the file

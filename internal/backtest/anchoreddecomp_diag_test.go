@@ -212,7 +212,7 @@ func tcMatchupControl(cur *Season, start int, capXP map[int]float64) analysis.Ch
 // (-0.75 a season-path, below its own detection threshold of 2.0 — both read
 // at --scale=per_path on the banked cells). But a
 // doubles-only rule is only the second-half half of real practice, and it left
-// the chip unplayed in 16 of 36 cells for want of a second double. This is the
+// the chip unplayed in 13 of 36 cells for want of a second double. This is the
 // other half.
 //
 // Both arms play exactly one chip, the triple captain, in every cell where
