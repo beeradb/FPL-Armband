@@ -20,20 +20,25 @@ package backtest
 // ranking they induce differs materially, and eleven cells reading "7 changes"
 // span 0.79 to 4.46 points of actual XI cost.
 //
-// # ⚠️ What this comparison canNOT settle, stated before the arms
+// # ⚠️ ONE variable between the arms, and an earlier version had two
 //
-// **The drift arm loses the option-value decay**, because `ChipBarAt` prices a
-// one-off hit cost and drift is a per-gameweek rate — see `WildcardDriftBar`. So
-// a difference between the arms is a difference between TWO RULES, one of which
-// also stopped waiting for a better week. **It is not a clean read on the
-// measure.** Isolating that needs a decayed bar fitted to drift, which does not
-// exist and which nothing here provides.
+// Both arms go through `analysis.ChipBarAt`, so both keep the option-value decay
+// and differ only in **what they read**: repair cost against XI drift.
 //
-// ⚠️ **The bars are not comparable across arms and must not be read as one
-// ladder.** The cost arm's reservation is in hit points; the drift bars below are
-// in expected points per gameweek on the eleven. They are swept because that is
-// how this project locates a knob, not because 2.0 here means what 2.0 means
-// there.
+// A first version bypassed the bar for the drift arm, reasoning that it prices a
+// one-off hit cost while drift is a per-gameweek rate. That confused a UNIT with
+// a SHAPE — `ChipReservationAt` is `base * Factor` with a dimensionless factor,
+// so a base in drift units decays into drift units. The confound was real while
+// it lasted: the drift arm would have differed in the reading AND in whether it
+// waited, and any difference between the arms would have been unattributable.
+// **Recorded because the mistake is cheap to repeat and was written up as an
+// unavoidable limitation before it was checked.**
+//
+// ⚠️ **The bars are still not comparable across arms**, and sharing the curve does
+// not make them so: the cost arm's base is in hit points and the drift bars are
+// in expected points per gameweek on the eleven. The DECAY is shared; the SCALE
+// is not. They are swept because that is how this project locates a knob, not
+// because 3.0 here means what 3.0 means there.
 
 import (
 	"fmt"
@@ -57,9 +62,10 @@ func TestDiagWildcardDriftTrigger(t *testing.T) {
 	fmt.Printf("\n=== wildcard trigger: XI DRIFT against REPAIR COST. Metric: POLICY.\n")
 	fmt.Printf("Control plays no wildcard trigger at all, so each arm is read\n")
 	fmt.Printf("against not having the rule rather than against the other rule.\n")
-	fmt.Printf("⚠️ The drift arms carry NO option-value decay — ChipBarAt prices a\n")
-	fmt.Printf("one-off hit cost and drift is a per-gameweek rate. A difference is\n")
-	fmt.Printf("between two RULES, not between two readings of one rule.\n")
+	fmt.Printf("Both arms keep the option-value decay — same curve, different base\n")
+	fmt.Printf("and different reading — so the arms differ in ONE variable.\n")
+	fmt.Printf("⚠️ The BASES are still not comparable: hit points against points per\n")
+	fmt.Printf("gameweek on the eleven. The decay is shared; the scale is not.\n")
 
 	arms := []policyVariant{
 		{label: "no wildcard trigger (control)",

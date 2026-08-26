@@ -1658,11 +1658,19 @@ type SimConfig struct {
 	// `xidrift.go` was built for. This asks "how far behind is the eleven", which
 	// is the quantity a manager is deciding about.
 	//
-	// ⚠️ **It does NOT go through `analysis.ChipBarAt`**, which prices a one-off
-	// hit cost and decays it through the option window. Drift is a per-gameweek
-	// rate; comparing a rate against that price would report the mismatch as a
-	// result. So this arm also loses the option-value decay, and that is a real
-	// difference between the arms rather than a detail — say so in any write-up.
+	// ⚠️ **It IS the base for `analysis.ChipBarAt`, so the option decay is kept.**
+	// A first version bypassed that bar on the grounds that it prices a one-off
+	// hit cost while drift is a per-gameweek rate — which confused a UNIT with a
+	// SHAPE. `ChipReservationAt` is `base * OptionValueAt(...).Factor`, a pure
+	// multiplicative decay by a DIMENSIONLESS factor, so a base in drift units
+	// yields a decayed bar in drift units. `ChipBarAt`'s own comment says it:
+	// *"if they ever need to differ, the difference goes in the BASE, not in a
+	// second curve."*
+	//
+	// That matters for the comparison and not just for tidiness: bypassing the
+	// bar made the drift arm differ from the shipped rule in TWO ways — the
+	// reading AND the waiting — so any difference between them would have been
+	// unattributable. Sharing the curve leaves exactly one variable.
 	WildcardDriftBar float64
 
 	// RecordRepairCost fills SimResult.RepairSeries: the held-versus-fresh
@@ -2103,8 +2111,10 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 				// call in this package.
 				cost, drift, ok := repairCostAndDrift(pe, cur, w, held, gw, avail, minExp, cfg)
 				if cfg.WildcardDriftBar > 0 {
-					bar := cfg.WildcardDriftBar
-					trig.consultAt(slotWildcard, gw, drift, ok, func() float64 { return bar })
+					// Same curve, different base and different reading — one
+					// variable between the arms. See WildcardDriftBar.
+					trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardDriftBar,
+						pe.HoldingCongestion(held, gw, cfg.OptionPricing), drift, ok)
 				} else {
 					trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardReservation,
 						pe.HoldingCongestion(held, gw, cfg.OptionPricing), cost, ok)
