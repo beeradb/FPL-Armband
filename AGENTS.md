@@ -72,12 +72,12 @@ standing exception below for when you owe it a local run instead. **Do not read 
 "CI is clean," and do not trust its own claim without checking `gh run list` first — this project's
 CI state has already gone stale under one written description of it inside a single day.**
 **`main` is GREEN as of 2026-08-26 (`d6b23b6`, three consecutive green CI runs); anything red on
-your branch is yours.** The
-`TestEnvSwitchListIsComplete` failure this paragraph used to describe was fixed by `a865952e`
+your branch is yours.** The `TestEnvSwitchListIsComplete` failure this paragraph used to
+describe was fixed by `a865952e`
 ten minutes after the commit that caused it — `FPL_LAYOUT_GOLDENS` is registered at
 `internal/snapshot/fingerprint_test.go:145` and the test passes. That text survived five days
-and two sessions read it as current, which is the failure this paragraph warns about happening
-to the paragraph itself: **check `gh run list` rather than believing this line.**
+and two sessions read it as current — the failure this paragraph warns about, happening to the
+paragraph itself.
 
 ⚠️ **Standing exception, until the goldens defect above is fixed: run the layout goldens locally
 yourself, because CI cannot see them.** A companion change skips `TestLayout` in CI (detecting
@@ -484,9 +484,11 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   complete. `Optimize` reported "could not fill a legal 15-man squad within £82.0m" for a pool
   holding a legal fifteen at £65.3m. Replaced by `fillBound`: a club-relaxed per-position
   optimum, then an exact DP over clubs only where that passes. ⚠️ Adding a club counter to the
-  old sort OVER-estimates and is inadmissible — an over-estimating bound silently rejects
-  reachable squads, which is a search-quality change, not a bug fix.
-  `TestFillBoundIsAdmissible`, `TestOptimizeEscapesAClubConstrainedDeadEnd`.
+  old sort OVER-estimates — reasoned, not pinned; the worked case is on `fillBound`'s own doc
+  comment — and an over-estimating bound silently rejects reachable squads, which is a
+  search-quality change rather than a bug fix. That consequence IS pinned:
+  `TestSquadFillBoundDifferentialHasTeeth` inflates the shipped bound by a tenth of a million
+  and catches it. `TestFillBoundIsAdmissible`, `TestOptimizeEscapesAClubConstrainedDeadEnd`.
 - **The seed's bench reservation must take the *cheapest* players who could fill those slots.**
   `TestSeedBudgetLeavesRoomForThePremiums`.
 - **Never let the pair search choose greedily, and charge per move rather than per week.** The
