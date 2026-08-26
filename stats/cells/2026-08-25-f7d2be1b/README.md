@@ -36,7 +36,9 @@ single commit touching only `internal/backtest/captainweekskill_diag_test.go` �
 different test file, off the scored path — so the uncommitted delta during blocks
 2-4 was very probably that file mid-edit. **But `dirty=true` means precisely that
 this cannot be verified from the record**, which is the principle the paragraph
-above states. Treat **+5.6, +14.5 and −0.75** as measured on an unverifiable tree.
+above states. ~~Treat +5.6, +14.5 and −0.75 as measured on an unverifiable tree.~~
+**WITHDRAWN — they are CONFIRMED BY RE-RUN; see below.** The delta's CONTENT is
+unrecoverable, its EFFECT is not, and it was nil.
 
 ✅ **RESOLVED 2026-08-25 by re-run.** `TestDiagAnchoredChipDecomposition` was re-run
 on a verified-clean checkout at `3b8bf1ab` (all four blocks `dirty=false`) and

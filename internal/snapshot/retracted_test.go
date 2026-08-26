@@ -225,8 +225,11 @@ var retractedFigures = []retracted{
 		context: []string{"anchor", "chip", "calendar"},
 		now: "refuted as a measurement — four estimators, the largest t is 1.39, and Holm " +
 			"adjusts every p to 1.000. ⚠️ This does NOT establish that anchoring is worth " +
-			"nothing: it now RESOLVES at +20.6 a season-path (4gw sight, CR2 t 3.63, " +
-			"threshold 14.5) on clean banked cells at stats/cells/2026-08-25-f7d2be1b",
+			"nothing: post-5b970338 it RESOLVES at +27.0 a season-path (4gw sight, " +
+			"CR2 t 5.33, threshold 13.0) ON THE LEGACY RECONSTRUCTION, cells at " +
+			"stats/cells/2026-08-25-anchored-xgcarms. ⚠️ It does NOT resolve on " +
+			"measured xGC (+26.4, SE doubled to 11.41, t 2.32) — quote it with its " +
+			"arm. The pre-#82 +20.6/t 3.63 this text used to name is itself superseded",
 	},
 	{
 		figure: "+63",
@@ -235,7 +238,10 @@ var retractedFigures = []retracted{
 		// "anchor"/"chip"/"calendar" name the quantity; +63 is otherwise an
 		// ordinary two-digit figure anywhere in the record.
 		context: []string{"anchor", "chip", "calendar"},
-		now: "+20.6 a season-path, CR2 t 3.63, threshold 14.5. The +63 was read on the " +
+		now: "+27.0 a season-path (CR2 t 5.33, threshold 13.0) on the legacy " +
+			"reconstruction post-5b970338; it does NOT resolve on measured xGC. " +
+			"⚠️ The +20.6/t 3.63 this text named until 2026-08-25 is superseded too — " +
+			"5b970338 merged AFTER the cells behind it were banked. The +63 was read on the " +
 			"default per_gw scale — wrong for an event count, ~1.7x inflation — AND " +
 			"measured on a tree carrying an uncommitted MinutesWeight change while its " +
 			"sidecar stamped a commit shipping the old value. Read the sidecar's dirty " +
