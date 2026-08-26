@@ -156,3 +156,69 @@ func maeOf(a, b []float64) float64 {
 	}
 	return s / float64(len(a))
 }
+
+// And how far is the RECONSTRUCTION from the same source, in the seasons where
+// only it exists? If the source is accurate where a truth exists, then in the
+// repaired seasons the gap between the two is the RECONSTRUCTION's error.
+//
+//	DIAG=1 FPL_XGC_EXTERNAL_DIR=<dir> go test ./internal/backtest \
+//	    -run TestDiagReconstructionAgainstExternal -v -timeout 20m
+func TestDiagReconstructionAgainstExternal(t *testing.T) {
+	if os.Getenv("DIAG") == "" {
+		t.Skip("set DIAG=1")
+	}
+	dir := externalXGCDir()
+	if dir == "" {
+		t.Skip("no external xGC directory configured")
+	}
+	cfg := loadConfig(t)
+
+	fmt.Printf("\n=== the RECONSTRUCTION against the same external source,\n")
+	fmt.Printf("in the repaired seasons where no native truth exists.\n")
+	fmt.Printf("Read beside the native comparison: same units, same proration.\n\n")
+	fmt.Printf("%-9s %8s %8s %8s %8s %8s %8s\n",
+		"season", "rows", "recon", "external", "bias", "MAE", "corr")
+
+	var allR, allE []float64
+	for _, name := range []string{"2020-21", "2021-22"} {
+		s := loadSeason(t, cfg, name)
+		// The reconstruction, computed the way applyXGCRepair computes it.
+		rec, _ := reconstructedXGC(s, xgcScale)
+		club, matches, err := externalClubXGC(s, dir)
+		if err != nil || matches == 0 {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		ext, _ := proratedClubXGC(s, club)
+
+		var r, e []float64
+		for _, id := range sortedSeasonPlayerIDs(s) {
+			p := s.Players[id]
+			for _, gw := range sortedGameweeks(ext[id]) {
+				g, ok := p.GWs[gw]
+				if !ok || g.Minutes <= 0 || rec[id][gw] <= 0 || ext[id][gw] <= 0 {
+					continue
+				}
+				r, e = append(r, rec[id][gw]), append(e, ext[id][gw])
+			}
+		}
+		if len(r) < 2 {
+			continue
+		}
+		allR, allE = append(allR, r...), append(allE, e...)
+		fmt.Printf("%-9s %8d %8.3f %8.3f %+8.3f %8.3f %8.3f\n",
+			name, len(r), meanOf(r), meanOf(e), meanOf(e)-meanOf(r), maeOf(e, r), corrOf(e, r))
+	}
+	if len(allR) < 2 {
+		t.Skip("no comparable rows")
+	}
+	fmt.Printf("\n%-9s %8d %8.3f %8.3f %+8.3f %8.3f %8.3f\n",
+		"ALL", len(allR), meanOf(allR), meanOf(allE),
+		meanOf(allE)-meanOf(allR), maeOf(allE, allR), corrOf(allE, allR))
+	fmt.Printf("\nMAE as a share of the reconstruction mean: %.1f%%\n",
+		100*maeOf(allE, allR)/meanOf(allR))
+	fmt.Printf("\n⚠️ Compare with the native run. If the source tracks FPL's own xGC\n")
+	fmt.Printf("closely and the reconstruction does NOT track the source, the gap in\n")
+	fmt.Printf("the repaired seasons is the reconstruction's error — it has no truth\n")
+	fmt.Printf("to be checked against, which is why it exists.\n")
+}
