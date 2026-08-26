@@ -1,7 +1,11 @@
 package backtest
 
 import (
+	"fmt"
+	"os"
+
 	"armband/internal/analysis"
+	"armband/internal/config"
 	"armband/internal/fpl"
 )
 
@@ -92,6 +96,8 @@ type chipTriggers struct {
 	// chip set, not one per season. See firedWeeks for why a single week was
 	// wrong and how it hid.
 	firedAll map[chipSlot][]int
+	// warned is the once-per-run latch for warnZeroBar.
+	warned map[chipSlot]bool
 	// reset is the first gameweek of the second set for this run, or 0 when the
 	// season grants one set. Resolved once at construction from the season's own
 	// rule or the arm's ChipSets override, so the firing rule and SplitChipSetsWith
@@ -115,6 +121,7 @@ func newChipTriggers(cfg SimConfig, season string) *chipTriggers {
 		cfg:      cfg,
 		reset:    reset,
 		firedAll: map[chipSlot][]int{},
+		warned:   map[chipSlot]bool{},
 		med:      map[chipSlot]*ChipTriggerMediator{},
 	}
 	for _, k := range []chipSlot{slotWildcard, slotFreeHit, slotBenchBoost} {
@@ -213,6 +220,32 @@ func (t *chipTriggers) setOfGW(gw int) int {
 	return 1
 }
 
+// ⚠️ A trigger enabled with a ZERO bar fires on anything above zero, which is
+// not a rule — it is "play the chip the first week it would help at all".
+//
+// It is silent, and it has already produced a wrong published figure. Two sweeps
+// on 2026-08-26 set `WildcardTrigger = true` without a reservation, because
+// `sweepConfig` does not map `config.OptionValue` into `SimConfig` — only
+// `cmd/armband/optionvalue.go` does, for the live path — so `config.json`'s
+// absent `option_value` block left the bar at 0. Both arms were labelled "the
+// shipped rule". They fired at median GW9 and produced a banked mechanism claim
+// that does not reproduce at the real bar of 12.
+//
+// So: name it. A caller that genuinely wants a zero bar says so with an explicit
+// 0 and this stays quiet about it — `optionjoin_test.go` does exactly that — but
+// a caller that simply forgot gets told once per run.
+func (t *chipTriggers) warnZeroBar(k chipSlot, base float64) {
+	if base != 0 || t.warned[k] {
+		return
+	}
+	t.warned[k] = true
+	fmt.Fprintf(os.Stderr, "⚠️ chip trigger %v enabled with a ZERO bar: it will "+
+		"fire on any reading above zero, which is not the shipped rule. "+
+		"sweepConfig does not map config.OptionValue into SimConfig — set "+
+		"WildcardReservation (shipped: %.0f) explicitly.\n",
+		k, config.DefaultWildcardReservation)
+}
+
 func (t *chipTriggers) eligible(k chipSlot, gw int, on bool) bool {
 	if t == nil || !on {
 		return false
@@ -258,6 +291,7 @@ func (t *chipTriggers) eligible(k chipSlot, gw int, on bool) bool {
 func (t *chipTriggers) consult(k chipSlot, gw int, season string, base, load float64,
 	value float64, ok bool) bool {
 
+	t.warnZeroBar(k, base)
 	return t.consultAt(k, gw, value, ok, func() float64 {
 		return analysis.ChipBarAt(base, triggerWindow(season, gw), gw, load, t.cfg.OptionPricing)
 	})

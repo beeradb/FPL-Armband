@@ -1,5 +1,32 @@
 # The first-half wildcard, with no double to anchor to
 
+⚠️ **CORRECTED 2026-08-26, hours later. THE ARM LABELLED "shipped rule" WAS NOT
+THE SHIPPED RULE — its bar was ZERO.**
+
+`sweepConfig` does not map `config.OptionValue` into `SimConfig` — only
+`cmd/armband/optionvalue.go` does, for the live path — and this repository's
+`config.json` carries no `option_value` block. So `WildcardTrigger = true` with
+no explicit `WildcardReservation` left the base at **0**, and
+`ChipBarAt(0, ...) = 0`: the arm fired whenever the repair cost exceeded **zero**.
+That is "play it the first week it would help at all", not a rule.
+
+**What that kills.** The mechanism finding below — *"the shipped rule INCREASES
+hits (+0.58)"* — is measured on the zero-bar arm and **does not reproduce at the
+real bar of 12**, where the same arm reads **−0.03** overall and **−0.04** in the
+cells it fires. See `stats/cells/2026-08-26-wildcard-attribution/`, which runs
+every arm at one commit with the bar set explicitly.
+
+**What survives.** The drift arms set their own bars explicitly and are unaffected;
+their readings stand. And the zero-bar arm is still informative about something
+real — firing a wildcard as early as it helps at all costs points and does not
+save hits — it just is not a statement about what ships.
+
+⚠️ A `warnZeroBar` guard now prints once per run when a trigger is enabled with a
+zero base, because this was silent and produced a published figure.
+
+---
+
+
 `TestDiagWildcardDriftTrigger`, six arms, six-season extended grid, 36 cells per
 arm, POLICY, clean tree (`dirty=false`). Read with `--scale=per_path`.
 
@@ -15,7 +42,7 @@ share `analysis.ChipBarAt`'s decay, so they differ in **what they read**.
 
 | arm | mean | CR2 SE | t | threshold | seasons+ | fired | median GW |
 |---|---:|---:|---:|---:|---|---|---|
-| repair cost (shipped) | −4.94 | 12.09 | −0.41 | 31.1 | 4/6 | 24/36 | 9.5 |
+| ~~repair cost (shipped)~~ **ZERO BAR** | −4.94 | 12.09 | −0.41 | 31.1 | 4/6 | 24/36 | 9.5 |
 | drift > 1.0 | +7.81 | 10.40 | 0.75 | 26.7 | 3/6 | 23/36 | 11 |
 | drift > 2.0 | +0.11 | 5.63 | 0.02 | 14.5 | 3/6 | 18/36 | 11 |
 | drift > 3.0 | +5.56 | 5.87 | 0.95 | 15.1 | 4/6 | 14/36 | 14 |
@@ -34,13 +61,15 @@ Restricted to the cells where each rule actually fires:
 
 | rule | hits | POLICY | fired |
 |---|---:|---:|---|
-| **repair cost (shipped)** | **+0.58** | **−7.4** | 24 |
+| ~~repair cost (shipped)~~ **ZERO BAR, not the shipped rule** | +0.58 | −7.4 | 24 |
 | drift > 1.0 | −0.26 | +12.2 | 23 |
 | drift > 2.0 | −0.44 | +0.2 | 18 |
 | drift > 3.0 | **−1.00** | **+14.3** | 14 |
 | drift > 5.0 | −0.83 | +9.3 | 6 |
 
-**The shipped rule INCREASES hits.** A wildcard repairs the squad for free, so a
+~~**The shipped rule INCREASES hits.**~~ ⚠️ **RETRACTED — that arm had a ZERO
+bar and was not the shipped rule; see the banner. At the real bar it reads −0.03.**
+What the row does show is that a wildcard fired as early as it helps at all A wildcard repairs the squad for free, so a
 rule that fires it and leaves the policy taking *more* hits afterwards has fired
 on the wrong squad. Every drift rule moves the other way.
 
