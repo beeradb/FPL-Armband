@@ -635,6 +635,13 @@ func repaired(s *Season) (*Season, error) {
 		return nil, err
 	}
 	s.XGCExternal = ext
+	// The diagnostic forcing switch, AFTER the overlay and BEFORE the repair, so
+	// a forced arm overwrites whatever the ordinary path would have produced and
+	// applyXGCRepair then finds nothing left to fill. Unset on every ordinary
+	// run. See forceXGCSource.
+	if _, err := s.applyForcedXGC(); err != nil {
+		return nil, err
+	}
 	rep, err := s.applyXGRepair()
 	if err != nil {
 		return nil, err

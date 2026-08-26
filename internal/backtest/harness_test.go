@@ -551,7 +551,7 @@ func loadSeason(t *testing.T, cfg config.Config, name string) *Season {
 	// on the way out of Load and two arms of one process would otherwise share a
 	// season loaded under whichever ran first — a sweep comparing two data sets
 	// while reporting one. See xgcexternal.go.
-	key := cfg.CacheDir + "|" + externalXGCDir() + "|" + name
+	key := cfg.CacheDir + "|" + externalXGCDir() + "|" + forceXGCSource() + "|" + name
 	seasonMu.Lock()
 	defer seasonMu.Unlock()
 	if s, ok := seasonCache[key]; ok {

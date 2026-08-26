@@ -179,6 +179,10 @@ var envSwitches = []string{
 	// reason the three switches around it are fingerprinted, arriving from the
 	// other direction: this one adds data rather than removing it.
 	"FPL_XGC_EXTERNAL_DIR",
+	// Overwrites EVERY priced xGC row from a named source, including rows FPL
+	// published. Diagnostic only, and the most invasive switch in this list: an
+	// arm that sets it is not replaying the archive at all.
+	"FPL_XGC_FORCE",
 	// Restores the rank reconstruction of the starting eleven in place of the
 	// recorded starts harvested from Understat.
 	//

@@ -374,3 +374,81 @@ func sortedClubKeys(m map[[2]int]float64) [][2]int {
 	})
 	return out
 }
+
+// forceXGCSource names an xGC input to be written over EVERY priced row of a
+// season, including rows FPL published itself.
+//
+// ⚠️ **This is a diagnostic switch and it overwrites real data.** Both ordinary
+// sources fill only a zero — that is what keeps them out of each other's way and
+// out of the native rows — so neither can answer the one question that needs
+// answering: **in a season where a truth exists, does the reconstruction produce
+// a tighter standard error than the measured source?** That is the only design
+// that separates "the reconstruction borrows strength" from "the source injects
+// variance", and it needs all three inputs on the same football.
+//
+// Set `FPL_XGC_FORCE` to `native`, `external` or `reconstruction`. Unset — every
+// ordinary run, every clone, the live path — changes nothing.
+//
+// ⚠️ It is FINGERPRINTED beside the three repair switches, because it changes
+// what a season HOLDS and two sweeps that disagree about it are measuring
+// different archives. It is also keyed into the harness's season cache, so one
+// process running two arms cannot serve the second a season built for the first.
+func forceXGCSource() string {
+	return strings.ToLower(strings.TrimSpace(os.Getenv("FPL_XGC_FORCE")))
+}
+
+// applyForcedXGC overwrites this season's xGC from the named source.
+//
+// Returns the number of rows written. It errors when the source is named and
+// cannot be built, never silently — a forced arm that quietly fell back to the
+// archive would be indistinguishable from the control it is being compared with,
+// which is this package's signature failure.
+func (s *Season) applyForcedXGC() (int, error) {
+	src := forceXGCSource()
+	if src == "" || src == "native" {
+		// "native" is the archive as it stands: nothing to write, and naming it
+		// explicitly is how an arm declares it meant the untouched one.
+		return 0, nil
+	}
+	var vals map[int]map[int]float64
+	switch src {
+	case "reconstruction":
+		vals, _ = reconstructedXGC(s, xgcScale)
+	case "external":
+		dir := externalXGCDir()
+		if dir == "" {
+			return 0, fmt.Errorf("FPL_XGC_FORCE=external needs FPL_XGC_EXTERNAL_DIR")
+		}
+		club, matches, err := externalClubXGC(s, dir)
+		if err != nil {
+			return 0, fmt.Errorf("forced external xGC for %s: %w", s.Name, err)
+		}
+		if matches == 0 {
+			return 0, fmt.Errorf("forced external xGC for %s: joined no matches", s.Name)
+		}
+		vals, _ = proratedClubXGC(s, club)
+	default:
+		return 0, fmt.Errorf("FPL_XGC_FORCE=%q: want native, external or reconstruction", src)
+	}
+
+	var wrote int
+	for _, id := range sortedSeasonPlayerIDs(s) {
+		p := s.Players[id]
+		for _, gw := range sortedGameweeks(vals[id]) {
+			g, ok := p.GWs[gw]
+			if !ok || g.Minutes <= 0 || vals[id][gw] <= 0 {
+				continue
+			}
+			// Overwrites a published value on purpose — that is the whole point
+			// of the switch, and why it is not reachable without setting it.
+			g.XGC = vals[id][gw]
+			g.XGCReconstructed = true
+			p.GWs[gw] = g
+			wrote++
+		}
+	}
+	if wrote == 0 {
+		return 0, fmt.Errorf("forced %s xGC for %s wrote no rows", src, s.Name)
+	}
+	return wrote, nil
+}
