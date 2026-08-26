@@ -58,10 +58,24 @@ import (
 	"testing"
 )
 
-// wildcardReservations are the three named rules plus one above them, in points:
-// 2, 3, 4 and 5 hits. Not a search — each is somebody's stated threshold, and the
-// fourth brackets the top so a monotone read has somewhere to fall off.
-var wildcardReservations = []float64{8, 12, 16, 20}
+// wildcardReservations bracket the argued range and sample inside it, in points.
+//
+// The three stated rules are 8, 12 and 16 — two, three and four hits — and the
+// user's read is that *"2-3 hits could be argued; the truth is likely between"*.
+// So the ladder spans exactly 2 to 4 hits and puts a rung between each pair,
+// rather than spending an arm on 20 (five hits), which nobody argues for and
+// which would only tell us the top falls off.
+//
+// ⚠️ **The half-hit rungs are legitimate bases even though half a hit is not a
+// move.** `ChipBarAt` decays the base continuously toward expiry, so the firing
+// threshold is a curve rather than a step and 10 is a real position on it — it is
+// not "2.5 transfers".
+//
+// ⚠️ **Five rungs is more argmax exposure than four**, and picking the best of
+// five overstates it further. The trade is deliberate: closer spacing is what
+// makes a PLATEAU legible, and this record accepts a plateau with a cliff as
+// evidence for a knob where it refuses a lone spike. Read the shape.
+var wildcardReservations = []float64{8, 10, 12, 14, 16}
 
 func TestDiagWildcardReservation(t *testing.T) {
 	if os.Getenv("DIAG") == "" {
@@ -70,7 +84,9 @@ func TestDiagWildcardReservation(t *testing.T) {
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== how expensive must the repair be before the wildcard fires?\n")
-	fmt.Printf("Reservations in POINTS: 8/12/16/20 is 2/3/4/5 hits. The shipped\n")
+	fmt.Printf("Reservations in POINTS: 8 to 16 is 2 to 4 hits, sampled every half\n")
+	fmt.Printf("hit because the argued range is 2-3 and the truth is likely between.\n")
+	fmt.Printf("The shipped\n")
 	fmt.Printf("default is 12 and is ASSERTED. Confined to GW1-%d, where there is\n", ChipResetGW-1)
 	fmt.Printf("no double to anchor to and the rule is a squad condition.\n")
 	fmt.Printf("⚠️ These are BASES: ChipBarAt decays each one toward expiry.\n")
