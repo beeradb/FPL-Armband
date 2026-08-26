@@ -552,11 +552,26 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **No projection constant re-tuned at 24 cells is "confirmed".** → **constants-and-sweeps**
 - **Twelve cells could not resolve 37 points a season.** → **constants-and-sweeps**
 - **Do not unify the transfer searches.** → **transfer-policy**
-- **Do not build a state trigger for the wildcard, and do not read a wildcard replay as a
-  valuation.** ⚠️ **The valuation half was deliberately re-opened on 2026-08-25 and the line
-  SURVIVED** — a wildcard-against-no-wildcard arm reproduces the null it predicts, so the
-  prohibition now rests on a measurement rather than only on the argument. Read it as tested,
-  not as untouched. The trigger half is unre-examined. → **chips**
+- **Do not ship a state trigger for the wildcard, and do not read a wildcard replay as a
+  valuation.** ⚠️ **Both halves have now been re-opened and BOTH survived**, so this line rests
+  entirely on measurement. The valuation half, 2026-08-25: a wildcard-against-no-wildcard arm
+  reproduces the null it predicts. **The trigger half, 2026-08-26 — it previously said
+  "unre-examined" and that was already false when written.** Three readings were built and swept
+  against a control that plays no trigger at all, 36 cells, one commit, `dirty=false`:
+  **the shipped cost rule reads −3.53** a season-path (CR2 SE 3.66, threshold 9.4) — it is
+  NEGATIVE and it takes MORE hits than the control, 2.06 against 1.94; single-week XI drift
+  +3.50 (threshold 11.2); the fixture-aware lookahead +1.67 (threshold 11.1). **Nothing
+  resolves and the best arm is a third of its own threshold.** ⚠️ Higher lookahead bars fire in
+  4 of 36 cells and are inert rather than good — read the fire count before any null here.
+  `2026-08-26-wildcard-lookahead/`, `2026-08-26-wildcard-attribution/`. → **chips**
+- **⚠️ Do not expect a fixture-aware reading of squad drift to pick different weeks — measured,
+  and it does not.** `WildcardDriftBar` reads the horizon-5 engine where `FixtureLoadInScore()`
+  is FALSE, so it is a five-week average blind to the doubles inside its own window;
+  `WildcardLookaheadBar` re-reads one gameweek at a time at horizon 1, where fixture load IS
+  scored. At matched fire rate — 14 and 15 of 36 — the two pick the **same median gameweek
+  (15)**, take the **same hits (1.69/cell)**, and differ by +1.67 against +3.50 with thresholds
+  above 11. The readings correlate **0.884**. ⚠️ This says the two RANK weeks alike; it is not
+  evidence that fixture awareness is worthless elsewhere. → **chips**
 - **Do not add a lock.** → **optimiser-and-squad**
 - **Do not scope the local test run to the packages a change touches.** Built and measured 2026-08-19: the Go test cache already does it, and better — it tracks the cross-package source scans an import graph cannot see, so a hand-derived scope skips exactly the guards this record pins its shipped bugs with. → **work/ruled-out/scope-the-test-run-and-move-the-suite-to-ci**
 - **Do not memoise `blankRate`.** Answer-exact and measured no faster —

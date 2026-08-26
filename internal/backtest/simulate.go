@@ -1708,6 +1708,55 @@ type SimConfig struct {
 	// it was measuring "do not waste the only wildcard".
 	WildcardTriggerFirstHalfOnly bool
 
+	// WildcardLookaheadBar switches the wildcard trigger's READING a third way,
+	// beside the cost bar (WildcardReservation) and the single-week drift bar
+	// (WildcardDriftBar): it prices the chip across a run of gameweeks instead of
+	// reading one, and fires when that price clears a decayed bar.
+	//
+	// # What it fixes, which is not what it looks like
+	//
+	// ⚠️ **The existing drift arm is NOT fixture-aware, despite reading points on
+	// the eleven.** It takes its number from the pre-deadline engine at
+	// `cfg.Weights` — horizon 5 by default — where `FixtureLoadInScore()` is
+	// FALSE. So it reads one five-week-averaged snapshot and is blind to the
+	// doubles and blanks inside that window. `xiDriftSeries` re-reads the same
+	// two elevens one gameweek at a time on a horizon-1 engine, where fixture
+	// load IS in the score, which is the quantity the owner asked for: *"it needs
+	// to be aware of xpoints at every step of its lookahead because that affects
+	// the timing."*
+	//
+	// # A third quantity, not a third unit for the first two
+	//
+	// The cost arm reads a ONE-OFF hit price. The drift arm reads a PER-GAMEWEEK
+	// rate at one week. This reads a TOTAL — summed drift over the lookahead plus
+	// the hit cost repairing by transfer would take now — so it is roughly the
+	// lookahead times the drift arm's reading and must NOT be swept on that arm's
+	// ladder. Bracket it from `TestDiagWildcardLookaheadValue`, never by analogy.
+	//
+	// ⚠️ It still shares `ChipBarAt`'s decay: `ChipReservationAt` is
+	// `base * Factor`, multiplicative and dimensionless, so a base in these units
+	// decays into these units. The base carries the quantity.
+	//
+	// ⚠️ **This field also SELECTS the rule**, so a zero cannot silently mean
+	// "fire on anything positive" the way WildcardReservation's zero did — a
+	// caller who leaves it unset gets the cost or drift rule instead. warnZeroBar
+	// still runs, for symmetry with the other two arms.
+	WildcardLookaheadBar float64
+
+	// WildcardLookahead is how many gameweeks WildcardLookaheadBar prices across.
+	// Zero takes cfg.decisionHorizon(), the window the ordinary transfer decision
+	// is judged over. No effect unless WildcardLookaheadBar is set.
+	//
+	// ⚠️ **There is deliberately NO "fire only at the value peak" option**, which
+	// is what this work set out to build. `wildcardValueOverNext.PeakAt` is
+	// **identically zero** for any non-negative drift series — both terms of its
+	// value are non-increasing in k, so the argmax is always now — and a rule
+	// gating on `PeakAt == 0` would be inert by construction rather than
+	// selective. Waiting can only pay if the squad you would rebuild INTO
+	// improves while you wait, and pricing that needs `Optimize` re-run at every
+	// lookahead week. See TestWildcardValueOverNextPricesTheLookahead.
+	WildcardLookahead int
+
 	// RepairCountsXIOnly prices the repair on the starters a fresh optimum would
 	// replace, rather than on every held player it would replace.
 	//
@@ -2159,15 +2208,38 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 				// One Optimize, both readings — repairChanges already builds the
 				// fresh fifteen and discards it, and Optimize is the expensive
 				// call in this package.
-				cost, drift, ok := repairCostAndDrift(pe, cur, w, held, gw, avail, minExp, cfg)
-				if cfg.WildcardDriftBar > 0 {
+				cost, drift, fresh, changes, ok := repairCostAndDrift(pe, cur, w, held, gw, avail, minExp, cfg)
+				load := pe.HoldingCongestion(held, gw, cfg.OptionPricing)
+				switch {
+				case cfg.WildcardLookaheadBar > 0:
+					// ⚠️ **A DEDICATED engine, and `pe` is not a candidate for
+					// two independent reasons.** `xiDriftSeries` needs horizon 1,
+					// because `FixtureLoadInScore()` is false at any other
+					// horizon and the whole point of the reading is that it sees
+					// doubles and blanks. And it sets a skip set and restores it
+					// to nil — while `cfg.anticipate(pe, gw)` above may have left
+					// `pe` carrying the PLANNED FREE-HIT WEEKS via
+					// ApplyFreeHitToScoring, which that restore would silently
+					// wipe out from under the rest of this gameweek's decision.
+					// Built the way the free-hit site below builds its own, from
+					// bootstrap data already assembled for `pe`.
+					we := oneWeekEngine(pb, pf, cfg.Weights, idx, pe.Recent, pe.TeamForm)
+					series := xiDriftSeries(we, held, fresh, gw, cfg.wildcardLookahead())
+					// `.Now` is the chip priced for THIS week, which is the week
+					// the rule is deciding about. PeakAt is not consulted: it is
+					// identically zero on non-negative drift, so gating on it
+					// would add no selectivity. See WildcardLookahead.
+					value := wildcardValueOverNext(series, changes, avail, cfg.BankUpTo).Now
+					trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardLookaheadBar,
+						load, value, ok)
+				case cfg.WildcardDriftBar > 0:
 					// Same curve, different base and different reading — one
 					// variable between the arms. See WildcardDriftBar.
 					trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardDriftBar,
-						pe.HoldingCongestion(held, gw, cfg.OptionPricing), drift, ok)
-				} else {
+						load, drift, ok)
+				default:
 					trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardReservation,
-						pe.HoldingCongestion(held, gw, cfg.OptionPricing), cost, ok)
+						load, cost, ok)
 				}
 			}
 			if trig.eligible(slotFreeHit, gw, cfg.FreeHitTrigger) {

@@ -1,0 +1,214 @@
+sweep,run_id,key,value
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,commit,2d852bdb5449a30dfa39209b27c606ac33450be5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,dirty,false
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constants_digest,5848566e3e0a
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,bank_up_to,5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,season,2020-21<-2019-20
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,season,2021-22<-2020-21
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,season,2022-23<-2021-22
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,season,2023-24<-2022-23
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,season,2024-25<-2023-24
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,season,2025-26<-2024-25
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,start_gw,1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,start_gw,6
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,start_gw,11
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,start_gw,16
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,start_gw,21
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,start_gw,26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,declared_arm,0	no wildcard trigger (control)
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,declared_arm,"1	cost, raw count, bar 12 (the shipped rule)"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,declared_arm,"2	single-week drift > 3.0 (horizon-5, NOT fixture-aware)"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,declared_arm,"3	lookahead value > 40 (horizon-1, fixture-aware)"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,declared_arm,"4	lookahead value > 55 (horizon-1, fixture-aware)"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,declared_arm,"5	lookahead value > 70 (horizon-1, fixture-aware)"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,declared_arm,"6	lookahead value > 85 (horizon-1, fixture-aware)"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,declared_arm,"7	lookahead value > 100 (horizon-1, fixture-aware)"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,chip_plan.bench_boost_gameweek	8
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,chip_plan.free_hit_gameweek	16
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,chip_plan.triple_captain_gameweek	9
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,chip_plan.wildcard_gameweek	6
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.ARS[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.ARS[0].match_dates	5 items, sha 3f0a0705"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.ARS[0].note	enters at round three as a European qualifier
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.ARS[0].start_date	2026-09-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.AVL[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.AVL[0].match_dates	5 items, sha 3f0a0705"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.AVL[0].note	enters at round three as a European qualifier
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.AVL[0].start_date	2026-09-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.BHA[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.BHA[0].match_dates	5 items, sha 3f0a0705"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.BHA[0].note	enters at round three as a European qualifier
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.BHA[0].start_date	2026-09-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.BOU[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.BOU[0].match_dates	5 items, sha 3f0a0705"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.BOU[0].note	enters at round three as a European qualifier
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.BOU[0].start_date	2026-09-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.BRE[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.BRE[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.BRE[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.BRE[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.CHE[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.CHE[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.CHE[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.CHE[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.COV[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.COV[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.COV[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.COV[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.CRY[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.CRY[0].match_dates	5 items, sha 3f0a0705"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.CRY[0].note	enters at round three as a European qualifier
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.CRY[0].start_date	2026-09-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.EVE[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.EVE[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.EVE[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.EVE[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.FUL[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.FUL[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.FUL[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.FUL[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.HUL[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.HUL[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.HUL[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.HUL[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.IPS[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.IPS[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.IPS[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.IPS[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.LEE[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.LEE[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.LEE[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.LEE[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.LIV[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.LIV[0].match_dates	5 items, sha 3f0a0705"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.LIV[0].note	enters at round three as a European qualifier
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.LIV[0].start_date	2026-09-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.MCI[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.MCI[0].match_dates	5 items, sha 3f0a0705"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.MCI[0].note	enters at round three as a European qualifier
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.MCI[0].start_date	2026-09-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.MUN[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.MUN[0].match_dates	5 items, sha 3f0a0705"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.MUN[0].note	enters at round three as a European qualifier
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.MUN[0].start_date	2026-09-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.NEW[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.NEW[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.NEW[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.NEW[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.NFO[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.NFO[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.NFO[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.NFO[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.SUN[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.SUN[0].match_dates	5 items, sha 3f0a0705"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.SUN[0].note	enters at round three as a European qualifier
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.SUN[0].start_date	2026-09-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.TOT[0].competition	League Cup
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.domestic_cup_campaigns.TOT[0].match_dates	6 items, sha f7a87904"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.TOT[0].note	enters at round two
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_campaigns.TOT[0].start_date	2026-08-26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.domestic_cup_penalty	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.ARS[0].competition	UCL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.ARS[0].start_date	2026-09-08
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.AVL[0].competition	UCL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.AVL[0].start_date	2026-09-08
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.BHA[0].competition	UECL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.BHA[0].end_date	2026-08-27
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.european_campaigns.BHA[0].match_dates	2 items, sha 488b402a"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.european_campaigns.BHA[0].note	play-off round, two legs; progression not yet known"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.BHA[0].start_date	2026-08-20
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.BHA[1].competition	UECL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.european_campaigns.BHA[1].note	league phase, conditional on winning the play-off"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.BHA[1].start_date	2026-10-15
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.BOU[0].competition	UEL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.BOU[0].start_date	2026-09-16
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.CRY[0].competition	UEL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.CRY[0].start_date	2026-09-16
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.LIV[0].competition	UCL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.LIV[0].start_date	2026-09-08
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.MCI[0].competition	UCL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.MCI[0].start_date	2026-09-08
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.MUN[0].competition	UCL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.MUN[0].start_date	2026-09-08
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.SUN[0].competition	UEL
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.european_campaigns.SUN[0].start_date	2026-09-16
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.long_haul_penalty	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.long_haul_regions	2 items, sha 925816c9"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.post_break_penalty	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"congestion.regular_international_regions	5 items, sha 99456437"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.short_rest_penalty	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.status_last_verified	2026-08-17
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.ucl_penalty	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.uecl_penalty	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.uel_penalty	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,congestion.very_short_rest_penalty	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.always_act_on_ruled_out_starter	true
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.anticipate_chips	false
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.bank_transfers_lookahead	true
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.bank_transfers_up_to	5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.early_floor.free_transfer_value	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.early_floor.min_gain_for_free_transfer	0.2
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.early_floor.until_gameweek	8
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.free_transfer_value	2
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.max_hits_ceiling	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.max_hits_per_week	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.min_gain_for_free_transfer	0.4
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.min_net_gain_for_minus_4	3
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.min_separable_gain	0.41
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.prepare_squad_for_chips	false
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"review_policy.rules	8 items, sha ead95ae5"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,review_policy.scheduled_run_lead_hours	6
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"role_risk.confirmed_starters	4 items, sha 0a0f53ae"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"role_risk.new_coach_clubs	10 items, sha 3abb2b37"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,role_risk.new_coach_gameweeks	6
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,role_risk.new_coach_penalty	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,role_risk.new_signing_gameweeks	5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,role_risk.new_signing_penalty	0.88
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.band_strength	0
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.bench_weight	0.1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.blank_run_penalty	0.75
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.blend_minutes_k	5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.blend_rate_k	8
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.bonus_prior_weight	0.5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.bonus_weight	1.5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.defcon_clean_coupling	0.3
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.fixture_horizon	5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.fixture_weight	0.65
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.league_shrink_k	8
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.minutes_half_life	4
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.minutes_weight	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.minutes_weight_by_position.DEF	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.minutes_weight_by_position.FWD	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.minutes_weight_by_position.GKP	1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.minutes_weight_by_position.MID	0.75
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.prior_half_life	0
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.rate_half_life	0
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.rest_gameweeks	2
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.rest_minutes_factor	0.83
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"weights.rest_players	17 items, sha 98db8aaa"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.rest_regions	[] (empty)
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.set_piece_weight	0
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[0].matches	6
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[0].name	AFCON 2025 — Senegal (winners)
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"weights.tournament_absences[0].players	4 items, sha bd8f6665"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[1].matches	6
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[1].name	AFCON 2025 — Nigeria (third place)
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"weights.tournament_absences[1].players	3 items, sha e65e3ff8"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[2].matches	6
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"weights.tournament_absences[2].name	AFCON 2025 — Morocco (hosts, semi-finalists)"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"weights.tournament_absences[2].players	4 items, sha a13bd6b5"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[3].matches	6
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[3].name	AFCON 2025 — Egypt (semi-finalists)
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"weights.tournament_absences[3].players	1 items, sha b6bd732f"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[4].matches	5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[4].name	AFCON 2025 — Ivory Coast (quarter-finalists)
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"weights.tournament_absences[4].players	4 items, sha 9ed65187"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[5].matches	3
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,env,FPL_XGC_EXTERNAL_DIR	path:811de8b2c8b1
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,watched_digest,c91b20dcb7d48dbddd921dcf8b0146d237f6043f7c8ad40c8b50ecd4aa2412b5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,watched_path,config.json	cd2a6f289eafd7b9ff596d3b69f76b958bbb942bfe160bc41ae651f6c2fef969
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,watched_path,internal/analysis	ea72afc2de81fc274bc1c7c7ec622d5c04a9e47fc94fe485add1c633573043a5
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,watched_path,internal/backtest	a29b885b9dc1845da1063e96087f6bcaf7a4637173773af7853472991365df26
+TestDiagWildcardLookaheadTrigger#1,1787766840-1864557,watched_path,internal/config	39767581493f3ce2c94c535ddeaa4d76e9f68984ef7caa94a6a9a8dcd01703f4

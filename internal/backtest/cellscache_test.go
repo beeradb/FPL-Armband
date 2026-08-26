@@ -68,10 +68,26 @@ func TestDocumentedCellsCommandsDisableTheTestCache(t *testing.T) {
 				if !writes || !goTest.MatchString(ln) {
 					continue
 				}
-				if !strings.Contains(ln, "-count=1") {
+				// ⚠️ **The flags may be on a CONTINUATION line.** These commands
+				// wrap with a trailing backslash, so `go test` and `-count=1`
+				// routinely sit on different lines. Judging the `go test` line
+				// alone reported a correctly-written command as an offender the
+				// first time this guard met a wrapped one — which would have
+				// pushed the fix toward unwrapping the command rather than toward
+				// the flag. The whole continued command is one string.
+				cmd := trimmed
+				for j := i; strings.HasSuffix(cmd, "\\") && j+1 < len(lines); j++ {
+					next := strings.TrimSpace(lines[j+1])
+					if !strings.HasPrefix(next, "//") {
+						break
+					}
+					cmd = strings.TrimSpace(strings.TrimSuffix(cmd, "\\")) + " " +
+						strings.TrimSpace(strings.TrimPrefix(next, "//"))
+				}
+				if !strings.Contains(cmd, "-count=1") {
 					offenders = append(offenders, filepath.Join(root, filepath.Base(f))+":"+strconv.Itoa(i+1)+" "+trimmed)
 				}
-				// One `go test` line ends the command, whatever follows.
+				// One `go test` command ends the block, whatever follows.
 				writes = false
 			}
 		}

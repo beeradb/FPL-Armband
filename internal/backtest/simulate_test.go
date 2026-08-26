@@ -730,27 +730,59 @@ func TestEveryScoringEngineGetsPriors(t *testing.T) {
 // move `HOLD`, so the invariance that currently proves no leak would stop being
 // available as a check.
 func TestOnlyTheTransferEngineAnticipatesChips(t *testing.T) {
-	src, err := os.ReadFile("simulate.go")
+	// ⚠️ **Counted from the AST, not with strings.Count.** The textual version
+	// counted the name wherever it appeared — including inside a CODE COMMENT
+	// explaining why a second engine must NOT reuse the anticipated one, which is
+	// the exact reasoning this guard exists to protect. It failed on that comment
+	// on 2026-08-26. A guard that punishes naming the function it guards gets
+	// satisfied by writing vaguer comments, which costs the reader the mechanism
+	// and buys the guard nothing.
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "simulate.go", nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := string(src)
-
-	if n := strings.Count(body, "cfg.anticipate("); n != 1 {
-		t.Errorf("cfg.anticipate is called at %d engine site(s), not 1. Reaching a "+
+	var n int
+	var onEngine []string
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "anticipate" {
+			return true
+		}
+		if id, ok := sel.X.(*ast.Ident); !ok || id.Name != "cfg" {
+			return true
+		}
+		n++
+		// The engine it is called ON, read from the first argument, so the
+		// "which engine" check below is a fact about the call rather than about
+		// the spelling of a line.
+		if len(call.Args) > 0 {
+			if id, ok := call.Args[0].(*ast.Ident); ok {
+				onEngine = append(onEngine, id.Name)
+			}
+		}
+		return true
+	})
+	if n != 1 {
+		t.Errorf("cfg.anticipate is CALLED at %d engine site(s), not 1. Reaching a "+
 			"second engine would move HOLD, and HOLD being byte-identical is the "+
 			"only evidence the anticipation arm has that it touched the transfer "+
 			"decision and nothing else. Reaching none makes the arm inert while "+
 			"still reporting a difference for the chips it plays.", n)
 	}
 	// And it must be the engine `decide` is handed. `pe` is built, anticipated,
-	// then passed to decide in the same block; a call sited on `ve` or `he` would
-	// still count as one.
-	if !strings.Contains(body, "cfg.anticipate(pe, gw)") {
-		t.Error("cfg.anticipate is no longer called on `pe`, the engine the weekly " +
-			"transfer decision is run against. If the variable was renamed, update " +
-			"this test — if the call moved to the eleven's engine or the free-hit " +
-			"engine, the arm is measuring something other than what it claims")
+	// then passed to decide in the same block; a call sited on `ve`, `he` or the
+	// lookahead rule's `we` would still count as one.
+	if len(onEngine) != 1 || onEngine[0] != "pe" {
+		t.Errorf("cfg.anticipate is called on %v, not on `pe` alone — the engine the "+
+			"weekly transfer decision is run against. If the variable was renamed, "+
+			"update this test; if the call moved to the eleven's engine, the free-hit "+
+			"engine or the lookahead rule's one-week engine, the arm is measuring "+
+			"something other than what it claims.", onEngine)
 	}
 }
 
