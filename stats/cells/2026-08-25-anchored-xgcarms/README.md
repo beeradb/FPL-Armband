@@ -27,6 +27,11 @@ So: *reconstruction = legacy = shipped default*; *measured = the operator's
 source*. Neither is "the FPL data" and neither is fabricated; they are two ways of
 filling the same hole.
 
+⚠️ **`reconstruction.csv` SUPERSEDES the pre-#82 `2026-08-25-f7d2be1b/anchored.csv`
+for this arm.** Same test, same arm names, later commit: 4gw sight moves from
+**+20.6 / t 3.63** to **+27.0 / t 5.33**. `5b970338` (PR #82) rewrote squad
+construction and merged AFTER #83 banked those cells. **Quote +27.0.**
+
 ## The scope check passes, so this is the source and not a confound
 
 Maximum absolute per-cell POLICY difference over all 180 matched cells:

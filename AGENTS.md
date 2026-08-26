@@ -696,14 +696,18 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 ### Chips
 
 - **All four chips are modelled, and the replay cannot value a wildcard.** → **chips**
-- **SPENDING BOTH CHIP SETS AS A MANAGER DOES IS THE STRONGEST CHIP RESULT HERE**: first set
-  spent before it expires, wildcard/free hit/bench boost bundled on the second-half calendar,
-  triple captain last. **+38.1 a season-path (t 4.51, thr 21.7) on legacy and +38.4 (t 4.43) on
-  measured xGC, 6/6 seasons each** — the only chip result agreeing across both sources. ⚠️ A third
-  is arithmetic: a set unplayed by GW19 is lost, worth +11.9-15.6 alone. Replays every season
-  under today's two-set rules on purpose. `2026-08-25-tworegime/`. → **chips**
+- **SPENDING BOTH CHIP SETS AS A MANAGER DOES IS THE LARGEST CHIP EFFECT HERE**: first set spent
+  before it expires, wildcard/free hit/bench boost bundled on the second-half calendar, triple
+  captain last. **+38.1 a season-path (t 4.51, thr 21.7) on legacy and +38.4 (t 4.43) on measured
+  xGC, 6/6 seasons each**, resolving on both. ⚠️ **NOT the only result that agrees across sources
+  — bench boost does too (+4.4/+4.5) and resolves on both at a HIGHER t.** Largest, not most
+  robust. ⚠️ **How much of it is the first set does NOT resolve**: +11.9 legacy (t 1.91, thr 16.1)
+  / +15.6 measured (t 2.22, thr 18.0), positive in 15 of 36 cells — a point estimate, and the
+  arithmetic that an expired set is lost is a separate argument. Replays every season under
+  today's two-set rules on purpose. `2026-08-25-tworegime/`. → **chips**
 - **⚠️ EVERY OTHER CHIP FIGURE DEPENDS ON THE COMMIT AND THE xGC SOURCE — quote none without its
-  arm.** Calendar anchoring: +27.0 at 4gw sight (t 5.33) on legacy, RESOLVING; +26.4 on measured
+  arm.** Calendar anchoring: +27.0 at 4gw sight (t 5.33) post-`5b970338` on legacy, RESOLVING —
+  ⚠️ the pre-#82 **+20.6/t 3.63 is SUPERSEDED**; +26.4 on measured
   with the SE doubled 5.06→11.41, t 2.32, NOT resolving — only the full-sight hindsight arm
   survives there. Free hit: +14.5/t 2.44 pre-`5b970338`, +21.0/t 3.60 after it, +20.7 with SE
   11.81 on measured. **Bench boost is the only component resolving on every arm and commit**

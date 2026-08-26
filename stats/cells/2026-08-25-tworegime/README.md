@@ -44,14 +44,22 @@ SE roughly DOUBLE under the measured source; this does not. Spending eight chips
 across both halves spreads the effect over more of the season, so a season-
 specific xGC difference has less leverage on the total.
 
-**Spending the first set is worth +11.9 (legacy) / +15.6 (measured) on its own.**
-A set unplayed by the GW19 deadline is lost, and an arm that concentrates its plan
-in one half discards four chips. That is not a strategy result; it is arithmetic
-the harness will happily report as one.
+⚠️ **How much of the effect is the first set does NOT resolve.** The gap against
+the otherwise-identical first-set-wasted arm reads **+11.9 legacy (SE 6.27, t 1.91,
+threshold 16.1)** and **+15.6 measured (SE 7.01, t 2.22, threshold 18.0)**, positive
+in **15 of 36 cells** on each. Both are below their own thresholds and neither is
+positive in a majority of cells. **It is a point estimate.**
+
+The arithmetic argument — a set unplayed by the GW19 deadline is lost, so an arm
+that concentrates its plan in one half discards four chips — is a *separate*
+argument and is not evidence for the size. ⚠️ The first version of this README
+stated +11.9/+15.6 as measured fact with no threshold beside it, in a directory
+whose whole point is that a result below its own threshold is not a result.
 
 ## ⚠️ What this does NOT show
 
-**It is not comparable with `TestDiagAnchoredChips`'s +27.0.** Different control
+**It is not comparable with `TestDiagAnchoredChips`'s +27.0** (the post-`5b970338`
+reading; the pre-#82 +20.6 is superseded). Different control
 (both sets, four chips each half, against one set of three), different chip count,
 different set rules. Do not difference them.
 
