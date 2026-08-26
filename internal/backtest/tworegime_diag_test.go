@@ -71,13 +71,12 @@ import (
 func twoRegimeSchedule(lag int) func(cur *Season, start int) analysis.ChipSchedule {
 	return func(cur *Season, start int) analysis.ChipSchedule {
 		var sch analysis.ChipSchedule
-		// First set: the wildcard only. Placed by offset because the rule it
-		// stands in for is a condition on the squad, not the calendar — see the
-		// file header. It must land before the reset or it is not a first-set
-		// chip at all.
-		if wc := start + 4; wc < ChipResetGW {
-			sch.First.Wildcard = wc
-		}
+		// ⚠️ BOTH sets are filled, and the first version of this failed to.
+		// A set unplayed by the GW19 deadline is LOST, so an arm that puts
+		// everything in the second set discards four chips — measured at a GW1
+		// entry, that cost 47 points a season and was mistaken for the strategy
+		// being bad. The first set is not a bonus; it is use-it-or-lose-it.
+		sch.First = firstSetPlan(cur, start, lag)
 		from := ChipResetGW - 1
 		if start > from {
 			from = start
@@ -85,6 +84,56 @@ func twoRegimeSchedule(lag int) func(cur *Season, start int) analysis.ChipSchedu
 		sch.Second = bundleFrom(cur, from, lag)
 		return sch
 	}
+}
+
+// firstSetPlan spends the first set before it expires at the GW19 deadline.
+//
+// ⚠️ The first half has almost no calendar features — two doubling gameweeks in
+// GW1-19 across six seasons against forty after — so `sightedWeeks` mostly finds
+// nothing here, and this falls back to offsets rather than leaving chips
+// unplayed. **That is the honest expression of the user's own model**: "first
+// half is more open, there are no blanks and doubles, so you mostly just wildcard
+// if your team is bad." What it cannot yet do is the "if your team is bad" part —
+// see the file header.
+//
+// Everything lands strictly before ChipResetGW or it is not a first-set chip.
+func firstSetPlan(cur *Season, start, lag int) analysis.ChipPlan {
+	// Take any real feature the first half does offer, then fill the rest by
+	// offset so nothing expires unused.
+	p := sightedWeeks(cur, start, lag)
+	clamp := func(v *int) {
+		if *v >= ChipResetGW {
+			*v = 0
+		}
+	}
+	clamp(&p.BenchBoost)
+	clamp(&p.FreeHit)
+	clamp(&p.TripleCaptain)
+
+	taken := map[int]bool{}
+	for _, w := range []int{p.BenchBoost, p.FreeHit, p.TripleCaptain} {
+		if w > 0 {
+			taken[w] = true
+		}
+	}
+	// The wildcard first: it is the chip the user names as the first half's
+	// whole point, so it gets the earliest free week.
+	fill := func(slot *int, off int) {
+		if *slot > 0 {
+			return
+		}
+		for gw := start + off; gw < ChipResetGW; gw++ {
+			if gw > start && !taken[gw] {
+				*slot, taken[gw] = gw, true
+				return
+			}
+		}
+	}
+	fill(&p.Wildcard, 4)
+	fill(&p.BenchBoost, 6)
+	fill(&p.TripleCaptain, 8)
+	fill(&p.FreeHit, 10)
+	return p
 }
 
 // secondHalfBundle is the same bundle without the first-set wildcard, so the two
@@ -151,6 +200,45 @@ func weekHasDouble(cur *Season, gw int) bool {
 // arbitrary rule the bundle has to beat. It extends `controlWeeks` with a
 // wildcard slot, because an arm that plays four chips must be compared against
 // an arm that plays four.
+// bothSetsControl is the arbitrary rule that nonetheless spends BOTH sets, so the
+// contrast is placement against placement rather than "four chips against four
+// different chips". Without it every arm discards half its allowance and the
+// comparison measures which half.
+func bothSetsControl(cur *Season, start int) analysis.ChipSchedule {
+	var sch analysis.ChipSchedule
+	first := fourChipControl(cur, start)
+	clamp := func(v *int) {
+		if *v >= ChipResetGW || *v <= start {
+			*v = 0
+		}
+	}
+	clamp(&first.Wildcard)
+	clamp(&first.FreeHit)
+	clamp(&first.BenchBoost)
+	clamp(&first.TripleCaptain)
+	// Anything that could not fit before the reset is filled by offset inside the
+	// first-set window, and the second set takes fixed offsets from the reset.
+	sch.First = first
+	base := ChipResetGW
+	if start > base {
+		base = start + 1
+	}
+	taken := map[int]bool{}
+	put := func(slot *int, off int) {
+		for gw := base + off; gw <= 38; gw++ {
+			if !taken[gw] {
+				*slot, taken[gw] = gw, true
+				return
+			}
+		}
+	}
+	put(&sch.Second.BenchBoost, 1)
+	put(&sch.Second.TripleCaptain, 3)
+	put(&sch.Second.FreeHit, 5)
+	put(&sch.Second.Wildcard, 7)
+	return sch
+}
+
 func fourChipControl(cur *Season, start int) analysis.ChipPlan {
 	p := controlWeeks(cur, start)
 	taken := map[int]bool{p.BenchBoost: true, p.FreeHit: true, p.TripleCaptain: true}
@@ -180,9 +268,9 @@ func TestDiagTwoRegimeChips(t *testing.T) {
 	// because that field is not fingerprinted and a sidecar cannot tell these
 	// cells from ones measured under the rules the seasons actually had.
 	arms := []policyVariant{
-		{label: "four chips, fixed offsets (control, 2 sets)",
-			apply: func(sc *SimConfig) { sc.ChipSets = 2; sc.ChipPlanner = fourChipControl }},
-		{label: "second-half bundle, 4gw sight (2 sets)",
+		{label: "both sets, fixed offsets (control, 2 sets)",
+			apply: func(sc *SimConfig) { sc.ChipSets = 2; sc.ChipScheduleP = bothSetsControl }},
+		{label: "second set only, bundled (2 sets, FIRST SET WASTED)",
 			apply: func(sc *SimConfig) { sc.ChipSets = 2; sc.ChipPlanner = secondHalfBundle(4) }},
 		{label: "two-regime: early wildcard + second-half bundle (2 sets)",
 			apply: func(sc *SimConfig) { sc.ChipSets = 2; sc.ChipScheduleP = twoRegimeSchedule(4) }},
