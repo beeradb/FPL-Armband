@@ -173,7 +173,11 @@ read_provenance <- function(ps) {
            " — its code state cannot be checked at all")
       next
     }
-    pr <- utils::read.csv(sp, stringsAsFactors = FALSE)
+    # read_sidecar, not read.csv — cells_common.R is the sanctioned home for
+    # every reader in this family, and TestTheSharedCellQuantitiesHaveOneImplementation
+    # refuses a raw read.csv anywhere else. It caught this one: a guard against
+    # divergence that was itself a divergence.
+    pr <- read_sidecar(sp)
     names(pr)[1:4] <- c("sweep", "run_id", "key", "value")
     keep <- pr[pr$key %in% c("commit", "dirty", "constants_digest", "env", "constant"), ]
     if (!nrow(keep)) next

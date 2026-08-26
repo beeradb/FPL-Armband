@@ -287,11 +287,40 @@ func triggerWindow(season string, gw int) analysis.OptionWindow {
 func repairCost(e *analysis.Engine, cur *Season, wal *wallet, held []int, gw, free int,
 	minExp float64, cfg SimConfig) (cost float64, ok bool) {
 
-	changes, ok := repairChanges(e, held, wal.value(cur, held, gw-1), minExp, cfg)
+	cost, _, ok = repairCostAndDrift(e, cur, wal, held, gw, free, minExp, cfg)
+	return cost, ok
+}
+
+// repairCostAndDrift is `repairCost` plus the XI's expected-points distance from
+// the same fresh optimum, from ONE `Optimize` call.
+//
+// # Why both, and why from one call
+//
+// `repairCost` prices the repair as `4 x max(0, changes - free)` — the hits it
+// would take to reach the optimum by transfers. That is a MOVE COUNT wearing
+// points, and it treats a 4.0m bench swap exactly like losing a captain. The
+// user's objection is the reason `xidrift.go` exists: *"switching a benched
+// player is basically never worth a transfer."*
+//
+// `repairChanges` already builds the fresh fifteen and discards it, so the drift
+// costs nothing beyond two `BestXI` searches — and `Optimize` is the expensive
+// call in this package, so a second one would have been the whole cost.
+//
+// ⚠️ **The drift does NOT decide anything yet, deliberately.** The two quantities
+// are not interchangeable: the cost is a ONE-OFF hit price and the drift is a
+// PER-GAMEWEEK rate, and `ChipBarAt` was calibrated against the first. Swapping
+// the estimator under a bar fitted to the other is the error this record has
+// already made twice in one day. Measure the disagreement first, then decide.
+func repairCostAndDrift(e *analysis.Engine, cur *Season, wal *wallet, held []int,
+	gw, free int, minExp float64, cfg SimConfig) (cost, drift float64, ok bool) {
+
+	budget := wal.value(cur, held, gw-1)
+	fresh, ok := repairSquad(e, held, budget, minExp, cfg)
 	if !ok {
-		return 0, false
+		return 0, 0, false
 	}
-	return repairCostOf(changes, free), true
+	changes := changesBetween(held, fresh)
+	return repairCostOf(changes, free), xiPoints(e, fresh) - xiPoints(e, held), true
 }
 
 // repairChanges is how many of the held fifteen a fresh unconstrained optimum
