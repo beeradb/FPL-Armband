@@ -18,6 +18,32 @@ config and cannot see a changed function body. **This run's sidecar records
 `dirty=false`.** It is the first chip measurement in that sequence where the
 provenance is complete.
 
+⚠️ **CORRECTED 2026-08-25 — that is TRUE OF `anchored.csv` AND FALSE OF
+`decomposition.csv`**, which is where three of the four per-chip figures come from:
+
+| block | commit | `dirty` |
+|---|---|---|
+| #1 wildcard | `a0f20a01` | false |
+| #2 bench boost | `3b8bf1ab` | **true** |
+| #3 free hit | `3b8bf1ab` | **true** |
+| #4 triple captain | `3b8bf1ab` | **true** |
+
+`anchored.csv`, `wildcardvalue.csv` and every other banked directory here are
+clean; `decomposition.csv` is the only mixed one.
+
+⚠️ **The mitigation is real and is not a clearance.** `a0f20a01..3b8bf1ab` is a
+single commit touching only `internal/backtest/captainweekskill_diag_test.go` — a
+different test file, off the scored path — so the uncommitted delta during blocks
+2-4 was very probably that file mid-edit. **But `dirty=true` means precisely that
+this cannot be verified from the record**, which is the principle the paragraph
+above states. Treat **+5.6, +14.5 and −0.75** as measured on an unverifiable tree.
+
+⚠️ **How the false claim survived a check.** It was verified with
+`awk '$3=="dirty"{print $4; exit}'`, which stops at the first row — block #1, the
+only clean one. **A provenance check that reads one row and generalises to the file
+is not a check.** Use `awk -F, '$3=="dirty"{print $4}' … | sort -u`.
+
+
 ## Read them with the right estimand
 
 ⚠️ `Rscript stats/sweep_inference.R --scale=per_path`, NOT the default. A chip is
@@ -48,8 +74,9 @@ midfielder in every cell. An estimator swap reads as a data change.
 
 ## Also banked here: the per-chip decomposition and the wildcard-value arm
 
-Same run conditions — clean tree (`dirty=false`), shipped config, six-season
-extended grid, POLICY, read with `--scale=per_path`.
+Same run conditions — shipped config, six-season extended grid, POLICY, read with
+`--scale=per_path`. ⚠️ **NOT a clean tree**: three of the four blocks in
+`decomposition.csv` record `dirty=true`. See the correction above.
 
 `decomposition.csv` — `TestDiagAnchoredChipDecomposition`, four two-arm blocks,
 one chip isolated per block at 4 gameweeks of sight:
@@ -93,7 +120,8 @@ well — seasons the source cannot touch, and whose priors it cannot touch eithe
 **A deterministic replay cannot move a season whose inputs did not change.** When
 it does, something outside the declared variable moved.
 
-**What they are still good for**: they remain the complete, `dirty=false` record
-of what PR #83 measured, and every figure in the 2026-08-25 chip notes re-derives
+**What they are still good for**: they remain the record of what PR #83 measured
+— complete for `anchored.csv` and `wildcardvalue.csv`, and `dirty=true` for three
+of `decomposition.csv`'s four blocks — and every figure in the 2026-08-25 chip notes re-derives
 from them exactly. **Re-deriving a published figure: yes. Serving as the control
 arm for a new comparison: no — run the control at the same commit.**
