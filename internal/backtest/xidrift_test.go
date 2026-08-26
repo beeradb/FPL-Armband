@@ -110,9 +110,10 @@ func TestDiagXIDrift(t *testing.T) {
 
 	fmt.Printf("\n=== how far is the opening squad from ideal, in POINTS on the XI?\n")
 	fmt.Printf("Against the old move count over all fifteen, on the same cells.\n\n")
-	fmt.Printf("%-9s %5s  %8s %8s %8s  %7s\n", "season", "entry", "heldXI", "freshXI", "drift", "changes")
+	fmt.Printf("%-9s %5s  %8s %8s %8s  %7s %9s\n",
+		"season", "entry", "heldXI", "freshXI", "drift", "changes", "trigCost")
 
-	var drifts, changes []float64
+	var drifts, changes, costs []float64
 	for _, pr := range loadPairsOrSkip(t, cfg) {
 		for _, start := range starts {
 			sc := SimConfig{Weights: cfg.Weights, StartGW: start}
@@ -129,9 +130,15 @@ func TestDiagXIDrift(t *testing.T) {
 			if !ok {
 				continue
 			}
+			// What the LIVE trigger would read for the same squad: the hit price
+			// of repairing by transfers, 4 x max(0, changes - free). One free
+			// transfer is the ordinary allowance and is what makes the two
+			// measures comparable at all — see repairCostAndDrift.
+			cost := repairCostOf(d.Changes, 1)
 			drifts, changes = append(drifts, d.Drift), append(changes, float64(d.Changes))
-			fmt.Printf("%-9s %5d  %8.1f %8.1f %8.2f  %7d\n",
-				pr.Cur.Name, start, d.Held, d.Fresh, d.Drift, d.Changes)
+			costs = append(costs, cost)
+			fmt.Printf("%-9s %5d  %8.1f %8.1f %8.2f  %7d %9.1f\n",
+				pr.Cur.Name, start, d.Held, d.Fresh, d.Drift, d.Changes, cost)
 		}
 	}
 	if len(drifts) < 2 {
@@ -140,6 +147,13 @@ func TestDiagXIDrift(t *testing.T) {
 	fmt.Printf("\ncells %d | mean drift %.2f points on the XI | mean changes %.2f of 15\n",
 		len(drifts), meanOf(drifts), meanOf(changes))
 	fmt.Printf("correlation between the two measures: %.3f\n", corrOf(drifts, changes))
+	fmt.Printf("\nAgainst what the LIVE wildcard trigger actually reads:\n")
+	fmt.Printf("  mean trigger cost %.1f points (hits) | correlation with XI drift %.3f\n",
+		meanOf(costs), corrOf(drifts, costs))
+	fmt.Printf("⚠️ These are DIFFERENT QUANTITIES, not two units for one number: the\n")
+	fmt.Printf("trigger cost is a ONE-OFF hit price and the drift is a PER-GAMEWEEK\n")
+	fmt.Printf("rate. ChipBarAt is calibrated against the first. The correlation says\n")
+	fmt.Printf("how much the trigger's ranking would change, NOT what to swap in.\n")
 	fmt.Printf("\n⚠️ Drift is an ARGMAX distance and is never zero against a fresh optimum.\n")
 	fmt.Printf("Read the series or a control contrast, never one number as points left on the table.\n")
 }

@@ -6,6 +6,12 @@
 #   Rscript stats/sweep_inference.R /tmp/cells.csv [more.csv ...]
 #   Rscript stats/sweep_inference.R --out=stats/out --no-plots /tmp/cells.csv
 #   Rscript stats/sweep_inference.R --scale=per_path /tmp/cells.csv
+#   Rscript stats/sweep_inference.R --vary=FPL_XGC_EXTERNAL_DIR a.csv b.csv
+#
+# ⚠️ Reading two cell files together means DIFFERENCING them, so they must have
+# been measured at one code state. This refuses when they were not, and
+# `--vary=<field>[,<field>]` is how a comparison declares what it is varying on
+# purpose. See check_shared_code_state.
 #
 # Produce the input with:
 #   FPL_CELLS=/tmp/cells.csv DIAG=1 EXP=A go test ./internal/backtest \
@@ -69,6 +75,10 @@ opt_tol <- 1e-9
 # weighting when what is being measured happens a fixed number of times per path.
 # See the harness-and-inference note.
 opt_scale <- "per_gw"
+# The provenance fields this comparison DECLARES it is varying. Everything else
+# must agree across the inputs, or they are not two arms of one comparison — see
+# check_shared_code_state.
+opt_vary <- character(0)
 paths <- character(0)
 
 for (a in args) {
@@ -83,6 +93,9 @@ for (a in args) {
     if (!opt_scale %in% c("per_gw", "per_path")) {
       stop("--scale must be per_gw or per_path, not: ", opt_scale)
     }
+  } else if (grepl("^--vary=", a)) {
+    opt_vary <- strsplit(sub("^--vary=", "", a), ",")[[1]]
+    opt_vary <- trimws(opt_vary[nzchar(trimws(opt_vary))])
   } else if (grepl("^--", a)) {
     stop("unknown option: ", a)
   } else {
@@ -128,6 +141,179 @@ local({
 # block key. It also adds two this script did not have — exactly one baseline arm
 # per block, and `is_baseline` agreeing with `variant_index == 0` — both verified
 # against the whole bank before promotion, with zero failures.
+# --- the code state the arms were measured at ------------------------------
+#
+# A sidecar records what produced ONE run. Nothing checked that two runs being
+# DIFFERENCED share a code state, and on 2026-08-25 that gap produced three
+# separate wrong answers in one session: a sweep launched against an uncommitted
+# tree, a new arm differenced against cells banked before an intervening merge,
+# and a merged correction whose figures described a superseded codebase. None was
+# caught by a number looking wrong. `dirty=true` is loud; `commit_a != commit_b`
+# was silent.
+#
+# ⚠️ This is a CHECK WITH AN OPT-OUT, not a prohibition. An arm that deliberately
+# varies a fingerprinted switch is the normal case — that is what an arm IS — so
+# `--vary=FPL_XGC_EXTERNAL_DIR` declares it and the check passes. A guard that
+# cannot express the intended contrast gets switched off, and then it guards
+# nothing.
+#
+# ⚠️ It reads the `.provenance.csv` beside each input, derived by Go's own rule —
+# see means_path_for below for why `sub("\\.csv$", ...)` alone is not that rule.
+provenance_path_for <- function(p) paste0(sub("\\.csv$", "", p), ".provenance.csv")
+
+# read_provenance returns one row per (file, sweep block) with the fields that
+# must agree. Absent sidecars are reported, not fatal: older banked cells predate
+# the sidecar and a hard failure would make them unreadable.
+read_provenance <- function(ps) {
+  out <- NULL
+  for (p in ps) {
+    sp <- provenance_path_for(p)
+    if (!file.exists(sp)) {
+      note("  ⚠️ no sidecar beside ", basename(p),
+           " — its code state cannot be checked at all")
+      next
+    }
+    # read_sidecar, not read.csv — cells_common.R is the sanctioned home for
+    # every reader in this family, and TestTheSharedCellQuantitiesHaveOneImplementation
+    # refuses a raw read.csv anywhere else. It caught this one: a guard against
+    # divergence that was itself a divergence.
+    pr <- read_sidecar(sp)
+    names(pr)[1:4] <- c("sweep", "run_id", "key", "value")
+    keep <- pr[pr$key %in% c("commit", "dirty", "constants_digest", "env", "constant"), ]
+    if (!nrow(keep)) next
+    keep$file <- basename(p)
+    out <- rbind(out, keep)
+  }
+  out
+}
+
+# check_shared_code_state fails when the inputs disagree on anything they did not
+# declare they were varying.
+check_shared_code_state <- function(ps, vary) {
+  pr <- read_provenance(ps)
+  if (is.null(pr) || !nrow(pr)) return(invisible(NULL))
+
+  # ⚠️ dirty is checked PER BLOCK, not once per file. A four-block sweep can be
+  # clean in block 1 and dirty in 2-4, and reading the first row and
+  # generalising is how that went unnoticed for a day — the check that missed it
+  # was `awk '$3=="dirty"{print $4; exit}'`.
+  d <- pr[pr$key == "dirty" & tolower(pr$value) == "true", ]
+  if (nrow(d)) {
+    note("  ⚠️ dirty=true in ", nrow(d), " block(s): ",
+         paste(unique(paste0(d$file, ":", d$sweep)), collapse = ", "))
+    note("     The sidecar cannot say what was measured. The delta's CONTENT is",
+         " unrecoverable; its EFFECT is testable by re-running at the stamped",
+         " commit.")
+  }
+
+  # ⚠️ ACROSS FILES is fatal; ACROSS BLOCKS inside one file is a warning, and the
+  # distinction is the whole design. A sweep file holds independent two-arm
+  # blocks — the decomposition's four chips are four separate comparisons — and a
+  # difference is taken WITHIN a block, never between them. So two commits inside
+  # one file do not invalidate any comparison the script performs; two commits
+  # BETWEEN files being read together do, because that is exactly the arm-versus-
+  # arm difference a reader will take.
+  #
+  # Failing on the within-file case would make every honestly-banked mixed file
+  # unreadable, and a guard that blocks legitimate work is one that gets deleted.
+  disagree <- function(key, label) {
+    rows <- pr[pr$key == key, ]
+    if (!nrow(rows)) return(NULL)
+    if (length(unique(rows$value)) < 2) return(NULL)
+    if (label %in% vary) {
+      note("  declared varying: ", label)
+      return(NULL)
+    }
+    per_file <- tapply(rows$value, rows$file, function(v) length(unique(v)))
+    if (any(per_file > 1)) {
+      mixed <- names(per_file)[per_file > 1]
+      note("  ⚠️ ", label, " differs BETWEEN BLOCKS inside ",
+           paste(mixed, collapse = ", "),
+           " — each block is its own two-arm comparison and is internally",
+           " consistent, so this does not invalidate one. It DOES mean blocks",
+           " in this file must not be differenced against each other.")
+    }
+    # Fatal only when whole files disagree: collapse each file to its set of
+    # values and compare the sets.
+    sets <- tapply(rows$value, rows$file, function(v) paste(sort(unique(v)), collapse = "|"))
+    if (length(unique(sets)) < 2) return(NULL)
+    paste0(label, " differs BETWEEN the input files (",
+           paste(paste0(names(sets), "=", substr(sets, 1, 12)), collapse = "; "), ")")
+  }
+
+  bad <- disagree("commit", "commit")
+
+  # ⚠️ constants_digest is DERIVED and conflates two things: provenance.go says it
+  # "hashes config.json's modelSubtrees plus env switches". So declaring an env
+  # switch as varied MUST move the digest, and checking the digest directly would
+  # block the very comparison --vary exists to permit.
+  #
+  # The sidecar carries the config values themselves, so compare those instead —
+  # stronger than the hash, and it separates "the config changed" from "the switch
+  # I declared changed".
+  konst <- pr[pr$key == "constant", ]
+  if (nrow(konst)) {
+    parts <- strsplit(konst$value, "\t", fixed = FALSE)
+    konst$name <- vapply(parts, function(x) x[1], character(1))
+    konst$val <- vapply(parts, function(x) if (length(x) > 1) x[2] else "", character(1))
+    moved <- character(0)
+    for (nm in unique(konst$name)) {
+      rows <- konst[konst$name == nm, ]
+      sets <- tapply(rows$val, rows$file, function(v) paste(sort(unique(v)), collapse = "|"))
+      if (length(unique(sets)) > 1 && !(nm %in% vary)) moved <- c(moved, nm)
+    }
+    if (length(moved)) {
+      bad <- c(bad, paste0("shipped constants differ BETWEEN the input files: ",
+                           paste(head(moved, 6), collapse = ", "),
+                           if (length(moved) > 6) paste0(" (+", length(moved) - 6, " more)") else ""))
+    }
+  } else if (!is.null(disagree("constants_digest", "constants_digest"))) {
+    # No per-constant rows to fall back on, so the hash is all there is.
+    bad <- c(bad, "constants_digest differs BETWEEN the input files and the sidecars carry no per-constant rows to say which")
+  }
+
+  # env rows carry NAME<TAB>VALUE in the value column, so each fingerprinted
+  # switch is checked as its own field rather than as one opaque blob.
+  env <- pr[pr$key == "env", ]
+  if (nrow(env)) {
+    parts <- strsplit(env$value, "\t", fixed = FALSE)
+    env$name <- vapply(parts, function(x) x[1], character(1))
+    env$val <- vapply(parts, function(x) if (length(x) > 1) x[2] else "", character(1))
+    for (nm in unique(env$name)) {
+      rows <- env[env$name == nm, ]
+      # A switch SET in one input and absent from another differs too, and that
+      # is the common case — absence is a value.
+      seen <- length(unique(rows$file))
+      vals <- unique(rows$val)
+      # Absence is a value: a switch set in one input and unset in another is a
+      # difference, and it is the common one.
+      if (length(vals) > 1 || seen < length(ps)) {
+        if (nm %in% vary) {
+          note("  declared varying: ", nm)
+        } else {
+          bad <- c(bad, paste0(nm, " differs across the inputs (set in ", seen,
+                               " of ", length(ps), " file(s))"))
+        }
+      }
+    }
+  }
+
+  if (length(bad)) {
+    fail("the inputs were NOT measured at one code state, so differencing them ",
+         "attributes to the arm whatever else moved:\n    - ",
+         paste(bad, collapse = "\n    - "),
+         "\n  Declare what this comparison varies with --vary=<field>[,<field>], ",
+         "or re-run the arms at one commit. ",
+         "A cheap check that needs no tooling: difference the arms PER SEASON ",
+         "and verify the seasons an arm cannot touch are identical — a ",
+         "deterministic replay cannot move a season whose inputs did not change.")
+  }
+  invisible(NULL)
+}
+
+note("Checking the inputs share a code state...")
+check_shared_code_state(paths, opt_vary)
+
 cells <- read_cells_all(paths)
 
 # This script needs more than the shared contract: it reports POLICY as well as
