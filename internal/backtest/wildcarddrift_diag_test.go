@@ -9,7 +9,7 @@ package backtest
 // when the squad is bad enough. This asks what "bad enough" means, and whether
 // the measure the shipped rule uses can express it.
 //
-//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest \
+//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest \ -count=1
 //	    -run TestDiagWildcardDriftTrigger -v -timeout 90m
 //
 // # The two rules, and why they are not two units for one rule

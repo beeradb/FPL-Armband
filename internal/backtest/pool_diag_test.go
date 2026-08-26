@@ -295,7 +295,7 @@ func firstRow(p *Player) int {
 // full grid.
 //
 //	DIAG=1 FPL_CELLS=/tmp/pool/cells.csv \
-//	  go test ./internal/backtest -run TestDiagUnregisteredPoolImpact -v -timeout 180m
+//	  go test ./internal/backtest -run TestDiagUnregisteredPoolImpact -count=1 -v -timeout 180m
 //
 // A single cell said the corrected replay scored *more*, which is the opposite of
 // what the mechanism predicts — the leak granted free budget and free hindsight,

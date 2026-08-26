@@ -2,7 +2,7 @@ package backtest
 
 // What unifying the two estimators of P(appears) is worth on the replay.
 //
-//	DIAG=1 FPL_CELLS=/tmp/cells.csv go test ./internal/backtest \
+//	DIAG=1 FPL_CELLS=/tmp/cells.csv go test ./internal/backtest \ -count=1
 //	  -run TestDiagUnifiedAppearance -v -timeout 240m
 //
 // # What moved and what did not

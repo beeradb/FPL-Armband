@@ -9,7 +9,7 @@ import (
 // Does building the squad toward a chip pay, once the objective can say so?
 //
 //	DIAG=1 EXP=CHIPPREP FPL_CELLS=/tmp/chipprep/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagChipPreparation$' -v -timeout 4h
+//	    go test ./internal/backtest -run '^TestDiagChipPreparation$' -count=1 -v -timeout 4h
 //
 // # What this measures that TestDiagAnchoredChips could not
 //

@@ -3,7 +3,7 @@ package backtest
 // Which chip carries the anchoring effect: wildcard, bench boost, free hit,
 // triple captain, or all four together?
 //
-//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest -run TestDiagAnchoredChipDecomposition -v -timeout 45m
+//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest -run TestDiagAnchoredChipDecomposition -count=1 -v -timeout 45m
 //
 // TestDiagAnchoredChips bundles bench boost, free hit and triple captain into
 // one "anchored" plan and compares it against one "control" plan at fixed
@@ -206,7 +206,7 @@ func tcMatchupControl(cur *Season, start int, capXP map[int]float64) analysis.Ch
 // TestDiagTripleCaptainMatchup asks whether the triple captain is worth timing
 // on OPPONENT QUALITY, which TestDiagAnchoredChipDecomposition never tested.
 //
-//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest -run TestDiagTripleCaptainMatchup -v -timeout 45m
+//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest -run TestDiagTripleCaptainMatchup -count=1 -v -timeout 45m
 //
 // That test placed the chip on the best remaining DOUBLE and found nothing
 // (-0.75 a season-path, below its own detection threshold of 2.0 — both read

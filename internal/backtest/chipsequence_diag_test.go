@@ -11,7 +11,7 @@ import (
 // Does the wildcard-into-boost sequence pay, on the paired grid?
 //
 //	DIAG=1 EXP=CHIPSEQ FPL_CELLS=/tmp/chipseq/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagChipSequencePaired$' -v -timeout 6h
+//	    go test ./internal/backtest -run '^TestDiagChipSequencePaired$' -count=1 -v -timeout 6h
 //
 // # Why this exists when TestDiagChipSequence already does
 //

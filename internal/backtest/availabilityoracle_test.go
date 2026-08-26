@@ -19,7 +19,7 @@ package backtest
 // (t = 1.32) and ≈47 for minutes (t = 0.62), and **neither resolves either**.
 //
 //	DIAG=1 EXP=ORACLEAVAIL FPL_CELLS=/tmp/oracleavail/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagAvailabilityOracle$' -v -timeout 3h
+//	    go test ./internal/backtest -run '^TestDiagAvailabilityOracle$' -count=1 -v -timeout 3h
 //	Rscript stats/sweep_inference.R /tmp/oracleavail/cells.csv
 //	Rscript stats/variance_components.R --out=stats/out/oracleavail /tmp/oracleavail/cells.csv
 //

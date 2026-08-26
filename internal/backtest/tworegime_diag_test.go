@@ -2,7 +2,7 @@ package backtest
 
 // Is the chip bundle better placed the way managers actually place it?
 //
-//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest -run TestDiagTwoRegimeChips -v -timeout 45m
+//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest -run TestDiagTwoRegimeChips -count=1 -v -timeout 45m
 //
 // # The rule, from the user's own practice
 //

@@ -4,7 +4,7 @@ package backtest
 // number?
 //
 //	DIAG=1 EXP=ANCHORED FPL_CELLS=/tmp/anchored/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagAnchoredChips$' -v -timeout 4h
+//	    go test ./internal/backtest -run '^TestDiagAnchoredChips$' -count=1 -v -timeout 4h
 //
 // This is how the chips are actually played: free hit the blank, build toward the
 // double, boost it, wildcard into or out of it. Every chip week this harness has

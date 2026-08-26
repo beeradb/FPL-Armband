@@ -21,7 +21,7 @@ package backtest
 // other constant in AGENTS.md.
 //
 //	DIAG=1 FPL_CELLS=/tmp/cells.csv \
-//	    go test ./internal/backtest -run TestDiagViceCaptainFix -v -timeout 1h
+//	    go test ./internal/backtest -run TestDiagViceCaptainFix -count=1 -v -timeout 1h
 //	Rscript stats/sweep_inference.R /tmp/cells.csv
 //
 // # This used to be its own harness, and that was the bug

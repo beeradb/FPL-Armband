@@ -2,7 +2,7 @@ package backtest
 
 // What is a wildcard actually worth: playing one against playing none.
 //
-//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest -run TestDiagWildcardValue -v -timeout 45m
+//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest -run TestDiagWildcardValue -count=1 -v -timeout 45m
 //
 // # The question, and why it is not the one already measured
 //

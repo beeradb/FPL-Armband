@@ -2,7 +2,7 @@ package backtest
 
 // THE FIRST-HALF WILDCARD, WITH EVERY DIFFERENCE ATTRIBUTABLE
 //
-//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest \
+//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest \ -count=1
 //	    -run TestDiagWildcardAttribution -v -timeout 120m
 //
 // # Why this replaces two earlier sweeps rather than adding to them

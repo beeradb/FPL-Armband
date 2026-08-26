@@ -4,7 +4,7 @@ package backtest
 //
 //	DIAG=1 FPL_SWEEP_STARTS="1,2,3,4,6,11,16,17,18,19,21,26" \
 //	  FPL_CELLS=/tmp/density.csv \
-//	  go test ./internal/backtest -run TestDiagEntryDensity -v -timeout 180m
+//	  go test ./internal/backtest -run TestDiagEntryDensity -count=1 -v -timeout 180m
 //
 // # The claim under test
 //

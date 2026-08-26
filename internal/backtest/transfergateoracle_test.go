@@ -4,7 +4,7 @@ package backtest
 // proposes?
 //
 //	DIAG=1 EXP=ORACLEGATE FPL_CELLS=/tmp/oraclegate/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagTransferGateOracle$' -v -timeout 3h
+//	    go test ./internal/backtest -run '^TestDiagTransferGateOracle$' -count=1 -v -timeout 3h
 //	Rscript stats/sweep_inference.R /tmp/oraclegate/cells.csv
 //
 // # The decision this settles

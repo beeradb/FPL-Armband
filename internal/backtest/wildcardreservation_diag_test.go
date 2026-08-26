@@ -2,7 +2,7 @@ package backtest
 
 // HOW EXPENSIVE MUST THE REPAIR BE BEFORE YOU WILDCARD?
 //
-//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest \
+//	DIAG=1 FPL_CELLS=<path> go test ./internal/backtest \ -count=1
 //	    -run TestDiagWildcardReservation -v -timeout 90m
 //
 // # Three numbers for one decision, and the shipped one is asserted
