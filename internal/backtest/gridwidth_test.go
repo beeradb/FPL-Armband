@@ -3,9 +3,9 @@ package backtest
 // Should the replay grid widen from four played seasons to six?
 //
 //	DIAG=1 FPL_CELLS=/tmp/gw7.csv FPL_SWEEP_SEASONS=scoring EXP=grid7 \
-//	    go test ./internal/backtest -run TestDiagGridWidth -v -timeout 3h
+//	    go test ./internal/backtest -run TestDiagGridWidth -count=1 -v -timeout 3h
 //	DIAG=1 FPL_CELLS=/tmp/gw4.csv FPL_SWEEP_SEASONS=default EXP=grid4 \
-//	    go test ./internal/backtest -run TestDiagGridWidth -v -timeout 3h
+//	    go test ./internal/backtest -run TestDiagGridWidth -count=1 -v -timeout 3h
 //	Rscript stats/grid_width.R /tmp/gw7.csv /tmp/gw4.csv
 //
 // # The question, and why it is not simply "more seasons is better"

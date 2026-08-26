@@ -717,10 +717,25 @@ type ChipTriggerMediator struct {
 	// and the bar refused it", which is the banking funnel's WeighedWeeks argument
 	// applied to a chip.
 	WeighedWeeks int
-	// FiredGW is the gameweek the chip was played in, or 0 if the rule never
-	// fired. FiredValue is the reading that cleared, and FiredBar the bar it
-	// cleared — both zero when FiredGW is zero.
+	// FiredGW is the gameweek of the FIRST firing, or 0 if the rule never fired.
+	// FiredValue is the reading that cleared and FiredBar the bar it cleared —
+	// both describing that same first firing, and both zero when FiredGW is zero.
+	//
+	// ⚠️ **"First" is load-bearing since chips came in two SETS.** A season after
+	// 2025-26 grants each chip twice, one set either side of ChipResetGW, so a
+	// rule can fire twice in one season and these three fields cannot describe
+	// both. They used to be OVERWRITTEN on each firing, which made them silently
+	// report the SECOND firing while this comment said "the gameweek the chip was
+	// played in" — a cells column that means one thing in a one-set season and
+	// another in a two-set one, with nothing saying which. Caught by
+	// TestTheChipTriggersReachTheSimulation, whose join then read the first
+	// firing's week against the last firing's mediator and failed.
+	//
+	// **FiredGWs is every firing, in order**, and is what a reader wanting the
+	// whole season must use. FiredGW is kept as the first because a scalar column
+	// that silently changes meaning is worse than one that is explicitly partial.
 	FiredGW    int
+	FiredGWs   []int
 	FiredValue float64
 	FiredBar   float64
 	// ValueSum and BarSum are the reading and the bar summed over WeighedWeeks,
@@ -1646,6 +1661,66 @@ type SimConfig struct {
 	// the two scoring chips, in points of one week's gain.
 	WildcardReservation, BenchBoostBar, FreeHitBar float64
 
+	// WildcardDriftBar replaces the wildcard trigger's READING as well as its
+	// bar: fire when the fielded eleven is more than this many expected points
+	// behind the eleven an unconstrained optimum would field. Zero — every
+	// existing caller — leaves the repair-cost rule in place.
+	//
+	// ⚠️ **This is a different RULE, not a different unit for the same one, and
+	// the arms must be read that way.** The shipped trigger asks "what would
+	// repairing by transfers cost in hits", which is a MOVE COUNT wearing points
+	// and scores a 4.0m bench swap like a lost captain — the objection
+	// `xidrift.go` was built for. This asks "how far behind is the eleven", which
+	// is the quantity a manager is deciding about.
+	//
+	// ⚠️ **It IS the base for `analysis.ChipBarAt`, so the option decay is kept.**
+	// A first version bypassed that bar on the grounds that it prices a one-off
+	// hit cost while drift is a per-gameweek rate — which confused a UNIT with a
+	// SHAPE. `ChipReservationAt` is `base * OptionValueAt(...).Factor`, a pure
+	// multiplicative decay by a DIMENSIONLESS factor, so a base in drift units
+	// yields a decayed bar in drift units. `ChipBarAt`'s own comment says it:
+	// *"if they ever need to differ, the difference goes in the BASE, not in a
+	// second curve."*
+	//
+	// That matters for the comparison and not just for tidiness: bypassing the
+	// bar made the drift arm differ from the shipped rule in TWO ways — the
+	// reading AND the waiting — so any difference between them would have been
+	// unattributable. Sharing the curve leaves exactly one variable.
+	WildcardDriftBar float64
+
+	// WildcardTriggerFirstHalfOnly confines the wildcard rule to the first chip
+	// set — gameweeks before ChipResetGW.
+	//
+	// ⚠️ **The window is a proxy for "no double to anchor to", which is the real
+	// condition.** A wildcard aimed at a double is a calendar decision; one with
+	// no such target is a decision about the squad, and those are different
+	// rules that happen to be separated by the reset week. Second-half
+	// wildcard timing is a CALENDAR question — anchor it on the doubles — and
+	// that is measured elsewhere. What is unknown is the first half, where there
+	// is almost nothing to anchor to: two doubling gameweeks in GW1-19 across six
+	// seasons against forty after. The rule there is a condition on the SQUAD,
+	// which is what XI drift reads.
+	//
+	// Without this gate the two questions ride in one arm: a bar that fires early
+	// is also a bar that has spent its first-set wildcard, and a bar that fires
+	// late is really a second-half rule. The first version of the drift sweep had
+	// exactly that confound and its ladder read as "higher bars are better" when
+	// it was measuring "do not waste the only wildcard".
+	WildcardTriggerFirstHalfOnly bool
+
+	// RepairCountsXIOnly prices the repair on the starters a fresh optimum would
+	// replace, rather than on every held player it would replace.
+	//
+	// ⚠️ **The raw count is measurably the wrong input to a hit price.** Fired on
+	// it, the shipped wildcard rule leaves the policy taking MORE hits (+0.58) and
+	// losing points where it fires, because "three changes" over fifteen can be
+	// three bench swaps nobody would pay for — so the chip is burnt on a squad
+	// that did not need rebuilding and the fresh squad still needs repairing.
+	//
+	// False, every existing caller, keeps the shipped behaviour. See changesInXI
+	// for what the count excludes and what that costs.
+	RepairCountsXIOnly bool
+
 	// RecordRepairCost fills SimResult.RepairSeries: the held-versus-fresh
 	// distance, observed every gameweek on the evolving fifteen and on the frozen
 	// opening one.
@@ -2027,7 +2102,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	// One state per triggered chip, so a rule fires at most once and never in a
 	// gameweek another chip already occupies. `triggered` is what makes a fired
 	// chip visible to the week's scoring switch; the mediators record why.
-	trig := newChipTriggers(cfg)
+	trig := newChipTriggers(cfg, cur.Name)
 
 	for gw := start; gw <= 38; gw++ {
 		week := Week{GW: gw}
@@ -2069,7 +2144,9 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 			// Each is behind its own switch, and neither implies the other or the
 			// free-transfer taper. See chiptriggers.go for why that independence
 			// is load-bearing rather than tidy.
-			if trig.eligible(slotWildcard, gw, cfg.WildcardTrigger) {
+			wcOn := cfg.WildcardTrigger &&
+				(!cfg.WildcardTriggerFirstHalfOnly || gw < ChipResetGW)
+			if trig.eligible(slotWildcard, gw, wcOn) {
 				// The allowance the week will actually have: the accrual below
 				// runs inside every branch of this switch, so reading `free` raw
 				// would price the repair against one transfer too few and make
@@ -2079,9 +2156,19 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 				if avail < cfg.BankUpTo {
 					avail++
 				}
-				cost, ok := repairCost(pe, cur, w, held, gw, avail, minExp, cfg)
-				trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardReservation,
-					pe.HoldingCongestion(held, gw, cfg.OptionPricing), cost, ok)
+				// One Optimize, both readings — repairChanges already builds the
+				// fresh fifteen and discards it, and Optimize is the expensive
+				// call in this package.
+				cost, drift, ok := repairCostAndDrift(pe, cur, w, held, gw, avail, minExp, cfg)
+				if cfg.WildcardDriftBar > 0 {
+					// Same curve, different base and different reading — one
+					// variable between the arms. See WildcardDriftBar.
+					trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardDriftBar,
+						pe.HoldingCongestion(held, gw, cfg.OptionPricing), drift, ok)
+				} else {
+					trig.consult(slotWildcard, gw, cur.Name, cfg.WildcardReservation,
+						pe.HoldingCongestion(held, gw, cfg.OptionPricing), cost, ok)
+				}
 			}
 			if trig.eligible(slotFreeHit, gw, cfg.FreeHitTrigger) {
 				// ⚠️ **This is the most expensive line in the option-value work

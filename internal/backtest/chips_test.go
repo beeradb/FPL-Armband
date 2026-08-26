@@ -3,7 +3,7 @@ package backtest
 // What is scoring-chip *timing* worth?
 //
 //	DIAG=1 EXP=ORACLECHIP FPL_CELLS=/tmp/oraclechip/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagChipWeekOracle$' -v -timeout 3h
+//	    go test ./internal/backtest -run '^TestDiagChipWeekOracle$' -count=1 -v -timeout 3h
 //
 // # What changed, and why the old number should not be quoted
 //

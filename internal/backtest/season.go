@@ -630,11 +630,23 @@ func repaired(s *Season) (*Season, error) {
 	// charge everywhere it did not. Reversing the two would have the
 	// reconstruction win every row and this write nothing, silently. See
 	// xgcexternal.go.
+	// Counted BEFORE the overlay, because after it every source looks native.
+	// applyForcedXGC needs this to know whether this season has a truth to be
+	// compared against — see its own comment for why a season without one must
+	// be left on the shipped path rather than forced.
+	nativeXGCRows := countNativeXGCRows(s)
 	ext, err := s.applyExternalXGC()
 	if err != nil {
 		return nil, err
 	}
 	s.XGCExternal = ext
+	// The diagnostic forcing switch, AFTER the overlay and BEFORE the repair, so
+	// a forced arm overwrites whatever the ordinary path would have produced and
+	// applyXGCRepair then finds nothing left to fill. Unset on every ordinary
+	// run. See forceXGCSource.
+	if _, err := s.applyForcedXGC(nativeXGCRows); err != nil {
+		return nil, err
+	}
 	rep, err := s.applyXGRepair()
 	if err != nil {
 		return nil, err

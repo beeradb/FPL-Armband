@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -170,26 +171,57 @@ func TestTheChipTriggersReachTheSimulation(t *testing.T) {
 					"being formed rather than the bar refusing it",
 					c.name, m.WeighedWeeks, m.ConsultedWeeks)
 			}
-			// The join itself: the week the mediator names is the week the
+			// The join itself: the weeks the mediator names are the weeks the
 			// simulation played the chip in.
-			playedIn := 0
+			//
+			// ⚠️ **A chip is spent once PER SET, not once per season.** Seasons
+			// from 2025-26 grant each chip twice, one set either side of
+			// ChipResetGW, so a rule at a zero bar fires in both halves and two
+			// plays is correct. Asserting a single play here hid that: the
+			// mediator's scalar FiredGW was being overwritten by the second
+			// firing, so this join compared the first play against the last
+			// firing and the two disagreed.
+			var playedIn []int
 			for _, w := range got.Weeks {
 				if c.played(w) {
-					if playedIn != 0 {
-						t.Errorf("%s played in GW%d and GW%d; a chip is spent once",
-							c.name, playedIn, w.GW)
-					}
-					playedIn = w.GW
+					playedIn = append(playedIn, w.GW)
 				}
 			}
-			if playedIn != m.FiredGW {
-				t.Errorf("the %s rule fired at GW%d and the simulation played it "+
-					"at GW%d.\n\n"+
+			if len(playedIn) == 0 {
+				t.Fatalf("the %s rule fired at GW%d and the simulation played it "+
+					"in no gameweek at all.\n\n"+
 					"`consult` writes the mediator and does NOT touch the scoring "+
 					"switch, so deleting `trig.plays` from that switch leaves the "+
 					"mediator populated and the chip unplayed — a lever that reads "+
 					"as live in every column and changes nothing. This is the only "+
-					"test that separates them.", c.name, m.FiredGW, playedIn)
+					"test that separates them.", c.name, m.FiredGW)
+			}
+			if !slices.Equal(playedIn, m.FiredGWs) {
+				t.Errorf("the %s rule fired in %v and the simulation played it in "+
+					"%v; every firing must be a play and every play a firing.\n\n"+
+					"`consult` writes the mediator and does NOT touch the scoring "+
+					"switch, so deleting `trig.plays` from that switch leaves the "+
+					"mediator populated and the chip unplayed. This is the only "+
+					"test that separates them.", c.name, m.FiredGWs, playedIn)
+			}
+			if m.FiredGW != playedIn[0] {
+				t.Errorf("the %s mediator's scalar FiredGW is GW%d but the first "+
+					"play was GW%d. That field is documented as the FIRST firing "+
+					"precisely so a two-set season cannot change its meaning "+
+					"silently; overwriting it made it the last.",
+					c.name, m.FiredGW, playedIn[0])
+			}
+			// One firing per set, which is what makes two plays correct rather
+			// than a double-spend.
+			seen := map[bool]bool{}
+			for _, gw := range playedIn {
+				if half := gw < ChipResetGW; seen[half] {
+					t.Errorf("%s played twice in the same chip set: %v, with the "+
+						"set boundary at GW%d. Two plays are only legal either "+
+						"side of it.", c.name, playedIn, ChipResetGW)
+				} else {
+					seen[half] = true
+				}
 			}
 			// Confinement: the other two rules stay silent, which is what makes
 			// the four switches independent rather than merely separate fields.

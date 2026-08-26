@@ -200,7 +200,7 @@ TestDiagAnchoredChipDecomposition#1,1787696113-1576283,constant,"weights.tournam
 TestDiagAnchoredChipDecomposition#1,1787696113-1576283,constant,weights.tournament_absences[5].matches	3
 TestDiagAnchoredChipDecomposition#1,1787696113-1576283,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 TestDiagAnchoredChipDecomposition#1,1787696113-1576283,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-TestDiagAnchoredChipDecomposition#1,1787696113-1576283,env,FPL_XGC_EXTERNAL_DIR	/work/drop/fotmob-cache
+TestDiagAnchoredChipDecomposition#1,1787696113-1576283,env,FPL_XGC_EXTERNAL_DIR	path:811de8b2c8b1
 TestDiagAnchoredChipDecomposition#1,1787696113-1576283,watched_digest,50e615a68b266450f180497ff8ea7609692629e1c81cad3d8f403ba375e6f885
 TestDiagAnchoredChipDecomposition#1,1787696113-1576283,watched_path,config.json	cd2a6f289eafd7b9ff596d3b69f76b958bbb942bfe160bc41ae651f6c2fef969
 TestDiagAnchoredChipDecomposition#1,1787696113-1576283,watched_path,internal/analysis	ea72afc2de81fc274bc1c7c7ec622d5c04a9e47fc94fe485add1c633573043a5
@@ -407,7 +407,7 @@ TestDiagAnchoredChipDecomposition#2,1787696113-1576283,constant,"weights.tournam
 TestDiagAnchoredChipDecomposition#2,1787696113-1576283,constant,weights.tournament_absences[5].matches	3
 TestDiagAnchoredChipDecomposition#2,1787696113-1576283,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 TestDiagAnchoredChipDecomposition#2,1787696113-1576283,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-TestDiagAnchoredChipDecomposition#2,1787696113-1576283,env,FPL_XGC_EXTERNAL_DIR	/work/drop/fotmob-cache
+TestDiagAnchoredChipDecomposition#2,1787696113-1576283,env,FPL_XGC_EXTERNAL_DIR	path:811de8b2c8b1
 TestDiagAnchoredChipDecomposition#2,1787696113-1576283,watched_digest,77de9c5ca0fb568dc2fc8d54b6a9310f5e2256d9e4f346835878e39842048f9f
 TestDiagAnchoredChipDecomposition#2,1787696113-1576283,watched_path,config.json	cd2a6f289eafd7b9ff596d3b69f76b958bbb942bfe160bc41ae651f6c2fef969
 TestDiagAnchoredChipDecomposition#2,1787696113-1576283,watched_path,internal/analysis	ea72afc2de81fc274bc1c7c7ec622d5c04a9e47fc94fe485add1c633573043a5
@@ -614,7 +614,7 @@ TestDiagAnchoredChipDecomposition#3,1787696113-1576283,constant,"weights.tournam
 TestDiagAnchoredChipDecomposition#3,1787696113-1576283,constant,weights.tournament_absences[5].matches	3
 TestDiagAnchoredChipDecomposition#3,1787696113-1576283,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 TestDiagAnchoredChipDecomposition#3,1787696113-1576283,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-TestDiagAnchoredChipDecomposition#3,1787696113-1576283,env,FPL_XGC_EXTERNAL_DIR	/work/drop/fotmob-cache
+TestDiagAnchoredChipDecomposition#3,1787696113-1576283,env,FPL_XGC_EXTERNAL_DIR	path:811de8b2c8b1
 TestDiagAnchoredChipDecomposition#3,1787696113-1576283,watched_digest,77de9c5ca0fb568dc2fc8d54b6a9310f5e2256d9e4f346835878e39842048f9f
 TestDiagAnchoredChipDecomposition#3,1787696113-1576283,watched_path,config.json	cd2a6f289eafd7b9ff596d3b69f76b958bbb942bfe160bc41ae651f6c2fef969
 TestDiagAnchoredChipDecomposition#3,1787696113-1576283,watched_path,internal/analysis	ea72afc2de81fc274bc1c7c7ec622d5c04a9e47fc94fe485add1c633573043a5
@@ -821,7 +821,7 @@ TestDiagAnchoredChipDecomposition#4,1787696113-1576283,constant,"weights.tournam
 TestDiagAnchoredChipDecomposition#4,1787696113-1576283,constant,weights.tournament_absences[5].matches	3
 TestDiagAnchoredChipDecomposition#4,1787696113-1576283,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 TestDiagAnchoredChipDecomposition#4,1787696113-1576283,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-TestDiagAnchoredChipDecomposition#4,1787696113-1576283,env,FPL_XGC_EXTERNAL_DIR	/work/drop/fotmob-cache
+TestDiagAnchoredChipDecomposition#4,1787696113-1576283,env,FPL_XGC_EXTERNAL_DIR	path:811de8b2c8b1
 TestDiagAnchoredChipDecomposition#4,1787696113-1576283,watched_digest,77de9c5ca0fb568dc2fc8d54b6a9310f5e2256d9e4f346835878e39842048f9f
 TestDiagAnchoredChipDecomposition#4,1787696113-1576283,watched_path,config.json	cd2a6f289eafd7b9ff596d3b69f76b958bbb942bfe160bc41ae651f6c2fef969
 TestDiagAnchoredChipDecomposition#4,1787696113-1576283,watched_path,internal/analysis	ea72afc2de81fc274bc1c7c7ec622d5c04a9e47fc94fe485add1c633573043a5

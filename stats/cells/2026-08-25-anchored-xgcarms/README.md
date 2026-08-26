@@ -75,7 +75,7 @@ is what moves the SE.
 - The measured source **injects variance** those seasons do not really have.
 
 Nothing here separates them, and
-`2026-08-24-fotmob-is-opta-...` establishes only that the source is "not worse
+the accuracy work behind the source establishes only that it is "not worse
 than what ships", never more accurate.
 
 **What it does say is narrower and firmer: a finding whose resolution depends on

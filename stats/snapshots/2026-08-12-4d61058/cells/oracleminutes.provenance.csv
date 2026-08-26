@@ -190,7 +190,7 @@ ORACLEMINUTES#1,1786410044-73049,constant,"weights.tournament_absences[4].player
 ORACLEMINUTES#1,1786410044-73049,constant,weights.tournament_absences[5].matches	3
 ORACLEMINUTES#1,1786410044-73049,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 ORACLEMINUTES#1,1786410044-73049,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-ORACLEMINUTES#1,1786410044-73049,env,FPL_CONFIG	/home/bbowman.guest/fpl/.claude/worktrees/oracle-harness/config.json
+ORACLEMINUTES#1,1786410044-73049,env,FPL_CONFIG	path:bfc310c856e9
 ORACLEMINUTES#1,1786417371-107320,commit,d4df72bd0c7443dcc81aa4c25e72d0aafbdb0611
 ORACLEMINUTES#1,1786417371-107320,dirty,false
 ORACLEMINUTES#1,1786417371-107320,constants_digest,78a58b3f4253
@@ -384,4 +384,4 @@ ORACLEMINUTES#1,1786417371-107320,constant,"weights.tournament_absences[4].playe
 ORACLEMINUTES#1,1786417371-107320,constant,weights.tournament_absences[5].matches	3
 ORACLEMINUTES#1,1786417371-107320,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 ORACLEMINUTES#1,1786417371-107320,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-ORACLEMINUTES#1,1786417371-107320,env,FPL_CONFIG	/home/bbowman.guest/fpl/.claude/worktrees/oracle-harness/config.json
+ORACLEMINUTES#1,1786417371-107320,env,FPL_CONFIG	path:bfc310c856e9

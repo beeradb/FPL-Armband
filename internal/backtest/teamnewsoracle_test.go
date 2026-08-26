@@ -3,7 +3,7 @@ package backtest
 // What is knowing the real team news worth to the replay?
 //
 //	DIAG=1 EXP=ORACLETEAMNEWS FPL_CELLS=/tmp/teamnews/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagTeamNewsOracle$' -v -timeout 8h
+//	    go test ./internal/backtest -run '^TestDiagTeamNewsOracle$' -count=1 -v -timeout 8h
 //	Rscript stats/sweep_inference.R /tmp/teamnews/cells.csv
 //
 // # The question, and why the existing answer does not answer it

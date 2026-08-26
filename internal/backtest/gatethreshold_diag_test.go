@@ -12,7 +12,7 @@ import (
 // the correction below. What it actually measures is the horizon.
 //
 //	DIAG=1 EXP=GATE2X2 FPL_CELLS=/tmp/gate/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagGateThreshold$' -v -timeout 6h
+//	    go test ./internal/backtest -run '^TestDiagGateThreshold$' -count=1 -v -timeout 6h
 //
 // # ⚠️ The premise this was built on is false, and the reporting is inverted
 //

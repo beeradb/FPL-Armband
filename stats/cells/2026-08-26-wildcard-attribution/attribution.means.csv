@@ -1,0 +1,31 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagWildcardAttribution#1,1787757444-1764462,policy,"cost, RAW count, bar 12 — SHIPPED",1,no wildcard trigger (control),-0.2183720169990203,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,policy,"cost, XI-only count, bar 12 — the INPUT alone",2,no wildcard trigger (control),-0.14348529151160763,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,policy,"cost, XI-only count, bar 10 — the BAR alone",3,no wildcard trigger (control),0.04190716690716635,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,policy,drift > 3.0 pts/gw — the RULE alone,4,no wildcard trigger (control),0.17361111111111072,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,policy,"drift > 5.0 pts/gw — the rule, fired rarely",5,no wildcard trigger (control),0.05410780739728081,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,policy_xpoints,"cost, RAW count, bar 12 — SHIPPED",1,no wildcard trigger (control),-0.04875465266136499,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,policy_xpoints,"cost, XI-only count, bar 12 — the INPUT alone",2,no wildcard trigger (control),-0.09920424311459541,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,policy_xpoints,"cost, XI-only count, bar 10 — the BAR alone",3,no wildcard trigger (control),-0.0002875557883902739,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,policy_xpoints,drift > 3.0 pts/gw — the RULE alone,4,no wildcard trigger (control),0.247243901308608,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,policy_xpoints,"drift > 5.0 pts/gw — the rule, fired rarely",5,no wildcard trigger (control),0.08402633963692432,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold,"cost, RAW count, bar 12 — SHIPPED",1,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold,"cost, XI-only count, bar 12 — the INPUT alone",2,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold,"cost, XI-only count, bar 10 — the BAR alone",3,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold,drift > 3.0 pts/gw — the RULE alone,4,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold,"drift > 5.0 pts/gw — the rule, fired rarely",5,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_xpoints,"cost, RAW count, bar 12 — SHIPPED",1,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_xpoints,"cost, XI-only count, bar 12 — the INPUT alone",2,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_xpoints,"cost, XI-only count, bar 10 — the BAR alone",3,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_xpoints,drift > 3.0 pts/gw — the RULE alone,4,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_xpoints,"drift > 5.0 pts/gw — the rule, fired rarely",5,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_fixedcap,"cost, RAW count, bar 12 — SHIPPED",1,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_fixedcap,"cost, XI-only count, bar 12 — the INPUT alone",2,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_fixedcap,"cost, XI-only count, bar 10 — the BAR alone",3,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_fixedcap,drift > 3.0 pts/gw — the RULE alone,4,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_fixedcap,"drift > 5.0 pts/gw — the rule, fired rarely",5,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_nocap,"cost, RAW count, bar 12 — SHIPPED",1,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_nocap,"cost, XI-only count, bar 12 — the INPUT alone",2,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_nocap,"cost, XI-only count, bar 10 — the BAR alone",3,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_nocap,drift > 3.0 pts/gw — the RULE alone,4,no wildcard trigger (control),0,36,-
+TestDiagWildcardAttribution#1,1787757444-1764462,hold_nocap,"drift > 5.0 pts/gw — the rule, fired rarely",5,no wildcard trigger (control),0,36,-

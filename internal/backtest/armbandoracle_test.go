@@ -3,7 +3,7 @@ package backtest
 // What is a perfect armband worth?
 //
 //	DIAG=1 EXP=ORACLEARMBAND FPL_CELLS=/tmp/oraclearmband/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagArmbandOracle$' -v -timeout 3h
+//	    go test ./internal/backtest -run '^TestDiagArmbandOracle$' -count=1 -v -timeout 3h
 //	Rscript stats/sweep_inference.R /tmp/oraclearmband/cells.csv
 //
 // # Why this one, second

@@ -2,7 +2,7 @@ package backtest
 
 // The CSV contract between the Go replay and the R inference.
 //
-//	FPL_CELLS=/tmp/cells.csv DIAG=1 EXP=A go test ./internal/backtest \
+//	FPL_CELLS=/tmp/cells.csv DIAG=1 EXP=A go test ./internal/backtest \ -count=1
 //	    -run TestDiagTransferPolicy -v -timeout 90m
 //	Rscript stats/sweep_inference.R /tmp/cells.csv
 //

@@ -4,7 +4,7 @@ package backtest
 // have had?
 //
 //	DIAG=1 EXP=ORACLEMINUTES FPL_CELLS=/tmp/oracleminutes/cells.csv \
-//	    go test ./internal/backtest -run '^TestDiagMinutesOracle$' -v -timeout 6h
+//	    go test ./internal/backtest -run '^TestDiagMinutesOracle$' -count=1 -v -timeout 6h
 //	Rscript stats/sweep_inference.R /tmp/oracleminutes/cells.csv
 //
 // # Three arms, because one number bounded two different things

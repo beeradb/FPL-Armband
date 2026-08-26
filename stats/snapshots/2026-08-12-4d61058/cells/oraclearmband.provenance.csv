@@ -190,4 +190,4 @@ ORACLEARMBAND#1,1786398442-58420,constant,"weights.tournament_absences[4].player
 ORACLEARMBAND#1,1786398442-58420,constant,weights.tournament_absences[5].matches	3
 ORACLEARMBAND#1,1786398442-58420,constant,weights.tournament_absences[5].name	AFCON 2025 — group and last-16 exits
 ORACLEARMBAND#1,1786398442-58420,constant,"weights.tournament_absences[5].players	4 items, sha 52033c1b"
-ORACLEARMBAND#1,1786398442-58420,env,FPL_CONFIG	/home/bbowman.guest/fpl/.claude/worktrees/oracle-harness/config.json
+ORACLEARMBAND#1,1786398442-58420,env,FPL_CONFIG	path:bfc310c856e9

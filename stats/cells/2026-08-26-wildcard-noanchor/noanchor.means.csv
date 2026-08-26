@@ -1,0 +1,31 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy,first-half trigger on repair cost (shipped rule),1,no wildcard trigger (control),-0.10219079483953702,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy,first-half trigger on XI drift > 1.0 pts/gw,2,no wildcard trigger (control),0.29760260609802835,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy,first-half trigger on XI drift > 2.0 pts/gw,3,no wildcard trigger (control),0.0334398523757784,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy,first-half trigger on XI drift > 3.0 pts/gw,4,no wildcard trigger (control),0.17361111111111072,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy,first-half trigger on XI drift > 5.0 pts/gw,5,no wildcard trigger (control),0.05410780739728081,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy_xpoints,first-half trigger on repair cost (shipped rule),1,no wildcard trigger (control),-0.053263368505851595,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy_xpoints,first-half trigger on XI drift > 1.0 pts/gw,2,no wildcard trigger (control),0.37881240298745983,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy_xpoints,first-half trigger on XI drift > 2.0 pts/gw,3,no wildcard trigger (control),0.11486911018099259,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy_xpoints,first-half trigger on XI drift > 3.0 pts/gw,4,no wildcard trigger (control),0.247243901308608,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,policy_xpoints,first-half trigger on XI drift > 5.0 pts/gw,5,no wildcard trigger (control),0.08402633963692432,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold,first-half trigger on repair cost (shipped rule),1,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold,first-half trigger on XI drift > 1.0 pts/gw,2,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold,first-half trigger on XI drift > 2.0 pts/gw,3,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold,first-half trigger on XI drift > 3.0 pts/gw,4,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold,first-half trigger on XI drift > 5.0 pts/gw,5,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_xpoints,first-half trigger on repair cost (shipped rule),1,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_xpoints,first-half trigger on XI drift > 1.0 pts/gw,2,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_xpoints,first-half trigger on XI drift > 2.0 pts/gw,3,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_xpoints,first-half trigger on XI drift > 3.0 pts/gw,4,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_xpoints,first-half trigger on XI drift > 5.0 pts/gw,5,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_fixedcap,first-half trigger on repair cost (shipped rule),1,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_fixedcap,first-half trigger on XI drift > 1.0 pts/gw,2,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_fixedcap,first-half trigger on XI drift > 2.0 pts/gw,3,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_fixedcap,first-half trigger on XI drift > 3.0 pts/gw,4,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_fixedcap,first-half trigger on XI drift > 5.0 pts/gw,5,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_nocap,first-half trigger on repair cost (shipped rule),1,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_nocap,first-half trigger on XI drift > 1.0 pts/gw,2,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_nocap,first-half trigger on XI drift > 2.0 pts/gw,3,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_nocap,first-half trigger on XI drift > 3.0 pts/gw,4,no wildcard trigger (control),0,36,-
+TestDiagWildcardDriftTrigger#1,1787752814-1748204,hold_nocap,first-half trigger on XI drift > 5.0 pts/gw,5,no wildcard trigger (control),0,36,-
