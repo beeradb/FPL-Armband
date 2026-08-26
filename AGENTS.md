@@ -717,19 +717,26 @@ from this list is weak evidence of absence — nothing checks it stays complete.
   arm.** Calendar anchoring: +27.0 at 4gw sight (t 5.33) on the legacy reconstruction, RESOLVING;
   the pre-#82 +20.6/t 3.63 is superseded. +26.4 on measured with the SE doubled 5.06→11.41,
   t 2.32, NOT resolving — only the full-sight hindsight arm survives there. ⚠️ **Which arm to
-  believe is no longer the question, and cannot be answered by ranking standard errors.** Run
-  2026-08-26 in the three seasons where all three inputs describe the same football, one commit,
-  one declared variable, 18 cells an arm: the doubling does NOT reproduce in either direction —
-  the measured source is the *tighter* arm at full sight (4.86 vs 5.65) and 2.6× tighter at 4gw
-  (3.73 vs 9.80). The SE is not estimable there at all: `native`'s own CR2 SE moves 15.23→4.96
-  between two ADJACENT lookaheads with the input fixed. **The effect is robust to the input and
-  only the interval moves** — +31.4 / +26.1 / +28.6 at 4gw sight, a spread inside every SE in the
-  table. The mechanism: raw cell totals correlate at 0.998 across inputs while the paired chip
-  effect per cell correlates at −0.36/0.06/0.03, so the input re-randomises a residual that is 7%
-  of the cell spread. ⚠️ Three seasons is df 2 — nothing there resolves, and this does not show
-  the six-season doubling was noise. ⚠️ The reconstruction's tighter within-season spread was
-  tested paired and does NOT resolve (p 0.54, 0.43); the borrowing-strength claim stays retracted
-  and unproven. `2026-08-26-xgc-three-inputs/`.
+  believe CANNOT be decided by ranking standard errors, and the three-season design that would
+  have tried is refuted by its own band.** Run 2026-08-26 in the three seasons where all three
+  inputs describe the same football, one commit, one declared variable, 18 cells an arm. **df 2
+  puts the 95% band on a ratio of two SD estimates at F(2,2) = [0.16, 6.24]**, so a 2× ratio is
+  invisible there and the recorded doubling is **not testable** on that grid — NOT "not
+  reproduced". ✅ **What IS estimable is the WITHIN-season spread** (df 15, band [0.59, 1.69]):
+  36.16 / 36.07 / 31.09, max ratio **1.16** — **a 2× within-season difference between the inputs
+  is EXCLUDED**. ✅ **The per-cell effect is predominantly not a property of the cell**: paired
+  differences correlate −0.36 / 0.06 / 0.03 across inputs where the null predicts **+1** (
+  differencing removes the shared season path), so **an SE computed on one input does not transfer
+  to another**. SE(r) ~0.26 at n 18 — excludes large shared structure, cannot separate 0 from 0.3.
+  ⚠️ **The arm means are INDISTINGUISHABLE, not "robust"**: difference-of-differences +5.33/+2.83/
+  −2.50 against floors of **36.8 / 61.3 / 34.6**, so the input could be worth up to ~60 a
+  season-path and this would not see it. What survives positively is sign-consistency — three arms
+  with barely-correlated residuals, all positive at every sight setting. ⚠️ **Do not read per-arm
+  t off that grid** (6.33/6.99 at 4gw would "resolve"): either the df-2 SEs rank or they do not,
+  and this entry takes the second position. ⚠️ **The reconstruction manufacturing precision stays
+  UNPROVEN** — its tighter within-season spread gives paired Levene p 0.43/0.54 and Pitman-Morgan
+  (more powerful, correct for correlated variances) p 0.47/0.48. `2026-08-26-xgc-three-inputs/`,
+  regenerate with its `arms.R`.
   Free hit: +14.5/t 2.44 pre-`5b970338`, +21.0/t 3.60 after it, +20.7 with SE
   11.81 on measured. **Bench boost is the only component resolving on every arm and commit**
   (+4.4-5.6, LOSO 6/6). ⚠️ `per_path` always — `per_gw` is wrong for an event count and has

@@ -989,6 +989,32 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// against twice above. Left about 3 KB free rather than repeating the 14-byte
 	// and 74-byte near-misses.
 	//
+	// # 60 KB, 2026-08-26 — the xGC-arm question was answered, and the answer needs
+	// its BANDS or it inverts
+	//
+	// The room went to one entry: the tier-0 comparison of three xGC inputs on the
+	// three seasons where all three describe the same football. It replaced an entry
+	// that said "which arm to believe is OPEN", and the replacement is longer than
+	// what it replaced for a reason that is the whole finding.
+	//
+	// The result is **negative about its own instrument**, and a negative like that
+	// is unquotable without the numbers that make it one. "The doubling does not
+	// reproduce" is FALSE and was the first draft; the true statement is that df 2
+	// puts the band on an SD ratio at F(2,2) = [0.16, 6.24], so a 2x ratio is not
+	// testable there at all. Drop the band and the entry says the opposite of what
+	// was measured. The same is true of "the effect is robust to the input", which
+	// is an underpowered null wearing a positive word: the detection floors are 35
+	// to 61 points a season-path and they have to travel with it.
+	//
+	// It also carries a ⚠️ against reading per-arm t values off its own grid, because
+	// two of them clear t_crit and the entry's position is that those SEs do not
+	// rank. An entry that prints numbers it forbids testing has to say so in the
+	// entry.
+	//
+	// ⚠️ **The compress-instead option was available and is exactly what this comment
+	// forbids.** Every qualifier above is the part carrying the uncertainty, and the
+	// finding is uncertainty. Raised by 2 KB, ~1.2 KB free.
+
 	// # 58 KB, 2026-08-25 — two measured findings landed with banked cells, and the
 	// alternative was dropping qualifiers this comment already forbids twice
 	//
@@ -1051,7 +1077,7 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	//
 	// Every one of those is a qualifier carrying the uncertainty, which is the class
 	// this comment says must never be cut to fit. Raised rather than compressed.
-	const budget = 58 * 1024
+	const budget = 60 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

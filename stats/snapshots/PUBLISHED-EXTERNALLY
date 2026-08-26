@@ -1,0 +1,23 @@
+The accuracy snapshot series is NOT committed to this repository.
+
+It was removed on 2026-08-22 (`6fe7d43c`, "Stop committing the accuracy snapshot
+series; it publishes externally already"). The directories still here are the
+residue that other things read — cells and provenance sidecars named by scripts —
+not the series itself, and none of them carries a `key.csv`.
+
+This file is the declaration `TestSnapshotCoversTheCurrentCode` reads. That guard
+fails when no keyed snapshot is present, on the reasoning that in a repository with
+this discipline zero snapshots means somebody deleted them rather than that none was
+due. It sanctions exactly one legitimate absence — the series being published as an
+artefact instead of committed — and this is that case.
+
+⚠️ The guard previously accepted only `FPL_SNAPSHOTS_EXTERNAL=1`, an environment
+variable, which cannot be committed. So from 2026-08-22 the removal left the guard
+unsatisfiable from a fresh clone and `go test ./...` was red on `origin/main` for
+anyone who had not exported it by hand. The env var still works as a per-machine
+override; this file is what makes the repository's own state green.
+
+**Delete this file the moment a keyed snapshot is committed again.** Its presence
+switches off a staleness check, and a stale switch-off is worse than the check being
+noisy — with it here and a snapshot present, the guard reads the snapshot normally,
+but with it here and the series genuinely deleted by accident, nothing would say so.

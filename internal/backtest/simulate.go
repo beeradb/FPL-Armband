@@ -717,10 +717,25 @@ type ChipTriggerMediator struct {
 	// and the bar refused it", which is the banking funnel's WeighedWeeks argument
 	// applied to a chip.
 	WeighedWeeks int
-	// FiredGW is the gameweek the chip was played in, or 0 if the rule never
-	// fired. FiredValue is the reading that cleared, and FiredBar the bar it
-	// cleared — both zero when FiredGW is zero.
+	// FiredGW is the gameweek of the FIRST firing, or 0 if the rule never fired.
+	// FiredValue is the reading that cleared and FiredBar the bar it cleared —
+	// both describing that same first firing, and both zero when FiredGW is zero.
+	//
+	// ⚠️ **"First" is load-bearing since chips came in two SETS.** A season after
+	// 2025-26 grants each chip twice, one set either side of ChipResetGW, so a
+	// rule can fire twice in one season and these three fields cannot describe
+	// both. They used to be OVERWRITTEN on each firing, which made them silently
+	// report the SECOND firing while this comment said "the gameweek the chip was
+	// played in" — a cells column that means one thing in a one-set season and
+	// another in a two-set one, with nothing saying which. Caught by
+	// TestTheChipTriggersReachTheSimulation, whose join then read the first
+	// firing's week against the last firing's mediator and failed.
+	//
+	// **FiredGWs is every firing, in order**, and is what a reader wanting the
+	// whole season must use. FiredGW is kept as the first because a scalar column
+	// that silently changes meaning is worse than one that is explicitly partial.
 	FiredGW    int
+	FiredGWs   []int
 	FiredValue float64
 	FiredBar   float64
 	// ValueSum and BarSum are the reading and the bar summed over WeighedWeeks,

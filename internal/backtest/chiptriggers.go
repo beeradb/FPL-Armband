@@ -325,7 +325,13 @@ func (t *chipTriggers) consultAt(k chipSlot, gw int, value float64, ok bool,
 		return false
 	}
 	t.firedAll[k] = append(t.firedAll[k], gw)
-	m.FiredGW, m.FiredValue, m.FiredBar = gw, value, bar
+	m.FiredGWs = append(m.FiredGWs, gw)
+	// FIRST firing only. Overwriting made the scalar fields describe the second
+	// set's firing in a two-set season while claiming to describe "the" one —
+	// see ChipTriggerMediator.FiredGW.
+	if m.FiredGW == 0 {
+		m.FiredGW, m.FiredValue, m.FiredBar = gw, value, bar
+	}
 	return true
 }
 

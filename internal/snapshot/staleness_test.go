@@ -132,7 +132,22 @@ func TestSnapshotCoversTheCurrentCode(t *testing.T) {
 		t.Skipf("not a git checkout: %v", err)
 	}
 
-	external := os.Getenv("FPL_SNAPSHOTS_EXTERNAL") != ""
+	// The declaration is a REPOSITORY-level fact, so it is read from a committed
+	// file first and from the environment only as an override.
+	//
+	// ⚠️ **An env var alone made this guard unsatisfiable from a fresh clone.** The
+	// series was removed from git on 2026-08-22 in `6fe7d43c`, whose own message
+	// says it "publishes externally already" — which is exactly the legitimate
+	// absence this guard sanctions. But the only way to declare it was
+	// FPL_SNAPSHOTS_EXTERNAL, which cannot be committed, so `go test ./...` has
+	// been RED on `origin/main` ever since for everyone who did not happen to
+	// export it. A guard nobody can satisfy is one that gets deleted, and this
+	// package's whole argument is that a guard turning itself off is the failure.
+	//
+	// So: the marker file says what is true of the repository, the env var still
+	// works for a machine that needs to override it, and a fresh clone is green.
+	external := os.Getenv("FPL_SNAPSHOTS_EXTERNAL") != "" ||
+		fileExists(filepath.Join(root, "stats", "snapshots", externalMarker))
 
 	dir, key, ok := NewestKey(filepath.Join(root, "stats", "snapshots"))
 	if !ok {
@@ -222,3 +237,12 @@ func output(dir string, args ...string) (string, error) {
 }
 
 // `run` is gone with the two ancestor checks that were its only callers.
+
+// externalMarker names the committed declaration that the accuracy snapshot series
+// is published outside git. Its CONTENTS are for a human; only its presence is read.
+const externalMarker = "PUBLISHED-EXTERNALLY"
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
