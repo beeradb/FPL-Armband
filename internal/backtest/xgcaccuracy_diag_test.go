@@ -217,8 +217,87 @@ func TestDiagReconstructionAgainstExternal(t *testing.T) {
 		meanOf(allE)-meanOf(allR), maeOf(allE, allR), corrOf(allE, allR))
 	fmt.Printf("\nMAE as a share of the reconstruction mean: %.1f%%\n",
 		100*maeOf(allE, allR)/meanOf(allR))
-	fmt.Printf("\n⚠️ Compare with the native run. If the source tracks FPL's own xGC\n")
-	fmt.Printf("closely and the reconstruction does NOT track the source, the gap in\n")
-	fmt.Printf("the repaired seasons is the reconstruction's error — it has no truth\n")
-	fmt.Printf("to be checked against, which is why it exists.\n")
+	fmt.Printf("\n⚠️ DO NOT read this gap as the reconstruction's error. A claim that\n")
+	fmt.Printf("it was — retracted 2026-08-25 — died on the three-way below: run in the\n")
+	fmt.Printf("NATIVE seasons, where both can be checked, the reconstruction is as\n")
+	fmt.Printf("accurate as the source (14.0%% MAE against 13.1%%) and LESS biased\n")
+	fmt.Printf("(-0.1%% against -0.4%%), and the two agree to 5.5%%. The gap here is the\n")
+	fmt.Printf("xG PROVIDER — the repaired seasons feed the chain Understat with a\n")
+	fmt.Printf("borrowed offset, whose 4-5%% envelope xgcrepair.go:177-186 records —\n")
+	fmt.Printf("and not the estimator. Use TestDiagThreeWayXGC.\n")
+}
+
+// All three quantities on the SAME rows, in the seasons where a truth exists.
+//
+//	DIAG=1 FPL_XGC_EXTERNAL_DIR=<dir> go test ./internal/backtest \
+//	    -run TestDiagThreeWayXGC -v -timeout 20m
+//
+// ⚠️ **This is the comparison the other two should have been.** Measuring the
+// source against native in one set of seasons and the reconstruction against the
+// source in a DIFFERENT set produced an apparent 13.1%-against-17.4% gap that is
+// really two confounds: different seasons, and — the larger one — a different xG
+// PROVIDER, since the repaired seasons feed the chain Understat rather than Opta.
+// A finding built on that gap was published and retracted the same day.
+//
+// Run on one population it says the opposite: the two estimators are a dead heat.
+func TestDiagThreeWayXGC(t *testing.T) {
+	if os.Getenv("DIAG") == "" {
+		t.Skip("set DIAG=1")
+	}
+	dir := externalXGCDir()
+	if dir == "" {
+		t.Skip("no external xGC directory configured")
+	}
+	cfg := loadConfig(t)
+
+	names := make([]string, 0, len(nativeXGCSeasons))
+	for n := range nativeXGCSeasons {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	var nat, ext, rec []float64
+	for _, name := range names {
+		s := loadSeason(t, cfg, name)
+		club, matches, err := externalClubXGC(s, dir)
+		if err != nil || matches == 0 {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		e, _ := proratedClubXGC(s, club)
+		// reconstructedXGC is NOT windowed by xgRepairs — only applyXGCRepair
+		// consults that table — so it can be computed for a native season and
+		// compared against the truth it would have replaced.
+		r, _ := reconstructedXGC(s, xgcScale)
+		for _, id := range sortedSeasonPlayerIDs(s) {
+			p := s.Players[id]
+			for _, gw := range sortedGameweeks(e[id]) {
+				g, ok := p.GWs[gw]
+				if !ok || g.Minutes <= 0 || g.XGC <= 0 || e[id][gw] <= 0 || r[id][gw] <= 0 {
+					continue
+				}
+				nat, ext, rec = append(nat, g.XGC), append(ext, e[id][gw]), append(rec, r[id][gw])
+			}
+		}
+	}
+	if len(nat) < 2 {
+		t.Skip("no comparable rows")
+	}
+	fmt.Printf("\n=== all three xGC quantities on the SAME %d rows, native seasons\n\n", len(nat))
+	show := func(est, ref []float64, lab string) {
+		fmt.Printf("  %-18s bias %+6.1f%%   MAE %5.1f%%   corr %.3f\n", lab,
+			100*(meanOf(est)-meanOf(ref))/meanOf(ref),
+			100*maeOf(est, ref)/meanOf(ref), corrOf(est, ref))
+	}
+	show(ext, nat, "source vs native")
+	show(rec, nat, "reconstruction vs native")
+	show(rec, ext, "reconstruction vs source")
+
+	fmt.Printf("\n⚠️ The two estimators are a DEAD HEAT against FPL's own xGC, and the\n")
+	fmt.Printf("reconstruction is the LESS biased of the two. Neither is shown better.\n")
+	fmt.Printf("⚠️ So nothing here explains the standard-error doubling the chip arms\n")
+	fmt.Printf("show under the source, and nothing here distinguishes 'the\n")
+	fmt.Printf("reconstruction borrows strength' from 'the source injects variance'.\n")
+	fmt.Printf("An ACCURACY test cannot: borrowing strength is a claim about\n")
+	fmt.Printf("CORRELATION between the estimate and the scored path. That is open.\n")
 }
