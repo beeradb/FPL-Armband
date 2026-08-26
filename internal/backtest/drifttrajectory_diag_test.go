@@ -126,6 +126,23 @@ func TestDiagDriftTrajectory(t *testing.T) {
 	series := map[int]*step{}
 	byGap := map[int]map[int][]float64{} // gap bucket -> k -> cumulative gain
 	hold := map[int][]holdPoint{}        // k -> (weeks held, cumulative gain)
+	// ⚠️ **Stratified by the GAMEWEEK the decision was taken**, which is the same
+	// question the wildcard timing asks at a smaller scale and forty times a
+	// season instead of once. A transfer at GW2 chases an ideal built from one
+	// gameweek of data; if that ideal is mostly noise, the player bought is not
+	// the one who still looks right at GW6 and the hit was spent on a target that
+	// evaporated. If early moves pay back less than identical late ones, early
+	// hits are a gamble — measured rather than asserted.
+	byWeek := map[int]map[int][]float64{} // week band -> k -> gain over the hold
+	// ⚠️ Per ENTRY POINT as well as pooled. The pooled curve is a mean over a
+	// changing set of cells — entries run out of season at different weeks, and
+	// the biggest jumps in the pooled column sit exactly on the steps where cells
+	// drop out. A cohort keeps the same cells at every week, so a plateau in one
+	// is a plateau rather than a change of population.
+	cohort := map[int]map[int][]float64{} // entry -> weeks since entry -> gap
+	// Per CELL, because the detection question is whether one squad's optimal
+	// week differs from another's — a mean trajectory cannot answer that.
+	var runs []driftRun
 	var spear, incUp []float64
 
 	for _, pr := range loadPairsOrSkip(t, cfg) {
@@ -176,6 +193,10 @@ func TestDiagDriftTrajectory(t *testing.T) {
 				}
 				dz := xiPoints(ew, ideal) - xiPoints(ew, frozen)
 				st.frozen = append(st.frozen, dz)
+				if cohort[start] == nil {
+					cohort[start] = map[int][]float64{}
+				}
+				cohort[start][s] = append(cohort[start][s], dz)
 				st.budget = append(st.budget, float64(fb)/10)
 				cellD = append(cellD, dz)
 
@@ -217,9 +238,15 @@ func TestDiagDriftTrajectory(t *testing.T) {
 							hold[k] = append(hold[k], holdPoint{w + 1, cum})
 						}
 						byGap[b][k] = append(byGap[b][k], cum)
+						wb := weekBand(gw)
+						if byWeek[wb] == nil {
+							byWeek[wb] = map[int][]float64{}
+						}
+						byWeek[wb][k] = append(byWeek[wb][k], cum)
 					}
 				}
 			}
+			runs = append(runs, driftRun{pr.Name, start, append([]float64(nil), cellD...)})
 			if len(cellD) >= 6 {
 				spear = append(spear, spearmanVsIndex(cellD))
 				incUp = append(incUp, risingFraction(cellD))
@@ -250,6 +277,37 @@ func TestDiagDriftTrajectory(t *testing.T) {
 			s, len(st.frozen), meanOf(st.frozen), meanOf(st.frozen)-fl,
 			meanOf(st.free), fl, meanOf(st.budget))
 	}
+
+	fmt.Printf("\n=== THE SAME CURVE PER ENTRY COHORT — composition held fixed\n")
+	fmt.Printf("Each row is ONE entry point followed all season, so the cells never\n")
+	fmt.Printf("change. A plateau here is a plateau; a plateau in the pooled table\n")
+	fmt.Printf("above may only be short-window cells dropping out.\n\n")
+	var entries []int
+	for e := range cohort {
+		entries = append(entries, e)
+	}
+	sort.Ints(entries)
+	fmt.Printf("%6s %5s", "entry", "n")
+	for w := 2; w <= 36; w += 4 {
+		fmt.Printf(" %6s", fmt.Sprintf("s=%d", w))
+	}
+	fmt.Printf("\n")
+	for _, e := range entries {
+		fmt.Printf("%6d %5d", e, len(cohort[e][1]))
+		for w := 2; w <= 36; w += 4 {
+			if v := cohort[e][w]; len(v) > 0 {
+				fmt.Printf(" %6.1f", meanOf(v))
+			} else {
+				fmt.Printf(" %6s", "-")
+			}
+		}
+		fmt.Printf("\n")
+	}
+
+	// The worth of resetting, computed from the measured curve, against the
+	// decay the engine already ships.
+	printResetWorth(cohort)
+	printFirstHalfChoice(runs)
 
 	fmt.Printf("\n=== IS IT MONOTONIC? Per-cell Spearman of the gap against week\n")
 	sort.Float64s(spear)
@@ -380,6 +438,37 @@ func TestDiagDriftTrajectory(t *testing.T) {
 		}
 		fmt.Printf("\n")
 	}
+	fmt.Printf("\n=== THE SAME LEDGER, BY WHEN THE DECISION WAS TAKEN\n")
+	fmt.Printf("Is a hit at GW2 the same buy as a hit at GW14? An early move chases an\n")
+	fmt.Printf("ideal built from almost no data, so the target may evaporate — the same\n")
+	fmt.Printf("mechanism as rebuilding before the template exists, at a smaller scale\n")
+	fmt.Printf("and forty times a season. Cells are gain over %d weeks held.\n\n", driftHoldWeeks)
+	fmt.Printf("%12s %5s %7s %7s %7s %7s %7s %7s\n",
+		"decided", "n", "k=1", "k=2", "k=3", "k=4", "k=5", "k=6")
+	var wbs []int
+	for b := range byWeek {
+		wbs = append(wbs, b)
+	}
+	sort.Ints(wbs)
+	for _, b := range wbs {
+		row := byWeek[b]
+		if len(row[1]) < 3 {
+			continue
+		}
+		fmt.Printf("%12s %5d", weekBandName(b), len(row[1]))
+		for k := 1; k <= driftLadderMax; k++ {
+			fmt.Printf(" %7.2f", meanOf(row[k]))
+		}
+		fmt.Printf("\n")
+	}
+	fmt.Printf("\n⚠️ **Two confounds cut in OPPOSITE directions here and neither is\n")
+	fmt.Printf("removed.** The eligible pool differs by week — `MinMinutes` is scaled to\n")
+	fmt.Printf("matches played — so an early optimiser chooses from a thinner, noisier\n")
+	fmt.Printf("set, which would depress early gains for a reason that is not about\n")
+	fmt.Printf("information. Against that, an early buy locks in a price before the\n")
+	fmt.Printf("season's rises, which flatters it. A flat row is therefore NOT evidence\n")
+	fmt.Printf("of no effect; it is consistent with two effects cancelling.\n")
+
 	fmt.Printf("\n⚠️ **A wildcard is the k=15 row with the hits set to zero**, and it is\n")
 	fmt.Printf("not in this table. Read the ceiling instead: the FROZEN column of the\n")
 	fmt.Printf("trajectory is the whole gap, so a rebuild banks at most that a week.\n")
@@ -494,4 +583,273 @@ func gapBucket(d float64) int {
 
 func gapBucketName(b int) string {
 	return [...]string{"under 5", "5-10", "10-15", "15-20", "20+"}[b]
+}
+
+// printResetWorth puts the two curves this whole line of work is about on one
+// axis: how much a rebuild is WORTH at each week, measured, against the option
+// decay the engine already charges.
+//
+// # The arithmetic
+//
+// Resetting at week t means carrying D(0..38−t) instead of D(t..38), so its worth
+// is the difference of those two sums. ⚠️ **That is flat, not peaked, over a whole
+// interval.** For any t where the squad has already plateaued (t ≥ k) and the
+// runway still exceeds the ramp (38−t ≥ k), the difference collapses to L·k/2 — a
+// constant. So the answer is a WINDOW [k, 38−k], and the plateau week k sets its
+// width: k=10 gives GW10-28, k=16 gives GW16-22.
+//
+// ⚠️ **This is the peak `wildcardValueOverNext` could not have.** That function
+// summed the remaining drift of a FIXED stale squad, so both its terms fell with k
+// and its argmax was always now. Here the second term is the re-drift of a squad
+// that was actually rebuilt, which is what makes an interior optimum possible at
+// all.
+//
+// # What the comparison can and cannot say
+//
+// `OptionDecay` is `remaining/(remaining+halfLife)`, mean-normalised — a charge
+// multiplier fitted to a different reading, and `optionvalue.go` says so in as
+// many words: the terms enter "through the CHARGE, which is a reluctance to spend
+// rather than a term in any forward valuation". This is that missing forward
+// valuation, so a disagreement between the two shapes is expected and is not by
+// itself evidence the shipped curve is wrong for its own job.
+func printResetWorth(cohort map[int]map[int][]float64) {
+	// The longest cohort is the only one that sees a full season, and mixing
+	// cohorts is the composition problem this section exists to avoid.
+	best, bestLen := 0, 0
+	for e, byWeek := range cohort {
+		if len(byWeek) > bestLen {
+			best, bestLen = e, len(byWeek)
+		}
+	}
+	d := make([]float64, 0, bestLen)
+	for s := 0; s < bestLen; s++ {
+		v := cohort[best][s]
+		if len(v) == 0 {
+			break
+		}
+		d = append(d, meanOf(v))
+	}
+	if len(d) < 12 {
+		return
+	}
+	at := func(i int) float64 {
+		if i >= len(d) {
+			return d[len(d)-1] // hold the last reading rather than invent one
+		}
+		return d[i]
+	}
+	n := len(d) - 1
+	worth := make([]float64, n+1)
+	for t := 0; t <= n; t++ {
+		var carry, fresh float64
+		for s := t; s <= n; s++ {
+			carry += at(s)
+		}
+		for u := 0; u <= n-t; u++ {
+			fresh += at(u)
+		}
+		worth[t] = carry - fresh
+	}
+	var peak float64
+	var peakAt int
+	for t, w := range worth {
+		if w > peak {
+			peak, peakAt = w, t
+		}
+	}
+	fmt.Printf("\n=== WORTH OF A REBUILD, MEASURED, AGAINST THE SHIPPED DECAY\n")
+	fmt.Printf("Cohort: entry GW%d, %d weeks. `worth` is the drift a reset avoids over\n", best, len(d))
+	fmt.Printf("the rest of the season. `decay` is OptionDecay(remaining, %.0f), the\n", analysis.DefaultOptionHalfLife)
+	fmt.Printf("charge the engine already applies. Both shown as a share of their own max,\n")
+	fmt.Printf("because one is in points and the other is a multiplier.\n\n")
+	fmt.Printf("%6s %9s %8s %8s\n", "week", "worth", "share", "decay")
+	w38 := analysis.OptionWindow{Expiry: 38}
+	for t := 0; t <= n; t += 2 {
+		gw := best + t
+		if gw > 38 {
+			break
+		}
+		dec := analysis.OptionDecay(float64(38-gw), analysis.DefaultOptionHalfLife)
+		fmt.Printf("%6d %9.1f %8.2f %8.2f\n", gw, worth[t], worth[t]/peak, dec/analysis.OptionDecay(float64(38-best), analysis.DefaultOptionHalfLife))
+	}
+	_ = w38
+	fmt.Printf("\npeak worth %.1f at GW%d\n", peak, best+peakAt)
+	fmt.Printf("⚠️ Read the WINDOW, not the peak. The worth is flat wherever the squad\n")
+	fmt.Printf("has plateaued and the runway still exceeds the ramp, so an argmax over a\n")
+	fmt.Printf("flat region is noise picking a week. Report where it is within a few\n")
+	fmt.Printf("points of its maximum, which is the actual answer.\n")
+	var lo, hi int = -1, -1
+	for t := 0; t <= n; t++ {
+		if worth[t] >= 0.9*peak {
+			if lo < 0 {
+				lo = t
+			}
+			hi = t
+		}
+	}
+	if lo >= 0 {
+		fmt.Printf("within 10%% of peak: GW%d to GW%d\n", best+lo, best+hi)
+	}
+}
+
+// printFirstHalfChoice answers the only wildcard question drift can settle: when
+// to play the FIRST-half chip, and whether the week can be detected.
+//
+// # Why the window ends at ChipResetGW and not at GW38
+//
+// **There are two wildcards, one per half.** The second is a CALENDAR decision —
+// it targets doubles and blanks — so it is not a drift question and is measured
+// elsewhere. What that means for this one is structural rather than cosmetic:
+// **the first chip's runway ends when the second arrives**, because the second
+// resets the drift anyway. Scoring the first chip's benefit to GW38 credits it
+// with weeks the second chip was always going to fix, which inflates it and
+// pushes its optimum far too late. An earlier version of this file did exactly
+// that.
+//
+// # The two worlds, and which one we are in
+//
+// Carrying drift across the window with one reset at week t costs
+// `Σ(0..t-1) D + Σ(0..W-t) D`, minimised when the two segments are equal — the
+// MIDPOINT, if D is rising and has not plateaued inside the window.
+//
+//   - If every squad's optimum is near that midpoint, **no detection is needed
+//     and the rule is a calendar rule**: play it around the middle of the first
+//     half. That would also explain why every state trigger in this record reads
+//     null — they are all trying to detect a week that does not move.
+//   - If optima spread out and track something observable early, a **detector
+//     exists** and is worth building.
+//
+// ⚠️ **REGRET decides whether either matters.** If playing at a fixed week costs
+// almost nothing against a cell's own oracle, the detection question is moot
+// however it comes out. That is reported first for exactly that reason.
+func printFirstHalfChoice(runs []driftRun) {
+	// Only entries with a real first-half window to decide in. An entry at GW16
+	// has three weeks before the second chip arrives and is not making this
+	// decision at all.
+	const minWindow = 8
+	type row struct {
+		season           string
+		start, oracle, w int
+		best, atMid, at5 float64
+		early            float64
+	}
+	var rows []row
+	for _, r := range runs {
+		w := ChipResetGW - r.start // weeks of window before the second chip
+		if w < minWindow || len(r.d) <= w {
+			continue
+		}
+		cost := func(t int) float64 {
+			var c float64
+			for s := 0; s < t; s++ {
+				c += r.d[s]
+			}
+			for u := 0; u <= w-t; u++ {
+				c += r.d[u]
+			}
+			return c
+		}
+		best, at := cost(0), 0
+		for t := 1; t <= w; t++ {
+			if c := cost(t); c < best {
+				best, at = c, t
+			}
+		}
+		// The observable a detector would have: the gap already carried in the
+		// first few weeks, which is all a live rule can see at decision time.
+		var early float64
+		for s := 1; s <= 4 && s < len(r.d); s++ {
+			early += r.d[s]
+		}
+		rows = append(rows, row{r.season, r.start, at, w, best, cost(w / 2), cost(5), early / 4})
+	}
+	if len(rows) < 4 {
+		return
+	}
+
+	fmt.Printf("\n=== WHEN TO PLAY THE FIRST-HALF WILDCARD, AND CAN IT BE DETECTED\n")
+	fmt.Printf("Window is entry to GW%d, where the SECOND chip takes over — the first\n", ChipResetGW)
+	fmt.Printf("chip's runway ends there because the second resets the drift anyway.\n")
+	fmt.Printf("`oracle` is the best week for THAT cell, with hindsight.\n\n")
+	fmt.Printf("%-9s %6s %5s %8s %10s %10s %10s\n",
+		"season", "entry", "wks", "oracle", "carried", "reg@mid", "reg@+5")
+	var oracles, regMid, reg5, earlies []float64
+	for _, r := range rows {
+		fmt.Printf("%-9s %6d %5d %8d %10.1f %10.1f %10.1f\n",
+			r.season, r.start, r.w, r.start+r.oracle, r.best,
+			r.atMid-r.best, r.at5-r.best)
+		oracles = append(oracles, float64(r.oracle))
+		regMid = append(regMid, r.atMid-r.best)
+		reg5 = append(reg5, r.at5-r.best)
+		earlies = append(earlies, r.early)
+	}
+
+	fmt.Printf("\nREGRET FIRST, because it decides whether the rest matters.\n")
+	fmt.Printf("Playing at the window's MIDPOINT costs %.1f points against a cell's own\n", meanOf(regMid))
+	fmt.Printf("oracle; playing at entry+5 costs %.1f. Carried drift itself averages\n", meanOf(reg5))
+	fmt.Printf("%.1f, so the midpoint rule gives up %.1f%% of what the decision is worth.\n",
+		meanOf(collect(rows, func(r row) float64 { return r.best })),
+		100*meanOf(regMid)/meanOf(collect(rows, func(r row) float64 { return r.best })))
+	fmt.Printf("⚠️ If that share is small, NO detector can be worth much — the ceiling\n")
+	fmt.Printf("on any state rule is the regret a fixed calendar rule already pays.\n")
+
+	fmt.Printf("\nDO THE OPTIMA MOVE? oracle week spread: min %.0f median %.0f max %.0f\n",
+		minOf(oracles), medianOf(oracles), maxOf(oracles))
+	fmt.Printf("correlation between EARLY drift (weeks 1-4, all a live rule can see)\n")
+	fmt.Printf("and the oracle week: %+.3f over %d cells\n", corrOf(earlies, oracles), len(rows))
+	fmt.Printf("⚠️ A NEGATIVE correlation is the detectable case — a squad drifting fast\n")
+	fmt.Printf("early should reset sooner. Near zero means the oracle week is not\n")
+	fmt.Printf("predictable from what a manager can see, whatever its spread.\n")
+}
+
+// driftRun is one cell's gap trajectory, kept per cell rather than pooled because
+// the detection question is whether optima MOVE between squads.
+type driftRun struct {
+	season string
+	start  int
+	d      []float64
+}
+
+func collect[T any](in []T, f func(T) float64) []float64 {
+	out := make([]float64, len(in))
+	for i, v := range in {
+		out[i] = f(v)
+	}
+	return out
+}
+
+func minOf(v []float64) float64 {
+	m := v[0]
+	for _, x := range v {
+		if x < m {
+			m = x
+		}
+	}
+	return m
+}
+
+func medianOf(v []float64) float64 {
+	c := append([]float64(nil), v...)
+	sort.Float64s(c)
+	return c[len(c)/2]
+}
+
+// weekBand groups a decision by how much season had been played when it was
+// taken. The bands are coarse because the ledger is read inside them.
+func weekBand(gw int) int {
+	switch {
+	case gw <= 5:
+		return 0
+	case gw <= 10:
+		return 1
+	case gw <= 15:
+		return 2
+	case gw <= 25:
+		return 3
+	}
+	return 4
+}
+
+func weekBandName(b int) string {
+	return [...]string{"GW1-5", "GW6-10", "GW11-15", "GW16-25", "GW26+"}[b]
 }
