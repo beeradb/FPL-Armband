@@ -989,6 +989,37 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// against twice above. Left about 3 KB free rather than repeating the 14-byte
 	// and 74-byte near-misses.
 	//
+	// # 64 KB, 2026-08-26 — a shipped optimiser bug joined the bitten list, and two
+	// claims the same PR made false had to be withdrawn
+	//
+	// Three claims needed the room, and each is a qualifier rather than a fact.
+	//
+	// The optimiser entry has to say that feasibility depended on score ORDER, not
+	// merely that a bound was wrong. Without that, the next reader fixes the symptom
+	// (a bound that under-counts) and leaves the property (a legal squad's existence
+	// must not depend on how players are ranked). It also has to say that the obvious
+	// repair — a club counter on the existing sort — OVER-estimates and is therefore
+	// inadmissible, because that is the first thing anyone reaches for and it silently
+	// rejects reachable squads rather than failing loudly.
+	//
+	// The shrinkToLeague line had asserted "minutes are deliberately left alone", which
+	// PR #82 made false. Correcting it costs more than the old sentence because the
+	// gate that briefly scoped the volume shrink was a workaround for the optimiser bug
+	// above, not a judgement about evidence — and a reader who does not know that will
+	// reintroduce it the next time a chip test goes red. That is the whole retraction,
+	// and it does not survive compression into "minutes shrink too".
+	//
+	// The CI paragraph said main was red on TestEnvSwitchListIsComplete. It had been
+	// fixed ten minutes after the commit that caused it, and the stale text then
+	// survived five days and was read as current by two sessions. Recording that the
+	// paragraph warning about staleness went stale is what stops the third.
+	//
+	// ⚠️ This raise was written against 56 -> 58 and rebased onto a 62 that three
+	// other branches had reached while it sat open. The three claims above are the
+	// only ones it adds; it is 62 -> 64 because the FILE moved, not because the
+	// claims grew. A raise that cannot say which of the two it is should not be
+	// trusted, so it is said here.
+	//
 	// # 62 KB, 2026-08-26 — a Closed line was WRONG, and correcting it costs more
 	// than leaving it did
 	//
@@ -1102,7 +1133,7 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	//
 	// Every one of those is a qualifier carrying the uncertainty, which is the class
 	// this comment says must never be cut to fit. Raised rather than compressed.
-	const budget = 62 * 1024
+	const budget = 64 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

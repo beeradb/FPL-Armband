@@ -70,12 +70,14 @@ delta 2 of 255, since 2026-08-19) is fixed as of `97c941c`** — it is skipped i
 by repair; `FPL_LAYOUT_GOLDENS=1` forces it back on for anyone who wants to look, and see the
 standing exception below for when you owe it a local run instead. **Do not read this paragraph as
 "CI is clean," and do not trust its own claim without checking `gh run list` first — this project's
-CI state has already gone stale under one written description of it inside a single day.** As of
-`97c941c` `main` is red on a different, narrower thing: `TestEnvSwitchListIsComplete` fails because
-the same change that fixed `TestLayout` added `FPL_LAYOUT_GOLDENS` without registering it in
-`envSwitches` — a one-line fix, already known, not yours to chase on an unrelated branch. If your
-own branch inherits exactly that failure and nothing else is red, that is expected; anything else
-red is worth investigating.
+CI state has already gone stale under one written description of it inside a single day.**
+**`main` is GREEN as of 2026-08-26 (`d6b23b6`, three consecutive green CI runs); anything red on
+your branch is yours.** The
+`TestEnvSwitchListIsComplete` failure this paragraph used to describe was fixed by `a865952e`
+ten minutes after the commit that caused it — `FPL_LAYOUT_GOLDENS` is registered at
+`internal/snapshot/fingerprint_test.go:145` and the test passes. That text survived five days
+and two sessions read it as current, which is the failure this paragraph warns about happening
+to the paragraph itself: **check `gh run list` rather than believing this line.**
 
 ⚠️ **Standing exception, until the goldens defect above is fixed: run the layout goldens locally
 yourself, because CI cannot see them.** A companion change skips `TestLayout` in CI (detecting
@@ -465,12 +467,26 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
 - **Every per-90 rate must go through `blendFor`, counting stats included.**
   `TestCountingStatsGoThroughTheBlend`.
 - **A player with no prior is not a player with no uncertainty.** `shrinkToLeague` pulls rates
-  toward the position's league rates; minutes are deliberately left alone.
+  **and** minutes/start-share toward the position's league rates — volume was added 2026-08-23
+  and made unconditional 2026-08-25. ⚠️ It was briefly gated on `GameweeksPlayed() == 0`; that
+  gate was a workaround for the optimiser bug below, not a statement about evidence, and must
+  not be reintroduced. `TestAFinishedGameweekDoesNotMakeADebutantLookNailed`.
 - **`starts_per_90` is not a rotation signal.** Use minutes and starts against the full
   38-game season.
 - **Single-swap local search stalls, and paired swaps are not enough either.** `dpseed.go`
   solves each formation exactly and seeds the local search — **do not "simplify" that away.**
   `TestOptimizerIsNeverWorseThanAnExactSeed`, `TestNoPremiumSquadBeatsTheOptimum`.
+- **An admissibility bound that ignores a hard constraint makes FEASIBILITY depend on score
+  ORDER.** → **optimiser-and-squad**. `minCostToFill` took `clubCount` and never read it — the
+  identifier appeared once, in the signature, and Go does not warn on an unused parameter. So
+  the greedy fill's bound summed the cheapest candidates per position regardless of the
+  three-per-club cap while `canAdd` enforced it, and the walk committed to picks it could not
+  complete. `Optimize` reported "could not fill a legal 15-man squad within £82.0m" for a pool
+  holding a legal fifteen at £65.3m. Replaced by `fillBound`: a club-relaxed per-position
+  optimum, then an exact DP over clubs only where that passes. ⚠️ Adding a club counter to the
+  old sort OVER-estimates and is inadmissible — an over-estimating bound silently rejects
+  reachable squads, which is a search-quality change, not a bug fix.
+  `TestFillBoundIsAdmissible`, `TestOptimizeEscapesAClubConstrainedDeadEnd`.
 - **The seed's bench reservation must take the *cheapest* players who could fill those slots.**
   `TestSeedBudgetLeavesRoomForThePremiums`.
 - **Never let the pair search choose greedily, and charge per move rather than per week.** The
