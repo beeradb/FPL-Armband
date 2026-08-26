@@ -127,9 +127,28 @@ func sweepPairNames() [][2]string {
 		// same process, and a POLICY figure computed over it would look exactly like
 		// every other POLICY figure in the record.
 		return scoringPairNames()
+	case "native":
+		// The three FPL-fed seasons, and the ONLY grid on which FPL_XGC_FORCE
+		// means anything: every other season's xGC is reconstructed or measured
+		// whatever the switch says, because there is no truth there to force.
+		//
+		// ⚠️ **Three seasons is df 2 and t_crit 4.303.** This grid cannot resolve
+		// an effect and is not for measuring one. It exists to compare the
+		// STANDARD ERRORS of the three xGC inputs where all three are available;
+		// any effect reported on it is a nuisance quantity. runPolicySweep is not
+		// blocked on it — POLICY is well-defined here, just underpowered — so the
+		// operator, not the harness, is what stops a three-season figure entering
+		// the record.
+		//
+		// The 2023-24 pair's prior is 2022-23, which has no native truth and is
+		// therefore left on the shipped path in every arm. See applyForcedXGC.
+		return [][2]string{
+			{"2022-23", "2023-24"}, {"2023-24", "2024-25"}, {"2024-25", "2025-26"},
+		}
 	default:
 		panic("FPL_SWEEP_SEASONS=" + g + ": expected \"default\" (the historical four), " +
-			"\"extended\" (the six that now ship) or \"scoring\" (seven, HOLD-only). " +
+			"\"extended\" (the six that now ship), \"scoring\" (seven, HOLD-only) or " +
+			"\"native\" (three, FPL-fed xGC only — for FPL_XGC_FORCE arms). " +
 			"Silence is not allowed to read as success here — an unrecognised grid would " +
 			"silently fall through to whatever the default happens to be, and every figure " +
 			"would carry a season count its operator never chose.")

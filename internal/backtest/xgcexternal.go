@@ -403,9 +403,44 @@ func forceXGCSource() string {
 // cannot be built, never silently — a forced arm that quietly fell back to the
 // archive would be indistinguishable from the control it is being compared with,
 // which is this package's signature failure.
-func (s *Season) applyForcedXGC() (int, error) {
+// countNativeXGCRows counts the priced rows this season published an xGC on
+// itself, and must be called BEFORE any overlay — afterwards every source looks
+// native, which is the point of an overlay and the reason this cannot be a
+// method computed on demand.
+func countNativeXGCRows(s *Season) int {
+	var n int
+	for _, p := range s.Players {
+		for _, g := range p.GWs {
+			if g.Minutes > 0 && g.XGC > 0 {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// forcedXGCMinNativeRows is the floor above which a season counts as carrying a
+// native xGC truth. A repaired season publishes a handful of stray nonzero rows
+// — 2022-23 is native from GW16 on — and a bare `> 0` test would call it native
+// and force it. The three FPL-fed seasons carry tens of thousands.
+const forcedXGCMinNativeRows = 5000
+
+func (s *Season) applyForcedXGC(nativeRows int) (int, error) {
 	src := forceXGCSource()
-	if src == "" || src == "native" {
+	if src == "" {
+		return 0, nil
+	}
+	// ⚠️ **A season with no native truth is left on the shipped path, in every
+	// arm.** The comparison this switch exists for asks which input produces the
+	// tighter standard error where a truth exists; a season that has no truth
+	// cannot answer it, and forcing one there would make the arms differ in the
+	// PRIORS as well as in the season being scored. Left alone, those seasons
+	// are constant across arms, which is what a control is. In the native grid
+	// this reaches exactly one season — 2022-23, as the 2023-24 pair's prior.
+	if nativeRows < forcedXGCMinNativeRows {
+		return 0, nil
+	}
+	if src == "native" {
 		// "native" is the archive as it stands: nothing to write, and naming it
 		// explicitly is how an arm declares it meant the untouched one.
 		return 0, nil
