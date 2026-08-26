@@ -500,13 +500,14 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   `stats/cells/2026-08-25-f7d2be1b/` (bundled, per-chip, wildcard value) and
   `2026-08-25-tcmatchup/` (triple captain on matchup). ⚠️ **Read with `--scale=per_path`** —
   a chip is an event count, and per-gameweek inflates these ~1.7x. → **chips**
-- **⚠️ THE RECONSTRUCTION IS BIASED LOW AND ARTIFICIALLY TIGHT.** The measured source sits 13.1%
-  MAE from FPL's OWN xGC (bias −0.4%, r 0.945, 32,477 rows in the three native seasons); the
-  reconstruction sits 17.4% from the source and is **3.3% LOW**, which over-credits clean sheets
-  and under-charges the concede deduction for every defender and keeper in 2020-21/2021-22. **So
-  the SE doubling on the chip arms is the reconstruction having borrowed strength, not the source
-  adding noise — the WIDER intervals are the honest ones**, and anchoring does not resolve at
-  realistic sight. → **archive-and-data**
+- **BOTH xGC ESTIMATORS ARE EQUALLY ACCURATE where a truth exists.** On the same 32,477
+  player-gameweeks in the three native seasons: source **13.1% MAE, −0.4% bias, r 0.945**;
+  reconstruction **14.0%, −0.1%, r 0.937** — a dead heat, and the reconstruction is the *less*
+  biased. They agree to **5.5%** when both eat the same xG provider. ⚠️ **The 17.4% gap in the
+  repaired seasons is the xG PROVIDER (Understat, borrowed offset — see `xgcrepair.go:177-186`),
+  not the estimator.** ⚠️ **So NOTHING explains the SE doubling on the chip arms, and nothing
+  distinguishes "the reconstruction borrows strength" from "the source injects variance" — that
+  question is OPEN.** → **archive-and-data**
 - **xGC has two sources; the DEFAULT IS THE RECONSTRUCTION.** `XGCExternalDir` /
   `FPL_XGC_EXTERNAL_DIR` selects measured per-match xGC for 2020-21, 2021-22, 2022-23
   GW1-15; empty (the shipped config) selects the reconstruction. ⚠️ An unresolvable
@@ -713,10 +714,9 @@ from this list is weak evidence of absence — nothing checks it stays complete.
   arithmetic that an expired set is lost is a separate argument. Replays every season under
   today's two-set rules on purpose. `2026-08-25-tworegime/`. → **chips**
 - **⚠️ EVERY OTHER CHIP FIGURE DEPENDS ON THE COMMIT AND THE xGC SOURCE — quote none without its
-  arm.** Calendar anchoring: +27.0 at 4gw sight (t 5.33) on the legacy reconstruction — ⚠️ **but
-  that estimator is biased and artificially tight (see above), so the HONEST reading is the
-  measured one and it does NOT resolve**; the pre-#82 +20.6/t 3.63 is superseded twice over. +26.4
-  on measured
+  arm.** Calendar anchoring: +27.0 at 4gw sight (t 5.33) on the legacy reconstruction, RESOLVING;
+  the pre-#82 +20.6/t 3.63 is superseded. ⚠️ **Which arm to believe is OPEN** — a claim that the
+  legacy estimator is the flattered one was retracted 2026-08-25 as unsupported. +26.4 on measured
   with the SE doubled 5.06→11.41, t 2.32, NOT resolving — only the full-sight hindsight arm
   survives there. Free hit: +14.5/t 2.44 pre-`5b970338`, +21.0/t 3.60 after it, +20.7 with SE
   11.81 on measured. **Bench boost is the only component resolving on every arm and commit**
