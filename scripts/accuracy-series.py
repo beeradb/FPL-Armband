@@ -65,6 +65,61 @@ def subjects():
             for l in log.splitlines() if "\t" in l}
 
 
+REASON_TRAILER = "Figures-moved:"
+BACKFILL = "stats/figures-moved.csv"
+
+
+def backfilled():
+    """Reasons RECONSTRUCTED after the fact, for commits predating the trailer.
+
+    ⚠️ **A reconstruction is not a declaration** and the two are kept apart
+    everywhere downstream. A trailer is the author saying why at the time; a row
+    here is a later reader's account, produced by someone who already knew the
+    figures had moved and was therefore looking for a cause. That search finds
+    one more often than it should.
+    """
+    out = {}
+    if not os.path.exists(BACKFILL):
+        return out
+    for row in csv.reader(open(BACKFILL)):
+        if not row or row[0].lstrip().startswith("#") or len(row) < 3:
+            continue
+        out[row[0].strip()[:7]] = {"expected": row[1].strip().lower() == "yes",
+                                   "why": row[2].strip()}
+    return out
+
+
+def reasons():
+    """The declared REASON a commit moved the published figures.
+
+    A subject line says what a commit did. It does not say why the numbers
+    moved, and those are different facts: `5b97033` reads "Stop squad
+    feasibility from depending on score order", which is true and gives no hint
+    that it would trade early-season calibration for late-season calibration
+    three to one.
+
+    So a commit that moves the figures declares it, in a `Figures-moved:`
+    trailer, and that text is what the timeline overlays. ⚠️ **Enforced in CI by
+    scripts/figures-moved-check.py, which fails a build whose snapshot differs
+    from its predecessor with no trailer.** Without the check the convention
+    decays to whichever authors remember it, and the annotations become a record
+    of diligence rather than of change.
+    """
+    log = subprocess.run(
+        ["git", "log", "--format=%h%x01%B%x02", "--all"],
+        capture_output=True, text=True).stdout
+    out = {}
+    for entry in log.split("\x02"):
+        if "\x01" not in entry:
+            continue
+        sha, body = entry.split("\x01", 1)
+        sha = sha.strip()[:7]
+        for line in body.splitlines():
+            if line.startswith(REASON_TRAILER):
+                out[sha] = line[len(REASON_TRAILER):].strip()
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="accuracy-series")
@@ -74,7 +129,7 @@ def main():
     a = ap.parse_args()
     os.makedirs(f"{a.out}/rel", exist_ok=True)
 
-    rels, subj = releases(a.limit), subjects()
+    rels, subj, why, back = releases(a.limit), subjects(), reasons(), backfilled()
     print(f"{len(rels)} releases", file=sys.stderr)
     for tag, _ in rels:
         dest = f"{a.out}/rel/{tag}.csv"
@@ -104,7 +159,12 @@ def main():
         if c:
             sha = tag.replace("snapshot-", "")
             rows.append({"s": sha, "d": created[:10], "t": created[11:16],
-                         "m": subj.get(sha, "")[:90], "c": c})
+                         "m": subj.get(sha, "")[:90],
+                         "why": why.get(sha, "") or back.get(sha, {}).get("why", ""),
+                         "src": ("declared" if sha in why
+                                 else "reconstructed" if sha in back else ""),
+                         "expected": back.get(sha, {}).get("expected"),
+                         "c": c})
     rows.sort(key=lambda r: (r["d"], r["t"]))
 
     moves = []
@@ -116,7 +176,9 @@ def main():
             v = r["c"][g]["ratio"]
             if prev is not None and abs(v - prev) > a.threshold:
                 moves.append({"i": i, "g": gw, "from": prev, "to": v,
-                              "s": r["s"], "d": r["d"], "m": r["m"]})
+                              "s": r["s"], "d": r["d"], "m": r["m"],
+                              "why": r.get("why", ""), "src": r.get("src", ""),
+                              "expected": r.get("expected")})
             prev = v
     moves.sort(key=lambda m: -abs(m["to"] - m["from"]))
 
@@ -127,9 +189,22 @@ def main():
           f"{rows[0]['d']} to {rows[-1]['d']}")
     print(f"{len(moves)} cohort moves over {a.threshold}\n")
     print(f"{'cohort':>7} {'from':>8} {'to':>8} {'delta':>9}  {'date':<11} {'commit':<9} what landed")
+    undeclared = set()
     for m in moves:
         print(f"  gw{m['g']:<4} {m['from']:>8.4f} {m['to']:>8.4f} "
               f"{m['to']-m['from']:>+9.4f}  {m['d']:<11} {m['s']:<9} {m['m'][:52]}")
+        if m["why"]:
+            tag = "declared" if m["src"] == "declared" else "RECONSTRUCTED"
+            exp = "" if m["expected"] is None else (
+                "  [expected]" if m["expected"] else "  [UNEXPECTED]")
+            print(f"           {tag}{exp}: {m['why'][:70]}")
+        else:
+            undeclared.add((m["s"], m["m"][:52]))
+    if undeclared:
+        print(f"\n⚠️ {len(undeclared)} commit(s) moved figures with no {REASON_TRAILER} trailer,")
+        print("   so the timeline can say WHEN they moved and not WHY:")
+        for sha, subj_ in sorted(undeclared):
+            print(f"     {sha}  {subj_}")
     if not moves:
         print("  (nothing moved -- which is a result, not an empty run)")
 
