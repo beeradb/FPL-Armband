@@ -99,6 +99,31 @@ import (
 // `rows` columns make any truncation visible.
 var candidateSetSizes = []int{10, 20, 40, 50}
 
+// candidateBands are DISJOINT rank windows, 1-indexed and inclusive, and they are
+// the ladder a comparison across widths may actually be read from.
+//
+// ⚠️ **The cumulative rungs above are NESTED**, so PRICE10 ⊂ PRICE20 ⊂ PRICE40 ⊂
+// PRICE50 share most of their rows and are not four independent estimates. Two
+// consequences, and the second is the one that bites:
+//
+//   - "Flat across rungs" can only ever mean "the players added between rungs
+//     perform like the ones already there", which is a weaker claim than four
+//     distinct populations agreeing.
+//   - **Flatness at the long end is partly mechanical.** Adding ten players to a
+//     1,850-row set moves its aggregate error far less than adding ten to a
+//     370-row set, whatever those players do. So the cumulative ladder is damped
+//     toward flat exactly where it has the most rows, and its sharpest contrast
+//     (10 against 20) is also its noisiest.
+//
+// Disjoint bands remove both. Each band is a different set of player-weeks, so
+// comparing bands compares populations rather than a sequence with a shared
+// prefix, and the row counts are comparable across bands rather than growing.
+//
+// ⚠️ They still are not independent DRAWS — a gameweek's outcome moves every
+// band's baseline at once, because all of them are scored against the same
+// five-week means over the same weeks. Season stays the clustering axis.
+var candidateBands = [][2]int{{1, 10}, {11, 20}, {21, 40}, {41, 50}}
+
 func TestDiagCandidateSetAccuracy(t *testing.T) {
 	if os.Getenv("DIAG") == "" {
 		t.Skip("set DIAG=1")
@@ -155,9 +180,15 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 	fmt.Printf("or fall with the population's own spread whatever the model does.\n")
 	fmt.Printf("⚠️ The PRICE ladder is the only family the model did not choose, and it\n")
 	fmt.Printf("is the one to tune against: MODEL-n moves when a constant moves.\n")
-	fmt.Printf("⚠️ Read the ladder as a SHAPE. Flat in n refutes the tail-defect worry;\n")
-	fmt.Printf("monotone in n locates it. Taking the best rung is an argmax over four\n")
-	fmt.Printf("correlated estimates and is not a result.\n\n")
+	fmt.Printf("⚠️ MODEL-n and PRICE-n are CUMULATIVE and therefore NESTED, so their\n")
+	fmt.Printf("rungs share most of their rows and are not independent estimates. They\n")
+	fmt.Printf("are also damped toward flat at the long end, where ten added players move\n")
+	fmt.Printf("an 1,850-row average very little. Read them as a description.\n")
+	fmt.Printf("⚠️ Mband/Pband are DISJOINT rank windows and are the ladder a comparison\n")
+	fmt.Printf("across widths may be read from: different bands are different players.\n")
+	fmt.Printf("⚠️ Taking the best rung or band is an argmax over correlated estimates.\n")
+	fmt.Printf("No standard error is computed anywhere on this table, so nothing here\n")
+	fmt.Printf("carries a detection threshold and no rung difference is tested.\n\n")
 	fmt.Printf("  %-9s %6s %7s %8s %8s %8s %9s %9s %8s\n",
 		"set", "players", "rows", "mae", "mae_base", "skill", "rho", "rho_base", "rho gap")
 
@@ -168,6 +199,10 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 		mdl, price := map[int]*acc{}, map[int]*acc{}
 		for _, n := range candidateSetSizes {
 			mdl[n], price[n] = newAcc(), newAcc()
+		}
+		mdlBand, priceBand := map[int]*acc{}, map[int]*acc{}
+		for bi := range candidateBands {
+			mdlBand[bi], priceBand[bi] = newAcc(), newAcc()
 		}
 
 		for gw := 1; gw <= 38; gw++ {
@@ -229,6 +264,19 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 				}
 				top[n], pri[n] = tn, pn
 			}
+			// Disjoint bands: ranks [lo, hi] inclusive, 1-indexed. A band whose
+			// window runs past the available rows contributes the rows it has.
+			topBand, priBand := map[int]map[int]bool{}, map[int]map[int]bool{}
+			for bi, b := range candidateBands {
+				tn, pn := map[int]bool{}, map[int]bool{}
+				for i := b[0] - 1; i < b[1] && i < len(byPred); i++ {
+					tn[byPred[i].id] = true
+				}
+				for i := b[0] - 1; i < b[1] && i < len(byPrice); i++ {
+					pn[byPrice[i].id] = true
+				}
+				topBand[bi], priBand[bi] = tn, pn
+			}
 			for _, r := range rows {
 				x := obs{r.pred, r.base, r.act}
 				add := func(a *acc) {
@@ -243,6 +291,14 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 					}
 					if pri[n][r.id] {
 						add(price[n])
+					}
+				}
+				for bi := range candidateBands {
+					if topBand[bi][r.id] {
+						add(mdlBand[bi])
+					}
+					if priBand[bi][r.id] {
+						add(priceBand[bi])
 					}
 				}
 				if inOpt[r.id] {
@@ -261,12 +317,22 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 		for _, n := range candidateSetSizes {
 			report(fmt.Sprintf("PRICE%d", n), price[n])
 		}
+		for bi, b := range candidateBands {
+			report(fmt.Sprintf("Mband%d-%d", b[0], b[1]), mdlBand[bi])
+		}
+		for bi, b := range candidateBands {
+			report(fmt.Sprintf("Pband%d-%d", b[0], b[1]), priceBand[bi])
+		}
 		report("OPTIMUM", opt)
 		report("HELD", held)
 	}
-	fmt.Printf("\n⚠️ A `skill` unchanged between `all` and the candidate sets means the\n")
-	fmt.Printf("model is NOT weaker where it matters in any sense a decision cares about,\n")
-	fmt.Printf("whatever the raw error does — and the wrong-loss argument fails.\n")
+	fmt.Printf("\n⚠️ A `skill` unchanged between `all` and the candidate sets is evidence\n")
+	fmt.Printf("the model is not weaker where it matters, whatever the raw error does.\n")
+	fmt.Printf("⚠️ But it is SUGGESTIVE AGAINST the wrong-loss argument, not a refutation\n")
+	fmt.Printf("of it. Nothing on this table has a standard error, the cumulative rungs\n")
+	fmt.Printf("are nested, and every set is scored against the same baseline over the\n")
+	fmt.Printf("same weeks — so the sets are correlated with each other as well. Season\n")
+	fmt.Printf("is the clustering axis, which makes six the honest count and not sixty.\n")
 	fmt.Printf("⚠️ `rho gap` is the model's ordering minus the baseline's ON THE SAME ROWS,\n")
 	fmt.Printf("so range restriction hits both and cancels. That is the comparison range\n")
 	fmt.Printf("restriction cannot fake.\n")
