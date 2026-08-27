@@ -278,7 +278,11 @@ func TestDiagReplayPointsFromOrdering(t *testing.T) {
 	}
 
 	fmt.Printf("\n--- does the block length matter? (PAIRED on season)\n")
-	fmt.Printf("The same six seasons appear at every block, so an unpaired comparison of\n")
+	// Derived, not written out: sweepPairNames returns six pairs by default but
+	// FPL_SWEEP_SEASONS moves that within a run, and a hardcoded count would then
+	// describe a grid that did not run.
+	fmt.Printf("The same %s appear at every block, so an unpaired comparison of\n",
+		seasonsLabel(len(pairs)))
 	fmt.Printf("two block means throws away the pairing and understates the precision of\n")
 	fmt.Printf("their difference. These rows difference each season against ITSELF.\n\n")
 	fmt.Printf("  %-24s %8s %8s %10s\n", "paired difference", "mean", "se", "threshold")
