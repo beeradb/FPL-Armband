@@ -134,9 +134,14 @@ var retractedFigures = []retracted{
 	// which figure a prose marker refers to, and getting that wrong switches the guard
 	// off everywhere. Recorded so nobody reads this entry as full coverage.
 	{
-		figure:  "0.140",
-		what:    "the top-forty Spearman, quoted as if it were the six-season figure",
-		context: []string{"top fort", "top-fort", "spearman"},
+		figure: "0.140",
+		what:   "the top-forty Spearman, quoted as if it were the six-season figure",
+		// ⚠️ Every spelling the record actually uses, counted rather than guessed:
+		// `top-40` is the COMMONEST form (and the first version of this entry missed
+		// it, so "the top-40 rank correlation is 0.140" sailed through a guard that
+		// had just been proved to bite on a different phrasing). Proving a guard
+		// fires on ONE wording is not proof it fires on the wording people write.
+		context: []string{"top fort", "top-fort", "top-40", "top 40", "top40", "spearman"},
 		unless:  []string{"0.106", "0.178", "2020-21"},
 		now:     "it is one season's value; across six the range is 0.106 to 0.178 and the range is what may be quoted",
 	},
