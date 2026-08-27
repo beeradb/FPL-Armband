@@ -102,10 +102,36 @@ MIN_TIME_BAR_PCT = 5.0
 # that jitters earns exactly its own jitter and no more.
 #
 # ⚠️ The ceiling is what stops that becoming an excuse. A null memory move above
-# it is not jitter to be tolerated — it is a benchmark too unstable to gate with,
-# and it fails loudly rather than silently widening. 0.005% against 1.0% is three
-# orders of magnitude of headroom, and a real memory regression is far larger
-# still, so the bite is intact.
+# it is not jitter to be tolerated — that benchmark cannot gate memory at all, and
+# it is reported loudly rather than silently given a wider bar. ~0.006% against
+# 1.0% is more than two orders of magnitude of headroom, and a real memory
+# regression is far larger still, so the bite is intact.
+#
+# ⚠️ **Do NOT read "over the ceiling" as "there is a bug in the benchmark."** An
+# earlier version printed "Fix the benchmark", which sends a reader looking for a
+# line of code that does not exist. Memory drifts across PROCESSES with no project
+# code involved. A standalone module containing nothing but `map[int]int` taking
+# 20,000 fixed keys, 24 separate processes, go1.26.5, `-benchtime=1x`:
+#
+#     18 runs   1182584 B/op   144 allocs/op
+#      6 runs   1182600 B/op   145 allocs/op
+#
+# One extra allocation about a quarter of the time, on code with no logic in it.
+# Any benchmark that builds maps inherits this.
+#
+# ⚠️ **`-benchtime=1x` IS THE MEASUREMENT, not a detail.** Under the default,
+# Go picks `b.N` per process (1488..1662 across five runs here) and reports
+# total/N — so the SAME experiment shows a spurious ~10-byte B/op wobble from
+# integer division while hiding the real 144/145 split entirely. Two separate
+# attempts at this measurement, taken with the default, drew opposite and equally
+# wrong conclusions before the third pinned `b.N`. If you re-measure this, pin it.
+#
+# ⚠️ Version-pinned deliberately: this concerns runtime internals, so an unversioned
+# claim about it rots at the next toolchain bump. Measured on go1.26.5/arm64; CI
+# runs amd64, untested here.
+#
+# So a ceiling breach reads "this benchmark's memory is too unstable to gate with"
+# — NOT "someone introduced a defect".
 MEM_NULL_TOLERANCE_PCT = 1.0
 
 
@@ -226,9 +252,11 @@ def main():
         print("  memory: the null moved none of it, so every memory bar is 0%")
 
     if broken:
-        print("\n  ⚠️ THE NULL MOVED MEMORY BY MORE THAN THE TOLERANCE. A benchmark this")
-        print("     unstable cannot gate anything, and widening its bar to fit would hide")
-        print("     whatever is doing it. Fix the benchmark:")
+        print("\n  ⚠️ THE NULL MOVED MEMORY BY MORE THAN THE TOLERANCE. This benchmark")
+        print("     cannot gate memory, and widening its bar to fit would hide whatever is")
+        print("     doing it. ⚠️ Not necessarily a defect: memory drifts across processes")
+        print("     even with no project code — see MEM_NULL_TOLERANCE_PCT. Investigate")
+        print("     before assuming there is a line of code to fix:")
         for unit, name, delta in broken:
             how = "off a zero baseline" if delta == float("inf") else f"{delta:+.2f}%"
             print(f"       {name}  {unit}  {how} between two runs of ONE commit")
