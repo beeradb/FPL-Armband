@@ -16,15 +16,63 @@ import (
 // about. `chipWindowsByKind` reads nothing but `boot.Chips`, so a season's set
 // count is cheap to state exactly, and stating it exactly is also the only way to
 // test the ONE-set branch, which the live feed cannot produce this year.
+//
+// ⚠️ A ONE-SET season's first window runs to GW38, not GW19. `ChipSchedule.First`
+// says so directly: the first set "expires at the GW19 deadline in a two-set
+// season, and runs the whole season in a one-set one". An earlier version of this
+// fixture used 19 for both, which made the one-set test unable to see that the
+// code was quoting a two-set deadline at a one-set season. A synthetic bootstrap
+// is only worth having while it stays faithful to the shape it stands in for.
 func chipBoot(sets int) *fpl.Bootstrap {
 	b := &fpl.Bootstrap{}
+	firstStop := 38
+	if sets >= 2 {
+		firstStop = 19
+	}
 	for _, name := range []string{"wildcard", "freehit", "bboost", "3xc"} {
-		b.Chips = append(b.Chips, fpl.Chip{Name: name, Number: 1, StartEvent: 1, StopEvent: 19})
+		b.Chips = append(b.Chips, fpl.Chip{Name: name, Number: 1, StartEvent: 1, StopEvent: firstStop})
 		if sets >= 2 {
 			b.Chips = append(b.Chips, fpl.Chip{Name: name, Number: 2, StartEvent: 20, StopEvent: 38})
 		}
 	}
 	return b
+}
+
+// The defect review found: the deadline was a hardcoded GW19, so a one-set
+// season — where the single set runs to GW38 — was told its chips expire
+// nineteen gameweeks early.
+func TestUnplannedChipsQuotesTheSeasonsOwnDeadline(t *testing.T) {
+	one := strings.Join((&Engine{Boot: chipBoot(1)}).UnplannedChips(ChipSchedule{}), " | ")
+	if strings.Contains(one, "GW19") {
+		t.Errorf("a one-set season's chips run to GW38; quoting GW19 forfeits them "+
+			"nineteen weeks early. got %q", one)
+	}
+	if !strings.Contains(one, "GW38") {
+		t.Errorf("the one granted set runs to GW38 and the message should say so; got %q", one)
+	}
+
+	two := strings.Join((&Engine{Boot: chipBoot(2)}).UnplannedChips(ChipSchedule{}), " | ")
+	if !strings.Contains(two, "GW19") || !strings.Contains(two, "GW38") {
+		t.Errorf("a two-set season loses the first set after GW19 and the second after "+
+			"GW38, and each message names its OWN set's date; got %q", two)
+	}
+}
+
+// The deadline must belong to the set being reported. The trailing form named
+// the first set's date even when only the second was flagged, which handed a
+// reader a date for chips they had already planned.
+func TestUnplannedChipsNamesTheDeadlineOfTheSetItFlagged(t *testing.T) {
+	e := &Engine{Boot: chipBoot(2)}
+	// First set fully planned; only the second is unspent.
+	s := ChipSchedule{First: ChipPlan{Wildcard: 6, BenchBoost: 8, TripleCaptain: 9, FreeHit: 16}}
+	got := strings.Join(e.UnplannedChips(s), " | ")
+	if strings.Contains(got, "GW19") {
+		t.Errorf("only the second set is unplanned, so the first set's GW19 deadline is "+
+			"not this reader's problem; got %q", got)
+	}
+	if !strings.Contains(got, "GW38") {
+		t.Errorf("the unplanned second set is lost after GW38; got %q", got)
+	}
 }
 
 // The defect this function exists for: a season grants two sets of chips, the
@@ -58,9 +106,9 @@ func TestUnplannedChipsSeesASetNobodyPlanned(t *testing.T) {
 		t.Errorf("no chip at all is planned for that set, which is worth saying more "+
 			"loudly than a partial gap; got %q", joined)
 	}
-	if !strings.Contains(joined, "GW19") {
-		t.Errorf("the message must name the expiry, because unplanned and forfeited "+
-			"converge as the season runs on; got %q", joined)
+	if !strings.Contains(joined, "GW38") {
+		t.Errorf("the message must name the unplanned set's own expiry, because "+
+			"unplanned and forfeited converge as the season runs on; got %q", joined)
 	}
 }
 
