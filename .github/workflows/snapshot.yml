@@ -33,6 +33,17 @@ name: Snapshot
 on:
   push:
     branches: [main]
+  # ⚠️ Added so the figures gate runs BEFORE a merge rather than after it. Until
+  # this, `Refuse a silent change in the figures` fired on push to `main` — which
+  # made it a detector, not a gate: by the time it spoke, the change it objected
+  # to had already landed and the author had moved on. The whole argument for a
+  # gate over a report is that it asks the author while they still know.
+  #
+  # No comparison logic changes. figures-moved-check.py already compares against
+  # the newest published Release, and the newest Release IS what is on `main` — so
+  # on a pull request that is exactly the head-versus-base comparison wanted, with
+  # no second code path to keep in step with the first.
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -43,8 +54,14 @@ permissions:
   id-token: write
 
 concurrency:
-  group: snapshot-main
-  cancel-in-progress: false
+  # ⚠️ Keyed by ref, not the constant it used to be. With one fixed group a pull
+  # request run and the `main` run would queue behind each other, and since
+  # `cancel-in-progress` is false for `main` — a publish must never be killed
+  # half-written — a busy branch could hold the publish queue indefinitely.
+  group: snapshot-${{ github.ref }}
+  # Superseding a pull request's own earlier run is fine and saves a runner; a
+  # push to `main` publishes and must be left alone.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   publish:
@@ -167,6 +184,7 @@ jobs:
             --current "$DIR/figures.csv" --tmp "${{ runner.temp }}"
 
       - name: Publish the snapshot
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SHA: ${{ github.sha }}
@@ -226,6 +244,7 @@ jobs:
       # than continue-on-error: a red main that nobody reads is how this
       # repository lost its staleness guard for four days.
       - name: Build the accuracy dashboard
+        if: github.event_name != 'pull_request'
         if: vars.PUBLISH_ACCURACY_PAGE == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -235,12 +254,14 @@ jobs:
           rm -rf site/rel site/series.json
 
       - name: Upload the dashboard
+        if: github.event_name != 'pull_request'
         if: vars.PUBLISH_ACCURACY_PAGE == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
       - name: Deploy to Pages
+        if: github.event_name != 'pull_request'
         if: vars.PUBLISH_ACCURACY_PAGE == 'true'
         id: deploy
         uses: actions/deploy-pages@v4
