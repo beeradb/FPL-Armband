@@ -115,6 +115,31 @@ var retractedFigures = []retracted{
 		unless:  []string{"0.03"},
 		now:     "at the real bar it reads −0.03; the arm labelled 'shipped' had no bar at all",
 	},
+	// ⚠️ Withdrawn for STANDING IN FOR SIX SEASONS, a third kind on this list. 0.140
+	// reproduces exactly — it is 2020-21's top-forty Spearman and always was. What it
+	// cannot do is describe the population two test files quoted it for: the six
+	// seasons run 0.106 to 0.178, a spread of 0.072, which is WIDER than the gap to
+	// the empirical null that the verdict rests on. Quoting the point estimate made
+	// the evidence look steadier than it is, and the two files were asserting it at
+	// each other rather than at anything either of them prints.
+	//
+	// ⚠️ **This entry was PROVED to bite before being believed**, by re-asserting the
+	// figure and watching it fail — and the proof found a blind spot worth recording.
+	// It fires in AGENTS.md. It does NOT fire at the two diagnostic sites that
+	// originally carried the figure, because a marker anywhere in a block exempts
+	// every figure in the block, and those blocks say "suggestive, NOT established"
+	// about the tail VERDICT. The exemption is doing its job on the wrong claim: a
+	// retraction marker about claim A silently covers an unrelated figure B beside it.
+	// Not fixed here — narrowing the exemption to the marked figure needs a rule for
+	// which figure a prose marker refers to, and getting that wrong switches the guard
+	// off everywhere. Recorded so nobody reads this entry as full coverage.
+	{
+		figure:  "0.140",
+		what:    "the top-forty Spearman, quoted as if it were the six-season figure",
+		context: []string{"top fort", "top-fort", "spearman"},
+		unless:  []string{"0.106", "0.178", "2020-21"},
+		now:     "it is one season's value; across six the range is 0.106 to 0.178 and the range is what may be quoted",
+	},
 	{
 		figure:  "0.53",
 		what:    "the buy-side over-rating per gameweek",

@@ -806,10 +806,14 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **Two elevens exist on purpose.** → **optimiser-and-squad**
 - **Ordering inside the held squad is worth 2.4-3.2 points a gameweek over persistence**, and the
   whole arena above it — perfect hindsight ordering within the same fifteen — is 8.6-9.9, of
-  which captaincy is 5.6-5.8 and XI selection 3.0-4.2. ⚠️ This does **not** price the disputed
-  top-40 tail weakness; it measures the arena that weakness lives in. ⚠️ The hindsight arms are
-  clairvoyance, not headroom — the captaincy figure is mostly single-week variance nobody could
-  hold, and is not the value of a better captain model. → **optimiser-and-squad**
+  which captaincy is 5.6-5.8 and XI selection 3.0-4.2. Levels hold under both xGC sources.
+  ⚠️ This does **not** price the disputed top-40 tail weakness; it measures the arena that
+  weakness lives in. ⚠️ The hindsight arms are clairvoyance, not headroom — the captaincy figure
+  is mostly single-week variance nobody could hold, and is not the value of a better captain
+  model. ⚠️ The edge is a MEAN and not a description of a season: positive in 6 of 6 seasons when
+  the squad is re-optimised weekly, but 5 of 6 when it is held, with 2023-24 reading −0.32.
+  ⚠️ The block-length comparison is environment-conditional and its one significant cell changes
+  verdict with `FPL_XGC_EXTERNAL_DIR`; quote the source or do not quote it. → **optimiser-and-squad**
 
 ## Season maintenance
 
