@@ -804,6 +804,12 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **Money is worth what it can still be turned into.** → **optimiser-and-squad**
 - **The bench is a hedge and its slots are not interchangeable.** → **optimiser-and-squad**
 - **Two elevens exist on purpose.** → **optimiser-and-squad**
+- **Ordering inside the held squad is worth 2.4-3.2 points a gameweek over persistence**, and the
+  whole arena above it — perfect hindsight ordering within the same fifteen — is 8.6-9.9, of
+  which captaincy is 5.6-5.8 and XI selection 3.0-4.2. ⚠️ This does **not** price the disputed
+  top-40 tail weakness; it measures the arena that weakness lives in. ⚠️ The hindsight arms are
+  clairvoyance, not headroom — the captaincy figure is mostly single-week variance nobody could
+  hold, and is not the value of a better captain model. → **optimiser-and-squad**
 
 ## Season maintenance
 
