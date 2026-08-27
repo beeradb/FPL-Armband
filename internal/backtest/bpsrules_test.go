@@ -108,7 +108,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -146,9 +145,7 @@ type bpsRow struct {
 }
 
 func TestDiagBPSRuleChange(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	sink := openModelSinkFor(t.Logf)
 	defer sink.close()
 

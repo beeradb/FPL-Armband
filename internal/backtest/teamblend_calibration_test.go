@@ -25,7 +25,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"testing"
 )
 
@@ -38,9 +37,7 @@ const (
 )
 
 func TestDiagTeamBlend(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	sink := openModelSinkFor(t.Logf)
 	defer sink.close()

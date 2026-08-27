@@ -37,14 +37,11 @@ package backtest
 // assuming 5: it is resolved per contrast and is often lower.
 
 import (
-	"os"
 	"testing"
 )
 
 func TestDiagNoiseFloor(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 
 	// The shipped conventions, matching TestDiagBaseline exactly so the two runs
 	// are comparable. Every arm below starts from this.

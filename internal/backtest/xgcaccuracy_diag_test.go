@@ -51,7 +51,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 )
@@ -67,9 +66,7 @@ import (
 // the reasoning this comparison needs.
 
 func TestDiagExternalXGCAgainstNative(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	dir := externalXGCDir()
 	if dir == "" {
 		t.Skip("no external xGC directory configured")
@@ -164,9 +161,7 @@ func maeOf(a, b []float64) float64 {
 //	DIAG=1 FPL_XGC_EXTERNAL_DIR=<dir> go test ./internal/backtest \
 //	    -run TestDiagReconstructionAgainstExternal -v -timeout 20m
 func TestDiagReconstructionAgainstExternal(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	dir := externalXGCDir()
 	if dir == "" {
 		t.Skip("no external xGC directory configured")
@@ -241,9 +236,7 @@ func TestDiagReconstructionAgainstExternal(t *testing.T) {
 //
 // Run on one population it says the opposite: the two estimators are a dead heat.
 func TestDiagThreeWayXGC(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	dir := externalXGCDir()
 	if dir == "" {
 		t.Skip("no external xGC directory configured")

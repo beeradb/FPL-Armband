@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
@@ -54,9 +53,7 @@ import (
 // rotation among regulars measures ~32% at GW38 against ~25% mid-season, so GW38
 // is genuinely noisier, but GW36-37 are not, and a trim was not built here.
 func TestDiagPriorMinutesRecency(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== PRIOR MINUTES RECENCY: does the opening squad get better?\n")

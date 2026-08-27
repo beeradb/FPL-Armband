@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 
@@ -190,9 +189,7 @@ func rankWindow(order []int, lo, hi int) map[int]bool {
 }
 
 func TestDiagCandidateSetAccuracy(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	type obs struct{ pred, base, act float64 }

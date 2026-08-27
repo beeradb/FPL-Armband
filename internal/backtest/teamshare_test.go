@@ -101,7 +101,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 
@@ -248,9 +247,7 @@ func (c shareClub) ratioAgainst(realised float64) float64 {
 }
 
 func TestDiagTeamGoalShare(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	sink := openModelSinkFor(t.Logf)
 	defer sink.close()

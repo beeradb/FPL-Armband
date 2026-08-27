@@ -180,7 +180,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 
@@ -659,9 +658,7 @@ func (r playerGW) act(target string) float64 {
 }
 
 func TestDiagPredictionBenchmark(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	sink := openModelSinkFor(t.Logf)
 	defer sink.close()

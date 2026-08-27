@@ -46,14 +46,11 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
 func TestDiagWildcardAttribution(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== the first-half wildcard, every difference attributable.\n")

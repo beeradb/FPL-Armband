@@ -1,7 +1,6 @@
 package backtest
 
 import (
-	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -43,9 +42,7 @@ import (
 //     seasons too, or a sweep measuring the backfill's effect would measure one arm
 //     twice.
 func TestDiagExtendedSeasons(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	// Every season either grid names, so this reports the new ones beside the four the

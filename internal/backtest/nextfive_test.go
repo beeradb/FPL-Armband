@@ -66,7 +66,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"testing"
 )
 
@@ -156,9 +155,7 @@ func nextFiveMean(p *Player, clubGWs map[int]int, cut int, f func(GW) float64) (
 }
 
 func TestDiagNextFivePredictors(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	sink := openModelSinkFor(t.Logf)
 	defer sink.close()

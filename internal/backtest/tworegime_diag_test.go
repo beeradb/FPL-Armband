@@ -59,7 +59,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
@@ -253,9 +252,7 @@ func fourChipControl(cur *Season, start int) analysis.ChipPlan {
 }
 
 func TestDiagTwoRegimeChips(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== the second-half bundle: wildcard + free hit + bench boost on\n")

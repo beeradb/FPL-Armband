@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
@@ -91,9 +90,7 @@ import (
 // `AnticipateChips` is off in every arm, so this is one lever rather than two. The
 // combination is a further arm and deliberately not this one.
 func TestDiagChipPreparation(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== does building the squad TOWARD a chip pay?\n")

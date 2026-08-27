@@ -30,14 +30,11 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
 func TestDiagGoalTiming(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	type starter struct {

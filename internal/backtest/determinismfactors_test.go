@@ -1,7 +1,6 @@
 package backtest
 
 import (
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
@@ -34,9 +33,7 @@ import (
 // The first arm is the positive control and **must** come back unstable; the test
 // fails if it does not, because everything after it is then uninterpretable.
 func TestDiagOptimizerDeterminismFactors(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	prior := loadSeason(t, cfg, "2022-23")
 	cur := loadSeason(t, cfg, "2023-24")

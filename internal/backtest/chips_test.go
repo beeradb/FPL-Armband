@@ -81,7 +81,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 
@@ -187,9 +186,7 @@ type chipCell struct {
 }
 
 func TestDiagChipWeekOracle(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== the chip-week oracle, full grid.\n")

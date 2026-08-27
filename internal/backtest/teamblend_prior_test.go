@@ -24,7 +24,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"strings"
 	"testing"
 
@@ -33,9 +32,7 @@ import (
 )
 
 func TestDiagTeamBlendPriorSource(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	pairs := [][2]string{

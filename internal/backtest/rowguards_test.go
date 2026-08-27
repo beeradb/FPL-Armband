@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -197,9 +196,7 @@ func TestOnlyTheCalendarGuardIsInertWithoutAFixtureList(t *testing.T) {
 // above must reconcile **exactly**. **Widening this is the wrong response to a
 // failure** — the right response is to find the rows.
 func TestDiagWeeklyRowsReconcileWithSeasonTotals(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	// Named residuals, so a season quietly acquiring one fails rather than passing
@@ -267,9 +264,7 @@ func TestDiagWeeklyRowsReconcileWithSeasonTotals(t *testing.T) {
 // above claims it catches. An empty cache costs a re-download of eight seasons, about
 // eight seconds, and buys the property the test is named for.
 func TestDiagArchiveRowGuards(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	cfg.CacheDir = t.TempDir()
 

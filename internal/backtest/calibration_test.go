@@ -20,7 +20,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"os"
 	"sort"
 	"strconv"
 	"testing"
@@ -96,9 +95,7 @@ type cohort struct {
 // which control season was used. Two cohorts and a fixed pre-treatment
 // baseline is the most the data supports.
 func TestDiagRestPooled(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 
@@ -327,9 +324,7 @@ var newCoachClubs = map[string]map[string]bool{
 }
 
 func TestDiagNewCoachPenalty(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	type acc struct{ mins, pp90, pts, n float64 }
@@ -469,9 +464,7 @@ func TestDiagNewCoachPenalty(t *testing.T) {
 // did not. It is here to keep RestRegions honest. Anyone tempted to populate it
 // should run this first.
 func TestDiagRestDiscount(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 

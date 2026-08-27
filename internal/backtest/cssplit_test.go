@@ -27,14 +27,11 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
 func TestDiagCleanSheetSplit(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	fmt.Printf("\n=== Do team-mates who both played 60+ minutes disagree about a clean sheet?\n")

@@ -150,9 +150,7 @@ import (
 // shrink that bias without removing it. The two biases are not known to cancel
 // and no claim here depends on their net.
 func TestDiagReplayPointsFromOrdering(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	pairs := loadPairsOrSkip(t, cfg)
 

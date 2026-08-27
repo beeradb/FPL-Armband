@@ -70,16 +70,13 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
 )
 
 func TestDiagWildcardValue(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== what is a wildcard worth? Playing one against playing none.\n")

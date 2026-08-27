@@ -3,7 +3,6 @@ package backtest
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 
@@ -54,9 +53,7 @@ import (
 // Nothing here is an inference. No standard error, no verdict — the point is to
 // size three things that were asserted.
 func TestDiagAutosubValue(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 

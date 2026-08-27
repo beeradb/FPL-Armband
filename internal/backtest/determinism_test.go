@@ -1,7 +1,6 @@
 package backtest
 
 import (
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
@@ -54,9 +53,7 @@ import (
 // defect both made. DIAG-gated so it does not fail the build; it fails **within** DIAG,
 // so anyone running the diagnostics sees it.
 func TestDiagOptimizerIsNotDeterministic(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	prior := loadSeason(t, cfg, "2022-23")
 	cur := loadSeason(t, cfg, "2023-24")

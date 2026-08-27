@@ -1370,6 +1370,15 @@ func cmdChips(ctx context.Context, cfg config.Config, client *fpl.Client, e *ana
 		fmt.Println("\n  Plan is legal: every chip has a distinct gameweek inside its window.")
 	}
 
+	// Beside legality, not inside it: the shipped plan was legal AND missing a
+	// whole set, and only the line above was printed.
+	if unspent := e.UnplannedChips(plan); len(unspent) > 0 {
+		fmt.Println("\nUNSPENT")
+		for _, u := range unspent {
+			fmt.Printf("  - %s\n", u)
+		}
+	}
+
 	if h, why := e.EffectiveHorizon(plan); why != "" {
 		fmt.Printf("\nEFFECT ON SQUAD BUILDING\n\n  %s\n", why)
 		fmt.Printf("  Optimiser horizon reduced to %d gameweeks.\n", h)

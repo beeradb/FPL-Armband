@@ -21,15 +21,12 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 )
 
 func TestDiagCleanSheetExposure(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	const csPoints = 4.0 // defenders and keepers

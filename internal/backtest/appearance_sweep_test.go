@@ -45,16 +45,13 @@ package backtest
 // HOLD is the metric. This is scoring and squad selection, not transfers.
 
 import (
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
 )
 
 func TestDiagUnifiedAppearance(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	// Baseline is the PRE-change arm, so the reported difference is "what the

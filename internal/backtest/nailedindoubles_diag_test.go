@@ -50,7 +50,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 
@@ -344,9 +343,7 @@ func priorMinutesShare(sm *seasonMatches, el, club, gw, first int,
 
 // TestDiagNailednessInDoubles is measurement two.
 func TestDiagNailednessInDoubles(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	mirrorArchive(t, cfg)
 

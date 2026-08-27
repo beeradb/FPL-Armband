@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
@@ -87,9 +86,7 @@ import (
 //     from zero — a clustered SE can collapse because the axis is null rather than
 //     because the seasons agree, which this record has already retracted once.
 func TestDiagChipSequencePaired(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== does building the wildcard squad FOR the bench boost pay?\n")

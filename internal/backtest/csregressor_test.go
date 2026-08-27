@@ -131,9 +131,7 @@ var nativeXGCSeasons = map[string]bool{
 }
 
 func TestDiagCleanSheetRegressor(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	ctx := context.Background()
 	cfg := loadConfig(t)
 

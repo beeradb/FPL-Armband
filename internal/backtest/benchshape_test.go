@@ -68,16 +68,13 @@ package backtest
 // question — do not report it as the answer.
 
 import (
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
 )
 
 func TestDiagBenchShape(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	// Flat is the baseline, so a positive difference means shaping helps, which

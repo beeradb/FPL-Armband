@@ -74,7 +74,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -213,9 +212,7 @@ func bpsSchedule() []bpsFeature {
 // TestDiagBPSSchedule recovers every 2015-16 BPS coefficient from the archive and
 // requires the reconstruction to be exact on every played row.
 func TestDiagBPSSchedule(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	sink := openModelSinkFor(t.Logf)
 	defer sink.close()
 
@@ -435,9 +432,7 @@ func checkSchedule(feats []bpsFeature, coef []int, rows []bpsRow, comps []bpsCom
 
 // TestDiagBPSTackled prices the removal of the tackled penalty.
 func TestDiagBPSTackled(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	sink := openModelSinkFor(t.Logf)
 	defer sink.close()
 

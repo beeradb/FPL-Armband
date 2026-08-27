@@ -34,9 +34,7 @@ import (
 //
 // It needs the archive's raw CSV for the third item, and skips when unreachable.
 func TestDiagUnregisteredPool(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	fmt.Printf("\n%-9s %7s %13s %8s %10s %8s\n",
@@ -307,9 +305,7 @@ func firstRow(p *Player) int {
 // reported because the pool also feeds the weekly transfer search, so unlike a
 // pure scoring knob it is not expected to be byte-identical.
 func TestDiagUnregisteredPoolImpact(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	runPolicySweep(t, []policyVariant{
 		{label: "corrected (ships)", apply: func(sc *SimConfig) {
 			os.Unsetenv("FPL_UNREGISTERED_POOL")
