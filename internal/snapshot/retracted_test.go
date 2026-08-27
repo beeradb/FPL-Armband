@@ -88,6 +88,34 @@ var retractedFigures = []retracted{
 	// the perfect arm's own threshold rather than a constant's, and by deletion in
 	// AGENTS.md, which is verdict-only. An audit checks those; this cannot.
 	{
+		// Retracted 2026-08-26, hours after it was banked, and the retraction
+		// reached the cells README and NOT the three Go comments that cite that
+		// README — the record corrected itself in one place while continuing to
+		// assert the withdrawn figure in three others, one of them a shipped
+		// non-test file. A peer session found two of the three by review; the
+		// third turned up only when the figure was grepped for.
+		//
+		// ⚠️ It is a SIGN, not a rounding difference. +0.58 says the shipped rule
+		// costs hits; the real bar reads −0.03, a null. Both comments leant on the
+		// sign to justify a design choice.
+		//
+		// The context word is "hits", which none of the six live 0.58-ish
+		// quantities carries — the bonus tercile's +0.580, the 0.58-to-0.21 spread
+		// in docs/model.md and metrics.go, the gate's p 0.58 and −0.583, and
+		// harness_test's 0.581. Checked rather than assumed, per this list's own
+		// rule that a figure must be distinctive enough to key on.
+		//
+		// `unless` holds the reconciliation: a line quoting BOTH figures is
+		// discussing the discrepancy, which is what wildcardattrib_diag_test.go
+		// does legitimately. Without it this guard would eat its own fix — the
+		// failure the 0.89 entry above is deliberately absent to avoid.
+		figure:  "0.58",
+		what:    "the hits the 'shipped' wildcard rule was said to add, measured at a ZERO bar",
+		context: []string{"hits"},
+		unless:  []string{"0.03"},
+		now:     "at the real bar it reads −0.03; the arm labelled 'shipped' had no bar at all",
+	},
+	{
 		figure:  "0.53",
 		what:    "the buy-side over-rating per gameweek",
 		context: []string{"over-rat", "overrat", "buy-side", "buy side"},

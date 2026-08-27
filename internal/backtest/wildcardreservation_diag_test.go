@@ -51,10 +51,14 @@ package backtest
 // The ladder arms count `changesInXI` — the STARTERS a fresh optimum would
 // replace — not `changesBetween`'s raw count over all fifteen. On the raw count,
 // "four hits" means four swaps, and a swap can be £4.0m of bench fodder nobody
-// would pay for. **Measured, that input produces a rule that leaves the policy
-// taking MORE hits (+0.58) and losing 7.4 points where it fires**, which is the
-// opposite of what a free repair is for. See
-// `stats/cells/2026-08-26-wildcard-noanchor`.
+// would pay for.
+//
+// ⚠️ **RETRACTED 2026-08-26: this asserted "measured, that input leaves the policy
+// taking MORE hits (+0.58) and losing 7.4 points where it fires". Both figures are
+// withdrawn** — that arm ran at a bar of ZERO and was not the shipped rule. **At
+// the real bar the hits reading is −0.03.** See
+// `stats/cells/2026-08-26-wildcard-noanchor`, whose banner retracts it — this
+// comment cited that directory while quoting the number it withdraws.
 //
 // So sweeping a bar in hits on the raw count would locate the best threshold for
 // the wrong ruler. The shipped arm is kept at the shipped bar on the RAW count,
