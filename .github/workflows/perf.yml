@@ -1,0 +1,108 @@
+# Refuse a merge that costs runtime or memory without saying why.
+#
+# # Why the three arms are in ONE job
+#
+# `base` and `control` are both the base commit, so `base` vs `control` is a
+# comparison whose true answer is zero. Everything it reports is noise — and the
+# point is that it is *this runner's* noise, in this job, under this load. Hosted
+# runners differ from each other in CPU model, neighbours and thermal state, so a
+# bar measured on one runner does not describe another.
+#
+# ⚠️ **So the arms may not be split across jobs, and this is not a preference.**
+# The first version of this gate ran every base sample before every head sample
+# and reported three of five benchmarks "significant" on IDENTICAL code, because
+# run order was confounded with the arm. Splitting base and head onto separate
+# runners is the same confound with a worse constant. Interleaving in one job is
+# what makes the null comparable to the comparison.
+#
+# # Why it costs three arms and not two
+#
+# A gate that has not shown it can tell "no change" from a change has not earned
+# the right to block a merge. The control arm is what shows it, every run, on the
+# machine that is judging. CI is free on a public repository; a false failure that
+# teaches people to ignore the gate is not.
+#
+# # What it costs, measured
+#
+# One arm-pass over `./internal/analysis/` is ~25s, so three arms over five rounds
+# is ~6.3 minutes of benchmarking and ~10 minutes wall clock with checkout and
+# build. That is the price of the control arm and it is deliberate.
+#
+# ⚠️ Five rounds is already thin for benchstat and should not be cut to save time.
+# If this needs to get faster, drop the slowest BENCHMARKS — `Optimize` and
+# `Polish` dominate the pass — and say in this comment which coverage was given
+# up. Do not quietly reduce the sample count, which weakens every verdict at once
+# instead of narrowing what is claimed.
+name: Performance
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      # Full history: the base commit must be checkable out as a worktree, and a
+      # shallow clone does not contain it.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Check out the base commit beside the head
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git worktree add /tmp/base "$BASE_SHA"
+
+      # ⚠️ Default -benchtime, deliberately. It targets a fixed WALL TIME per
+      # benchmark rather than a fixed iteration count, so a 6µs benchmark gets
+      # enough iterations to be stable while an 840ms one is not allowed to run
+      # away. A fixed `-benchtime=Nx` does the opposite of what is wanted at both
+      # ends of a range this wide.
+      - name: Interleave the three arms
+        env:
+          PKG: ./internal/analysis/
+        run: |
+          set -euo pipefail
+          : > /tmp/base.txt; : > /tmp/control.txt; : > /tmp/head.txt
+          for i in 1 2 3 4 5; do
+            # base, control, head — adjacent in time, so drift lands on all three
+            # alike instead of loading onto whichever ran last.
+            (cd /tmp/base && go test "$PKG" -run XXX -bench . -benchmem -count=1) \
+              | grep -E '^(Benchmark|goos|goarch|pkg|cpu)' >> /tmp/base.txt
+            (cd /tmp/base && go test "$PKG" -run XXX -bench . -benchmem -count=1) \
+              | grep -E '^(Benchmark|goos|goarch|pkg|cpu)' >> /tmp/control.txt
+            go test "$PKG" -run XXX -bench . -benchmem -count=1 \
+              | grep -E '^(Benchmark|goos|goarch|pkg|cpu)' >> /tmp/head.txt
+            echo "round $i done"
+          done
+
+      # The trailer is read from every commit the pull request adds, not just the
+      # tip: an author who explained the cost in the commit that caused it should
+      # not have to repeat it in the one that happens to be last.
+      - name: Gate on the measured bar
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          MSG="$(git log --format=%B "$BASE_SHA..$HEAD_SHA" || true)"
+          python3 scripts/perf-gate.py \
+            --base /tmp/base.txt \
+            --control /tmp/control.txt \
+            --head /tmp/head.txt \
+            --message "$MSG"
