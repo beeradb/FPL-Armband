@@ -160,6 +160,26 @@ jobs:
 
       # One comment per pull request, edited in place. A new comment per push
       # would bury the conversation under near-identical reports.
+      #
+      # ⚠️ `-f`, NOT `-F`. `gh`'s `-F/--field` applies magic type conversion: a
+      # value beginning with `@` is read as a FILENAME on the runner and its
+      # contents posted instead. The body always begins with the marker below, so
+      # `-F` was not reachable here — but it is one template edit away from
+      # posting an arbitrary local file into a public comment, and `-f` sends the
+      # string literally whatever it starts with.
+      #
+      # ⚠️ The match requires BOTH the marker and the Actions bot as author.
+      # Marker alone is not enough: anyone who can comment on the pull request —
+      # which is not limited to people who can push to it — could post a decoy
+      # starting with the same marker and have this step overwrite it. That is
+      # not a privilege boundary, but silently editing somebody else's comment is
+      # not a thing a bot should do.
+      #
+      # ⚠️ Note the grant is repo-wide: `pull-requests: write` is not scoped to
+      # the triggering pull request, so this token could comment on any of them.
+      # No escalation — the guard above means the actor already has push access —
+      # but do not copy this job to a less-trusted trigger on the assumption that
+      # the permission is as narrow as the use.
       - name: Post or update the pull request comment
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -169,11 +189,12 @@ jobs:
           marker='<!-- pr-model-report -->'
           body=$(cat "${{ runner.temp }}/report.md")
           id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
-                 --jq "[.[] | select(.body | startswith(\"$marker\"))] | .[0].id // empty")
+                 --jq "[.[] | select(.user.login == \"github-actions[bot]\")
+                            | select(.body | startswith(\"$marker\"))] | .[0].id // empty")
           if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body="$body" --silent
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" --silent
             echo "updated comment $id"
           else
-            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body="$body" --silent
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body" --silent
             echo "created a new comment"
           fi
