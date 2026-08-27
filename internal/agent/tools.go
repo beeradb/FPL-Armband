@@ -1369,8 +1369,13 @@ func (t *Toolbox) chipPlan() (anthropic.BetaTool, error) {
 				// collapsed onto the first: "wc1", "bb2" and the rest. Only
 				// planned slots appear, which keeps the replayed tool output
 				// short — this JSON is re-sent on every subsequent API call.
-				"plan":                      plan.All(),
-				"issues":                    e.ValidateChipPlan(plan),
+				"plan":   plan.All(),
+				"issues": e.ValidateChipPlan(plan),
+				// Separate from "issues" on purpose: these are legal, they are
+				// simply unspent. Collapsing them would tell the agent a plan is
+				// broken when it is merely incomplete, and the two want
+				// different advice.
+				"unspent_chips":             e.UnplannedChips(plan),
 				"effective_squad_horizon":   horizon,
 				"blank_or_double_gameweeks": irregular,
 				// The legend is not decoration. This payload carries three

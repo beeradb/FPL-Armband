@@ -642,6 +642,107 @@ var wantsWeek = map[chipKind]string{
 	kindTripleCaptain: "double",
 }
 
+// UnplannedChips reports chips the season has granted and the plan has not
+// spent. An empty result means every chip the competition allows is accounted
+// for.
+//
+// # Why this is a fourth function and not a branch of an existing one
+//
+// This file already keeps legality, wisdom and fixture facts apart because they
+// fail differently. Completeness is a fourth kind and fails differently again: an
+// unplanned chip is not illegal, so `ValidateChipPlan` must stay silent about it
+// — its contract is "an empty result means it is legal", and an unspent chip is
+// perfectly legal. It is not unwise either, so it is not a calendar note. It is
+// simply not spent, and the only thing that can see it is a comparison between
+// what the season GRANTS and what the plan FILLS.
+//
+// ⚠️ **Nothing detected this before.** `ValidateChipPlan` iterates the chips a
+// plan names, so a set nobody planned produces zero iterations and zero
+// messages. Measured on the shipped `config.json` on 2026-08-27: it fills the
+// first set (wildcard GW6, bench boost GW8, triple captain GW9, free hit GW16)
+// and leaves the second set entirely empty, in a season that grants two — and
+// every existing surface reported the plan as fine.
+//
+// ⚠️ **It reports a COUNT and a name, never a points figure.** How much a chip
+// is worth is a question for the replay, and the one recorded figure for
+// spending both sets is a season-path number from a DIAG sweep that does not
+// decompose cleanly into "what the second set alone is worth". Saying "you have
+// four chips unspent" is settled by the plan and the calendar; saying what they
+// would earn is not, and this function does not try.
+//
+// An unplayed chip is lost rather than carried, so "unplanned" and "forfeited"
+// converge as a season runs on. That is why each message names its own set's
+// deadline rather than leaving the reader to recall it.
+//
+// ⚠️ **That deadline is read from the published windows, never hardcoded.** The
+// first version stated a fixed GW19, which is the first set's boundary only in a
+// TWO-set season — `ChipSchedule.First`'s comment says the first set "runs the
+// whole season in a one-set one" — so a one-set season was told its chips expired
+// nineteen gameweeks early, and the trailing line quoted the FIRST set's date
+// even when the SECOND was the one flagged. Both found by review.
+func (e *Engine) UnplannedChips(s ChipSchedule) []string {
+	windows := e.chipWindowsByKind()
+
+	var out []string
+	for _, set := range []int{1, 2} {
+		var granted, unplanned []string
+		expiry := 0
+		for _, k := range chipKinds {
+			// A set exists for this chip only when the competition published a
+			// window for it. Read the boot rather than assuming two sets: how
+			// many a season grants is a fact about the season, and this reads
+			// FPL's own answer.
+			if len(windows[string(k)]) < set {
+				continue
+			}
+			label := chipLabels[string(k)]
+			if label == "" {
+				label = string(k)
+			}
+			granted = append(granted, label)
+			if *s.field(k, set) > 0 {
+				continue
+			}
+			unplanned = append(unplanned, label)
+			// ⚠️ The deadline is READ, never assumed. An earlier version stated
+			// a fixed GW19 here, which is the first set's boundary only in a
+			// TWO-set season — `ChipSchedule.First`'s own comment says the first
+			// set "runs the whole season in a one-set one", so a one-set season
+			// was being told its chips expire nineteen gameweeks early. Found by
+			// review, and `ValidateChipPlan` was already doing it correctly from
+			// this same map, which made the constant a second statement of one
+			// rule. Earliest wins when a set's chips somehow differ.
+			if stop := windows[string(k)][set-1].Stop; stop > 0 && (expiry == 0 || stop < expiry) {
+				expiry = stop
+			}
+		}
+		if len(granted) == 0 || len(unplanned) == 0 {
+			continue
+		}
+		which := "first set"
+		if set == 2 {
+			which = "second set"
+		}
+		// Named per set rather than once at the end: the trailing form quoted
+		// the FIRST set's deadline even when the SECOND was the one flagged, so
+		// a reader whose only gap was a second set got a date for chips they had
+		// already planned.
+		lost := ""
+		if expiry > 0 {
+			lost = fmt.Sprintf(" — unplayed, they are lost after GW%d", expiry)
+		}
+		if len(unplanned) == len(granted) {
+			out = append(out, fmt.Sprintf(
+				"the %s of chips is granted this season and NONE of its %d is planned (%s)%s",
+				which, len(granted), strings.Join(unplanned, ", "), lost))
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s: %s unplanned%s",
+			which, strings.Join(unplanned, ", "), lost))
+	}
+	return out
+}
+
 // ChipCalendarNotes reports how a declared plan sits against the blanks and
 // doubles the fixture list already shows for the squad actually held.
 //

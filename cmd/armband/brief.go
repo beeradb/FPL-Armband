@@ -447,6 +447,18 @@ func briefChips(b *strings.Builder, e *analysis.Engine, cfg config.Config) {
 		b.WriteString("Plan is legal: every chip has a distinct gameweek inside its window.\n\n")
 	}
 
+	// ⚠️ Reported BESIDE legality and never folded into it. "Legal" and
+	// "complete" are different claims, and the shipped plan was both legal and
+	// short of a whole set — so the line above was printed, truthfully, while
+	// four granted chips went unmentioned.
+	if unspent := e.UnplannedChips(cfg.Chips); len(unspent) > 0 {
+		b.WriteString("**Chips the season granted and the plan has not spent:**\n\n")
+		for _, u := range unspent {
+			fmt.Fprintf(b, "- %s\n", u)
+		}
+		b.WriteString("\n")
+	}
+
 	if h, why := e.EffectiveHorizon(cfg.Chips); why != "" {
 		fmt.Fprintf(b, "- %s Optimiser horizon reduced to %d gameweeks.\n", why, h)
 	}
