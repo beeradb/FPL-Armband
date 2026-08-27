@@ -10,8 +10,12 @@ column can be read directly.
 """
 import csv, os, statistics as st
 
-R = "/home/bbowman.guest/fpl/.claude/worktrees/prior-half-life-on-repaired-xgc"
-D = os.path.join(R, "stats/snapshots/2026-08-13-4d61058/cells")
+# Task B's cells are in the SIBLING snapshot directory, so locate them from this file
+# rather than from a checkout path. The absolute path that used to be here named a host
+# account and a worktree that no longer exists, so it published a private path AND
+# could not run from any other clone.
+D = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 os.pardir, "2026-08-13-4d61058", "cells")
 
 for blk in ("bench", "minw", "bonus", "mink"):
     print(f"\n=== {blk.upper()} — 2022-23 only, paired vs the shipped arm, HOLD pts/gw")
