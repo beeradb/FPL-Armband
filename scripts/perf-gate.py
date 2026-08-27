@@ -83,8 +83,16 @@ MIN_TIME_BAR_PCT = 5.0
 # give it one. It hard-failed on ANY significant memory move under the comment
 # "memory is deterministic, so this is real". That premise was measured on some of
 # these benchmarks and generalised to all of them, and it is false:
-# `BenchmarkDPSeeds/pool600/tight` moves ~588 B/op in 10.7MB (0.005%) and ±2
-# allocs in 24249 between two runs of ONE commit, reproducibly, 6 times out of 6.
+# `BenchmarkDPSeeds/pool600/tight` moves memory between two runs of ONE commit,
+# on every draw taken. Over 20 runs in three draws: B/op 10726546..10727168, a
+# spread of ~620 bytes in 10.7MB (~0.006%), and allocs/op 24247..24250.
+#
+# ⚠️ Those are OBSERVED extremes over 20 runs, not a bound. Each of the three
+# draws escaped the previous draw's range at one end or both, which is the point:
+# the quantity is not deterministic, so no number of samples establishes a
+# maximum. The load-bearing claim is the ORDER of the jitter — ~0.006% against a
+# 1.0% tolerance — and that is stable across every draw.
+#
 # The gate therefore failed on main's own null on the first pull request after it
 # merged — it was not measuring the thing it assumed.
 #

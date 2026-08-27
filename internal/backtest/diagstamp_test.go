@@ -4,10 +4,16 @@ package backtest
 //
 // # The failure this closes
 //
-// A sidecar records what produced one run of a SWEEP. Four times, two arms were
+// A sidecar records what produced one run of a SWEEP. Repeatedly, two arms were
 // differenced that did not share a code state, and none was caught by a number
-// looking wrong — the numbers were plausible every time. The fourth is the
-// sharpest: `FPL_XGC_EXTERNAL_DIR` was set for one run and unset for the other,
+// looking wrong — the numbers were plausible every time. Three are checkable from
+// this repository alone: the pre-#82 +20.6/t 3.63 superseded at AGENTS.md's
+// transfer-gate section, the free-hit reading that describes a codebase older
+// than 5b970338, and the one below. ⚠️ A running TALLY of these exists, but only
+// in the research record, so it is deliberately not asserted here — a count this
+// file cannot substantiate is exactly the unverifiable claim the file is about.
+//
+// The last is the sharpest: `FPL_XGC_EXTERNAL_DIR` was set for one run and unset for the other,
 // nothing was dirty, no commit differed, both runs were individually correct, and
 // a published verdict flipped sides. The information existed; the comparison did
 // not.

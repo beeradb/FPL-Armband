@@ -133,9 +133,12 @@ func TestPathFingerprintIsStableAndOpaque(t *testing.T) {
 // rather than asserted in a comment.
 //
 // ⚠️ Written first, before the scheme was changed, per this project's own rule:
-// a green null proves nothing, only a bite does. Four guards in this codebase
-// have read as evidence while unable to act, and each was found by injecting the
-// thing it claimed to catch.
+// a green null proves nothing, only a bite does. More than one guard in this
+// codebase has read as evidence while unable to act, and each was found by
+// injecting the thing it claimed to catch rather than by watching it pass.
+// ⚠️ The enumeration of those lives in the research record, not here, so no count
+// is asserted in this file — see TestEveryDiagGateGoesThroughRequireDiag's
+// sibling reasoning in internal/backtest/diagstamp_test.go.
 func TestPathFingerprintMovesWhenContentsMoveAtAFixedPath(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) {
@@ -214,7 +217,7 @@ func TestBankedPathTagIsNotReusedByANewScheme(t *testing.T) {
 	for _, v := range []string{pathFingerprint(dir), pathFingerprint("/a/b/c")} {
 		if strings.HasPrefix(v, "path:") {
 			t.Fatalf("a newly-computed value wears the legacy path: tag: %q — "+
-				"the 12 sidecars already banked mean that tag denotes a hash of the path "+
+				"12 banked sidecar files already use that tag for a hash of the path "+
 				"STRING, so this makes an incomparability read as a difference in the data", v)
 		}
 	}

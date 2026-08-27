@@ -297,9 +297,12 @@ var envPathValued = map[string]bool{
 // the path, tagged so a reader knows a digest is what they are looking at rather
 // than a corrupted value.
 //
-// ⚠️ **The PREFIX is part of the value, and `data:` is not `path:`.** The 12
-// sidecars already banked carry `path:<hex>`, a hash of the path STRING under the
-// scheme this replaces. A content digest of the very same directory produces a
+// ⚠️ **The PREFIX is part of the value, and `data:` is not `path:`.** 12 banked
+// sidecar FILES carry `path:<hex>`, a hash of the path STRING under the scheme
+// this replaces — 16 rows across them, 10 naming FPL_XGC_EXTERNAL_DIR in 7 files
+// and 6 naming FPL_CONFIG in 5. (Files and rows are counted separately here
+// because an earlier draft wrote "12 sidecars (10 … 6 …)", which reads as a
+// partition of 12 and sums to 16.) A content digest of the very same directory produces a
 // different number, so had this kept the `path:` tag, differencing new cells
 // against banked ones would have reported that the DATA differed when the truth
 // is that the two were digested under different schemes. That is one quantity
@@ -317,12 +320,24 @@ var envPathValued = map[string]bool{
 // recurring failure — see TestPathFingerprintMovesWhenContentsMoveAtAFixedPath,
 // which is written to fail against the string-hashing version.
 //
-// Cost is why this was not always so, and it was measured rather than assumed:
-// an exact digest of the 784M/3205-file xGC cache takes 2.9s warm. A diagnostic
-// that runs minutes of replay can afford that, and the exactness buys out both
-// approximations — an mtime inventory reports false differences after a
-// re-download of identical bytes, and a name-and-size one is blind to an in-place
-// edit that keeps the size.
+// Cost is why this was not always so, and it was measured rather than assumed.
+// The digest is linear in the bytes under the path; on this project's largest
+// directory-valued source it runs in a few seconds, which a diagnostic that
+// replays for minutes can afford. ⚠️ Deliberately no figure here: that source is
+// not in this repository and is not reachable from a fresh checkout, so a number
+// quoted in this file could never be checked by the person reading it. The
+// timings live where the machine they were taken on is recorded.
+//
+// Exactness buys out both cheaper approximations — an mtime inventory reports
+// false differences after a re-download of identical bytes, and a name-and-size
+// one is blind to an in-place edit that keeps the size.
+//
+// ⚠️ NOT memoised, and callers pay per call. runStamp calls this once per
+// diagnostic, so a package-wide DIAG run pays it once per test rather than once
+// per process. That is the correct trade and not an oversight: a test may
+// t.Setenv its way to a different source mid-process, and a cache keyed on the
+// path would return the first answer — reintroducing, inside the process, the
+// exact blindness this function was changed to remove.
 //
 // Errors are values here rather than failures. A path that cannot be read is
 // itself a comparability fact — "this run could not see its data source" — and
