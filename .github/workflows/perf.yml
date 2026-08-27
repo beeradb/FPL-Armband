@@ -68,6 +68,14 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: git worktree add /tmp/base "$BASE_SHA"
 
+      # Before spending six minutes on benchmarks, spend a second proving the
+      # thing that will judge them still bites. The gate's own docstring records
+      # that its parser once dropped the commonest shape of memory regression and
+      # said "no regression" — found by hand, by injecting one. Nothing kept
+      # doing that by hand.
+      - name: Prove the gate still bites
+        run: python3 scripts/perf-gate.py --selftest
+
       # ⚠️ Default -benchtime, deliberately. It targets a fixed WALL TIME per
       # benchmark rather than a fixed iteration count, so a 6µs benchmark gets
       # enough iterations to be stable while an 840ms one is not allowed to run
