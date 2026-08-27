@@ -29,8 +29,41 @@ import (
 //
 // Squad construction and weekly ordering are separate decisions, and mixing them
 // would leave any gap unattributable. So every arm here is handed the SAME
-// fifteen — the model's own optimum for that gameweek — and differs only in how
-// it ranks those fifteen:
+// fifteen and differs only in how it ranks them.
+//
+// # Two horizons, because these are two different decisions
+//
+// ⚠️ **The first version of this test built the squad at Horizon 1, and that was
+// wrong.** Nobody picks a squad for one gameweek. A squad is bought to hold, the
+// shipped `fixture_horizon` is 5, and a one-week optimum chases that week's
+// fixtures into a shape no real squad ever has. The ordering was therefore being
+// measured inside the wrong arena.
+//
+// ⚠️ Note what kind of error that was: **bias, not noise.** Averaging over 222
+// season-weeks disposes of single-week variance, and it did — the headline gap
+// cleared its own threshold either way. What it could not dispose of is measuring
+// the right quantity on the wrong population. More data would not have helped.
+//
+// So the two decisions get the two horizons they actually have:
+//
+//   - **Squad — Horizon 5**, the shipped `fixture_horizon`, rebuilt from scratch
+//     only at the start of each block of `block` gameweeks and then HELD. Rebuilt
+//     from scratch rather than repaired, deliberately: repairing would drag
+//     transfer policy into a measurement about ordering.
+//   - **Ordering — Horizon 1.** Fielding an XI and choosing a captain really is a
+//     one-week decision, so this one stays where it was.
+//
+// The table runs at `block` = 1, 5 and 10 rather than committing to a stretch,
+// which turns "does the squad change over 5-10 games?" from an assumption into a
+// measured row.
+//
+// ⚠️ block=1 is NOT the discarded first version. It rebuilds weekly but still at
+// horizon 5, so it is "re-optimised constantly, for the right horizon" — the
+// contrast that isolates HOLDING a squad from the horizon it was built at. The
+// original horizon-1 squad is not an arm here at all, because it answers no
+// question anyone has.
+//
+// The arms, all handed the same held fifteen:
 //
 //   - BASE     — XI and captain by last-5-appearance mean, the same naive
 //     persistence baseline the published record uses elsewhere.
@@ -69,13 +102,20 @@ import (
 // is a target, none may be tuned toward, and none leaves this diagnostic.
 //
 // ⚠️ **The arena is the model's own squad, and that is not neutral.** The fifteen
-// were chosen by the same score MODEL then ranks them with, so within them the
+// were chosen by the same engine MODEL then ranks them with, so within them the
 // model's score is range-restricted and the baseline's is not. This is the right
 // framing for the question asked — what ships is the model's squad, and the
 // weekly XI call is made inside it — but it means MODEL−BASE is *this decision's*
 // edge and not a general statement that the model out-ranks persistence. The
 // population-neutral version of that comparison is PRICE40 in
 // candidateset_diag_test.go, which the model did not choose.
+//
+// ⚠️ **Nor is it out-of-sample.** The engine's constants were swept on grids that
+// include these very seasons, while the last-5 baseline is fitted to nothing at
+// all. MODEL−BASE is therefore optimistic by an amount not measured here. A clean
+// holdout is not cheaply available: the seasons outside the sweep grid are the
+// pre-2022-23 ones, whose expected-goals columns are backfilled rather than
+// native, so they change the data regime at the same time.
 //
 // # What is deliberately NOT modelled, and which way it bends the answer
 //
@@ -93,120 +133,183 @@ import (
 // captain, which is the identical insurance on the doubled pick.
 //
 // The one bias pointing the other way is the arena: a fifteen rebuilt at full
-// budget every week is more uniform than any real squad, and ordering matters
-// less inside a uniform set. The two biases are not known to cancel and no claim
-// here depends on their net.
+// budget, with no squad carried in and no transfer limit, is more uniform than
+// any real squad, and ordering matters less inside a uniform set. Longer blocks
+// shrink that bias without removing it. The two biases are not known to cancel
+// and no claim here depends on their net.
 func TestDiagReplayPointsFromOrdering(t *testing.T) {
 	if os.Getenv("DIAG") == "" {
 		t.Skip("set DIAG=1")
 	}
 	cfg := loadConfig(t)
+	pairs := loadPairsOrSkip(t, cfg)
 
 	fmt.Printf("\n=== WHAT IS A BETTER ORDERING ACTUALLY WORTH, IN POINTS?\n")
-	fmt.Printf("Every arm is handed the SAME fifteen — the model's own optimum that week —\n")
-	fmt.Printf("and differs only in how it ranks them into an XI and a captain.\n")
-	fmt.Printf("Points per gameweek, captain doubled, no auto-subs.\n\n")
-	fmt.Printf("  %-11s %5s %7s %7s %8s %8s %7s %9s %9s\n",
-		"season", "gws", "BASE", "MODEL", "MODEL+OC", "ORCXI+MC", "ORACLE",
-		"mdl-base", "orcl-mdl")
+	fmt.Printf("Every arm is handed the SAME fifteen and differs only in how it ranks them\n")
+	fmt.Printf("into an XI and a captain. Squad built at the shipped horizon 5 and HELD for\n")
+	fmt.Printf("`block` gameweeks; ordering scored at horizon 1, which is the horizon the XI\n")
+	fmt.Printf("decision actually has. Points per gameweek, captain doubled, no auto-subs.\n")
 
-	var gapVsBase, gapVsOracle, gapCaptain, gapXI []float64
+	blocks := []int{1, 5, 10}
+	// Keyed by season, not appended positionally: a season dropped at one block
+	// and kept at another would silently misalign two slices, and the paired
+	// comparison below would then difference unrelated seasons.
+	edgeBy := map[int]map[string]float64{}
+	ceilBy := map[int]map[string]float64{}
 
-	for _, pr := range loadPairsOrSkip(t, cfg) {
-		sc := SimConfig{Weights: cfg.Weights, StartGW: 1}
-		sc.Weights.Horizon = 1
+	for _, block := range blocks {
+		edgeBy[block] = map[string]float64{}
+		ceilBy[block] = map[string]float64{}
+		fmt.Printf("\n--- squad rebuilt every %d gameweek(s)\n", block)
+		fmt.Printf("  %-11s %5s %7s %7s %8s %8s %7s %9s %9s\n",
+			"season", "gws", "BASE", "MODEL", "MODEL+OC", "ORCXI+MC", "ORACLE",
+			"mdl-base", "orcl-mdl")
 
-		var base, model, modelOC, oracleXIMC, oracle float64
-		weeks := 0
+		var gapVsBase, gapVsOracle, gapCaptain, gapXI []float64
 
-		for gw := 1; gw <= 38; gw++ {
-			ew, _ := EngineAt(pr.Cur, pr.Prior, gw-1, sc)
-			held, ok := repairSquad(ew, nil, 1000, 0, sc)
-			if !ok || len(held) != 15 {
-				continue
-			}
+		for _, pr := range pairs {
+			// Two configs, because these are two decisions. The squad is a
+			// multi-week commitment and is built at the shipped horizon; the XI
+			// and captain are this week's call and are scored at one.
+			squadCfg := SimConfig{Weights: cfg.Weights, StartGW: 1}
+			squadCfg.Weights.Horizon = 5
+			orderCfg := SimConfig{Weights: cfg.Weights, StartGW: 1}
+			orderCfg.Weights.Horizon = 1
 
-			picks := make([]replayPick, 0, 15)
-			complete := true
-			for _, id := range held {
-				el := ew.Boot.ElementByID(id)
-				p, seen := pr.Cur.Players[id]
-				if el == nil || !seen {
-					complete = false
-					break
-				}
-				m := ew.Metrics(el)
-				// The baseline needs a history to be persistence at all. A
-				// gameweek where any of the fifteen has none is dropped rather
-				// than handed the baseline a zero it did not earn — that zero
-				// would flatter MODEL against BASE for a reason unrelated to
-				// ordering.
-				var last []float64
-				for b := gw - 1; b >= 1 && len(last) < 5; b-- {
-					if q, had := p.GWs[b]; had && q.Fixtures > 0 {
-						last = append(last, float64(q.Points))
+			var base, model, modelOC, oracleXIMC, oracle float64
+			weeks := 0
+			var held []int
+
+			for gw := 1; gw <= 38; gw++ {
+				if held == nil || (gw-1)%block == 0 {
+					// From scratch, not repaired: repairing from the carried
+					// squad would import transfer policy into a measurement
+					// about ordering.
+					es, _ := EngineAt(pr.Cur, pr.Prior, gw-1, squadCfg)
+					if sq, ok := repairSquad(es, nil, 1000, 0, squadCfg); ok && len(sq) == 15 {
+						held = sq
 					}
 				}
-				if len(last) == 0 {
-					complete = false
-					break
+				if len(held) != 15 {
+					continue
 				}
-				act := 0.0
-				if g, had := p.GWs[gw]; had && g.Fixtures > 0 {
-					act = float64(g.Points)
+				ew, _ := EngineAt(pr.Cur, pr.Prior, gw-1, orderCfg)
+
+				picks := make([]replayPick, 0, 15)
+				complete := true
+				for _, id := range held {
+					el := ew.Boot.ElementByID(id)
+					p, seen := pr.Cur.Players[id]
+					if el == nil || !seen {
+						complete = false
+						break
+					}
+					m := ew.Metrics(el)
+					// The baseline needs a history to be persistence at all. A
+					// gameweek where any of the fifteen has none is dropped
+					// rather than handed the baseline a zero it did not earn —
+					// that zero would flatter MODEL against BASE for a reason
+					// unrelated to ordering.
+					var last []float64
+					for b := gw - 1; b >= 1 && len(last) < 5; b-- {
+						if q, had := p.GWs[b]; had && q.Fixtures > 0 {
+							last = append(last, float64(q.Points))
+						}
+					}
+					if len(last) == 0 {
+						complete = false
+						break
+					}
+					act := 0.0
+					if g, had := p.GWs[gw]; had && g.Fixtures > 0 {
+						act = float64(g.Points)
+					}
+					picks = append(picks, replayPick{
+						pos: m.Position, pred: m.Score, base: meanOf(last), act: act,
+					})
 				}
-				picks = append(picks, replayPick{
-					pos: m.Position, pred: m.Score, base: meanOf(last), act: act,
-				})
-			}
-			if !complete || len(picks) != 15 {
-				continue
+				if !complete || len(picks) != 15 {
+					continue
+				}
+
+				byBase := func(p replayPick) float64 { return p.base }
+				byPred := func(p replayPick) float64 { return p.pred }
+				byAct := func(p replayPick) float64 { return p.act }
+
+				baseXI, okB := bestXIBy(picks, byBase)
+				modelXI, okM := bestXIBy(picks, byPred)
+				oracleXI, okO := bestXIBy(picks, byAct)
+				if !okB || !okM || !okO {
+					continue
+				}
+
+				base += scoreXI(baseXI, byBase)
+				model += scoreXI(modelXI, byPred)
+				modelOC += scoreXI(modelXI, byAct)
+				oracleXIMC += scoreXI(oracleXI, byPred)
+				oracle += scoreXI(oracleXI, byAct)
+				weeks++
 			}
 
-			baseXI, okB := bestXIBy(picks, func(p replayPick) float64 { return p.base })
-			modelXI, okM := bestXIBy(picks, func(p replayPick) float64 { return p.pred })
-			oracleXI, okO := bestXIBy(picks, func(p replayPick) float64 { return p.act })
-			if !okB || !okM || !okO {
+			if weeks < 10 {
 				continue
 			}
-
-			byBase := func(p replayPick) float64 { return p.base }
-			byPred := func(p replayPick) float64 { return p.pred }
-			byAct := func(p replayPick) float64 { return p.act }
-			base += scoreXI(baseXI, byBase)
-			model += scoreXI(modelXI, byPred)
-			modelOC += scoreXI(modelXI, byAct)
-			oracleXIMC += scoreXI(oracleXI, byPred)
-			oracle += scoreXI(oracleXI, byAct)
-			weeks++
+			n := float64(weeks)
+			b, m, moc, oxi, o := base/n, model/n, modelOC/n, oracleXIMC/n, oracle/n
+			fmt.Printf("  %-11s %5d %7.2f %7.2f %8.2f %8.2f %7.2f %9.2f %9.2f\n",
+				pr.Name, weeks, b, m, moc, oxi, o, m-b, o-m)
+			gapVsBase = append(gapVsBase, m-b)
+			gapVsOracle = append(gapVsOracle, o-m)
+			edgeBy[block][pr.Name] = m - b
+			ceilBy[block][pr.Name] = o - m
+			gapCaptain = append(gapCaptain, moc-m)
+			gapXI = append(gapXI, oxi-m)
 		}
 
-		if weeks < 10 {
+		if len(gapVsOracle) < 2 {
+			fmt.Printf("  (too few seasons to summarise)\n")
 			continue
 		}
-		n := float64(weeks)
-		b, m, moc, oxi, o := base/n, model/n, modelOC/n, oracleXIMC/n, oracle/n
-		fmt.Printf("  %-11s %5d %7.2f %7.2f %8.2f %8.2f %7.2f %9.2f %9.2f\n",
-			pr.Name, weeks, b, m, moc, oxi, o, m-b, o-m)
-		gapVsBase = append(gapVsBase, m-b)
-		gapVsOracle = append(gapVsOracle, o-m)
-		gapCaptain = append(gapCaptain, moc-m)
-		gapXI = append(gapXI, oxi-m)
+		fmt.Printf("\n  %-24s %8s %8s %10s\n", "gap (pts/gw)", "mean", "se", "threshold")
+		summarise("MODEL - BASE", gapVsBase)
+		summarise("ORACLE - MODEL", gapVsOracle)
+		summarise("  captaincy alone", gapCaptain)
+		summarise("  XI selection alone", gapXI)
 	}
 
-	if len(gapVsOracle) < 2 {
-		t.Skip("too few seasons to summarise")
+	fmt.Printf("\n--- does the block length matter? (PAIRED on season)\n")
+	fmt.Printf("The same six seasons appear at every block, so an unpaired comparison of\n")
+	fmt.Printf("two block means throws away the pairing and understates the precision of\n")
+	fmt.Printf("their difference. These rows difference each season against ITSELF.\n\n")
+	fmt.Printf("  %-24s %8s %8s %10s\n", "paired difference", "mean", "se", "threshold")
+	for i := 1; i < len(blocks); i++ {
+		lo, hi := blocks[i-1], blocks[i]
+		var de, dc []float64
+		for name, v := range edgeBy[hi] {
+			if u, ok := edgeBy[lo][name]; ok {
+				de = append(de, v-u)
+			}
+		}
+		for name, v := range ceilBy[hi] {
+			if u, ok := ceilBy[lo][name]; ok {
+				dc = append(dc, v-u)
+			}
+		}
+		if len(de) > 1 {
+			summarise(fmt.Sprintf("edge:    block %d - %d", hi, lo), de)
+		}
+		if len(dc) > 1 {
+			summarise(fmt.Sprintf("ceiling: block %d - %d", hi, lo), dc)
+		}
 	}
-	fmt.Printf("\n  %-24s %8s %8s %10s\n", "gap (pts/gw)", "mean", "se", "threshold")
-	summarise("MODEL - BASE", gapVsBase)
-	summarise("ORACLE - MODEL", gapVsOracle)
-	summarise("  captaincy alone", gapCaptain)
-	summarise("  XI selection alone", gapXI)
+	fmt.Printf("\n⚠️ A paired difference below its own threshold means THIS measurement\n")
+	fmt.Printf("cannot distinguish the two block lengths — not that they are the same.\n")
 
 	fmt.Printf("\n⚠️ MODEL - BASE is the solid number: the model's ordering edge over naive\n")
 	fmt.Printf("persistence, in points, on the players the optimiser actually fields. Read it\n")
 	fmt.Printf("as a SCALE, not as a bound — it says what beating persistence is worth and\n")
-	fmt.Printf("nothing about how much is left.\n")
+	fmt.Printf("nothing about how much is left. It is also NOT out-of-sample: the engine's\n")
+	fmt.Printf("constants were swept on these seasons and the baseline was fitted to nothing.\n")
 	fmt.Printf("⚠️ ORACLE - MODEL is the only real upper bound, covering the disputed\n")
 	fmt.Printf("top-forty tail weakness and every other ordering idea at once. It is LOOSE\n")
 	fmt.Printf("twice over: hindsight dwarfs any reachable ordering, and omitting auto-subs\n")
@@ -220,6 +323,9 @@ func TestDiagReplayPointsFromOrdering(t *testing.T) {
 	fmt.Printf("since perfecting the XI changes which players the captaincy is chosen from.\n")
 	fmt.Printf("⚠️ `threshold` is t_crit x se at df n-1, so a gap smaller than its own\n")
 	fmt.Printf("threshold is not a measurement — read it as a ceiling, not as an effect.\n")
+	fmt.Printf("⚠️ block=1 still builds at horizon 5 — it re-optimises every week rather\n")
+	fmt.Printf("than holding. It isolates the cost of HOLDING a squad from the horizon it\n")
+	fmt.Printf("was built at, and is not the discarded horizon-1 version, which is gone.\n")
 }
 
 // replayPick is one of the fifteen, carrying the three orderings under test and
