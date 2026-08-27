@@ -13,11 +13,15 @@ import (
 //
 // # Why a rank statistic could not answer this
 //
-// The model's Spearman inside its own top forty is 0.140, and two nulls
-// disagree about whether that is a defect or the ceiling (see
-// restrictionnull_diag_test.go — suggestive, NOT established). That argument
+// The model's Spearman inside its own top forty runs 0.106 to 0.178 across the six
+// seasons, and two nulls disagree about whether that is a defect or the ceiling
+// (see restrictionnull_diag_test.go — suggestive, NOT established). That argument
 // cannot be settled by a better null, because "no tail weakness" is undefinable
 // without assuming a dependence family.
+//
+// ⚠️ An earlier version of this sentence quoted a flat 0.140. That is 2020-21's
+// value, not a six-season figure, and the two files were asserting it at each
+// other rather than at anything either of them prints.
 //
 // But it does not have to be settled to be PRICED. The optimiser is a knapsack.
 // A mis-ordering inside the candidate set costs nothing at all unless it changes
@@ -56,6 +60,14 @@ import (
 // The table runs at `block` = 1, 5 and 10 rather than committing to a stretch,
 // which turns "does the squad change over 5-10 games?" from an assumption into a
 // measured row.
+//
+// ⚠️ **The block-length rows are environment-conditional and the levels are not.**
+// Measured 2026-08-27 both ways: MODEL−BASE reads 3.162/2.589/2.395 with
+// `FPL_XGC_EXTERNAL_DIR` unset and 3.045/2.717/2.353 with it set — same story. But
+// the one paired difference that clears its threshold, the ceiling between weekly
+// and five-weekly, reads −0.693 against a 0.450 bar unset and −0.331 against 0.554
+// set. **It changes verdict with the xGC source.** So the header prints which
+// source ran, and no conclusion about block length may be quoted without it.
 //
 // ⚠️ block=1 is NOT the discarded first version. It rebuilds weekly but still at
 // horizon 5, so it is "re-optimised constantly, for the right horizon" — the
@@ -149,6 +161,15 @@ func TestDiagReplayPointsFromOrdering(t *testing.T) {
 	fmt.Printf("into an XI and a captain. Squad built at the shipped horizon 5 and HELD for\n")
 	fmt.Printf("`block` gameweeks; ordering scored at horizon 1, which is the horizon the XI\n")
 	fmt.Printf("decision actually has. Points per gameweek, captain doubled, no auto-subs.\n")
+	// The xGC source is data state, not a preference — the paired block rows below
+	// change their verdict with it — so every printed table says which one produced
+	// it. ⚠️ Set/unset only: the external directory is an unlicensed cache and its
+	// path must not appear in output that gets pasted into a record.
+	xgc := "UNSET (reconstructed xGC)"
+	if os.Getenv("FPL_XGC_EXTERNAL_DIR") != "" {
+		xgc = "SET (external xGC)"
+	}
+	fmt.Printf("xGC source: FPL_XGC_EXTERNAL_DIR %s\n", xgc)
 
 	blocks := []int{1, 5, 10}
 	// Keyed by season, not appended positionally: a season dropped at one block
@@ -308,6 +329,11 @@ func TestDiagReplayPointsFromOrdering(t *testing.T) {
 	}
 	fmt.Printf("\n⚠️ A paired difference below its own threshold means THIS measurement\n")
 	fmt.Printf("cannot distinguish the two block lengths — not that they are the same.\n")
+	fmt.Printf("⚠️ And a difference that DOES clear its threshold here is still not robust:\n")
+	fmt.Printf("measured 2026-08-27, the ceiling 5-1 cell reads -0.693 against a 0.450 bar\n")
+	fmt.Printf("with FPL_XGC_EXTERNAL_DIR unset and -0.331 against 0.554 with it set — it\n")
+	fmt.Printf("changes verdict with the xGC source while the MODEL-BASE levels do not.\n")
+	fmt.Printf("Treat this whole section as environment-conditional and quote the source.\n")
 
 	fmt.Printf("\n⚠️ MODEL - BASE is the solid number: the model's ordering edge over naive\n")
 	fmt.Printf("persistence, in points, on the players the optimiser actually fields. Read it\n")

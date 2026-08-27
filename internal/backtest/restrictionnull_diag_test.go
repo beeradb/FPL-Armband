@@ -19,8 +19,14 @@ import (
 //
 // Restricting to the forty highest-projected players in a gameweek attenuates
 // rank correlation **by range restriction alone**, with no defect of any kind.
-// The measured figure on that set is **0.140**, and without knowing what it
-// SHOULD be, that number licenses nothing.
+// The measured figure on that set runs **0.106 to 0.178 across the six seasons**,
+// and without knowing what it SHOULD be, those numbers license nothing.
+//
+// ⚠️ **Quote the range, not a point.** An earlier version of this comment said
+// "the measured figure is 0.140", which is one season's value (2020-21) doing duty
+// for six. The spread is 0.072 wide — WIDER than the gap between the observed
+// value and the empirical null that the verdict turns on — so a single figure
+// makes the evidence look steadier than it is.
 //
 // ⚠️ **This project has already recorded and withdrawn one finding for exactly
 // this omission.** An earlier pass read a fall from 0.498 to 0.28-0.39 on
@@ -61,10 +67,24 @@ import (
 //
 // # RESULT, and why it does not settle the question
 //
-// The Gaussian null reads BELOW in **6 of 6** seasons — observed ~0.139 against a
-// null mean of ~0.230. The empirical null reads below in **4 of 6**, one of those
-// by 0.003 (0.178 against 0.181), with 2024-25 and 2025-26 inside. **The
-// unanimity was partly the assumed dependence shape.**
+// The Gaussian null reads BELOW in **6 of 6** seasons. The empirical null reads
+// below in **4 of 6**, with 2024-25 and 2025-26 inside. **The unanimity was partly
+// the assumed dependence shape.**
+//
+// ⚠️ **Two of the six are knife-edge, and that is the load-bearing part of the
+// verdict**: 2023-24 is below by 0.007 (0.178 against 0.185) and 2025-26 is inside
+// by 0.001 (0.106 against 0.105). A third of the count rests on margins smaller
+// than the width of the last printed digit. Read "4 of 6" as "2 clear, 2 clear the
+// other way, 2 coin flips", never as four independent votes.
+//
+// ⚠️ **CORRECTED 2026-08-27.** This block previously read "one of those by 0.003
+// (0.178 against 0.181)" and quoted the observed level as ~0.139. Neither
+// reproduced. The 0.181 was an artefact of the non-determinism fixed below — that
+// cell ranged 0.177 to 0.189 across five runs and changed sides — and the count
+// itself moved between 3 and 4 of 6 with no code change. The observed column was
+// never the problem: it is stable to the last digit, running 0.106 to 0.178 across
+// seasons, and quoting a single ~0.139 for it hid a spread WIDER than the gap to
+// the empirical null that the whole verdict turns on.
 //
 // ⚠️ **Both nulls are flawed, in opposite directions, and neither is fixable
 // here.** The Gaussian imposes a shape football may not have. The empirical pools
@@ -114,10 +134,32 @@ func TestDiagRestrictionNull(t *testing.T) {
 		type wk struct{ pred, act []float64 }
 		var weeks []wk
 		var allP, allA []float64
+		// ⚠️ **Player ids are visited in sorted order, NOT map order, and the
+		// empirical null is worthless without it.** `pr.Cur.Players` is a map, Go
+		// randomises map iteration, and `allP`/`allA` are built by appending in
+		// that order. The empirical resample draws INDICES into those slices from
+		// a fixed seed — so a fixed seed over a differently-ordered slice draws
+		// different pairs every run, and the seed buys nothing.
+		//
+		// Measured before this was fixed, over five runs: the observed column was
+		// stable to the last digit (it comes from `Spearman` over the whole set,
+		// which is order-invariant) while the empirical p05 for 2023-24 moved
+		// 0.177 to 0.189 and changed sides against a fixed observed 0.178. The
+		// recorded count moved between 3 and 4 of 6 with no code change at all.
+		//
+		// That is why the sort is here and not a style preference: it is the
+		// difference between a reproducible number and one that re-rolls itself.
+		ids := make([]int, 0, len(pr.Cur.Players))
+		for id := range pr.Cur.Players {
+			ids = append(ids, id)
+		}
+		sort.Ints(ids)
+
 		for gw := 1; gw <= 38; gw++ {
 			ew, _ := EngineAt(pr.Cur, pr.Prior, gw-1, sc)
 			var p, a []float64
-			for id, pl := range pr.Cur.Players {
+			for _, id := range ids {
+				pl := pr.Cur.Players[id]
 				g, ok := pl.GWs[gw]
 				if !ok || g.Fixtures == 0 {
 					continue
