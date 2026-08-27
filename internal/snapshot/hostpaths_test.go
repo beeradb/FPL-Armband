@@ -99,8 +99,15 @@ func uniq(in []string) []string {
 // so that branch is where a path would re-enter a public file.
 func TestPathFingerprintIsStableAndOpaque(t *testing.T) {
 	got := pathFingerprint("/a/b/c")
-	if !strings.HasPrefix(got, "path:") {
-		t.Fatalf("pathFingerprint(%q) = %q, want a path: prefix so a reader knows it is a digest", "/a/b/c", got)
+	if !strings.HasPrefix(got, "unreadable:") {
+		t.Fatalf("pathFingerprint(%q) = %q, want an unreadable: prefix so a reader knows both that "+
+			"it is a digest and that the source could not be read", "/a/b/c", got)
+	}
+	// ⚠️ Never the legacy tag. `path:` means "hash of the path string" and 12
+	// banked sidecars carry it; reusing it for anything computed differently
+	// would make an incomparability look like a difference in the data.
+	if strings.HasPrefix(got, "path:") {
+		t.Fatalf("pathFingerprint reused the legacy path: tag for a value computed another way: %q", got)
 	}
 	if strings.Contains(got, "/") {
 		t.Fatalf("pathFingerprint leaked a separator: %q", got)
@@ -148,7 +155,7 @@ func TestPathFingerprintMovesWhenContentsMoveAtAFixedPath(t *testing.T) {
 			"this is the fourth comparability failure exactly: two runs against one path "+
 			"holding different data compare as one", "<tmp>", before)
 	}
-	if strings.Contains(before, "UNREADABLE") || strings.Contains(after, "UNREADABLE") {
+	if strings.HasPrefix(before, "unreadable:") || strings.HasPrefix(after, "unreadable:") {
 		t.Fatalf("a readable directory digested as unreadable: %q then %q", before, after)
 	}
 
@@ -184,8 +191,31 @@ func TestPathFingerprintSeparatesReadableFromUnreadable(t *testing.T) {
 	if readable == missing {
 		t.Fatal("a readable source and a missing one produced one value")
 	}
-	if !strings.Contains(missing, "UNREADABLE") {
+	if !strings.HasPrefix(missing, "unreadable:") {
 		t.Fatalf("a missing source was not labelled unreadable: %q — silence here is the whole "+
 			"bug class, because the comparison then passes on data one arm never read", missing)
+	}
+}
+
+// TestBankedPathTagIsNotReusedByANewScheme refuses a value computed one way from
+// wearing a tag that 12 banked sidecars already use for a value computed another
+// way.
+//
+// The banked corpus carries `path:<hex>`, a hash of the path STRING. This package
+// now digests CONTENTS and tags them `data:`. Both answer "which source", and a
+// reader differencing new cells against banked ones must be able to tell "these
+// differ" from "these cannot be compared". Reusing one tag destroys that
+// distinction silently, which is how a comparability guard becomes a liar.
+func TestBankedPathTagIsNotReusedByANewScheme(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.json"), []byte("one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []string{pathFingerprint(dir), pathFingerprint("/a/b/c")} {
+		if strings.HasPrefix(v, "path:") {
+			t.Fatalf("a newly-computed value wears the legacy path: tag: %q — "+
+				"the 12 sidecars already banked mean that tag denotes a hash of the path "+
+				"STRING, so this makes an incomparability read as a difference in the data", v)
+		}
 	}
 }

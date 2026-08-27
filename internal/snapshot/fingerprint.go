@@ -297,6 +297,17 @@ var envPathValued = map[string]bool{
 // the path, tagged so a reader knows a digest is what they are looking at rather
 // than a corrupted value.
 //
+// ⚠️ **The PREFIX is part of the value, and `data:` is not `path:`.** The 12
+// sidecars already banked carry `path:<hex>`, a hash of the path STRING under the
+// scheme this replaces. A content digest of the very same directory produces a
+// different number, so had this kept the `path:` tag, differencing new cells
+// against banked ones would have reported that the DATA differed when the truth
+// is that the two were digested under different schemes. That is one quantity
+// with two implementations wearing one name — the bug class this whole change is
+// about — so the schemes are tagged apart and the confusion is impossible rather
+// than merely documented. A reader seeing `path:` beside `data:` knows the answer
+// is "cannot tell", not "differs".
+//
 // ⚠️ **It digests CONTENTS, not the path string, and the difference is the whole
 // point.** An earlier version hashed the string. Two runs pointing at one
 // directory whose contents changed between them then produced byte-identical
@@ -333,9 +344,9 @@ func pathFingerprint(v string) string {
 		// label differs. What is preserved is the old scheme's discrimination
 		// between two different unreadable paths.
 		sum := sha256.Sum256([]byte(v))
-		return fmt.Sprintf("path:UNREADABLE:%x", sum[:6])
+		return fmt.Sprintf("unreadable:%x", sum[:6])
 	}
-	return fmt.Sprintf("path:%x", sum[:6])
+	return fmt.Sprintf("data:%x", sum[:6])
 }
 
 // contentDigest digests a file, or a directory tree, byte for byte.

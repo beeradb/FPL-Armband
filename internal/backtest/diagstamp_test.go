@@ -42,11 +42,24 @@ package backtest
 // produced all four recorded failures, so the scope is the evidence rather than a
 // guess.
 //
-// ⚠️ It does NOT carry the constants digest. That needs the config, and
+// ⚠️ It does NOT carry the constants digest, because that needs the config and
 // `loadConfig` fails the test when the config is unreadable — a diagnostic that
-// needs no config would start failing for a stamp, which is a worse trade than
-// the gap. `FPL_CONFIG` is in the environment line, so WHICH config file was read
-// is covered; what that file CONTAINED is not.
+// needs none would start failing for a stamp.
+//
+// ⚠️ **That is a resolution gap, not a soundness gap, and an earlier draft of
+// this comment overstated it.** It read "WHICH config file was read is covered;
+// what that file CONTAINED is not". Both halves of that are wrong. When
+// `FPL_CONFIG` is set, it is path-valued, so `snapshot.CurrentEnv` digests the
+// file's BYTES into the env line and the contents are covered directly. When it
+// is unset, the shipped `config.json` is read — and that file is git-tracked and
+// listed in `snapshot.SnapshotWatchedPaths`, so a clean tree at a stamped commit
+// has exactly those constants and `commit` plus `dirty` cover it. The same holds
+// for `internal/config`, which supplies the defaults for fields a config omits.
+//
+// What is genuinely missing is RESOLUTION: two stamps at different commits say
+// that something moved, not whether the constants were part of it. A reader has
+// to assume the worst and diff the commits. That is worth fixing one day and is
+// not a hole through which an incomparable pair passes.
 
 import (
 	"fmt"

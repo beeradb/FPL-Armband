@@ -453,7 +453,7 @@ func TestEnvDigestSeparatesSetFromUnset(t *testing.T) {
 	// ⚠️ And it must still be digested on the way out: this value reaches a
 	// committed sidecar and a pasted table, and the directory it names is an
 	// unlicensed source.
-	if !strings.HasPrefix(set.Set[0].Value, "path:") {
+	if !strings.HasPrefix(set.Set[0].Value, "data:") {
 		t.Fatalf("a path-valued switch reached the record undigested: %q", set.Set[0].Value)
 	}
 
