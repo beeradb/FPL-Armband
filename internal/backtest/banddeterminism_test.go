@@ -3,7 +3,6 @@ package backtest
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -182,9 +181,7 @@ func TestBandStrengthIsDeterministicAtTheShippedSetting(t *testing.T) {
 //
 //	DIAG=1 go test ./internal/backtest -run TestDiagBandDeterminism -v
 func TestDiagBandDeterminism(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	cur, err := Load(context.Background(), cfg.CacheDir, "2024-25")
 	if err != nil {

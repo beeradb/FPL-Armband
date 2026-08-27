@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"os"
 	"sort"
 	"testing"
 )
@@ -103,9 +102,7 @@ func TestXIDriftIsZeroAgainstItself(t *testing.T) {
 // per-season row and the correlation between the two measures; the reading is
 // the reader's.
 func TestDiagXIDrift(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	starts := sweepStarts()
 

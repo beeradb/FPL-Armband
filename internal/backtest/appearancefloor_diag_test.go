@@ -507,9 +507,7 @@ func rate(num, den int) float64 {
 // TestDiagAppearanceFloor measures how much of a player's realised return is the
 // appearance floor, and decomposes the rest.
 func TestDiagAppearanceFloor(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	mirrorArchive(t, cfg)
 

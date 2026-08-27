@@ -37,14 +37,11 @@ package backtest
 // is the quieter line and the one a scoring constant belongs on.
 
 import (
-	"os"
 	"testing"
 )
 
 func TestDiagBaseline(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	// One variant, nothing applied but the convention. runPolicySweep is reused
 	// rather than restated so that this is *by construction* the number every
 	// other sweep in this package baselines against — a hand-rolled copy could

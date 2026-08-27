@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 )
@@ -60,9 +59,7 @@ import (
 // exists and how large each firing is; whether the policy converts it is the season
 // measurement's job, and that one still does not resolve.
 func TestDiagLineupEventValue(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 

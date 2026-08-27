@@ -107,14 +107,11 @@ package backtest
 import (
 	"context"
 	"math"
-	"os"
 	"testing"
 )
 
 func TestModelDiagnosticsAreReproducible(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 

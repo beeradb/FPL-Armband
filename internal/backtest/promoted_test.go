@@ -21,15 +21,12 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 )
 
 func TestDiagPromotedPrior(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 	seasons := []string{"2022-23", "2023-24", "2024-25", "2025-26"}

@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"math"
-	"os"
 	"sort"
 	"testing"
 )
@@ -28,9 +27,7 @@ import (
 //     correlations were. The seasons that carry real xGC are printed in the same
 //     table as the comparison, rather than the bound being asserted from memory.
 func TestDiagXGCCoverage(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	// Every season the grid can reach, repaired and real together, so the repaired
@@ -171,9 +168,7 @@ func TestDiagXGCCoverage(t *testing.T) {
 // FPL_NO_XG_REPAIR removes expected goals entirely, and FPL_NO_XGC_REPAIR removes only
 // the conceded half while leaving the attacking backfill in place.
 func TestTheXGCRepairHasAWorkingEscapeHatch(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	const name = "2021-22"
 

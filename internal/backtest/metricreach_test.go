@@ -96,9 +96,7 @@ type reachArm struct {
 }
 
 func TestDiagMetricReach(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 
 	// The map reads its own cells back, so it needs the sink on whether or not
 	// the operator set it. An explicit FPL_CELLS wins, because a run whose cells

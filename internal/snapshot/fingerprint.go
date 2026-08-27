@@ -30,7 +30,10 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -290,11 +293,177 @@ var envPathValued = map[string]bool{
 	"FPL_CONFIG":           true,
 }
 
-// pathFingerprint renders a path as a short digest, tagged so a reader knows a
-// digest is what they are looking at rather than a corrupted value.
+// pathFingerprint renders a path-valued switch as a short digest of WHAT IS AT
+// the path, tagged so a reader knows a digest is what they are looking at rather
+// than a corrupted value.
+//
+// ⚠️ **The PREFIX is part of the value, and `data:` is not `path:`.** 12 banked
+// sidecar FILES carry `path:<hex>`, a hash of the path STRING under the scheme
+// this replaces — 16 rows across them, 10 naming FPL_XGC_EXTERNAL_DIR in 7 files
+// and 6 naming FPL_CONFIG in 5. (Files and rows are counted separately here
+// because an earlier draft wrote "12 sidecars (10 … 6 …)", which reads as a
+// partition of 12 and sums to 16.) A content digest of the very same directory produces a
+// different number, so had this kept the `path:` tag, differencing new cells
+// against banked ones would have reported that the DATA differed when the truth
+// is that the two were digested under different schemes. That is one quantity
+// with two implementations wearing one name — the bug class this whole change is
+// about — so the schemes are tagged apart and the confusion is impossible rather
+// than merely documented. A reader seeing `path:` beside `data:` knows the answer
+// is "cannot tell", not "differs".
+//
+// ⚠️ **It digests CONTENTS, not the path string, and the difference is the whole
+// point.** An earlier version hashed the string. Two runs pointing at one
+// directory whose contents changed between them then produced byte-identical
+// sidecars, so `commit` said the code matched, `WatchedDigest` said the watched
+// files matched, and nothing at all said the DATA had moved. That is a guard
+// reading as evidence while unable to act, which is this project's most expensive
+// recurring failure — see TestPathFingerprintMovesWhenContentsMoveAtAFixedPath,
+// which is written to fail against the string-hashing version.
+//
+// Cost is why this was not always so, and it was measured rather than assumed.
+// The digest is linear in the bytes under the path; on this project's largest
+// directory-valued source it runs in a few seconds, which a diagnostic that
+// replays for minutes can afford. ⚠️ Deliberately no figure here: that source is
+// not in this repository and is not reachable from a fresh checkout, so a number
+// quoted in this file could never be checked by the person reading it. The
+// timings live where the machine they were taken on is recorded.
+//
+// Exactness buys out both cheaper approximations — an mtime inventory reports
+// false differences after a re-download of identical bytes, and a name-and-size
+// one is blind to an in-place edit that keeps the size.
+//
+// ⚠️ NOT memoised, and callers pay per call. runStamp calls this once per
+// diagnostic, so a package-wide DIAG run pays it once per test rather than once
+// per process. That is the correct trade and not an oversight: a test may
+// t.Setenv its way to a different source mid-process, and a cache keyed on the
+// path would return the first answer — reintroducing, inside the process, the
+// exact blindness this function was changed to remove.
+//
+// Errors are values here rather than failures. A path that cannot be read is
+// itself a comparability fact — "this run could not see its data source" — and
+// recording it as such keeps two runs distinguishable, where returning an error
+// would push callers into dropping the field and comparing as if it matched.
 func pathFingerprint(v string) string {
-	sum := sha256.Sum256([]byte(v))
-	return fmt.Sprintf("path:%x", sum[:6])
+	sum, err := contentDigest(v)
+	if err != nil {
+		// ⚠️ The error is DISCARDED rather than reported, and that is deliberate:
+		// an os error carries the path it failed on, and this value is written
+		// into a sidecar committed to a public repository. Reporting it would
+		// reintroduce the leak this function exists to close.
+		//
+		// The digest falls back to the path STRING here, and this is the one place
+		// that is right: an unreadable source is a distinct, labelled state rather
+		// than a quiet substitute for a readable one. Two runs that could not read
+		// the same path are genuinely in the same state and compare equal; a run
+		// that could read it never collides with one that could not, because the
+		// label differs. What is preserved is the old scheme's discrimination
+		// between two different unreadable paths.
+		sum := sha256.Sum256([]byte(v))
+		return fmt.Sprintf("unreadable:%x", sum[:6])
+	}
+	return fmt.Sprintf("data:%x", sum[:6])
+}
+
+// contentDigest digests a file, or a directory tree, byte for byte.
+//
+// Paths are walked in lexical order (fs.WalkDir guarantees it) and each file's
+// repo-relative name is mixed in alongside its bytes, so a rename moves the
+// digest and two different trees cannot collide by holding the same bytes under
+// different names. Directory entries contribute their names and no bytes, so an
+// emptied directory is still visible.
+func contentDigest(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	h := sha256.New()
+	if !info.IsDir() {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		fmt.Fprintf(h, "file %s\n", filepath.Base(path))
+		if _, err := io.Copy(h, f); err != nil {
+			return nil, err
+		}
+		return h.Sum(nil), nil
+	}
+	err = fs.WalkDir(os.DirFS(path), ".", func(name string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			fmt.Fprintf(h, "dir %s\n", name)
+			return nil
+		}
+		fmt.Fprintf(h, "file %s\n", name)
+		f, err := os.Open(filepath.Join(path, name))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = io.Copy(h, f)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return h.Sum(nil), nil
+}
+
+// EnvState is the fingerprinted environment as one run saw it.
+//
+// Set holds the switches that were set. Digest covers the same list, each written
+// with its NAME, which is what makes it separate an arm that set a switch from an
+// arm that did not — the signature of the fourth recorded comparability failure,
+// where FPL_XGC_EXTERNAL_DIR was set for one run and unset for the other, nothing
+// was dirty, no commit differed, both runs were individually correct, and a
+// published verdict flipped sides. TestEnvDigestSeparatesSetFromUnset holds it.
+type EnvState struct {
+	Set    []Constant // fingerprinted switches actually set, sorted, paths digested
+	Digest string     // over every switch, set or not
+}
+
+// CurrentEnv reads the fingerprinted switches out of the process environment.
+//
+// It is the single implementation: FingerprintOf builds a sidecar from it and the
+// diagnostics print a run stamp from it, so a table and the cells banked beside it
+// cannot disagree about what was set. Two implementations of one quantity is the
+// DefaultBenchWeight-against-Weights.BenchWeight bug class, where the measured
+// value turned out not to be the one that ran.
+func CurrentEnv() EnvState {
+	var set []Constant
+	h := sha256.New()
+	for _, k := range envSwitches {
+		v, ok := os.LookupEnv(k)
+		if !ok {
+			// ⚠️ No "(unset)" line is written, and an earlier draft of this
+			// function wrote one on the theory that "absence is a value". It is,
+			// in stats/sweep_inference.R, which compares sidecars FIELD BY FIELD
+			// and would otherwise skip a field one side does not carry. It is not
+			// here: the loop writes each switch's NAME alongside its value, so a
+			// digest over the set switches alone already separates an arm that set
+			// a switch from one that did not. The extra line changed no digest.
+			//
+			// Recorded rather than deleted because the draft shipped with a test
+			// asserting the line was load-bearing, and that test passed with the
+			// line removed — it never distinguished the two. It was caught by
+			// injecting the removal, which is the only thing that ever catches
+			// this: a green null proves nothing, only a bite does.
+			continue
+		}
+		// An empty-string value is still "set", and several switches are
+		// tested for presence rather than value, so record it as set.
+		if v == "" {
+			v = "(set, empty)"
+		} else if envPathValued[k] {
+			v = pathFingerprint(v)
+		}
+		set = append(set, Constant{Path: k, Value: v})
+		fmt.Fprintf(h, "env %s=%s\n", k, v)
+	}
+	return EnvState{Set: set, Digest: fmt.Sprintf("%x", h.Sum(nil))[:12]}
 }
 
 func FingerprintOf(cfg any) (Fingerprint, error) {
@@ -321,19 +490,7 @@ func FingerprintOf(cfg any) (Fingerprint, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 
-	var env []Constant
-	for _, k := range envSwitches {
-		if v, ok := os.LookupEnv(k); ok {
-			// An empty-string value is still "set", and several switches are
-			// tested for presence rather than value, so record it as set.
-			if v == "" {
-				v = "(set, empty)"
-			} else if envPathValued[k] {
-				v = pathFingerprint(v)
-			}
-			env = append(env, Constant{Path: k, Value: v})
-		}
-	}
+	env := CurrentEnv().Set
 
 	// The digest covers the env switches too. A sweep run with
 	// FPL_NO_VICE_CAPTAIN=1 measures a different game from one run without it,

@@ -20,9 +20,7 @@ import (
 )
 
 func TestDiagTrace(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	names := strings.Split(os.Getenv("FPL_TRACE"), ",")
 	if len(names) == 0 || names[0] == "" {
 		t.Skip("set FPL_TRACE=Name1,Name2")

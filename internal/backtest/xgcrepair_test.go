@@ -3,7 +3,6 @@ package backtest
 import (
 	"encoding/json"
 	"math"
-	"os"
 	"sort"
 	"testing"
 
@@ -53,9 +52,7 @@ func xgcSeasonsWithRealData() []string {
 //     up to the scale, because per-player xGC simply is the club figure. If that
 //     population does not tighten, the method is wrong rather than noisy.
 func TestDiagXGCReconstruction(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	type acc struct {

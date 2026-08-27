@@ -111,14 +111,11 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
 func TestDiagAvailabilityOracle(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	// Printed before the sweep, because it decides how the sweep's number may be
 	// worded. It costs no replay: it reads the archive and nothing else.
 	reportOracleScope(t)

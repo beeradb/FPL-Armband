@@ -320,9 +320,7 @@ func quantiles(xs []float64) (min, med, p90, max float64) {
 // already grants the move banking would wait for — is read off the same football
 // rather than against a remembered figure.
 func TestDiagBankingReachability(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	pairs := sweepPairNames()
 	starts := []int{1, 16}

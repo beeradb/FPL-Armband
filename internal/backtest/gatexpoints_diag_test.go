@@ -474,15 +474,12 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 )
 
 func TestDiagGateOracleOnXPoints(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== does a gate perfect on UNDERLYING recover a gate perfect on POINTS?\n")

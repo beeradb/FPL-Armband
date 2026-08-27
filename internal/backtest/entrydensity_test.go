@@ -67,14 +67,11 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
 func TestDiagEntryDensity(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 	fmt.Printf("\n=== entry-point density: MinutesWeight 1.25 vs 1.00 (positive control, "+
 		"1.25 no longer ships) at %d starts. Metric: HOLD.\n", len(starts))

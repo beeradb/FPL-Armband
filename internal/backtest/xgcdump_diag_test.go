@@ -57,9 +57,7 @@ import (
 )
 
 func TestDiagXGCDump(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	picker := newBlockPicker()
 	defer picker.check(t)
 	if !picker.want("XGCDUMP") {

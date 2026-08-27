@@ -48,7 +48,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -104,9 +103,7 @@ func degenerateAttacking(p *Player, g GW) (goalPts, assistPts float64) {
 }
 
 func TestDiagResidualXGCoverage(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	pairs := loadPairsOrSkip(t, cfg)
 
@@ -304,9 +301,7 @@ func TestDiagResidualXGCoverage(t *testing.T) {
 // `Assists`, so both cancel exactly. Every column below is a function of `Goals`,
 // `Assists`, `XG`, `XA` and the position points tables alone.
 func TestDiagPostRepairAttackingExposure(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	pairs := loadPairsOrSkip(t, cfg)
 

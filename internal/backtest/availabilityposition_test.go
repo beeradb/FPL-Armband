@@ -62,9 +62,7 @@ import (
 )
 
 func TestDiagAvailabilityByPosition(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	// Not a Skip. An operator who set DIAG and forgot this switch would get a
 	// complete-looking table measuring the residual after the very term being
 	// calibrated, and nothing in the output would say which of the two it was.

@@ -78,9 +78,7 @@ type bandCell struct {
 // and is included as the upper rung: a canary that has to go there tells a
 // different story from one that fires at 1.
 func TestDiagBandCanary(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	pairs := sweepPairNames()
 	starts := []int{1, 16}

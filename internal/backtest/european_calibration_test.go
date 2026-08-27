@@ -35,7 +35,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 )
@@ -75,9 +74,7 @@ var europeanClubs = map[string]map[string]string{
 }
 
 func TestDiagEuropeanPenalty(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	prevOf := map[string]string{

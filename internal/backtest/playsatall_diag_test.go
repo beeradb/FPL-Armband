@@ -50,7 +50,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 
@@ -68,9 +67,7 @@ import (
 var appearanceFitSeasons = []string{"2022-23", "2023-24", "2024-25", "2025-26"}
 
 func TestDiagPlaysAtAll(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	type row struct {
@@ -905,9 +902,7 @@ func identity(a, b, c float64) func(m, s float64) float64 {
 }
 
 func TestDiagStartShare(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cutoffs := []int{6, 10, 14, 18, 22, 26, 30}
 	const ahead = 5
 	rows := winRowsFor(t, cutoffs, ahead)

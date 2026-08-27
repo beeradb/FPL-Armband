@@ -30,9 +30,7 @@ import (
 // to the extended seasons: a figure in the record measured on that cell moves. Read the
 // per-cell column, not the mean.
 func TestDiagXGAggregate(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	// Load with the rebuild OFF first, so both arms come from a parse this test

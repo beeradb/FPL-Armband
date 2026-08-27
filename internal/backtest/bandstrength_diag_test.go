@@ -204,14 +204,11 @@ package backtest
 // the repaired archive is the data state the original verdict does not have.
 
 import (
-	"os"
 	"testing"
 )
 
 func TestDiagBandStrength(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	// The shipped zero is the baseline, so a positive paired difference means the

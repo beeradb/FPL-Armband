@@ -78,9 +78,7 @@ func teamNewsFilterFromEnv(t *testing.T) TeamNewsFilter {
 }
 
 func TestDiagTeamNewsOracle(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	news, err := LoadTeamNews(teamNewsFilterFromEnv(t))
 	if err != nil {
 		t.Fatal(err)

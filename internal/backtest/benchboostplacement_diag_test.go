@@ -79,7 +79,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 
@@ -292,9 +291,7 @@ func verifyPathInvariance(t *testing.T, c *bbCollector) (checked, withContent in
 }
 
 func TestDiagBenchBoostPlacement(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	starts := sweepStarts()
 	pairs := loadPairs(t, cfg)

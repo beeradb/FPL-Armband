@@ -34,7 +34,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 	"time"
@@ -55,9 +54,7 @@ const (
 // TestDiagCongestionRest measures the rest and international-break penalties
 // against every season the archive holds.
 func TestDiagCongestionRest(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 

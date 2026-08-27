@@ -36,6 +36,25 @@ source(file.path(dirname(sub("^--file=", "", grep("^--file=", commandArgs(FALSE)
                                                   value = TRUE)[1])),
                  "cells_common.R"))
 
+# ⚠️ The code state, before anything is differenced.
+#
+# This script forms a CROSS-ARM contrast — mu_X + mu_R - mu_P — and until
+# 2026-08-27 it did so without ever asking whether the arms shared a code state.
+# That is the gap this call closes, and it is narrower than sweep_inference.R's:
+# this script takes exactly ONE file, so the fatal across-files case cannot
+# arise here. What can, and what this now reports, is the WITHIN-file mixed
+# state — blocks banked at different commits, or with a fingerprinted switch set
+# for some and not others, then read together as if they were one sweep.
+#
+# ⚠️ No --vary opt-out is offered, and the omission is deliberate rather than an
+# oversight. The three arms of an additivity check are three CRITERIA over one
+# sweep, not three separately-configured runs: there is no fingerprinted switch
+# this comparison is entitled to vary, so a flag permitting one would only ever
+# be used to silence a real finding. If that ever stops being true, add the flag
+# rather than deleting the call.
+note("Checking the arms share a code state...")
+check_shared_code_state(args[1], character(0))
+
 d <- read_cells(args[1])
 
 # Arms are matched on their CRITERION, not on their index.

@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 
@@ -125,9 +124,7 @@ var candidateSetSizes = []int{10, 20, 40, 50}
 var candidateBands = [][2]int{{1, 10}, {11, 20}, {21, 40}, {41, 50}}
 
 func TestDiagCandidateSetAccuracy(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	type obs struct{ pred, base, act float64 }

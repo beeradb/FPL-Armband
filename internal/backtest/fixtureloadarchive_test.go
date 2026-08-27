@@ -41,7 +41,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"armband/internal/config"
@@ -49,9 +48,7 @@ import (
 )
 
 func TestDiagFixtureLoadMatchesTheArchive(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	totals := struct{ agree, blank, other, dead int }{}

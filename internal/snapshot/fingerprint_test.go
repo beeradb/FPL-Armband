@@ -411,3 +411,81 @@ func TestASingleSetChipPlanDoesNotMoveTheFingerprintPaths(t *testing.T) {
 			"non-comparable to one after, on a change that moves no cell.", chip, want)
 	}
 }
+
+// TestEnvDigestSeparatesSetFromUnset is the bite test for the fourth recorded
+// comparability failure, reproduced as its own signature.
+//
+// `FPL_XGC_EXTERNAL_DIR` was SET for one run and UNSET for the other. Nothing was
+// dirty. No commit differed. Both runs were individually correct. The two were
+// differenced anyway and a published verdict flipped sides — the ceiling read
+// -0.693 against a 0.450 threshold one way and -0.331 against 0.554 the other, so
+// the only cell that cleared its threshold was the one that was not robust.
+//
+// ⚠️ What makes this fire is that the digest covers the ENVIRONMENT at all, and
+// writes each switch's name into it. An earlier draft of this test claimed the
+// load-bearing property was writing an explicit "(unset)" line for absent
+// switches. ⚠️ **That claim was false and the test did not hold it**: removing
+// the line left this test green, because the names of the set switches already
+// separate the arms. The claim was withdrawn only because the removal was
+// injected and the test was watched for a failure that never came.
+func TestEnvDigestSeparatesSetFromUnset(t *testing.T) {
+	for _, k := range envSwitches {
+		t.Setenv(k, "")
+		os.Unsetenv(k)
+	}
+
+	unset := CurrentEnv()
+	if len(unset.Set) != 0 {
+		t.Fatalf("a switch survived unsetting: %v", unset.Set)
+	}
+
+	t.Setenv("FPL_XGC_EXTERNAL_DIR", t.TempDir())
+	set := CurrentEnv()
+
+	if set.Digest == unset.Digest {
+		t.Fatal("the env digest is equal with FPL_XGC_EXTERNAL_DIR set and unset — " +
+			"this is the fourth comparability failure exactly, and the two arms it " +
+			"describes flipped a published verdict")
+	}
+	if len(set.Set) != 1 {
+		t.Fatalf("expected exactly the one switch set, got %v", set.Set)
+	}
+	// ⚠️ And it must still be digested on the way out: this value reaches a
+	// committed sidecar and a pasted table, and the directory it names is an
+	// unlicensed source.
+	if !strings.HasPrefix(set.Set[0].Value, "data:") {
+		t.Fatalf("a path-valued switch reached the record undigested: %q", set.Set[0].Value)
+	}
+
+	// Two runs whose xGC source holds DIFFERENT DATA must differ too. This is the
+	// same failure one layer up: equal digests here would let sweep_inference.R
+	// call two arms comparable on data one of them never read.
+	loaded := t.TempDir()
+	if err := os.WriteFile(filepath.Join(loaded, "x.json"), []byte("one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FPL_XGC_EXTERNAL_DIR", loaded)
+	if other := CurrentEnv(); other.Digest == set.Digest {
+		t.Fatal("two xGC sources holding different data produced one env digest")
+	}
+
+	// ⚠️ And the converse, which is a DELIBERATE semantic change and not an
+	// oversight. Two different paths holding IDENTICAL contents now digest the
+	// same, where the old path-string hash told them apart. That is the right way
+	// round: the question a comparability guard asks is "did the data differ",
+	// not "did the string differ", and a cache copied to a second location is the
+	// same data. The cost is that a run cannot be attributed to a location from
+	// the sidecar — which was already true and deliberate, because the location
+	// is a host path that may not be published.
+	twin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(twin, "x.json"), []byte("one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FPL_XGC_EXTERNAL_DIR", twin)
+	twinEnv := CurrentEnv()
+	t.Setenv("FPL_XGC_EXTERNAL_DIR", loaded)
+	if twinEnv.Digest != CurrentEnv().Digest {
+		t.Fatal("two paths holding identical data produced different digests — the digest is " +
+			"reading the path again rather than the contents")
+	}
+}

@@ -77,9 +77,7 @@ import (
 // afford, and those slots churn for reasons that have nothing to do with a
 // template. Persistence is therefore reported for the STARTING eleven as well.
 func TestDiagTemplateCore(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	fmt.Printf("\n=== IS THERE A TEMPLATE IN OUR OPTIMA?\n")

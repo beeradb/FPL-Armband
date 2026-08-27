@@ -3,7 +3,6 @@ package backtest
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
@@ -29,9 +28,7 @@ import (
 // scored on exactly what RankPairs maximises. Comparing them under different
 // objectives would measure the objective change, not the search.
 func TestDiagBoundedRevision(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 

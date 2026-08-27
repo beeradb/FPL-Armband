@@ -92,9 +92,7 @@ import (
 // redistribution inside a club cancels exactly. Club-match-level disagreement is the
 // channel that survives, and it is what arm B measures.
 func TestDiagXGCTransport(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	t.Log("season   arm         n      ratio    corr    MAE%   ever-n  ever ratio  " +

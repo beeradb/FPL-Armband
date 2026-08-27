@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
@@ -30,9 +29,7 @@ import (
 // so that a future change making waiting expressible is visible immediately
 // rather than being assumed.
 func TestDiagWildcardLookaheadValue(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	starts := sweepStarts()
 
