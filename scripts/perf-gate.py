@@ -108,20 +108,30 @@ MIN_TIME_BAR_PCT = 5.0
 # regression is far larger still, so the bite is intact.
 #
 # ⚠️ **Do NOT read "over the ceiling" as "there is a bug in the benchmark."** An
-# earlier version of this file printed "Fix the benchmark", which sends a reader
-# looking for a line of code that may not exist. Memory drifts across PROCESSES
-# even with no project code involved: a standalone module containing nothing but
-# `map[int]int` with 20,000 fixed keys, run 20 times, moved B/op across a ~10-byte
-# range (1182648..1182658) with allocs/op constant at 144. Go seeds each map's
-# hash per process, so the bucket layout for one fixed key set is not stable
-# between runs, and any code that builds maps inherits that.
+# earlier version printed "Fix the benchmark", which sends a reader looking for a
+# line of code that does not exist. Memory drifts across PROCESSES with no project
+# code involved. A standalone module containing nothing but `map[int]int` taking
+# 20,000 fixed keys, 24 separate processes, go1.26.5, `-benchtime=1x`:
 #
-# ⚠️ What that experiment does NOT show, stated because the temptation is to
-# over-claim in the other direction: it did not reproduce a moving allocs/op.
-# BenchmarkDPSeeds/pool600/tight moves allocs/op 24247..24250 in this repo, and
-# the bare-map case does not explain that — only the B/op drift. So the honest
-# reading of a ceiling breach is "this benchmark's memory is too unstable to gate
-# with, and the cause is not established", not "someone introduced a defect".
+#     18 runs   1182584 B/op   144 allocs/op
+#      6 runs   1182600 B/op   145 allocs/op
+#
+# One extra allocation about a quarter of the time, on code with no logic in it.
+# Any benchmark that builds maps inherits this.
+#
+# ⚠️ **`-benchtime=1x` IS THE MEASUREMENT, not a detail.** Under the default,
+# Go picks `b.N` per process (1488..1662 across five runs here) and reports
+# total/N — so the SAME experiment shows a spurious ~10-byte B/op wobble from
+# integer division while hiding the real 144/145 split entirely. Two separate
+# attempts at this measurement, taken with the default, drew opposite and equally
+# wrong conclusions before the third pinned `b.N`. If you re-measure this, pin it.
+#
+# ⚠️ Version-pinned deliberately: this concerns runtime internals, so an unversioned
+# claim about it rots at the next toolchain bump. Measured on go1.26.5/arm64; CI
+# runs amd64, untested here.
+#
+# So a ceiling breach reads "this benchmark's memory is too unstable to gate with"
+# — NOT "someone introduced a defect".
 MEM_NULL_TOLERANCE_PCT = 1.0
 
 
