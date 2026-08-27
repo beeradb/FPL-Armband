@@ -44,6 +44,7 @@ package backtest
 
 import (
 	"encoding/csv"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -121,6 +122,78 @@ func (s *predictionSink) close() {
 	s.f.Close()
 }
 
+// priceBandPopulation names the CSV population for one price-rank window.
+//
+// ⚠️ The rank is over the players priced in THIS gameweek, so "1-10" means the
+// ten most expensive that week and not a season-long top ten. Membership is
+// per-gameweek for the same reason the candidate-set diagnostic's is: a season
+// union scores a player in every week once he entered the set in any of them,
+// and a live system knows its own top ten at decision time where it cannot know
+// a union.
+func priceBandPopulation(b [2]int) string {
+	return fmt.Sprintf("price rank %d-%d", b[0], b[1])
+}
+
+// populationSelection is one named cut of a gameweek's rows.
+type populationSelection struct {
+	name string
+	rows []playerGW
+}
+
+// emittedPopulations is every population the CSV carries for one gameweek: the
+// two the printed benchmark reports, plus one per price-rank band.
+//
+// # Why the bands are emitted and not printed
+//
+// The printed table is a human summary, and four more populations across every
+// target and predictor would bury the two readings it exists to show. The CSV is
+// the machine contract `stats/prediction_inference.R` consumes, where an extra
+// population costs a `--population=` flag and nothing else.
+//
+// ⚠️ **The printed populations are a SUBSET of the emitted ones, never a
+// different list.** `TestEveryPrintedPopulationIsAlsoEmitted` pins that, because
+// two lists that are supposed to nest and are maintained separately are one
+// quantity with two implementations waiting to happen.
+//
+// ⚠️ **The bands share a ranking RULE with the candidate-set diagnostic, not a
+// row set.** Both call priceRankOrder, so neither can invent its own tie-break;
+// but this benchmark and that diagnostic filter players differently before
+// ranking, so "price rank 1-10" here and `Pband1-10` there are the same
+// definition over two populations. Do not quote a figure from one as if it were
+// the other.
+func emittedPopulations(rows []playerGW) []populationSelection {
+	out := make([]populationSelection, 0, len(populationOrder)+len(candidateBands))
+	for _, pop := range populationOrder {
+		sel := rows
+		if pop == popRelevant {
+			sel = make([]playerGW, 0, len(rows))
+			for _, r := range rows {
+				if r.relevant {
+					sel = append(sel, r)
+				}
+			}
+		}
+		out = append(out, populationSelection{pop, sel})
+	}
+
+	ids, prices := make([]int, len(rows)), make([]float64, len(rows))
+	for i, r := range rows {
+		ids[i], prices[i] = r.id, r.price
+	}
+	order := priceRankOrder(ids, prices)
+	for _, b := range candidateBands {
+		in := rankWindow(order, b[0], b[1])
+		sel := make([]playerGW, 0, len(in))
+		for _, r := range rows {
+			if in[r.id] {
+				sel = append(sel, r)
+			}
+		}
+		out = append(out, populationSelection{priceBandPopulation(b), sel})
+	}
+	return out
+}
+
 // emitGameweek writes one row per (population, target, predictor, category) for
 // a single replayed gameweek.
 //
@@ -140,16 +213,8 @@ func (s *predictionSink) emitGameweek(variant, season, priorSeason string, gw in
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, pop := range populationOrder {
-		sel := rows
-		if pop == popRelevant {
-			sel = make([]playerGW, 0, len(rows))
-			for _, r := range rows {
-				if r.relevant {
-					sel = append(sel, r)
-				}
-			}
-		}
+	for _, ps := range emittedPopulations(rows) {
+		pop, sel := ps.name, ps.rows
 		if len(sel) == 0 {
 			continue
 		}

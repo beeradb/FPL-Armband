@@ -619,6 +619,13 @@ type playerGW struct {
 	id       int
 	relevant bool
 
+	// price is this gameweek's own archive price, carried so the CSV can be cut
+	// by price rank. ⚠️ It is deliberately NOT a filter on the printed table:
+	// price selects a POPULATION and never a predictor, and the ranking it feeds
+	// runs through priceRankOrder so this file and the candidate-set diagnostic
+	// cannot disagree about who the ten most expensive players were.
+	price float64
+
 	actPoints  float64
 	actMinutes float64
 	actXGI     float64
@@ -808,6 +815,7 @@ func collectPredictions(cur *Season, e *analysis.Engine, boot *fpl.Bootstrap,
 		out = append(out, playerGW{
 			id:         el.ID,
 			relevant:   playedRecently(p, played[el.Team], gw),
+			price:      float64(g.Value),
 			actPoints:  float64(g.Points),
 			actMinutes: float64(g.Minutes),
 			actXGI:     g.XG + g.XA,
@@ -905,16 +913,16 @@ func meanSeasonToDate(p *Player, clubGWs map[int]int, gw int, f func(GW) float64
 
 // foldPredictions folds one gameweek's observations into the arm's accumulators.
 func foldPredictions(run *predRun, rows []playerGW) {
-	for _, pop := range populationOrder {
-		sel := rows
-		if pop == popRelevant {
-			sel = make([]playerGW, 0, len(rows))
-			for _, r := range rows {
-				if r.relevant {
-					sel = append(sel, r)
-				}
-			}
-		}
+	// Shares emittedPopulations with the CSV sink. These were two copies of one
+	// selection until the price-rank bands were added, and the accumulator and
+	// the sink silently covering different populations is precisely what
+	// TestPredictionCellsSumToTheReportedTotals exists to catch.
+	//
+	// ⚠️ Everything folded here is not everything PRINTED: the report iterates
+	// populationOrder when it renders, so the bands are accumulated and emitted
+	// but stay out of the human-facing table.
+	for _, ps := range emittedPopulations(rows) {
+		pop, sel := ps.name, ps.rows
 		if len(sel) == 0 {
 			continue
 		}
