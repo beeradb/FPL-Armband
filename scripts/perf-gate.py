@@ -102,10 +102,26 @@ MIN_TIME_BAR_PCT = 5.0
 # that jitters earns exactly its own jitter and no more.
 #
 # ⚠️ The ceiling is what stops that becoming an excuse. A null memory move above
-# it is not jitter to be tolerated — it is a benchmark too unstable to gate with,
-# and it fails loudly rather than silently widening. 0.005% against 1.0% is three
-# orders of magnitude of headroom, and a real memory regression is far larger
-# still, so the bite is intact.
+# it is not jitter to be tolerated — that benchmark cannot gate memory at all, and
+# it is reported loudly rather than silently given a wider bar. ~0.006% against
+# 1.0% is more than two orders of magnitude of headroom, and a real memory
+# regression is far larger still, so the bite is intact.
+#
+# ⚠️ **Do NOT read "over the ceiling" as "there is a bug in the benchmark."** An
+# earlier version of this file printed "Fix the benchmark", which sends a reader
+# looking for a line of code that may not exist. Memory drifts across PROCESSES
+# even with no project code involved: a standalone module containing nothing but
+# `map[int]int` with 20,000 fixed keys, run 20 times, moved B/op across a ~10-byte
+# range (1182648..1182658) with allocs/op constant at 144. Go seeds each map's
+# hash per process, so the bucket layout for one fixed key set is not stable
+# between runs, and any code that builds maps inherits that.
+#
+# ⚠️ What that experiment does NOT show, stated because the temptation is to
+# over-claim in the other direction: it did not reproduce a moving allocs/op.
+# BenchmarkDPSeeds/pool600/tight moves allocs/op 24247..24250 in this repo, and
+# the bare-map case does not explain that — only the B/op drift. So the honest
+# reading of a ceiling breach is "this benchmark's memory is too unstable to gate
+# with, and the cause is not established", not "someone introduced a defect".
 MEM_NULL_TOLERANCE_PCT = 1.0
 
 
@@ -226,9 +242,11 @@ def main():
         print("  memory: the null moved none of it, so every memory bar is 0%")
 
     if broken:
-        print("\n  ⚠️ THE NULL MOVED MEMORY BY MORE THAN THE TOLERANCE. A benchmark this")
-        print("     unstable cannot gate anything, and widening its bar to fit would hide")
-        print("     whatever is doing it. Fix the benchmark:")
+        print("\n  ⚠️ THE NULL MOVED MEMORY BY MORE THAN THE TOLERANCE. This benchmark")
+        print("     cannot gate memory, and widening its bar to fit would hide whatever is")
+        print("     doing it. ⚠️ Not necessarily a defect: memory drifts across processes")
+        print("     even with no project code — see MEM_NULL_TOLERANCE_PCT. Investigate")
+        print("     before assuming there is a line of code to fix:")
         for unit, name, delta in broken:
             how = "off a zero baseline" if delta == float("inf") else f"{delta:+.2f}%"
             print(f"       {name}  {unit}  {how} between two runs of ONE commit")
