@@ -5,64 +5,70 @@ import (
 	"os"
 	"sort"
 	"testing"
+
+	"armband/internal/stats"
 )
 
-// IS THE MODEL SCORED ON THE PLAYERS THAT MATTER?
+// DOES THE MODEL'S EDGE OVER NAIVE PERSISTENCE SURVIVE ON THE PLAYERS THAT MATTER?
 //
 //	DIAG=1 go test ./internal/backtest -run TestDiagCandidateSetAccuracy -v -count=1 -timeout 120m
 //
-// # The argument
+// # The question, and why the first version of this test could not answer it
 //
-// **Only 30-40 players are ever realistic picks, so predictions for the rest are
-// nearly meaningless.** The model's published accuracy is computed over every
-// priced player — roughly 600 — so a mean absolute error of 1.98 is dominated by
-// people no squad will ever hold. The decision-relevant number is the error on
-// the set a transfer search actually chooses between, and it is measured nowhere.
+// **Only a few dozen players are ever realistic picks, so predictions for the
+// rest are nearly meaningless** — and published accuracy is computed over every
+// priced player, 706 to 861 a season. If the model is weaker where decisions are
+// made, then every constant fitted to global error was fitted against the wrong
+// loss.
 //
-// The owner's estimate is close to what this harness already reports from the
-// other side: a season's point-in-time optima use **39-65 distinct starters**,
-// with **8-10 supplying half** the starting slots. So the population is small and
-// measurable rather than asserted.
+// ⚠️ **An earlier version reported a 27-45% fall in rank correlation on candidate
+// sets and that was NOT evidence of anything.** Selecting the top 7-24% on the
+// predictor attenuates rank correlation by range restriction alone: a truncation
+// model puts the no-defect expectation at roughly 0.22-0.30, and the measurement
+// read 0.28-0.39 — at or above it. A fall against the global figure is not a
+// finding, because the global figure was never the right reference.
 //
-// # Why the answer is likely to be UNFLATTERING
+// # So this version compares against a BASELINE inside each set
 //
-// The candidate set is the high-projection tail, and that is exactly where this
-// model is weakest: the predicted-6-and-above band reads a ratio of 0.963, error
-// spread rises from 1.0 on players who score nothing to 3.0 on those who haul,
-// and the aggregate bias of -0.08 is near-perfect only because those errors
-// cancel. **A global metric is flattered by the players who do not matter.**
+// The decision-relevant question is not "how large is the error" — that rises
+// with the population's own spread whatever the model does — but **"does the
+// model still beat naive persistence here?"** The last-five-gameweek mean is
+// OpenFPL's baseline and the one the published record already uses globally, so
+// `skill = MAE_model / MAE_baseline` is anchored at 1.0 in every population:
+// below 1 the model adds value, at 1 it adds none.
 //
-// If error on the candidate set is materially worse than global, then every
-// constant fitted to minimise global error was fitted against the wrong loss —
-// which is the constructive form of this record's standing warning that "a better
-// predictor is not automatically a better policy, because the optimiser consumes
-// an ordering and lives in the tail".
+// ⚠️ **This is the column that can collapse the whole argument.** If the model's
+// edge over persistence is unchanged inside the candidate sets, then it is not
+// weaker where it matters in any sense a decision cares about, whatever the
+// absolute error levels do.
 //
-// # Three definitions, because the definition IS the argument
+// # Four sets, and one the model did not choose
 //
-// A single rule would make the result a property of that rule. If three
-// independent constructions select roughly the same players, the set is real:
+//   - **MODEL40** — the forty highest-projected THIS gameweek.
+//   - **PRICE40** — the forty most expensive this gameweek. ⚠️ **Model-free**, and
+//     the point of it: the other sets condition on the model's own output, so the
+//     model is scored on the population it selected. Price is set by FPL, is
+//     per-gameweek in the archive, and is a fair proxy for "realistic pick".
+//   - **OPTIMUM** — this gameweek's point-in-time optimal eleven.
+//   - **HELD** — projected above 3.0, a squad-holdable floor.
 //
-//   - **OPTIMUM**: every player appearing in any gameweek's point-in-time optimal
-//     eleven. What the engine itself would ever field.
-//   - **TOP40**: the forty highest-projected players in each gameweek, unioned.
-//     What a transfer search looks at, without reference to squad feasibility.
-//   - **HELD**: players a real squad could hold for a run — projected above a
-//     floor in at least a quarter of gameweeks. Neither of the above requires
-//     persistence, and a template is about persistence.
+// ⚠️ **Membership is PER GAMEWEEK, not a season union.** The union version scored
+// a player in every week of the season once he entered the set in any of them, so
+// most of its rows came from weeks he was NOT a candidate. Per-gameweek
+// membership removes that dilution and is also forward-only: a live system knows
+// its own top-40 at decision time, where it cannot know a season union.
 //
-// ⚠️ **Raw MAE is NOT comparable across populations.** Candidates score more, so
-// their errors are larger in absolute terms whatever the model does. The
-// scale-free columns are the comparison: error relative to the target's own
-// spread, and the within-gameweek rank correlation, which is what an argmax
-// consumes.
+// ⚠️ **Report per season, never pooled.** Expected-assist coverage is 40-42% in
+// the Understat-backfilled seasons against 69-70% in the natively-published ones,
+// so a pooled mean mixes two provider regimes. (Contrary to one review's claim,
+// no season lacks xG — all seven carry it on 46-50% of rows.)
 func TestDiagCandidateSetAccuracy(t *testing.T) {
 	if os.Getenv("DIAG") == "" {
 		t.Skip("set DIAG=1")
 	}
 	cfg := loadConfig(t)
 
-	type obs struct{ pred, act float64 }
+	type obs struct{ pred, base, act float64 }
 	type acc struct {
 		o    []obs
 		byGW map[int][]obs
@@ -74,147 +80,141 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 		if len(a.o) < 50 {
 			return
 		}
-		var pred, act []float64
+		var mm, mb float64
 		for _, x := range a.o {
-			pred = append(pred, x.pred)
-			act = append(act, x.act)
+			mm += absOf(x.pred - x.act)
+			mb += absOf(x.base - x.act)
 		}
-		mp, ma := meanOf(pred), meanOf(act)
-		var mae, bias, sse float64
-		for _, x := range a.o {
-			mae += absOf(x.pred - x.act)
-			bias += x.pred - x.act
-		}
-		mae /= float64(len(a.o))
-		bias /= float64(len(a.o))
-		for _, x := range a.o {
-			d := (x.pred - x.act) - bias
-			sse += d * d
-		}
-		esd := 0.0
-		if len(a.o) > 1 {
-			esd = sqrtOf(sse / float64(len(a.o)-1))
-		}
-		// Scale-free: the target's own spread, and the ordering an argmax reads.
-		spread := sdOf(act)
-		var rhos []float64
+		n := float64(len(a.o))
+		mm, mb = mm/n, mb/n
+		var rm, rb []float64
 		for _, v := range a.byGW {
 			if len(v) < 8 {
 				continue
 			}
-			var p, q []float64
+			p, bs, q := make([]float64, 0, len(v)), make([]float64, 0, len(v)), make([]float64, 0, len(v))
 			for _, x := range v {
-				p = append(p, x.pred)
-				q = append(q, x.act)
+				p, bs, q = append(p, x.pred), append(bs, x.base), append(q, x.act)
 			}
-			rhos = append(rhos, corrOf(rankOf(p), rankOf(q)))
+			rm = append(rm, stats.Spearman(p, q))
+			rb = append(rb, stats.Spearman(bs, q))
 		}
-		rho := 0.0
-		if len(rhos) > 0 {
-			rho = meanOf(rhos)
+		mr, br := 0.0, 0.0
+		if len(rm) > 0 {
+			mr, br = meanOf(rm), meanOf(rb)
 		}
-		fmt.Printf("%-10s %6d %7d %8.2f %8.2f %8.3f %8.3f %8.3f %9.3f %8.3f\n",
-			name, len(a.ids), len(a.o), mp, ma, mae, bias, esd, mae/spread, rho)
+		skill := 0.0
+		if mb > 0 {
+			skill = mm / mb
+		}
+		fmt.Printf("  %-9s %6d %7d %8.3f %8.3f %8.3f %9.3f %9.3f %8.3f\n",
+			name, len(a.ids), len(a.o), mm, mb, skill, mr, br, mr-br)
 	}
 
-	fmt.Printf("\n=== IS THE MODEL SCORED ON THE PLAYERS THAT MATTER?\n")
-	fmt.Printf("One-gameweek-ahead prediction against realised points, over every\n")
-	fmt.Printf("priced player and then restricted to three candidate sets.\n")
-	fmt.Printf("⚠️ Compare `mae/sd` and `rank rho`, NOT raw mae — candidates score more,\n")
-	fmt.Printf("so their absolute errors are larger whatever the model does.\n\n")
-	fmt.Printf("%-10s %6s %7s %8s %8s %8s %8s %8s %9s %8s\n",
-		"set", "players", "rows", "predMean", "actMean", "mae", "bias", "errSD", "mae/sd", "rank rho")
+	fmt.Printf("\n=== DOES THE MODEL'S EDGE SURVIVE ON THE PLAYERS THAT MATTER?\n")
+	fmt.Printf("Per-gameweek membership. `skill` is MAE_model / MAE_baseline, anchored at\n")
+	fmt.Printf("1.0 in every population: below 1 the model beats naive persistence.\n")
+	fmt.Printf("⚠️ Read `skill` and `rho gap`, NOT the raw error or the raw rho — both rise\n")
+	fmt.Printf("or fall with the population's own spread whatever the model does.\n")
+	fmt.Printf("⚠️ PRICE40 is the only set the model did not choose.\n\n")
+	fmt.Printf("  %-9s %6s %7s %8s %8s %8s %9s %9s %8s\n",
+		"set", "players", "rows", "mae", "mae_base", "skill", "rho", "rho_base", "rho gap")
 
 	for _, pr := range loadPairsOrSkip(t, cfg) {
 		sc := SimConfig{Weights: cfg.Weights, StartGW: 1}
 		sc.Weights.Horizon = 1
+		global, mdl, price, opt, held := newAcc(), newAcc(), newAcc(), newAcc(), newAcc()
 
-		// Pass 1: the three candidate sets.
-		inOpt, inTop, above := map[int]bool{}, map[int]bool{}, map[int]int{}
-		weeks := 0
 		for gw := 1; gw <= 38; gw++ {
 			ew, _ := EngineAt(pr.Cur, pr.Prior, gw-1, sc)
+			// This week's optimum, for the OPTIMUM set.
+			inOpt := map[int]bool{}
 			if sq, ok := repairSquad(ew, nil, 1000, 0, sc); ok {
-				xi, _, _, _ := pickXI(ew, sq)
-				for _, id := range xi {
-					inOpt[id] = true
-				}
-			}
-			type ps struct {
-				id int
-				s  float64
-			}
-			var all []ps
-			for id := range pr.Cur.Players {
-				if el := ew.Boot.ElementByID(id); el != nil {
-					s := ew.Metrics(el).Score
-					all = append(all, ps{id, s})
-					if s >= 3.0 {
-						above[id]++
+				if xi, _, _, _ := pickXI(ew, sq); xi != nil {
+					for _, id := range xi {
+						inOpt[id] = true
 					}
 				}
 			}
-			sort.Slice(all, func(a, b int) bool { return all[a].s > all[b].s })
-			for i := 0; i < 40 && i < len(all); i++ {
-				inTop[all[i].id] = true
+			type row struct {
+				id          int
+				pred, price float64
+				base, act   float64
+				ok          bool
 			}
-			weeks++
-		}
-		held := map[int]bool{}
-		for id, n := range above {
-			if float64(n) >= 0.25*float64(weeks) {
-				held[id] = true
-			}
-		}
-
-		// Pass 2: predictions against realised points.
-		global, optA, topA, heldA := newAcc(), newAcc(), newAcc(), newAcc()
-		for gw := 1; gw <= 38; gw++ {
-			ew, _ := EngineAt(pr.Cur, pr.Prior, gw-1, sc)
+			var rows []row
 			for id, p := range pr.Cur.Players {
-				g, ok := p.GWs[gw]
-				if !ok || g.Fixtures == 0 {
+				g, has := p.GWs[gw]
+				if !has || g.Fixtures == 0 {
 					continue
 				}
 				el := ew.Boot.ElementByID(id)
 				if el == nil {
 					continue
 				}
-				x := obs{ew.Metrics(el).Score, float64(g.Points)}
-				for _, tgt := range []*acc{global} {
-					tgt.o = append(tgt.o, x)
-					tgt.byGW[gw] = append(tgt.byGW[gw], x)
-					tgt.ids[id] = true
-				}
-				for _, pair := range []struct {
-					in bool
-					a  *acc
-				}{{inOpt[id], optA}, {inTop[id], topA}, {held[id], heldA}} {
-					if pair.in {
-						pair.a.o = append(pair.a.o, x)
-						pair.a.byGW[gw] = append(pair.a.byGW[gw], x)
-						pair.a.ids[id] = true
+				// The baseline: the mean of the last five gameweeks the player
+				// actually featured in, which is what the published record uses.
+				var last []float64
+				for b := gw - 1; b >= 1 && len(last) < 5; b-- {
+					if q, ok := p.GWs[b]; ok && q.Fixtures > 0 {
+						last = append(last, float64(q.Points))
 					}
+				}
+				if len(last) == 0 {
+					continue
+				}
+				rows = append(rows, row{id, ew.Metrics(el).Score, float64(g.Value),
+					meanOf(last), float64(g.Points), true})
+			}
+			if len(rows) < 20 {
+				continue
+			}
+			byPred := append([]row(nil), rows...)
+			sort.Slice(byPred, func(a, b int) bool { return byPred[a].pred > byPred[b].pred })
+			byPrice := append([]row(nil), rows...)
+			sort.Slice(byPrice, func(a, b int) bool { return byPrice[a].price > byPrice[b].price })
+			top, pri := map[int]bool{}, map[int]bool{}
+			for i := 0; i < 40 && i < len(byPred); i++ {
+				top[byPred[i].id] = true
+			}
+			for i := 0; i < 40 && i < len(byPrice); i++ {
+				pri[byPrice[i].id] = true
+			}
+			for _, r := range rows {
+				x := obs{r.pred, r.base, r.act}
+				add := func(a *acc) {
+					a.o = append(a.o, x)
+					a.byGW[gw] = append(a.byGW[gw], x)
+					a.ids[r.id] = true
+				}
+				add(global)
+				if top[r.id] {
+					add(mdl)
+				}
+				if pri[r.id] {
+					add(price)
+				}
+				if inOpt[r.id] {
+					add(opt)
+				}
+				if r.pred >= 3.0 {
+					add(held)
 				}
 			}
 		}
 		fmt.Printf("%s\n", pr.Name)
-		report("  all", global)
-		report("  OPTIMUM", optA)
-		report("  TOP40", topA)
-		report("  HELD", heldA)
-		var overlap int
-		for id := range inOpt {
-			if inTop[id] {
-				overlap++
-			}
-		}
-		fmt.Printf("  sets: optimum %d, top40 %d, held %d | optimum∩top40 %d\n\n",
-			len(inOpt), len(inTop), len(held), overlap)
+		report("all", global)
+		report("MODEL40", mdl)
+		report("PRICE40", price)
+		report("OPTIMUM", opt)
+		report("HELD", held)
 	}
-	fmt.Printf("⚠️ If the three sets disagree wildly the population is an artefact of\n")
-	fmt.Printf("whichever rule made it, and no conclusion about 'the players that\n")
-	fmt.Printf("matter' survives. Read the overlap before the accuracy.\n")
+	fmt.Printf("\n⚠️ A `skill` unchanged between `all` and the candidate sets means the\n")
+	fmt.Printf("model is NOT weaker where it matters in any sense a decision cares about,\n")
+	fmt.Printf("whatever the raw error does — and the wrong-loss argument fails.\n")
+	fmt.Printf("⚠️ `rho gap` is the model's ordering minus the baseline's ON THE SAME ROWS,\n")
+	fmt.Printf("so range restriction hits both and cancels. That is the comparison range\n")
+	fmt.Printf("restriction cannot fake.\n")
 }
 
 func absOf(x float64) float64 {
@@ -222,27 +222,4 @@ func absOf(x float64) float64 {
 		return -x
 	}
 	return x
-}
-
-func sqrtOf(x float64) float64 {
-	if x <= 0 {
-		return 0
-	}
-	g := x
-	for i := 0; i < 40; i++ {
-		g = 0.5 * (g + x/g)
-	}
-	return g
-}
-
-func sdOf(v []float64) float64 {
-	if len(v) < 2 {
-		return 1
-	}
-	m := meanOf(v)
-	var s float64
-	for _, x := range v {
-		s += (x - m) * (x - m)
-	}
-	return sqrtOf(s / float64(len(v)-1))
 }

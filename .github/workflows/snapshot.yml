@@ -206,8 +206,25 @@ jobs:
       # repository may cite it as the source of a claim. The scripts are the citable
       # artefacts and they live in the tree.
       #
-      # ⚠️ Skipped unless Pages is enabled on the repository, so enabling it is a
-      # deliberate act rather than a side effect of merging this file.
+      # ⚠️ **TWO INDEPENDENT SWITCHES, AND THE ORDER MATTERS.** These steps are
+      # gated on the `PUBLISH_ACCURACY_PAGE` repository VARIABLE — not on whether
+      # Pages is enabled, which an earlier version of this comment wrongly said.
+      #
+      # So there are two settings, and setting them in the wrong order breaks the
+      # build: with the variable set and Pages still disabled, `deploy-pages`
+      # FAILS rather than skipping, because it has nowhere to deploy to.
+      #
+      #   1. Enable Pages on the repository, source "GitHub Actions".
+      #   2. THEN set the variable `PUBLISH_ACCURACY_PAGE` to `true`.
+      #
+      # Unset, the steps skip and merging this file changes nothing — which is the
+      # point: publishing a public site is a deliberate act, not a side effect of
+      # a merge.
+      #
+      # ⚠️ The snapshot release is published by an EARLIER step, so a dashboard
+      # failure never costs the series itself. It is left to fail loudly rather
+      # than continue-on-error: a red main that nobody reads is how this
+      # repository lost its staleness guard for four days.
       - name: Build the accuracy dashboard
         if: vars.PUBLISH_ACCURACY_PAGE == 'true'
         env:

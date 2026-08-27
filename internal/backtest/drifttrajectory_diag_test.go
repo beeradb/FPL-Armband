@@ -529,24 +529,7 @@ func spearmanVsIndex(v []float64) float64 {
 	for i := range v {
 		idx[i] = float64(i)
 	}
-	return corrOf(rankOf(v), idx)
-}
-
-func rankOf(v []float64) []float64 {
-	type pair struct {
-		x float64
-		i int
-	}
-	ps := make([]pair, len(v))
-	for i, x := range v {
-		ps[i] = pair{x, i}
-	}
-	sort.Slice(ps, func(a, b int) bool { return ps[a].x < ps[b].x })
-	out := make([]float64, len(v))
-	for r, p := range ps {
-		out[p.i] = float64(r)
-	}
-	return out
+	return stats.Spearman(v, idx)
 }
 
 // risingFraction is how often the next reading is at least the current one. A
