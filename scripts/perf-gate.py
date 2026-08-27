@@ -119,12 +119,29 @@ MIN_TIME_BAR_PCT = 5.0
 # One extra allocation about a quarter of the time, on code with no logic in it.
 # Any benchmark that builds maps inherits this.
 #
-# ⚠️ **`-benchtime=1x` IS THE MEASUREMENT, not a detail.** Under the default,
-# Go picks `b.N` per process (1488..1662 across five runs here) and reports
-# total/N — so the SAME experiment shows a spurious ~10-byte B/op wobble from
-# integer division while hiding the real 144/145 split entirely. Two separate
-# attempts at this measurement, taken with the default, drew opposite and equally
-# wrong conclusions before the third pinned `b.N`. If you re-measure this, pin it.
+# ⚠️ **`-benchtime=1x` IS THE MEASUREMENT, not a detail.** Under the default, Go
+# picks `b.N` per process (1488..1662 across five runs here) and reports total/N.
+# That measures a DIFFERENT QUANTITY and hides the 144/145 split entirely. Two
+# separate attempts at this measurement, taken with the default, drew opposite and
+# equally wrong conclusions before the third pinned `b.N`. If you re-measure this,
+# pin it.
+#
+# ⚠️ **CORRECTED: an earlier version of this comment said the default's B/op
+# movement was "a spurious wobble from integer division". That is wrong, and it is
+# wrong in a checkable direction.** Integer division truncates DOWNWARD, so it
+# cannot report more than the single-iteration value — but the reported figure
+# RISES with b.N and plateaus above it. Sweeping N, three processes each:
+#
+#     b.N=1     1182584  1182600  1182584
+#     b.N=2     1182584  1182584  1182584
+#     b.N=5     1182628  1182606  1182651
+#     b.N=50    1182642  1182651  1182651
+#     b.N=1000  1182659  1182659  1182662
+#
+# So the per-iteration byte cost is genuinely N-dependent, and the earlier
+# "artefact" framing understated it. ⚠️ **WHY it rises is NOT established here** —
+# only that it is not division. Do not fill that gap with a guess; the whole point
+# of this block is that the last two guesses were both wrong.
 #
 # ⚠️ Version-pinned deliberately: this concerns runtime internals, so an unversioned
 # claim about it rots at the next toolchain bump. Measured on go1.26.5/arm64; CI
