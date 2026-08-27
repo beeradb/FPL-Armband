@@ -1177,7 +1177,7 @@ func reportPredictionCalibration(run *predRun, sink *modelSink, grid string) {
 					measure{"predicted", mp},
 					measure{"actual", ma},
 					measure{"ratio", ratio},
-					measure{"error_sd", a.errorSD()})
+					measure{"error sd", a.errorSD()})
 			}
 		}
 		fmt.Printf("\n")
