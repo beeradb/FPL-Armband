@@ -1,0 +1,179 @@
+# Put the model's accuracy figures on the pull request that changes them.
+#
+# # Why this exists
+#
+# `snapshot.yml` publishes the accuracy series on every push to `main`. That is
+# after the fact: by the time a figure has moved, the change has already landed,
+# and the person best placed to explain the movement has moved on. Reviewers were
+# therefore asked to approve scoring changes with no view of what those changes
+# did to the model's accuracy, because the only view was generated later.
+#
+# `figures-moved-check.py` already fails a build whose figures moved without a
+# `Figures-moved:` trailer, so silent movement is caught — but only on `main`,
+# and only as a build failure with a text log. This workflow answers the earlier
+# and friendlier question, on the pull request, with a chart: **what did this
+# change do to the numbers?**
+#
+# # Why it is a separate workflow, and not a job inside ci.yml
+#
+# ⚠️ `ci.yml` compiles and runs the pull request's own test files, and its header
+# sets out a two-part safety argument for doing that: the token is read-only AND
+# a fork's `pull_request` run receives no secrets. This job needs
+# `pull-requests: write` to post its comment. Adding that permission to `ci.yml`
+# would mean amending a load-bearing safety argument in a file whose whole job is
+# to be the gate, so it lives here instead and `ci.yml` is untouched.
+#
+# # Why the fork guard, and what it is NOT doing
+#
+# The job runs only when the pull request comes from a branch of this repository
+# rather than a fork. **The reason is trust in the code, not trust in the token.**
+# Like `ci.yml`, this workflow runs the pull request's own diagnostics, so on a
+# fork it would be executing attacker-authored code — and unlike `ci.yml` it asks
+# for a write permission.
+#
+# ⚠️ **Do not read the guard as the only thing standing between a fork and a
+# write token.** GitHub already downgrades `GITHUB_TOKEN` to read-only for a
+# fork's `pull_request` run whatever a workflow declares, so the declaration
+# below could not take effect there in any case. The guard's real work is to skip
+# the job cleanly instead of running it into a permission error nobody can act
+# on, and to make the intent legible rather than implicit in a platform rule.
+#
+# ⚠️ A same-repo pull request is no escalation: pushing a branch here already
+# requires write access, so its author could post this comment by hand.
+#
+# ⚠️ **The consequence is that a fork's pull request gets no report.** That is
+# accepted. Every pull request this repository has merged came from one of its
+# own branches. If that changes, the fix is the two-workflow
+# `pull_request_target` pattern — an untrusted run uploads an artifact, a
+# separate trusted run posts it — and NOT relaxing the guard here.
+name: PR model report
+
+on:
+  pull_request:
+
+# Read-only by default; the reporting job widens it for itself alone.
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-model-report-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Model figures
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          # From go.mod, so the toolchain cannot drift from the module's own
+          # declaration — the same rule ci.yml follows.
+          go-version-file: go.mod
+          cache: true
+
+      # Same path and key as ci.yml, so a pull request reuses the archive that
+      # workflow already warmed rather than re-fetching ~38 MB.
+      - name: Cache the season archive
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/fpl
+          key: fpl-archive-${{ hashFiles('internal/backtest/season.go', 'internal/priors/priors.go') }}
+          restore-keys: fpl-archive-
+
+      # ⚠️ BOTH `DIAG: "1"` and `-count=1` are load-bearing, and each fails
+      # SILENTLY on its own. Without `-count=1` an unchanged tree returns
+      # `ok (cached)` and writes nothing. Without `DIAG` every one of these tests
+      # skips itself and the run still exits 0 — measured while building this
+      # workflow: the command reported success and the renderer produced a
+      # six-row figures.csv instead of a full one. The assertion below exists
+      # because exit 0 does not mean anything was measured.
+      - name: Run the accuracy diagnostics
+        env:
+          FPL_MODEL_CSV: ${{ runner.temp }}/model.csv
+          DIAG: "1"
+        run: |
+          go test ./internal/backtest -count=1 -timeout 120m \
+            -run 'TestDiagCalibrationDrift|TestDiagCleanSheetPoisson|TestDiagPredictionBenchmark|TestDiagNextFivePredictors|TestDiagSixty|TestDiagDefconBias|TestDiagTeamBlend|TestDiagTransferError'
+
+      - name: Assert the diagnostics actually measured something
+        env:
+          MODEL_CSV: ${{ runner.temp }}/model.csv
+        run: |
+          if [ ! -s "$MODEL_CSV" ]; then
+            echo "::error::no model CSV — the diagnostics ran but measured nothing"
+            exit 1
+          fi
+          runs=$(awk -F, 'NR>1 {print $2}' "$MODEL_CSV" | sort -u | wc -l)
+          rows=$(( $(wc -l < "$MODEL_CSV") - 1 ))
+          echo "model CSV: $rows rows, $runs run(s)"
+          # The renderer keeps newest-wins per figure, so two runs in one file
+          # would let a stale figure win. snapshot.yml asserts the same thing.
+          if [ "$runs" -ne 1 ]; then
+            echo "::error::expected exactly one run in the model CSV, found $runs"
+            exit 1
+          fi
+
+      # `-out` under the runner's temp, never the working tree: a snapshot
+      # directory is not committed to this repository any more, and .gitignore
+      # refuses one.
+      - name: Render the snapshot
+        env:
+          MODEL_CSV: ${{ runner.temp }}/model.csv
+          FPL_SNAPSHOTS_EXTERNAL: "1"
+        run: |
+          out=$(go run ./cmd/armband snapshot -model "$MODEL_CSV" -out "${{ runner.temp }}/snap")
+          echo "$out"
+          # Parse the writer's own "wrote <dir>/snapshot.md" line rather than
+          # guessing at the naming convention — snapshot.yml learned this the
+          # hard way and its comment records why.
+          dir=$(printf '%s\n' "$out" | sed -nE 's#^wrote (.*)/snapshot\.md$#\1#p')
+          if [ -z "$dir" ] || [ ! -f "$dir/figures.csv" ]; then
+            echo "::error::could not locate figures.csv from the render output"
+            exit 1
+          fi
+          echo "figures=$dir/figures.csv" >> "$GITHUB_ENV"
+
+      # Downloads the newest release's figures.csv to diff against, reusing
+      # figures-moved-check.py's own downloader rather than reimplementing it.
+      # A missing baseline is reported as UNCHECKED, never as clean.
+      - name: Build the report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/pr-model-report.py \
+            --figures "$figures" \
+            --tmp "${{ runner.temp }}" \
+            --out "${{ runner.temp }}/report.md"
+
+      # Also on the run's own summary page, so the report survives even if the
+      # comment step is ever removed or the job loses its permission.
+      - name: Publish to the run summary
+        run: cat "${{ runner.temp }}/report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # One comment per pull request, edited in place. A new comment per push
+      # would bury the conversation under near-identical reports.
+      - name: Post or update the pull request comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          marker='<!-- pr-model-report -->'
+          body=$(cat "${{ runner.temp }}/report.md")
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+                 --jq "[.[] | select(.body | startswith(\"$marker\"))] | .[0].id // empty")
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body="$body" --silent
+            echo "updated comment $id"
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F body="$body" --silent
+            echo "created a new comment"
+          fi
