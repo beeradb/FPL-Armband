@@ -1150,6 +1150,11 @@ func reportPredictionCalibration(run *predRun, sink *modelSink, grid string) {
 	fmt.Printf("only conditioning a per-player interval could be built from. It is not one\n")
 	fmt.Printf("yet: the spread is pooled over the whole band, and the top band is\n")
 	fmt.Printf("open-ended, so its figure mixes a prediction of 6 with a prediction of 15.\n\n")
+	fmt.Printf("Each error sd is a point estimate and carries its own sampling error, which\n")
+	fmt.Printf("is not reported here. Normal theory puts it near 2%% at every band size\n")
+	fmt.Printf("shown, and that is optimistic in the top bands: a prediction above 6 is a\n")
+	fmt.Printf("small set of premium players recurring across weeks, so the rows there are\n")
+	fmt.Printf("further from independent draws than their count suggests.\n\n")
 	fmt.Printf("Bands with fewer than 30 observations are omitted rather than printed as\n")
 	fmt.Printf("noise.\n\n")
 

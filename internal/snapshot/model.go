@@ -234,7 +234,16 @@ var registry = map[string]struct{ title, what, reading string }{
 			"it describes players who turned out to haul and not players the model " +
 			"says will. **It is not a per-player interval and may not be quoted as " +
 			"one**: the spread is pooled across the whole band, and the top band is " +
-			"open-ended, so its figure mixes a prediction of 6 with a prediction of 15.",
+			"open-ended, so its figure mixes a prediction of 6 with a prediction of 15. " +
+			"Each error sd is itself a point estimate with unreported sampling error — " +
+			"near 2% by normal theory at these counts, and optimistic in the top bands, " +
+			"where a small set of premium players recurs across weeks and the rows are " +
+			"further from independent draws than their count suggests. Read the rise in " +
+			"error sd and the fall in error sd divided by the prediction as **one fact " +
+			"and not two**: variance over predicted is flat at 3.34 to 3.77 across every " +
+			"band above 1.0, which is mean-variance scaling for count data doing the " +
+			"work. The exception is the bottom band at 4.68, and that — not the " +
+			"monotone rise — is the one figure here the scaling does not explain.",
 	},
 	"prediction_ordering": {
 		title: "Does the model rank players correctly, and is its top over-rated?",
