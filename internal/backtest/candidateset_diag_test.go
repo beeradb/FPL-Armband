@@ -250,9 +250,30 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 				continue
 			}
 			byPred := append([]row(nil), rows...)
-			sort.Slice(byPred, func(a, b int) bool { return byPred[a].pred > byPred[b].pred })
+			// ⚠️ Ties break on element id, and that is not tidiness — it is the
+			// difference between a reproducible table and a noisy one. `rows` is
+			// built by ranging a MAP, so its order is randomised per run, and
+			// `sort.Slice` is NOT stable, so equal keys came out in whatever order
+			// the map happened to produce. Prices move in 0.1 steps and ties are
+			// everywhere, so the top-n BY PRICE genuinely changed between runs:
+			// two runs of this diagnostic disagreed by up to 0.007 of skill on the
+			// same population, which is the size of the differences this table is
+			// read for. Predictions are floats and tie far less often, so the
+			// model-ranked sets were nearly stable and the price-ranked ones were
+			// not — the asymmetry is what made it visible.
+			sort.Slice(byPred, func(a, b int) bool {
+				if byPred[a].pred != byPred[b].pred {
+					return byPred[a].pred > byPred[b].pred
+				}
+				return byPred[a].id < byPred[b].id
+			})
 			byPrice := append([]row(nil), rows...)
-			sort.Slice(byPrice, func(a, b int) bool { return byPrice[a].price > byPrice[b].price })
+			sort.Slice(byPrice, func(a, b int) bool {
+				if byPrice[a].price != byPrice[b].price {
+					return byPrice[a].price > byPrice[b].price
+				}
+				return byPrice[a].id < byPrice[b].id
+			})
 			top, pri := map[int]map[int]bool{}, map[int]map[int]bool{}
 			for _, n := range candidateSetSizes {
 				tn, pn := map[int]bool{}, map[int]bool{}
