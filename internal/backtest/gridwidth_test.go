@@ -153,14 +153,11 @@ package backtest
 // to this pass's numbers: they are not the same quantity.
 
 import (
-	"os"
 	"testing"
 )
 
 func TestDiagGridWidth(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 
 	// The shipped conventions, matching TestDiagBaseline and TestDiagNoiseFloor so
 	// the arms are comparable with the noise-floor run they are borrowed from.

@@ -118,16 +118,13 @@ package backtest
 // not report it as the answer.
 
 import (
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
 )
 
 func TestDiagCleanSheetXGC(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	// Restore what was found rather than what the shipped default is assumed to

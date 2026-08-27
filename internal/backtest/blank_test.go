@@ -29,16 +29,13 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
 )
 
 func TestDiagBlankHandling(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	pairs := sweepPairNames()

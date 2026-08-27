@@ -20,15 +20,12 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 )
 
 func TestDiagDefconOpponent(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 
@@ -145,9 +142,7 @@ func TestDiagDefconOpponent(t *testing.T) {
 // If saves are fixture-sensitive at all, keepers facing hard fixtures are
 // systematically underrated.
 func TestDiagSavesAndCardsByOpponent(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	s, err := Load(context.Background(), cfg.CacheDir, "2025-26")
 	if err != nil {

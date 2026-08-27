@@ -60,14 +60,11 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
 func TestDiagXPointsPilot(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 
 	fmt.Printf("\n=== PILOT 1: minutes half-life (ships 4), scored on BOTH metrics.\n")
 	fmt.Printf("The verdict is the per-arm SE ratio SE(hold_xpoints)/SE(hold_points)\n")

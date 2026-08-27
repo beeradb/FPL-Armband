@@ -133,9 +133,7 @@ type churn struct {
 var freeValueRungs = []float64{1.0, 1.5, 3.0, 4.0}
 
 func TestDiagFreeTransferValue(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	shipped := cfg.Review.FreeTransferValue
 

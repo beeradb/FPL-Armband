@@ -51,7 +51,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 
@@ -65,9 +64,7 @@ import (
 const everPresentShare = 0.95
 
 func TestDiagFreeGates(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	// Two cutoffs rather than one, because both quantities are blends whose

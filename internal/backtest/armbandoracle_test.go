@@ -45,15 +45,12 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 )
 
 func TestDiagArmbandOracle(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== the armband oracle, full grid.\n")

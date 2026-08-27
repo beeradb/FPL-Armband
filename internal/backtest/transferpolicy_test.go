@@ -611,9 +611,7 @@ func reportPairedDifferences(variants []policyVariant, cells []map[string]float6
 // HOLD; only constants that are *about* transfers belong on POLICY. Reading the
 // wrong one is the same category error as reading the wrong total.
 func TestDiagRejudge(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 	picker := newBlockPicker()
 	defer picker.check(t)
@@ -1182,9 +1180,7 @@ func TestDiagRejudge(t *testing.T) {
 // Each block is paired against the shipped value, so the question asked is
 // always "is anything better than what we run", not "which of these is largest".
 func TestDiagProjection(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 	picker := newBlockPicker()
 	defer picker.check(t)
@@ -1350,9 +1346,7 @@ func TestDiagProjection(t *testing.T) {
 // the first. DecisionHorizon exists to pin them apart, and AGENTS.md records
 // that the separation has never been re-run since the scoring fixes landed.
 func TestDiagTransferPolicy(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 	values := []int{2, 3, 4, 5, 6, 8}
 	// Each block is ~20 minutes, so allow running one at a time.
@@ -1577,9 +1571,7 @@ func TestDiagTransferPolicy(t *testing.T) {
 // OracleTransactPrice declares exactly that and oracleInvarianceViolations enforces it
 // after the grid, where it used to be checked by reading a column by hand.
 func TestDiagPriceTimingSignificance(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 	fmt.Printf("\n=== perfect price timing, full grid: %s.\n",
 		gridLabel(len(sweepPairNames()), len(starts)))

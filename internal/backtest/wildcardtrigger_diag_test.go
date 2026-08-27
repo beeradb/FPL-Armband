@@ -88,14 +88,11 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
 func TestDiagWildcardTrigger(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	pairs := loadPairs(t, cfg)
 	starts := sweepStarts()

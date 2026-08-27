@@ -49,16 +49,13 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
 )
 
 func TestDiagSixtyMinutes(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	sink := openModelSinkFor(t.Logf)
 	defer sink.close()

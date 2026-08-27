@@ -113,7 +113,6 @@ package backtest
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 
@@ -575,9 +574,7 @@ func TestAnchoredPlanSitsOnTheCalendarMaxima(t *testing.T) {
 }
 
 func TestDiagAnchoredChips(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== does anchoring the chips on the calendar beat placing them by week?\n")

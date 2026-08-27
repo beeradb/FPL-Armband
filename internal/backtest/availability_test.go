@@ -198,9 +198,7 @@ func collectAvailabilityObs(t *testing.T, cfg config.Config) []availObs {
 // measurement at two granularities. Guarding only the newer one would have made
 // that reading wrong in exactly the direction nobody checks.
 func TestDiagAvailability(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	if os.Getenv("FPL_NO_BLANK_RUN") == "" {
 		t.Fatal("set FPL_NO_BLANK_RUN=1 as well: ExpectedMinutes carries " +
 			"blankRunFactor, so at shipped config this measures the residual " +
@@ -368,9 +366,7 @@ func TestDiagAvailability(t *testing.T) {
 // (The recorded 8-points-a-season figure above was measured when that grid was
 // 24 cells; the header this test prints counts whatever runs.)
 func TestDiagAvailabilityImpact(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	defer os.Unsetenv("FPL_NO_AVAILABILITY")
 
 	starts := sweepStarts()

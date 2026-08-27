@@ -66,9 +66,7 @@ import (
 // loop LOGS instead, which is what turns "Score was already zero for this
 // population by another route" from an assertion into a measurement.
 func TestDiagEngineSeasonRules(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cc := loadConfig(t)
 
 	t.Logf("data state: FPL_NO_SEASON_SCORING_RULES=%q FPL_NO_UNPRICED_POSITION_GUARD=%q",

@@ -83,15 +83,12 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 )
 
 func TestDiagMinutesOracle(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== minutes, decomposed: what could be known and what could be had.\n")

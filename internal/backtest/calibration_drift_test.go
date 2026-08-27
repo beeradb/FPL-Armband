@@ -37,7 +37,6 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"testing"
 
@@ -45,9 +44,7 @@ import (
 )
 
 func TestDiagCalibrationDrift(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	// The accuracy snapshot's headline model figure. See modelcsv_test.go.
 	sink := openModelSinkFor(t.Logf)

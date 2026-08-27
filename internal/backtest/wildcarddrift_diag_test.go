@@ -49,7 +49,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -67,9 +66,7 @@ import (
 var wildcardDriftBars = []float64{1.0, 2.0, 3.0, 5.0}
 
 func TestDiagWildcardDriftTrigger(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	weeks, seasons := firstHalfDoublingWeeks(t, loadConfig(t))

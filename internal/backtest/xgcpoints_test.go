@@ -50,9 +50,7 @@ import (
 // the same class of error as "check what a multiplier multiplies before calibrating
 // it", arriving in a mediator instead of a constant.
 func TestDiagXGCPoints(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	// Both arms parsed under this test's control. loadSeason's process-global cache

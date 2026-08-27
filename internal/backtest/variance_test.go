@@ -122,9 +122,7 @@ func sumInts(xs []int) int {
 }
 
 func TestDiagVarianceDecomposition(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 
 	// Parsed once for the whole test rather than reloaded inside each arm, which

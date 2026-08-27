@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
@@ -105,9 +104,7 @@ import (
 //     The monotone ladder says the opposite and that configuration is not in this
 //     design.
 func TestDiagGateThreshold(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== the gate horizon, with the min_gain floor as the secondary\n")

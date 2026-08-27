@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 
@@ -63,9 +62,7 @@ import (
 // ⚠️ **The oracle is hindsight** and is an upper bound no live rule can reach. It
 // is here to size the prize, not to be a target.
 func TestDiagFirstHalfWildcardWeek(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	last := ChipResetGW - 1
 

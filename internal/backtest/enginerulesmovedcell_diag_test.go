@@ -3,7 +3,6 @@ package backtest
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
@@ -91,9 +90,7 @@ import (
 // is recorded because it is what makes the direction question answerable rather
 // than a matter of opinion.
 func TestDiagTheMovedCell(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cc := loadConfig(t)
 
 	// # 1. The rule

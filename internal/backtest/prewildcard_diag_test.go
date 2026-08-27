@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 )
@@ -67,9 +66,7 @@ import (
 //     comparison share the blindness, so it does not bias a sweep; it does mean
 //     "provably correct" overstates the truncation.
 func TestDiagPreWildcardReturn(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	starts := sweepStarts()
 

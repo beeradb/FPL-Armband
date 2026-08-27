@@ -62,16 +62,13 @@ package backtest
 // into a standard error, a t or a verdict word.
 
 import (
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
 )
 
 func TestDiagTeamFormSweep(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	// Restore whatever was live rather than assuming it was off, so running this
 	// with FPL_TEAM_FORM already set does not leave the process on a different
 	// setting from the one it started with.

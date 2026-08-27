@@ -143,14 +143,11 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
 func TestDiagGateFloorUnderExitLevers(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	pairs := loadPairs(t, cfg)
 	starts := sweepStarts()
@@ -227,9 +224,7 @@ func TestDiagGateFloorUnderExitLevers(t *testing.T) {
 //
 // One contrast, its own threshold from stats/variance_components.R.
 func TestDiagScheduledFloor(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	pairs := loadPairs(t, cfg)
 	starts := sweepStarts()

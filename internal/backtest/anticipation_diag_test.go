@@ -83,7 +83,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 
@@ -111,9 +110,7 @@ const (
 )
 
 func TestDiagChipAnticipation(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== does a policy that knows a chip is coming position differently?\n")

@@ -2,7 +2,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
@@ -57,9 +56,7 @@ var wildcardLookaheadBars = []float64{40, 55, 70, 85, 100}
 // would rebuild INTO improves while you wait, which needs `Optimize` re-run at
 // every lookahead week. See TestWildcardValueOverNextPricesTheLookahead.
 func TestDiagWildcardLookaheadTrigger(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== the wildcard priced across a RUN of gameweeks, against one week\n")

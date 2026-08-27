@@ -47,14 +47,11 @@ package backtest
 // len(res.Weeks) and emits it as the `weeks` column, so R re-derives it.
 
 import (
-	"os"
 	"testing"
 )
 
 func TestDiagViceCaptainFix(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	// Baseline is the *pre-fix* arm rather than the shipped one, deliberately, so

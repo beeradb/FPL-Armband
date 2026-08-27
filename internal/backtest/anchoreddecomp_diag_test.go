@@ -55,7 +55,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
@@ -219,9 +218,7 @@ func tcMatchupControl(cur *Season, start int, capXP map[int]float64) analysis.Ch
 // either can place it — so this is a pure timing contrast with no chip-set
 // difference between arms.
 func TestDiagTripleCaptainMatchup(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== triple captain: is it worth timing on OPPONENT QUALITY?\n")
@@ -260,9 +257,7 @@ func TestDiagTripleCaptainMatchup(t *testing.T) {
 }
 
 func TestDiagAnchoredChipDecomposition(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== which chip carries the anchoring effect? Metric: POLICY.\n")

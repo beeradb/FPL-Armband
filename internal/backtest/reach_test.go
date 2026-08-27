@@ -255,7 +255,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 
@@ -406,9 +405,7 @@ func (c reachCase) reachedStrict() bool {
 func (c reachCase) forgone() float64 { return c.gain - c.shippedGain }
 
 func TestDiagGroupedMoveReach(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	if budgetWeight != 0 {
 		t.Skipf("FPL_BUDGET_WEIGHT=%v: the gate reconstruction here omits the "+
 			"money term, so it would silently test a different gate", budgetWeight)

@@ -36,7 +36,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 )
@@ -49,9 +48,7 @@ type calendarWeek struct {
 }
 
 func TestDiagFixtureCalendar(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	pairs := loadPairs(t, cfg)
 

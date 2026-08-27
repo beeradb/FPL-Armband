@@ -3,7 +3,6 @@ package backtest
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 	"testing"
 )
@@ -81,9 +80,7 @@ import (
 // real multi-week injury report is worth. `OracleMinutes` at a longer window is
 // the arm that would test it.
 func TestDiagTeamNewsTransferValue(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	ctx := context.Background()
 

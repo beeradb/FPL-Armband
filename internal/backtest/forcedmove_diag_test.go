@@ -68,16 +68,13 @@ package backtest
 import (
 	"fmt"
 	"math"
-	"os"
 	"testing"
 
 	"armband/internal/analysis"
 )
 
 func TestDiagForcedMoveCensus(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	cfg := loadConfig(t)
 	mirrorArchive(t, cfg)
 

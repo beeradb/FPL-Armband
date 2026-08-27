@@ -67,7 +67,6 @@ package backtest
 
 import (
 	"fmt"
-	"os"
 	"testing"
 )
 
@@ -91,9 +90,7 @@ import (
 var wildcardReservations = []float64{8, 10, 12, 14, 16}
 
 func TestDiagWildcardReservation(t *testing.T) {
-	if os.Getenv("DIAG") == "" {
-		t.Skip("set DIAG=1")
-	}
+	requireDiag(t)
 	starts := sweepStarts()
 
 	fmt.Printf("\n=== how expensive must the repair be before the wildcard fires?\n")
