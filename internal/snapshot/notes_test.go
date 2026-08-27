@@ -1020,6 +1020,8 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// claims grew. A raise that cannot say which of the two it is should not be
 	// trusted, so it is said here.
 	//
+	// Raised by 2 KB, ~1.6 KB free.
+	//
 	// # 62 KB, 2026-08-26 — a Closed line was WRONG, and correcting it costs more
 	// than leaving it did
 	//
