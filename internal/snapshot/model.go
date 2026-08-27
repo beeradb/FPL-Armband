@@ -227,7 +227,14 @@ var registry = map[string]struct{ title, what, reading string }{
 			"and below 1.000 means the band is over-predicted**. The top band is " +
 			"where a transfer search picks, so its ratio matters more than the " +
 			"aggregate: a bias shared by every player is invisible to an argmax, and " +
-			"this project has measured that correcting one costs points.",
+			"this project has measured that correcting one costs points. Error sd is " +
+			"the spread of the error around its own bias inside the band, and it is " +
+			"the one figure here conditioned on what was PREDICTED rather than on what " +
+			"happened — the benchmark table's error sd conditions on the outcome, so " +
+			"it describes players who turned out to haul and not players the model " +
+			"says will. **It is not a per-player interval and may not be quoted as " +
+			"one**: the spread is pooled across the whole band, and the top band is " +
+			"open-ended, so its figure mixes a prediction of 6 with a prediction of 15.",
 	},
 	"prediction_ordering": {
 		title: "Does the model rank players correctly, and is its top over-rated?",

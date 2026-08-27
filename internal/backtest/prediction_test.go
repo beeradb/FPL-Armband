@@ -1120,6 +1120,22 @@ func shortCategory(c string) string {
 	return c
 }
 
+// reportPredictionCalibration groups by PREDICTED value. That conditioning is the
+// point: the benchmark table above conditions on the OUTCOME, and a spread measured
+// on players who turned out to haul cannot be attached to a player the model merely
+// says will.
+//
+// `error sd` — the spread of the error around its own bias, within the band — is
+// printed and emitted because `errAcc` already carries the `sumSq` it needs for
+// every band. It was being accumulated on every push and discarded at print time,
+// which is what made spread-conditioned-on-the-prediction look unmeasured when it
+// was only unreported.
+//
+// ⚠️ It is NOT a per-player interval and may not be quoted as one. The spread is
+// POOLED over every player in the band, so it describes the band rather than the
+// player; and the top band is open-ended, so its sd mixes a prediction of 6 with a
+// prediction of 15. A band-level spread is a coarse INPUT to an interval, not an
+// interval.
 func reportPredictionCalibration(run *predRun, sink *modelSink, grid string) {
 	fmt.Printf("## Calibration: do the players rated at 5.0 score 5.0?\n\n")
 	fmt.Printf("Grouped by what was PREDICTED, so this reads at the level decisions are made\n")
@@ -1128,6 +1144,12 @@ func reportPredictionCalibration(run *predRun, sink *modelSink, grid string) {
 	fmt.Printf("transfer search picks, so its ratio matters more than the aggregate — a bias\n")
 	fmt.Printf("shared by every player is invisible to an argmax, and this project has\n")
 	fmt.Printf("measured that correcting one costs points.\n\n")
+	fmt.Printf("`error sd` is the spread of the error around its own bias inside the band.\n")
+	fmt.Printf("Unlike the error sd in the benchmark table above, which conditions on what\n")
+	fmt.Printf("the player ACTUALLY scored, this one conditions on what was PREDICTED — the\n")
+	fmt.Printf("only conditioning a per-player interval could be built from. It is not one\n")
+	fmt.Printf("yet: the spread is pooled over the whole band, and the top band is\n")
+	fmt.Printf("open-ended, so its figure mixes a prediction of 6 with a prediction of 15.\n\n")
 	fmt.Printf("Bands with fewer than 30 observations are omitted rather than printed as\n")
 	fmt.Printf("noise.\n\n")
 
@@ -1135,7 +1157,8 @@ func reportPredictionCalibration(run *predRun, sink *modelSink, grid string) {
 	fmt.Printf("population: %s\n\n", pop)
 	for _, name := range predictorNames {
 		fmt.Printf("%s\n", name)
-		fmt.Printf("  %-26s %8s %10s %10s %8s\n", "band", "n", "predicted", "actual", "ratio")
+		fmt.Printf("  %-26s %8s %10s %10s %8s %9s\n",
+			"band", "n", "predicted", "actual", "ratio", "error sd")
 		for _, band := range bandOrder {
 			a := run.calib[predKey(pop, name, band)]
 			if a == nil || a.n < 30 {
@@ -1147,12 +1170,14 @@ func reportPredictionCalibration(run *predRun, sink *modelSink, grid string) {
 			if mp != 0 {
 				ratio = ma / mp
 			}
-			fmt.Printf("  %-26s %8d %10.3f %10.3f %8.3f\n", band, a.n, mp, ma, ratio)
+			fmt.Printf("  %-26s %8d %10.3f %10.3f %8.3f %9.3f\n",
+				band, a.n, mp, ma, ratio, a.errorSD())
 			if name == "model" {
 				sink.emitAll("prediction_calibration", grid, band, a.n,
 					measure{"predicted", mp},
 					measure{"actual", ma},
-					measure{"ratio", ratio})
+					measure{"ratio", ratio},
+					measure{"error_sd", a.errorSD()})
 			}
 		}
 		fmt.Printf("\n")
