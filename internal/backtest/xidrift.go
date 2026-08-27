@@ -256,11 +256,16 @@ func wildcardValueOverNext(drift []float64, changes, free, bankUpTo int) Wildcar
 // basically never worth a transfer. Unless you highly doubt a starter will
 // play."*
 //
-// Measured, that input produces a rule that does the opposite of its purpose:
-// fired on a raw count, the shipped wildcard trigger leaves the policy taking
-// MORE hits (+0.58) and losing points, because it burns the chip on a squad whose
-// "three changes" are swaps nobody would pay for — and the fresh squad then still
-// needs repairing. See stats/cells/2026-08-26-wildcard-noanchor.
+// The objection is structural: fired on a raw count, a rule can burn the chip on
+// a squad whose "three changes" are swaps nobody would pay for, and the fresh
+// squad then still needs repairing.
+//
+// ⚠️ **RETRACTED 2026-08-26: this said "measured, that input leaves the policy
+// taking MORE hits (+0.58)". That figure is withdrawn** — the arm labelled "the
+// shipped rule" ran at a bar of ZERO, because `sweepConfig` does not map
+// `config.OptionValue` into `SimConfig`. **At the real bar it reads −0.03.** The
+// banner in stats/cells/2026-08-26-wildcard-noanchor carries the retraction; this
+// comment cited that directory while asserting the number it withdraws.
 //
 // # What counts
 //

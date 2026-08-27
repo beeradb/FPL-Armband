@@ -1760,11 +1760,23 @@ type SimConfig struct {
 	// RepairCountsXIOnly prices the repair on the starters a fresh optimum would
 	// replace, rather than on every held player it would replace.
 	//
-	// ⚠️ **The raw count is measurably the wrong input to a hit price.** Fired on
-	// it, the shipped wildcard rule leaves the policy taking MORE hits (+0.58) and
-	// losing points where it fires, because "three changes" over fifteen can be
-	// three bench swaps nobody would pay for — so the chip is burnt on a squad
-	// that did not need rebuilding and the fresh squad still needs repairing.
+	// ⚠️ **The raw count is the wrong input to a hit price, and the ARGUMENT for
+	// that is structural rather than measured.** "Three changes" over fifteen can
+	// be three bench swaps nobody would pay for, so a rule priced on the raw count
+	// can burn the chip on a squad that did not need rebuilding — and the fresh
+	// squad still needs repairing afterwards.
+	//
+	// ⚠️ **RETRACTED 2026-08-26: this cited "+0.58 more hits" as the measurement
+	// behind that claim, and that figure is withdrawn.** The arm labelled "the
+	// shipped rule" ran at a bar of ZERO — `sweepConfig` never maps
+	// `config.OptionValue` into `SimConfig` and `config.json` carries no
+	// `option_value` block, so `ChipBarAt(0, ...) = 0` and the arm fired whenever
+	// the repair cost exceeded nothing at all. **At the real bar it reads −0.03**,
+	// which is not a sign flip away from zero but a null. See
+	// stats/cells/2026-08-26-wildcard-noanchor, whose banner retracts it.
+	//
+	// The structural argument above stands on its own; what does not stand is any
+	// claim that the raw count was measured to cost hits.
 	//
 	// False, every existing caller, keeps the shipped behaviour. See changesInXI
 	// for what the count excludes and what that costs.
