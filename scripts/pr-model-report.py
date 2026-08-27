@@ -71,6 +71,29 @@ GLOSSARY = [
 ]
 
 
+def bail(out, headline, detail):
+    """Write a report saying what could not be measured, and exit 0 regardless.
+
+    Loud on the pull request, silent to the build. The distinction matters: a
+    reviewer needs to know the check did not happen, and a red X on a reporting
+    job trains people to ignore red Xs.
+    """
+    with open(out, "w") as f:
+        f.write("\n".join([
+            MARKER,
+            "## Model accuracy on this pull request",
+            "",
+            f"⚠️ **Not checked — {headline}.**",
+            "",
+            detail,
+            "",
+            "This is a reporting job and does not gate anything, so the build is unaffected. "
+            "But treat this pull request as **unmeasured, not clean.**",
+        ]) + "\n")
+    print(f"wrote {out} (not checked: {headline})", file=sys.stderr)
+    return 0
+
+
 def load_gate():
     """Import figures-moved-check.py by path; its filename is not a module name."""
     path = os.path.join(HERE, "figures-moved-check.py")
@@ -139,7 +162,14 @@ def chart(cur, prev):
 
 
 def movement(cur, prev, tag, threshold):
-    if prev is None:
+    # ⚠️ Truthiness, NOT `is None`. `previous()` returns a parsed dict, and a
+    # published figures.csv that is empty or header-only parses to `{}` with no
+    # error — so an identity check let an EMPTY baseline fall through to the
+    # comparison, match nothing, and render as "Nothing moved". An unchecked
+    # comparison reading as a clean one is the exact failure the gate this
+    # borrows from warns about in its own comment. Caught in review; both
+    # branches now agree, and `main()` normalises `{}` to `None` besides.
+    if not prev:
         return (f"### What moved\n\n"
                 f"⚠️ **Unchecked, not clean.** There is no published snapshot to compare against "
                 f"(newest release: `{tag or 'none'}`), so nothing here says whether this pull "
@@ -181,20 +211,37 @@ def main():
     ap.add_argument("--threshold", type=float, default=0.005)
     a = ap.parse_args()
 
+    # ⚠️ EVERY path below writes a report and returns 0. This script must never
+    # fail a build — that is its stated contract, and it was broken: two early
+    # `return 1` paths meant an unreadable render turned into a red check with no
+    # comment and no run summary, because the workflow's later steps do not run
+    # after a failed step. A report that says "I could not measure this" is
+    # useful; a missing report that also reds the build is not, and the gating
+    # opinion belongs to `figures-moved-check.py` alone.
     gate = load_gate()
     if gate is None:
-        print("could not load figures-moved-check.py", file=sys.stderr)
-        return 1
+        return bail(a.out, "the comparison machinery could not be loaded",
+                    "`figures-moved-check.py` could not be imported, so there is no way to read "
+                    "this branch's figures or fetch a baseline.")
 
-    cur = gate.read(a.figures)
+    try:
+        cur = gate.read(a.figures)
+    except Exception as e:
+        return bail(a.out, "the figures could not be read", f"Reading `{a.figures}` raised `{e}`.")
     if not cur:
-        print(f"no figures in {a.figures}", file=sys.stderr)
-        return 1
+        return bail(a.out, "no figures were produced",
+                    f"`{a.figures}` parsed to zero figures. The diagnostics reported success, so "
+                    "this points at the render rather than the run — and it means **nothing on "
+                    "this pull request has been checked.**")
+
     try:
         prev, tag = gate.previous(a.tmp)
     except Exception as e:                      # a missing baseline is not a crash
         prev, tag = None, None
         print(f"could not fetch a baseline: {e}", file=sys.stderr)
+    # An empty baseline is no baseline. See movement()'s comment.
+    if not prev:
+        prev = None
 
     parts = [
         MARKER,
