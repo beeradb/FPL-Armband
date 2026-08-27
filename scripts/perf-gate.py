@@ -79,6 +79,27 @@ TIME_UNITS = ("sec/op",)
 # null measures something larger.
 MIN_TIME_BAR_PCT = 5.0
 
+# ⚠️ Memory gets a measured bar too, and an earlier version of this file did not
+# give it one. It hard-failed on ANY significant memory move under the comment
+# "memory is deterministic, so this is real". That premise was measured on some of
+# these benchmarks and generalised to all of them, and it is false:
+# `BenchmarkDPSeeds/pool600/tight` moves ~588 B/op in 10.7MB (0.005%) and ±2
+# allocs in 24249 between two runs of ONE commit, reproducibly, 6 times out of 6.
+# The gate therefore failed on main's own null on the first pull request after it
+# merged — it was not measuring the thing it assumed.
+#
+# The fix is the one the runtime bar already uses: let the null say what this
+# runner and these benchmarks actually do, PER BENCHMARK. A deterministic
+# benchmark earns a 0% bar and keeps the strict rule, which is most of them; one
+# that jitters earns exactly its own jitter and no more.
+#
+# ⚠️ The ceiling is what stops that becoming an excuse. A null memory move above
+# it is not jitter to be tolerated — it is a benchmark too unstable to gate with,
+# and it fails loudly rather than silently widening. 0.005% against 1.0% is three
+# orders of magnitude of headroom, and a real memory regression is far larger
+# still, so the bite is intact.
+MEM_NULL_TOLERANCE_PCT = 1.0
+
 
 def run_benchstat(a, b):
     """A/B two benchmark files and return rows as (unit, name, delta_pct, p, significant)."""
@@ -151,17 +172,25 @@ def to_float(x):
 
 
 def bar_from_null(null_rows):
-    """The runtime bar this runner earned, and any memory nondeterminism it exposed."""
+    """What this runner earned: a runtime bar, per-benchmark memory bars, and the
+    benchmarks whose memory is too unstable to gate with at all."""
     worst = 0.0
     for unit, name, delta, _p, sig in null_rows:
         if unit in TIME_UNITS and sig and name != "geomean":
             worst = max(worst, abs(delta))
-    unstable = [
-        (unit, name, delta)
-        for unit, name, delta, _p, sig in null_rows
-        if unit in MEMORY_UNITS and sig and name != "geomean"
-    ]
-    return max(worst, MIN_TIME_BAR_PCT), unstable
+
+    mem_bars, broken = {}, []
+    for unit, name, delta, _p, sig in null_rows:
+        if unit not in MEMORY_UNITS or not sig or name == "geomean":
+            continue
+        # inf is "moved off a zero baseline" — never jitter, always a real change,
+        # so it can never earn a bar.
+        if delta == float("inf") or abs(delta) > MEM_NULL_TOLERANCE_PCT:
+            broken.append((unit, name, delta))
+            continue
+        mem_bars[(unit, name)] = abs(delta)
+
+    return max(worst, MIN_TIME_BAR_PCT), mem_bars, broken
 
 
 def main():
@@ -175,32 +204,45 @@ def main():
     null_rows = run_benchstat(args.base, args.control)
     cand_rows = run_benchstat(args.base, args.head)
 
-    bar, unstable = bar_from_null(null_rows)
+    bar, mem_bars, broken = bar_from_null(null_rows)
 
     print("PERFORMANCE GATE")
     print(f"  runtime bar measured from this runner's own null: {bar:.1f}%"
           f"{'  (floor)' if bar == MIN_TIME_BAR_PCT else ''}")
+    if mem_bars:
+        print(f"  memory bars measured from the same null, per benchmark "
+              f"(tolerance {MEM_NULL_TOLERANCE_PCT:.1f}%):")
+        for (unit, name), b in sorted(mem_bars.items()):
+            print(f"       {name}  {unit}  {b:.3f}%")
+    else:
+        print("  memory: the null moved none of it, so every memory bar is 0%")
 
-    if unstable:
-        print("\n  ⚠️ THE NULL MOVED MEMORY, which it cannot do if the benchmarks are")
-        print("     deterministic. This is a defect in the benchmark, not runner noise,")
-        print("     and widening a bar would hide it:")
-        for unit, name, delta in unstable:
-            print(f"       {name}  {unit}  {delta:+.2f}% between two runs of ONE commit")
+    if broken:
+        print("\n  ⚠️ THE NULL MOVED MEMORY BY MORE THAN THE TOLERANCE. A benchmark this")
+        print("     unstable cannot gate anything, and widening its bar to fit would hide")
+        print("     whatever is doing it. Fix the benchmark:")
+        for unit, name, delta in broken:
+            how = "off a zero baseline" if delta == float("inf") else f"{delta:+.2f}%"
+            print(f"       {name}  {unit}  {how} between two runs of ONE commit")
 
     failures = []
     for unit, name, delta, p, sig in cand_rows:
         if name == "geomean" or not sig or delta <= 0:
             continue
         if unit in MEMORY_UNITS:
+            mb = mem_bars.get((unit, name), 0.0)
+            if delta <= mb:
+                continue
             how = "from zero" if delta == float("inf") else f"{delta:+.2f}%"
-            failures.append(f"{name}  {unit}  {how} (p={p})  — memory is deterministic, so this is real")
+            why = (f"above this benchmark's {mb:.3f}% null bar" if mb
+                   else "this benchmark's memory did not move in the null, so this is real")
+            failures.append(f"{name}  {unit}  {how} (p={p})  — {why}")
         elif unit in TIME_UNITS and delta > bar:
             failures.append(f"{name}  {unit}  {delta:+.2f}% (p={p})  — above this runner's {bar:.1f}% null bar")
 
-    # Regressions still count when the null itself is broken; the unstable note
-    # above is a separate report, not an excuse to pass.
-    if not failures and not unstable:
+    # Regressions still count when the null itself is broken; the note above is a
+    # separate report, not an excuse to pass.
+    if not failures and not broken:
         print("\n  no regression above the measured bar")
         return 0
     if not failures:
