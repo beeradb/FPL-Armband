@@ -2141,6 +2141,41 @@ func BestXI(squad []PlayerMetrics) (xi, bench []PlayerMetrics, formation string)
 	return bestXI(squad)
 }
 
+// XIPoints is what a squad's best legal eleven scores, summed on Score.
+//
+// # Why this is here rather than in the backtest, where it was written
+//
+// It is the unit of **squad drift** — how far a held fifteen has fallen behind
+// what could be built instead — and drift is only a replay quantity by accident
+// of where it was first needed. A live manager wants the same number about his
+// own team, so the function has two callers in different packages and must have
+// one definition. `internal/backtest` cannot host it, because nothing in the
+// product may depend on the replay harness.
+//
+// ⚠️ **It reuses [BestXI] rather than taking the top eleven by Score, and that is
+// not an optimisation.** The top eleven by Score fields illegal formations — four
+// goalkeepers, no forward — and so flatters a squad that is strong in one
+// position and empty in another. Drift measured that way would read a lopsided
+// squad as healthy.
+//
+// ⚠️ **A player the bootstrap does not know is skipped, not scored as zero.** A
+// squad carrying an id from a different season would otherwise report a drift
+// made of absences, which reads exactly like a squad that has decayed.
+func XIPoints(e *Engine, squad []int) float64 {
+	var ms []PlayerMetrics
+	for _, id := range squad {
+		if el := e.Boot.ElementByID(id); el != nil {
+			ms = append(ms, e.Metrics(el))
+		}
+	}
+	xi, _, _ := BestXI(ms)
+	var sum float64
+	for _, p := range xi {
+		sum += p.Score
+	}
+	return sum
+}
+
 // ownedSquad resolves the caller's squad ids against the scored pool, in a
 // stable order. It returns nil if any player is missing, since a partial squad
 // is not a legal starting point.
