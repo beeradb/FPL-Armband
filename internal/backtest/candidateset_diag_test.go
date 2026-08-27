@@ -123,6 +123,71 @@ var candidateSetSizes = []int{10, 20, 40, 50}
 // five-week means over the same weeks. Season stays the clustering axis.
 var candidateBands = [][2]int{{1, 10}, {11, 20}, {21, 40}, {41, 50}}
 
+// priceRankOrder ranks player ids by price, most expensive first, and it is the
+// one implementation of that ordering.
+//
+// # Why this is a function and not two sorts
+//
+// Price rank decides membership in two different places — this file's PRICE
+// rungs and bands, and the rank-band populations the prediction benchmark emits
+// to `FPL_PREDICTION_CSV`. Both need the same answer to "who are the ten most
+// expensive players this gameweek", and one quantity with two implementations is
+// this project's signature failure.
+//
+// ⚠️ **The tie-break is the load-bearing part, not tidiness.** Callers build
+// their rows by ranging a MAP, so input order is randomised per run, and
+// `sort.Slice` is NOT stable. Prices move in 0.1 steps so ties are everywhere,
+// and the top-n by price genuinely changed between runs: two runs of the
+// candidate-set diagnostic disagreed by up to 0.007 of skill on the same
+// population, which is the size of the differences these tables are read for.
+// Breaking on the lower element id makes the ordering total, and therefore the
+// output reproducible.
+//
+// ⚠️ Predictions are floats and tie far less often, which is why the
+// model-ranked sets were nearly stable while the price-ranked ones were not. The
+// asymmetry is what made the defect visible; it is not a reason to leave a
+// model-ranked sort untotalled.
+func priceRankOrder(ids []int, prices []float64) []int {
+	if len(ids) != len(prices) {
+		panic(fmt.Sprintf("priceRankOrder: %d ids against %d prices — these are "+
+			"parallel slices and a caller that lets them diverge is ranking "+
+			"players by other players' prices", len(ids), len(prices)))
+	}
+	idx := make([]int, len(ids))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.Slice(idx, func(a, b int) bool {
+		x, y := idx[a], idx[b]
+		if prices[x] != prices[y] {
+			return prices[x] > prices[y]
+		}
+		return ids[x] < ids[y]
+	})
+	out := make([]int, len(idx))
+	for i, j := range idx {
+		out[i] = ids[j]
+	}
+	return out
+}
+
+// rankWindow is the set of ids occupying ranks [lo, hi] of an order, 1-indexed
+// and inclusive.
+//
+// A window running past the available rows contributes the rows it has rather
+// than being dropped, which is the same convention the cumulative rungs use: a
+// gameweek with fewer than n usable rows yields a truncated set. The `players`
+// and `rows` columns downstream make any truncation visible.
+func rankWindow(order []int, lo, hi int) map[int]bool {
+	out := map[int]bool{}
+	for i := lo - 1; i < hi && i < len(order); i++ {
+		if i >= 0 {
+			out[order[i]] = true
+		}
+	}
+	return out
+}
+
 func TestDiagCandidateSetAccuracy(t *testing.T) {
 	requireDiag(t)
 	cfg := loadConfig(t)
@@ -264,13 +329,15 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 				}
 				return byPred[a].id < byPred[b].id
 			})
-			byPrice := append([]row(nil), rows...)
-			sort.Slice(byPrice, func(a, b int) bool {
-				if byPrice[a].price != byPrice[b].price {
-					return byPrice[a].price > byPrice[b].price
-				}
-				return byPrice[a].id < byPrice[b].id
-			})
+			// Ranked through the shared helper rather than sorted here, so the
+			// prediction benchmark's rank-band populations and this table's PRICE
+			// rungs cannot drift apart. The id tie-break lives there; see its
+			// comment for the run-to-run defect it fixes.
+			ids, prices := make([]int, len(rows)), make([]float64, len(rows))
+			for i, r := range rows {
+				ids[i], prices[i] = r.id, r.price
+			}
+			byPrice := priceRankOrder(ids, prices)
 			top, pri := map[int]map[int]bool{}, map[int]map[int]bool{}
 			for _, n := range candidateSetSizes {
 				tn, pn := map[int]bool{}, map[int]bool{}
@@ -278,7 +345,7 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 					tn[byPred[i].id] = true
 				}
 				for i := 0; i < n && i < len(byPrice); i++ {
-					pn[byPrice[i].id] = true
+					pn[byPrice[i]] = true
 				}
 				top[n], pri[n] = tn, pn
 			}
@@ -286,14 +353,11 @@ func TestDiagCandidateSetAccuracy(t *testing.T) {
 			// window runs past the available rows contributes the rows it has.
 			topBand, priBand := map[int]map[int]bool{}, map[int]map[int]bool{}
 			for bi, b := range candidateBands {
-				tn, pn := map[int]bool{}, map[int]bool{}
+				tn := map[int]bool{}
 				for i := b[0] - 1; i < b[1] && i < len(byPred); i++ {
 					tn[byPred[i].id] = true
 				}
-				for i := b[0] - 1; i < b[1] && i < len(byPrice); i++ {
-					pn[byPrice[i].id] = true
-				}
-				topBand[bi], priBand[bi] = tn, pn
+				topBand[bi], priBand[bi] = tn, rankWindow(byPrice, b[0], b[1])
 			}
 			for _, r := range rows {
 				x := obs{r.pred, r.base, r.act}
