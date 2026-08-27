@@ -1,0 +1,23 @@
+# Why a commit moved the published accuracy figures — the BACKFILL half.
+#
+# The live half is a `Figures-moved:` trailer in the commit message, which is the
+# author declaring intent at the time. This file is for commits that predate that
+# convention, and its rows are RECONSTRUCTED after the fact by someone reading the
+# diff and the series.
+#
+# ⚠️ THOSE ARE NOT THE SAME OBJECT and the dashboard marks them differently. A
+# declaration is evidence about intent; a reconstruction is a later reader's best
+# account, and can be wrong in the specific way that matters — it tends to find a
+# reason, because it is looking for one.
+#
+# ⚠️ Do not add a row here for a commit that could carry a trailer. Backfilling
+# the convention instead of following it turns an enforced record into an optional
+# one, and the check in scripts/figures-moved-check.py exists to stop exactly that.
+#
+# `expected` says whether the author would have predicted the movement. It is the
+# distinction the timeline is for: a constant change SHOULD move the figures, and
+# a refactor should not.
+#
+# sha,expected,reason
+5b97033,no,"A squad-feasibility fix that traded calibration across the season: early-season worse (gw4 -0.0755, gw8 -0.0253), every cohort from gw12 on better (+0.014 to +0.027), roughly three to one against the early half. Reconstructed 2026-08-26 from the assembled series; the commit itself gives no hint it would touch the model's calibration at all, and the record already treated it as a mover of chip figures without knowing why."
+74d7fe1,yes,"Shipped MinutesWeight at 1.0 — a deliberate scoring-constant change, so movement was intended. The signature fits: all eight cohorts shifted down together (-0.009 to -0.018) rather than trading against each other, which is what a level change in a shared constant looks like. Reconstructed 2026-08-26; the size was not stated anywhere at the time."
