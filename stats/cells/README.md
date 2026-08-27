@@ -4,8 +4,10 @@ Two kinds of thing live here, and telling them apart is the point of this file.
 
 - **Inputs.** Per-cell CSVs that `stats/schedule_screen.R` and `stats/concentration_screen.R` **read
   as data**. Two committed scripts fail without them.
-- **Evidence.** Banked cells behind a figure that `AGENTS.md` states as settled record. No script
-  reads them; a reader consults them to check a number that the resident index asserts.
+- **Evidence.** Banked cells behind a figure that `AGENTS.md`, or a `stats/findings/` narrative,
+  states as settled record. No script reads them; a reader consults them to check a number the
+  record asserts. In practice every citation here is currently from `AGENTS.md` — no
+  `stats/findings/` entry postdates 2026-08-18 — but both count, and the rule below says so.
 
 ⚠️ **CORRECTED 2026-08-26: this file used to say the directory held inputs and *only* inputs, and
 that the mechanical test for adding one was whether a `stats/*.R` screen grepped for its path.**
@@ -24,8 +26,8 @@ tracked directory.
 
 **Cells are the exception, for two different reasons depending on which kind they are.** An input
 cannot be replaced by an inlined figure: a screen that reads a cells file needs the file. And a
-banked-evidence figure that `AGENTS.md` quotes as resolved needs somewhere checkable to have come
-from, because the resident index carries verdicts and pointers rather than the cells behind them.
+banked-evidence figure the record quotes as resolved needs somewhere checkable to have come from,
+because the resident index carries verdicts and pointers rather than the cells behind them.
 
 ## What travels with a cells file
 
@@ -41,13 +43,20 @@ Each `<name>.csv` is accompanied by the sidecars that were beside it:
 
 - **`2026-08-12-4d61058/teamform.csv`** has no provenance sidecar and never had one. It is kept
   because `concentration_screen.R` names it, but a result leaning on it carries that caveat.
-- **`xgc-transport/`** holds twelve CSVs and **no provenance sidecar at all**. It is a different
-  shape from the rest — per-season transport and tercile tables rather than sweep cells, with four
-  `.txt` logs standing in for the sidecars (three `*-console.txt` and a `tercile-inference.txt`).
-  `stats/xgc_tercile_transport.R` documents
-  copying them into `stats/out/` before it runs, so it is an input reached through a documented
-  copy step rather than a hardcoded path. Read the console logs for its data state; there is no
-  machine-readable provenance to grep.
+- **`xgc-transport/`** holds twelve CSVs and **no provenance sidecar at all**, with four `.txt` logs
+  standing in for them (three `*-console.txt` and a `tercile-inference.txt`). Read those for its
+  data state; there is nothing machine-readable to grep.
+
+  ⚠️ **The twelve do not all earn their place the same way, and an earlier draft of this section
+  exempted the whole directory in prose — which is precisely the softening this rule is supposed to
+  prevent.** They split:
+
+  - **Four inputs.** `transport-*.csv`, reached through the documented `cp` at
+    `stats/xgc_tercile_transport.R:7` rather than a hardcoded path. That is still test (1).
+  - **Eight orphans.** `xgc-tercile-<season>.csv` and `xgc-tercile-<season>-buckets.csv` are
+    `TestDiagXGCTransport`'s own **output** (`internal/backtest/xgctransport_test.go:347,349`), read
+    by no committed script and cited by neither surface. They fail both tests exactly as the four
+    named at the end of this file do, and belong on that list until someone cites or removes them.
 
 ## The directory names are labels, not pointers
 
@@ -75,11 +84,22 @@ name and the same removal will be due a second time. Note that (2) is a real con
 formality: it means the *figure lands first*, in the record, and the cells follow to back it up —
 never cells banked speculatively against a claim nobody has made.
 
-⚠️ **Four entries fail both tests today**, recorded here rather than quietly deleted, because
-deciding which of the two they are is a judgement about the work that produced them:
+⚠️ **Four entries and eight files fail both tests today**, recorded here rather than quietly
+deleted, because deciding which of the two kinds each is a judgement about the work that produced
+it:
 
-- `2026-08-25-decomp-rerun/` and `2026-08-26-wildcard-noanchor/` — cited by no surface.
+- `2026-08-25-decomp-rerun/` — cited by no admission surface. Its only reference anywhere is a
+  cells-internal cross-link from `2026-08-25-f7d2be1b/README.md`, which is not one of the two.
 - `2026-08-13-chipprep3.csv` and `2026-08-13-chipseq2.csv` — named only in a `sweep_inference.R`
   comment recording that the screen **dropped** them, which is a mention, not a read.
+- The eight `xgc-tercile-*` files in `xgc-transport/`, per the split above.
+- `2026-08-26-wildcard-noanchor/` — ⚠️ **not uncited, and the citations are the problem.** Two Go
+  comments name it by exact path: `internal/backtest/xidrift.go:263` and
+  `internal/backtest/wildcardreservation_diag_test.go:57`. Neither is an admission surface, and
+  **both assert as settled fact the figure this directory's own README retracts** — that the
+  shipped wildcard trigger leaves the policy taking *more* hits, **+0.58**. That arm's bar was
+  **zero** and it was not the shipped rule; at the real bar it reads **−0.03**. The retraction is
+  dated the same day as the comments and both files are still uncorrected on `main`. Fixing those
+  two comments is what settles this entry; it is not this file's to do.
 
 Either give each one a citation or remove it; do not let the list grow.
