@@ -1,7 +1,10 @@
 import csv, os
 
-D = ("/home/bbowman.guest/fpl/.claude/worktrees/prior-half-life-on-repaired-xgc/"
-     "stats/snapshots/2026-08-13-aa95f75/cells")
+# The cells this reads are the ones beside it, so locate them from this file rather
+# than from a checkout path. The absolute path that used to be here named a host
+# account and a worktree that no longer exists, so it published a private path AND
+# could not run from any other clone.
+D = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cells")
 
 def load(name):
     rows = list(csv.DictReader(open(os.path.join(D, name))))
