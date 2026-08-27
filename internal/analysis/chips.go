@@ -642,6 +642,89 @@ var wantsWeek = map[chipKind]string{
 	kindTripleCaptain: "double",
 }
 
+// UnplannedChips reports chips the season has granted and the plan has not
+// spent. An empty result means every chip the competition allows is accounted
+// for.
+//
+// # Why this is a fourth function and not a branch of an existing one
+//
+// This file already keeps legality, wisdom and fixture facts apart because they
+// fail differently. Completeness is a fourth kind and fails differently again: an
+// unplanned chip is not illegal, so `ValidateChipPlan` must stay silent about it
+// — its contract is "an empty result means it is legal", and an unspent chip is
+// perfectly legal. It is not unwise either, so it is not a calendar note. It is
+// simply not spent, and the only thing that can see it is a comparison between
+// what the season GRANTS and what the plan FILLS.
+//
+// ⚠️ **Nothing detected this before.** `ValidateChipPlan` iterates the chips a
+// plan names, so a set nobody planned produces zero iterations and zero
+// messages. Measured on the shipped `config.json` on 2026-08-27: it fills the
+// first set (wildcard GW6, bench boost GW8, triple captain GW9, free hit GW16)
+// and leaves the second set entirely empty, in a season that grants two — and
+// every existing surface reported the plan as fine.
+//
+// ⚠️ **It reports a COUNT and a name, never a points figure.** How much a chip
+// is worth is a question for the replay, and the one recorded figure for
+// spending both sets is a season-path number from a DIAG sweep that does not
+// decompose cleanly into "what the second set alone is worth". Saying "you have
+// four chips unspent" is settled by the plan and the calendar; saying what they
+// would earn is not, and this function does not try.
+//
+// The first set expires at the GW19 deadline and an unplayed chip is simply
+// lost, so "unplanned" and "forfeited" converge as a season runs on. That is why
+// the message names the expiry rather than leaving the reader to recall it.
+func (e *Engine) UnplannedChips(s ChipSchedule) []string {
+	windows := e.chipWindowsByKind()
+
+	var out []string
+	for _, set := range []int{1, 2} {
+		var granted, unplanned []string
+		for _, k := range chipKinds {
+			// A set exists for this chip only when the competition published a
+			// window for it. Read the boot rather than assuming two sets: how
+			// many a season grants is a fact about the season, and this reads
+			// FPL's own answer.
+			if len(windows[string(k)]) < set {
+				continue
+			}
+			label := chipLabels[string(k)]
+			if label == "" {
+				label = string(k)
+			}
+			granted = append(granted, label)
+			if *s.field(k, set) <= 0 {
+				unplanned = append(unplanned, label)
+			}
+		}
+		if len(granted) == 0 || len(unplanned) == 0 {
+			continue
+		}
+		which := "first set"
+		if set == 2 {
+			which = "second set"
+		}
+		if len(unplanned) == len(granted) {
+			out = append(out, fmt.Sprintf(
+				"the %s of chips is granted this season and NONE of its %d is planned (%s)",
+				which, len(granted), strings.Join(unplanned, ", ")))
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s: %s unplanned",
+			which, strings.Join(unplanned, ", ")))
+	}
+	if len(out) > 0 {
+		out = append(out, "an unplayed chip is lost, not carried: the first set expires at the "+
+			fmt.Sprintf("GW%d deadline", chipSetExpiryGW))
+	}
+	return out
+}
+
+// chipSetExpiryGW is the last gameweek of the first chip set. FPL's rule is that
+// the first set expires after it and a fresh set becomes available from the next
+// one, which `backtest.ChipResetGW` states as the reset week. Named here rather
+// than imported because `internal/analysis` must not depend on `internal/backtest`.
+const chipSetExpiryGW = 19
+
 // ChipCalendarNotes reports how a declared plan sits against the blanks and
 // doubles the fixture list already shows for the squad actually held.
 //
