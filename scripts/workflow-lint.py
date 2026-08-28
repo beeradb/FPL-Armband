@@ -23,7 +23,14 @@ its `name:` -- which is the visible symptom of a file GitHub never parsed.
    class above. A plain `yaml.safe_load` cannot detect it by construction, so
    the loader below reports duplicates instead of silently collapsing them.
 
-2. **Floating action references** (`@v5`, `@main`). Every workflow here holds a
+2. **Unpinned tools fetched at job time** -- `go install ...@latest` and the
+   like. Same hole as a floating tag, one layer down and easier to miss: the
+   job resolves whatever is newest at the moment it runs, inside a job that
+   holds a token. Three were found on 2026-08-28 (benchstat, govulncheck,
+   gocyclo). Pinning the tool does NOT stale what the tool knows -- govulncheck
+   fetches its vulnerability database at runtime regardless of its own version.
+
+3. **Floating action references** (`@v5`, `@main`). Every workflow here holds a
    token, and `image.yml` says it directly: "This job holds packages:write, so
    a mutable tag here is a supply-chain hole." dependabot.yml is configured to
    keep SHA pins current, so a floating tag is also a ref dependabot will not
@@ -42,6 +49,8 @@ WORKFLOWS = pathlib.Path(".github/workflows")
 SHA = re.compile(r"^[0-9a-f]{40}$")
 # Local (`./.github/...`) and reusable-workflow refs are not registry actions.
 LOCAL = ("./", ".\\")
+# Refs that mean "whatever is newest right now" rather than a fixed thing.
+MOVING = ("latest", "main", "master", "HEAD")
 
 
 class DupKeyLoader(yaml.SafeLoader):
@@ -99,6 +108,18 @@ def check(path):
                 f"`<action>@<40-hex-sha> # {version}` -- these workflows hold "
                 f"tokens, and dependabot only bumps pinned refs."
             )
+
+    for i, line in enumerate(text.splitlines(), 1):
+        m = re.search(r"(go install|go run)\s+(\S+)@(\S+)", line)
+        if not m:
+            continue
+        tool, version = m.group(2), m.group(3).strip("\"'")
+        if version in MOVING:
+            problems.append(
+                f"{path}:{i}: `{tool}@{version}` resolves at job time. Pin an "
+                f"exact version -- this runs in a job holding a token, and "
+                f"`@{version}` is whatever is newest the moment CI runs."
+            )
     return problems
 
 
@@ -111,6 +132,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - run: go install example.com/cmd/tool@latest
       - name: two ifs
         if: github.event_name != 'pull_request'
         if: vars.SOMETHING == 'true'
@@ -135,13 +157,17 @@ def selftest():
 
     dup = [p for p in problems if "duplicate key" in p]
     floating = [p for p in problems if "floating tag" in p]
+    unpinned = [p for p in problems if "resolves at job time" in p]
     if not dup:
         print("SELFTEST FAILED: the duplicate-key check did not fire", file=sys.stderr)
         return 1
     if not floating:
         print("SELFTEST FAILED: the floating-tag check did not fire", file=sys.stderr)
         return 1
-    print("selftest: both checks fired on a file carrying both defects.")
+    if not unpinned:
+        print("SELFTEST FAILED: the unpinned-tool check did not fire", file=sys.stderr)
+        return 1
+    print("selftest: all three checks fired on a file carrying all three defects.")
     return 0
 
 
@@ -167,7 +193,7 @@ def main():
             file=sys.stderr,
         )
         return 1
-    print(f"{len(files)} workflow files: parse clean, no duplicate keys, every action pinned.")
+    print(f"{len(files)} workflow files: parse clean, no duplicate keys, every action and installed tool pinned.")
     return 0
 
 

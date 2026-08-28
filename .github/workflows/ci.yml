@@ -245,7 +245,7 @@ jobs:
       # on CHANGE: nothing NEW over the line, and nothing existing getting worse.
       # Attacking the grandfathered list is separate, optional work.
       - name: Install gocyclo
-        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0
 
       - name: Prove the complexity ratchet can fail
         run: python3 scripts/complexity-ratchet.py --selftest
