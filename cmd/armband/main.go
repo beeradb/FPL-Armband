@@ -43,6 +43,13 @@ Usage:
   armband transfers         Best transfers for the squad you own, as a team sheet
                             (no AI, no API cost)
   armband fixtures          Fixture difficulty table (no AI, no API cost)
+  armband overrides         Which hand-written minutes overrides the model now
+                            agrees with by itself, and which are still doing
+                            work. Retiring a redundant one is less to maintain
+                            each summer. Takes -within.
+  armband overrides         Which hand-written minutes overrides the model now
+                            agrees with by itself, and which are still doing
+                            work. Retiring a redundant one is less to maintain.
   armband due               Run the review only if a deadline is near (for cron)
   armband schedule          Print a crontab line for the due command
   armband nations           Nationality codes, for post-tournament rest config
@@ -110,8 +117,8 @@ Examples:
   armband squad -html squad.html    WRONG, and an error rather than a squad
                                      printed with the file never written
 
-  Four commands parse their own flags, which therefore go AFTER the command:
-  capture, backfill, snapshot and serve. Their flags still come
+  Five commands parse their own flags, which therefore go AFTER the command:
+  capture, backfill, snapshot, serve and overrides. Their flags still come
   before their own positional arguments, for the same reason — a FlagSet stops
   at the first non-flag argument too, so "backfill 2023-24 -coverage" reads
   -coverage as a second season name and crawls the archive it was meant to
@@ -497,6 +504,8 @@ func run() error {
 		return cmdDue(ctx, cfg, *cfgPath, client, engine, !*noReport)
 	case "schedule":
 		return cmdSchedule(cfg)
+	case "overrides":
+		return cmdOverrideCheck(ctx, cfg, client, engine, flag.Args()[1:])
 	case "review":
 		return cmdAgent(ctx, cfg, *cfgPath, client, engine, reviewPrompt(engine), "Weekly Review", !*noReport)
 	default:
@@ -1613,10 +1622,11 @@ func priorSeasonName(e *analysis.Engine) string {
 // themselves. Everything after the command name belongs to them and must not be
 // second-guessed here.
 var commandsThatParseTheirOwnFlags = map[string]bool{
-	"snapshot": true, // runSnapshot has its own FlagSet
-	"capture":  true, // cmdCapture takes -list and friends
-	"backfill": true, // cmdBackfill takes -coverage, -per-gameweek and friends
-	"serve":    true, // cmdServe takes -addr
+	"snapshot":  true, // runSnapshot has its own FlagSet
+	"capture":   true, // cmdCapture takes -list and friends
+	"backfill":  true, // cmdBackfill takes -coverage, -per-gameweek and friends
+	"serve":     true, // cmdServe takes -addr
+	"overrides": true, // cmdOverrideCheck takes -within
 }
 
 // rejectFlagsAfterCommand turns a silent no-op into an error.
