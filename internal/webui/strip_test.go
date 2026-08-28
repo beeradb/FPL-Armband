@@ -225,7 +225,22 @@ func TestStripCSSPreservesStringsAndURLs(t *testing.T) {
 // stripCSS never rewrites non-comment bytes, which is a claim about the CODE, not a
 // property anything here had actually run. This test runs it: a leading @charset followed
 // by a comment must come out with the @charset untouched and the comment gone.
+// TestStripCSSPreservesCharset pins the one item on the preservation list that had
+// no test of its own.
+//
+// ⚠️ It was argued safe "by construction" — the stripper never rewrites non-comment
+// bytes, so a leading `@charset` survives with no special case. That reasoning is
+// correct, AND it is the shape of reasoning this project has been wrong about
+// repeatedly, so it gets a test rather than an argument.
+//
+// `@charset` is the strictest rule in CSS: it is honoured ONLY as the very first
+// bytes of the sheet. A stripper that removed a leading comment and left the
+// declaration one byte later would still be "correct" about comments and would
+// silently change the sheet's encoding. No shipped CSS carries one today, which is
+// exactly why nothing would have caught a regression here.
 func TestStripCSSPreservesCharset(t *testing.T) {
+	// Exact equality, not Contains: it pins WHERE the comment bytes went, not just
+	// that the declaration survived somewhere.
 	src := "@charset \"utf-8\";\n/* explains the rest of the file */\n.a{color:red}"
 	want := "@charset \"utf-8\";\n\n.a{color:red}"
 	got := string(stripCSS([]byte(src)))
@@ -234,6 +249,14 @@ func TestStripCSSPreservesCharset(t *testing.T) {
 	}
 	if !strings.HasPrefix(got, "@charset \"utf-8\";") {
 		t.Errorf("@charset is no longer the first thing in the stylesheet: %q", got)
+	}
+
+	// The converse, which the first case cannot catch: a declaration INSIDE a
+	// comment must not survive. A stripper that preserved `@charset` by pattern
+	// rather than by position would pass above and fail here.
+	inComment := string(stripCSS([]byte("/* @charset \"iso-8859-1\"; */\n.a{color:red}")))
+	if strings.Contains(inComment, "iso-8859-1") {
+		t.Errorf("a commented-out @charset was resurrected: %q", inComment)
 	}
 }
 
@@ -257,53 +280,5 @@ func TestStripHTMLPreservesOrdinaryCommentsNot(t *testing.T) {
 	want := `<p>before</p><p>after</p>`
 	if got != want {
 		t.Errorf("stripHTML = %q, want %q", got, want)
-	}
-}
-
-// TestStripCSSPreservesAtCharset pins the one item on the preservation list that
-// had no test of its own.
-//
-// ⚠️ It was argued as safe "by construction" — the stripper never rewrites
-// non-comment bytes, so a leading `@charset` survives without any special case.
-// That reasoning is correct AND it is the shape of reasoning this project has
-// been wrong about repeatedly, so it gets a test rather than an argument.
-//
-// `@charset` is the strictest rule in CSS: it is only honoured as the very first
-// bytes of the sheet. A stripper that removed a leading comment and left the
-// declaration one byte later would still be "correct" about comments and would
-// silently change the sheet's encoding. None of the shipped CSS carries one
-// today, which is exactly why nothing would have caught a regression here.
-func TestStripCSSPreservesAtCharset(t *testing.T) {
-	cases := []struct {
-		name, src, wantHas, wantGone string
-	}{
-		{
-			name:     "leading charset survives and the comment after it goes",
-			src:      "@charset \"utf-8\";\n/* a comment */\nbody{color:red}",
-			wantHas:  "@charset \"utf-8\";",
-			wantGone: "a comment",
-		},
-		{
-			name:     "charset inside a comment is not resurrected",
-			src:      "/* @charset \"iso-8859-1\"; */\nbody{color:red}",
-			wantHas:  "body{color:red}",
-			wantGone: "iso-8859-1",
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got := string(stripCSS([]byte(c.src)))
-			if !strings.Contains(got, c.wantHas) {
-				t.Errorf("stripCSS dropped %q\n got: %q", c.wantHas, got)
-			}
-			if strings.Contains(got, c.wantGone) {
-				t.Errorf("stripCSS kept %q, which should have gone\n got: %q", c.wantGone, got)
-			}
-		})
-	}
-	// The declaration must remain at byte zero — CSS only honours it there.
-	got := stripCSS([]byte("@charset \"utf-8\";\nbody{color:red}"))
-	if !bytes.HasPrefix(got, []byte("@charset")) {
-		t.Errorf("@charset is no longer the first bytes of the sheet: %q", got[:min(40, len(got))])
 	}
 }
