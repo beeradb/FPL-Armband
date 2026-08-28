@@ -46,7 +46,7 @@ RUN go build -trimpath -ldflags='-s -w -buildid=' -o /out/armband ./cmd/armband
 # static-debian12 carries the CA bundle the live FPL API needs and nothing else:
 # no shell, no package manager. Nothing in the tree imports "C", so CGO stays off
 # and the binary is fully static.
-FROM gcr.io/distroless/static-debian12@sha256:1b7b9f0f0e0a1d2155f531db587cc48ec26aaf97ab64364225f5bf18a054e66a
+FROM gcr.io/distroless/static-debian12@sha256:d75cdd72874d4790092fcb1b058493ecf6bb5bf2b2b897045b00ff01d91843f2
 COPY --from=build /out/armband /usr/local/bin/armband
 
 # USER before WORKDIR, so /data is created owned by that uid on every builder
