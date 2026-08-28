@@ -103,13 +103,53 @@ func cmdDrift(ctx context.Context, cfg config.Config, args []string) error {
 		prior = nil
 	}
 
+	rows, skipped, freeHit, err := driftSeries(
+		ctx, cfg, cur, prior, *season, *from, *through)
+	if err != nil {
+		return err
+	}
+
+	if len(rows) == 0 {
+		return fmt.Errorf("no gameweek in %d-%d could be read: the archive may not carry "+
+			"%s yet, or entry %d has no picks there", *from, *through, *season, cfg.EntryID)
+	}
+
+	printDrift(cfg, *season, rows, skipped, freeHit)
+
+	if *out != "" {
+		if err := writeDriftCSV(*out, cfg.EntryID, *season, rows); err != nil {
+			return err
+		}
+		fmt.Printf("\nwrote %s\n", *out)
+	}
+	return nil
+}
+
+// driftSeries reads one gameweek at a time and returns the rows it could
+// score, alongside the gameweeks it could not and the ones it refused.
+//
+// The two absences are reported apart because they mean different things: a
+// SKIPPED gameweek is one the data does not reach, while a FREE HIT one is a
+// week whose fifteen was never the squad this series is about. Collapsing them
+// into a single count would hide the second behind the first.
+//
+// The only error it returns is the season mismatch, which is fatal for the whole
+// series rather than for one week — see the check itself for why.
+//
+// The results are unnamed on purpose. The loop below rebinds `err` on every
+// gameweek, and a named `err` result sitting behind that shadow reads as though
+// one of those rebindings could reach the caller. None can: every return here is
+// written out in full.
+func driftSeries(ctx context.Context, cfg config.Config, cur, prior *backtest.Season,
+	season string, from, through int) ([]driftRow, []int, []int, error) {
+
 	sc := backtest.SimConfig{Weights: cfg.Weights, StartGW: 1}
 	client := fpl.New(cfg.CacheDir, 24*time.Hour, 24*time.Hour)
 
 	var rows []driftRow
 	var skipped, freeHit []int
 
-	for gw := *from; gw <= *through; gw++ {
+	for gw := from; gw <= through; gw++ {
 		picks, err := client.Picks(ctx, cfg.EntryID, gw)
 		if err != nil || len(picks.Picks) == 0 {
 			skipped = append(skipped, gw)
@@ -157,45 +197,24 @@ func cmdDrift(ctx context.Context, cfg config.Config, args []string) error {
 		//
 		// Refusing beats reporting. A squad whose players cannot be found is not
 		// a squad with a large drift; it is a reading that did not happen.
-		resolved := 0
-		for _, id := range held {
-			if e.Boot.ElementByID(id) != nil {
-				resolved++
-			}
-		}
+		resolved := countResolved(e, held)
 		// A squad that cannot field eleven is not a squad with a big drift, so
 		// eleven — not fifteen — is the bar. A player genuinely removed from the
 		// game mid-season is a real and rare thing, and it should not fail a run.
 		if resolved < driftMinResolved {
-			return fmt.Errorf("GW%d: only %d of your %d players exist in the %s archive. "+
-				"FPL serves picks for the CURRENT season only, so -season must name the "+
-				"season being played — element ids are reassigned every summer and "+
-				"pairing two seasons reports a drift made of absences rather than decay",
-				gw, resolved, len(held), *season)
+			return nil, nil, nil, fmt.Errorf(
+				"GW%d: only %d of your %d players exist in the %s archive. "+
+					"FPL serves picks for the CURRENT season only, so -season must name the "+
+					"season being played — element ids are reassigned every summer and "+
+					"pairing two seasons reports a drift made of absences rather than decay",
+				gw, resolved, len(held), season)
 		}
 
-		// ⚠️ **The floors are not optional and their zero value is not a default.**
-		// Omitting them builds the comparison squad with NO minutes floor, so it
-		// can be filled with rotation risks and injured returnees that
-		// `armband squad`, `armband transfers` and the agent's own optimiser
-		// would all refuse to offer. Drift would then be measured against a
-		// laxer optimiser than any surface the user can act through, and would
-		// read systematically too high. The first version of this command did
-		// exactly that.
-		sq, err := e.Optimize(analysis.OptimizeRequest{
-			Budget:             budget,
-			MinMinutes:         analysis.PoolMinMinutes,
-			MinExpectedMinutes: analysis.PoolMinExpectedMinutes,
-		})
-		if err != nil || len(sq.Players) == 0 {
+		fresh := freshSquad(e, budget)
+		if fresh == nil {
 			skipped = append(skipped, gw)
 			continue
 		}
-		fresh := make([]int, 0, len(sq.Players))
-		for _, p := range sq.Players {
-			fresh = append(fresh, p.ID)
-		}
-
 		h, f := analysis.XIPoints(e, held), analysis.XIPoints(e, fresh)
 		rows = append(rows, driftRow{
 			gw: gw, held: h, fresh: f, drift: f - h,
@@ -203,13 +222,56 @@ func cmdDrift(ctx context.Context, cfg config.Config, args []string) error {
 			budgetTenths: budget,
 		})
 	}
+	return rows, skipped, freeHit, nil
+}
 
-	if len(rows) == 0 {
-		return fmt.Errorf("no gameweek in %d-%d could be read: the archive may not carry "+
-			"%s yet, or entry %d has no picks there", *from, *through, *season, cfg.EntryID)
+// countResolved is how many of a held fifteen exist in this engine's bootstrap.
+// Its caller refuses the whole series below driftMinResolved — see there for why
+// a squad that cannot be resolved is not a squad with a large drift.
+func countResolved(e *analysis.Engine, held []int) int {
+	resolved := 0
+	for _, id := range held {
+		if e.Boot.ElementByID(id) != nil {
+			resolved++
+		}
 	}
+	return resolved
+}
 
-	fmt.Printf("\nSQUAD DRIFT, entry %d, %s\n", cfg.EntryID, *season)
+// freshSquad is the best fifteen this engine can build for `budget`, as element
+// ids. It returns nil when no squad could be built — a gameweek the caller skips
+// rather than a failure, since the optimiser refusing a budget is a fact about
+// that week's pool and not an error in the series.
+//
+// ⚠️ **The floors are not optional and their zero value is not a default.**
+// Omitting them builds the comparison squad with NO minutes floor, so it
+// can be filled with rotation risks and injured returnees that
+// `armband squad`, `armband transfers` and the agent's own optimiser
+// would all refuse to offer. Drift would then be measured against a
+// laxer optimiser than any surface the user can act through, and would
+// read systematically too high. The first version of this command did
+// exactly that.
+func freshSquad(e *analysis.Engine, budget int) []int {
+	sq, err := e.Optimize(analysis.OptimizeRequest{
+		Budget:             budget,
+		MinMinutes:         analysis.PoolMinMinutes,
+		MinExpectedMinutes: analysis.PoolMinExpectedMinutes,
+	})
+	if err != nil || len(sq.Players) == 0 {
+		return nil
+	}
+	fresh := make([]int, 0, len(sq.Players))
+	for _, p := range sq.Players {
+		fresh = append(fresh, p.ID)
+	}
+	return fresh
+}
+
+// printDrift writes the series to stdout. Presentation only — every caveat it
+// prints is about how the numbers above were computed, so the two are kept in
+// one place rather than split between the computation and the table.
+func printDrift(cfg config.Config, season string, rows []driftRow, skipped, freeHit []int) {
+	fmt.Printf("\nSQUAD DRIFT, entry %d, %s\n", cfg.EntryID, season)
 	// ⚠️ "the eleven you fielded" would overstate this. What is scored is the
 	// model's own best legal eleven from the fifteen you OWNED — not your actual
 	// starting eleven, not your captain, and not autosubs. The distinction is
@@ -239,14 +301,6 @@ func cmdDrift(ctx context.Context, cfg config.Config, args []string) error {
 	fmt.Printf("\n⚠️ `changes` counts how many of your fifteen the fresh squad replaced. It\n")
 	fmt.Printf("is a move count, not a price: swapping a bench player nobody would spend a\n")
 	fmt.Printf("transfer on counts the same as replacing your captain. Read `drift`.\n")
-
-	if *out != "" {
-		if err := writeDriftCSV(*out, cfg.EntryID, *season, rows); err != nil {
-			return err
-		}
-		fmt.Printf("\nwrote %s\n", *out)
-	}
-	return nil
 }
 
 // liveArchiveSeason is the season being played at time t, in the archive's own

@@ -301,71 +301,10 @@ func run() error {
 	engine.Entry = cfg.EntryID
 	engine.HypotheticalBudget = int(cfg.HypotheticalBudget*10 + 0.5)
 
-	// Selling prices, preferring the public reconstruction. FPL gives you what
-	// you paid plus half of any rise, so a squad cannot be sold for its market
-	// value and any search that assumes otherwise is spending money that is not
-	// there.
-	//
-	// The reconstruction needs no credential and, unlike my-team, it can be
-	// checked: FPL's own team value is the squad's selling value, so a
-	// reconstruction that sums to it is proved right rather than trusted. A
-	// session is only a fallback for when it cannot be made exact.
-	switch played := engine.GameweeksPlayed(); {
-	case cfg.EntryID == 0:
-		engine.Budget = analysis.AssumedBudget(
-			"No entry_id in config.json, so there is no squad to price.")
-	case !engine.SeasonHasStarted():
-		// Genuinely pre-season: nothing has been bought yet, so market price
-		// is the selling price. Gated on SeasonHasStarted, not
-		// played == 0 — the same distinction AssemblyBudget's own pre-season
-		// case draws, and for the same reason: this is an account-wide fact
-		// ("has this manager bought anything yet"), and GameweeksPlayed()
-		// stays 0 for days after the season's first ball is kicked, which is
-		// exactly the gap the next case exists for.
-		engine.Budget = analysis.VerifiedBudget()
-	default:
-		// through is the gameweek to price this squad's picks against. Once
-		// one has FINISHED, its own number is exact. During the live gap —
-		// the season has started but played is still 0, because no gameweek
-		// has FINISHED yet — a gameweek is nonetheless under way and its
-		// picks are already locked in at the deadline that has passed, so
-		// pricing against it is exactly as valid; GameweeksPlayed() cannot
-		// see that gameweek, but FPL's own is_current flag (CurrentEvent())
-		// can. Skipping this and falling through to VerifiedBudget(), as this
-		// switch used to, leaves engine.Bank/SquadValue nil for the whole
-		// gap — which AssemblyBudget (correctly, since #45) now reports as a
-		// hard error rather than papering over with an assumed £100m.
-		through := squadPriceGameweek(played, engine.Boot.CurrentEvent())
-		sp, err := client.SquadPrices(ctx, cfg.EntryID, through)
-		switch {
-		case err != nil:
-			// The error is deliberately NOT interpolated. Every failure from the FPL
-			// client formats as "GET /entry/<id>/history/: …", and on the status-code
-			// branch it carries up to 200 bytes of FPL's response body — and this
-			// string is rendered verbatim into the alerts block of a page the user
-			// hands around or screenshots. An entry id is only semi-private, but it
-			// is the one path by which account-scoped data reaches that file, and the
-			// reader gains nothing from the URL. The full error still goes to stderr.
-			fmt.Fprintf(os.Stderr, "\n%s\n", dim("price history unavailable: "+err.Error()))
-			engine.Budget = analysis.AssumedBudget(
-				"Could not read this squad's price history")
-		case sp.Exact():
-			engine.SellPrices = sp.Sell
-			engine.Bank, engine.SquadValue = &sp.Bank, &sp.Value
-			engine.Budget = analysis.VerifiedBudget()
-		default:
-			// Close but unproven. Use them — they are far better than market
-			// prices — and say plainly that they are not exact.
-			engine.SellPrices = sp.Sell
-			// The bank and the team value are FPL's own figures rather than
-			// part of the reconstruction, so both are exact even when the
-			// per-player prices that failed the checksum are not. It is only
-			// the split between the fifteen that is in doubt, and the squad
-			// builder spends the total.
-			engine.Bank, engine.SquadValue = &sp.Bank, &sp.Value
-			engine.Budget = analysis.DriftingBudget(sp.Drift())
-		}
-	}
+	// Selling prices, and the budget they imply. Extracted from run() rather
+	// than inlined: pricing a squad is one decision with four outcomes, and it
+	// reads as its own unit — see priceSquad for what each outcome means.
+	priceSquad(ctx, client, engine, cfg)
 	if w := engine.Budget.Warning(); w != "" {
 		fmt.Fprintln(os.Stderr, warn("! "+w))
 	}
@@ -518,6 +457,79 @@ func run() error {
 		return cmdAgent(ctx, cfg, *cfgPath, client, engine, reviewPrompt(engine), "Weekly Review", !*noReport)
 	default:
 		return fmt.Errorf("unknown command %q — run `armband help`", cmd)
+	}
+}
+
+// priceSquad resolves what this manager can actually spend, and records on the
+// engine how well it is known. Every path sets engine.Budget, so a caller can
+// read the provenance rather than guess it.
+func priceSquad(ctx context.Context, client *fpl.Client, engine *analysis.Engine,
+	cfg config.Config) {
+
+	// Selling prices, preferring the public reconstruction. FPL gives you what
+	// you paid plus half of any rise, so a squad cannot be sold for its market
+	// value and any search that assumes otherwise is spending money that is not
+	// there.
+	//
+	// The reconstruction needs no credential and, unlike my-team, it can be
+	// checked: FPL's own team value is the squad's selling value, so a
+	// reconstruction that sums to it is proved right rather than trusted. A
+	// session is only a fallback for when it cannot be made exact.
+	switch played := engine.GameweeksPlayed(); {
+	case cfg.EntryID == 0:
+		engine.Budget = analysis.AssumedBudget(
+			"No entry_id in config.json, so there is no squad to price.")
+	case !engine.SeasonHasStarted():
+		// Genuinely pre-season: nothing has been bought yet, so market price
+		// is the selling price. Gated on SeasonHasStarted, not
+		// played == 0 — the same distinction AssemblyBudget's own pre-season
+		// case draws, and for the same reason: this is an account-wide fact
+		// ("has this manager bought anything yet"), and GameweeksPlayed()
+		// stays 0 for days after the season's first ball is kicked, which is
+		// exactly the gap the next case exists for.
+		engine.Budget = analysis.VerifiedBudget()
+	default:
+		// through is the gameweek to price this squad's picks against. Once
+		// one has FINISHED, its own number is exact. During the live gap —
+		// the season has started but played is still 0, because no gameweek
+		// has FINISHED yet — a gameweek is nonetheless under way and its
+		// picks are already locked in at the deadline that has passed, so
+		// pricing against it is exactly as valid; GameweeksPlayed() cannot
+		// see that gameweek, but FPL's own is_current flag (CurrentEvent())
+		// can. Skipping this and falling through to VerifiedBudget(), as this
+		// switch used to, leaves engine.Bank/SquadValue nil for the whole
+		// gap — which AssemblyBudget (correctly, since #45) now reports as a
+		// hard error rather than papering over with an assumed £100m.
+		through := squadPriceGameweek(played, engine.Boot.CurrentEvent())
+		sp, err := client.SquadPrices(ctx, cfg.EntryID, through)
+		switch {
+		case err != nil:
+			// The error is deliberately NOT interpolated. Every failure from the FPL
+			// client formats as "GET /entry/<id>/history/: …", and on the status-code
+			// branch it carries up to 200 bytes of FPL's response body — and this
+			// string is rendered verbatim into the alerts block of a page the user
+			// hands around or screenshots. An entry id is only semi-private, but it
+			// is the one path by which account-scoped data reaches that file, and the
+			// reader gains nothing from the URL. The full error still goes to stderr.
+			fmt.Fprintf(os.Stderr, "\n%s\n", dim("price history unavailable: "+err.Error()))
+			engine.Budget = analysis.AssumedBudget(
+				"Could not read this squad's price history")
+		case sp.Exact():
+			engine.SellPrices = sp.Sell
+			engine.Bank, engine.SquadValue = &sp.Bank, &sp.Value
+			engine.Budget = analysis.VerifiedBudget()
+		default:
+			// Close but unproven. Use them — they are far better than market
+			// prices — and say plainly that they are not exact.
+			engine.SellPrices = sp.Sell
+			// The bank and the team value are FPL's own figures rather than
+			// part of the reconstruction, so both are exact even when the
+			// per-player prices that failed the checksum are not. It is only
+			// the split between the fifteen that is in doubt, and the squad
+			// builder spends the total.
+			engine.Bank, engine.SquadValue = &sp.Bank, &sp.Value
+			engine.Budget = analysis.DriftingBudget(sp.Drift())
+		}
 	}
 }
 
