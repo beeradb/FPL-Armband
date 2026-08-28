@@ -83,7 +83,7 @@ jobs:
       # could tamper with the tree between checkout and `go test`, which makes
       # this job's verdict untrustworthy, and that verdict is the entire point.
       - name: Check out the full history
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # ⚠️ LOAD-BEARING — do not "optimise" this to a shallow clone.
           # `TestAKeyDescribesTheCommitItNames` recomputes each snapshot key's
@@ -109,7 +109,7 @@ jobs:
           fi
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # Read from go.mod so the toolchain cannot drift from the module's
           # own declaration — one quantity, one implementation.
@@ -125,7 +125,7 @@ jobs:
       # the real fix and is not done here — but it means a green result stays
       # reproducible instead of being re-rolled on each run.
       - name: Cache the season archive
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/fpl
           # ⚠️ `.cache/fpl` is also `config.CacheDir` (internal/config/config.go),

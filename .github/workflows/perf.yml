@@ -51,11 +51,11 @@ jobs:
     steps:
       # Full history: the base commit must be checkable out as a worktree, and a
       # shallow clone does not contain it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true

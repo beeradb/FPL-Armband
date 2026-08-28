@@ -69,10 +69,10 @@ jobs:
       pull-requests: write
     steps:
       - name: Check out the pull request
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # From go.mod, so the toolchain cannot drift from the module's own
           # declaration — the same rule ci.yml follows.
@@ -82,7 +82,7 @@ jobs:
       # Same path and key as ci.yml, so a pull request reuses the archive that
       # workflow already warmed rather than re-fetching ~38 MB.
       - name: Cache the season archive
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/fpl
           key: fpl-archive-${{ hashFiles('internal/backtest/season.go', 'internal/priors/priors.go') }}

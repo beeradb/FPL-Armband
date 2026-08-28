@@ -384,8 +384,12 @@ func TestTheFontsCoverTheNamesFootballersActuallyHave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading fonts.css: %v", err)
 	}
-	for _, family := range []string{"Inter", "JetBrains Mono"} {
-		if !strings.Contains(string(css), "/* "+family+" ") {
+	// Checked against the @font-face rule itself, not the section comment that used to
+	// precede each one -- Static() now serves fonts.css with its comments stripped (see
+	// strip.go), so a check keyed on "/* family */" would fail on the served copy for a
+	// reason that has nothing to do with whether the face is actually declared.
+	for _, family := range []string{"Inter", "Plus Jakarta Sans", "JetBrains Mono"} {
+		if !strings.Contains(string(css), "font-family: '"+family+"'") {
 			t.Errorf("fonts.css declares no %s face", family)
 		}
 	}

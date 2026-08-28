@@ -57,8 +57,8 @@ jobs:
     name: Reachable vulnerabilities
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
@@ -78,8 +78,8 @@ jobs:
       security-events: write
       actions: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: github/codeql-action/init@6f5948dfacef28e207b48d0905cf90c03365536d # v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           languages: go
           # security-and-quality is broader than the default and noisier. Chosen
@@ -88,8 +88,8 @@ jobs:
           # handling untrusted input, and that is where a wider net earns its
           # false positives.
           queries: security-and-quality
-      - uses: github/codeql-action/autobuild@6f5948dfacef28e207b48d0905cf90c03365536d # v3
-      - uses: github/codeql-action/analyze@6f5948dfacef28e207b48d0905cf90c03365536d # v3
+      - uses: github/codeql-action/autobuild@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+      - uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
 
   image:
     name: Container image
@@ -98,7 +98,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Builds locally rather than pulling the published tag, so a pull request
       # is scanned BEFORE its image ships rather than after.
       - name: Build the image
@@ -117,7 +117,7 @@ jobs:
           # security tab where they can be judged.
           exit-code: "0"
       - name: Upload results
-        uses: github/codeql-action/upload-sarif@6f5948dfacef28e207b48d0905cf90c03365536d # v3
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           sarif_file: trivy.sarif
           category: trivy
