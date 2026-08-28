@@ -130,12 +130,14 @@ func (e *Engine) ResearchTargets(squad []PlayerMetrics) []ResearchCategory {
 	noPrior, restedOrNew := e.splitOnPriorEvidence(all)
 	push("No Premier League history — the model is guessing from the league average",
 		"promoted clubs and overseas arrivals have no minutes for the model to read, so it "+
-			"substitutes the position's league average. Measured against players it does have "+
-			"history for, that fallback OVER-states minutes by roughly 2.4x to 3.2x outfield and "+
-			"far more for goalkeepers — every position, all six replayed seasons. So these scores "+
-			"are guesses, and they lean high.",
-		"is he in the predicted XI? If he is, the score may be about right. If he is not, treat "+
-			"the score as unearned — this is the population the model most over-rates.", noPrior)
+			"substitutes the position's league average — and it keeps substituting it, because "+
+			"the weight on a player's own record is driven by minutes he has not got. Measured "+
+			"across six replayed seasons: a player still unplayed twenty gameweeks in is "+
+			"predicted at a half-match workload and goes on to average under a minute. Worse "+
+			"for goalkeepers. So these scores are guesses, and they lean high.",
+		"is he in the predicted XI? If he is, the score may be about right — a player here who "+
+			"actually plays turns out close to calibrated. If he is not, treat the score as "+
+			"unearned: this is the population the model most over-rates.", noPrior)
 	push("No minutes yet this season, but a full prior season",
 		"the model has real history for these players; they simply have not played yet. The "+
 			"blend still leans on last season, so the score is evidence-backed rather than a guess.",

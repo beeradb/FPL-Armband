@@ -240,23 +240,37 @@ func TestAFreeHitDoesNotShortenTheHorizon(t *testing.T) {
 }
 
 // A bench boost inside the horizon must raise the bench weight.
+//
+// ⚠️ **The gameweek is derived from the calendar, not written down.** This test
+// asked for a bench boost at a hardcoded GW2 and passed for as long as GW2 was
+// still ahead — then failed the hour that deadline went by, on 2026-08-28,
+// against code that had not changed. A chip planned for a gameweek already gone
+// correctly changes nothing, so the test was asserting the opposite of the
+// behaviour it named.
+//
+// Its two siblings above already do this properly with `up := upcomingGW(e)`;
+// this one was the odd copy out. It is the same rot AGENTS.md warns about for
+// player- and score-pinned tests, arriving through the calendar instead of the
+// data: what has to be constant is the RELATIONSHIP to the upcoming gameweek.
 func TestBenchBoostRaisesBenchWeight(t *testing.T) {
 	e := chipEngine(t, one(ChipPlan{}))
+	up := upcomingGW(e)
 	base, why := e.SuggestBenchWeight(one(ChipPlan{}))
 	if why != "" || base != e.Weights.BenchWeight {
 		t.Errorf("no bench boost should leave bench weight alone, got %.3f", base)
 	}
 
-	boosted, why := e.SuggestBenchWeight(one(ChipPlan{BenchBoost: 2}))
+	boosted, why := e.SuggestBenchWeight(one(ChipPlan{BenchBoost: up + 1}))
 	if boosted <= e.Weights.BenchWeight {
-		t.Errorf("bench boost should raise bench weight, got %.3f", boosted)
+		t.Errorf("bench boost at GW%d, from the upcoming GW%d, should raise bench "+
+			"weight, got %.3f", up+1, up, boosted)
 	}
 	if why == "" {
 		t.Error("bench weight raised without an explanation")
 	}
 
 	// A bench boost beyond the horizon should not affect this squad.
-	far, _ := e.SuggestBenchWeight(one(ChipPlan{BenchBoost: 30}))
+	far, _ := e.SuggestBenchWeight(one(ChipPlan{BenchBoost: up + 30}))
 	if far != e.Weights.BenchWeight {
 		t.Errorf("a bench boost outside the horizon should not change bench weight, got %.3f", far)
 	}

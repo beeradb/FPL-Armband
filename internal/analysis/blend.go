@@ -1,6 +1,10 @@
 package analysis
 
-import "armband/internal/fpl"
+import (
+	"time"
+
+	"armband/internal/fpl"
+)
 
 // Blending last season into this one.
 //
@@ -873,6 +877,52 @@ func defCon90(el *fpl.Element) float64 {
 // Ships because the ranking failure it closes is live and reproduced;
 // BlendMinutesK's use here (as opposed to a dedicated constant) is still a
 // candidate for the same backtest calibration LeagueShrinkK itself is owed.
+// minutesEvidence is how many matches of evidence the model has about whether
+// this player PLAYS — as distinct from how much football he has played, which is
+// what a rate needs and what this deliberately is not.
+//
+// A club match he sat out is a data point, and the strongest kind: it is a zero.
+// Counting his own minutes instead makes those zeroes invisible, which is how a
+// player unplayed for twenty gameweeks kept reading as a half-match starter.
+//
+// ⚠️ **Capped at the matches he could actually have played in.** His club's
+// finished-match count includes fixtures from before he was registered, and
+// charging a January signing for the autumn would invent the opposite error —
+// reading "he was not at the club" as "he does not get picked", for exactly the
+// group the league fallback exists to serve. `TeamJoinDate` is the same field
+// `newSigning` reads; when FPL does not supply it, the uncapped count is used,
+// which is correct for the overwhelming majority who were there in August.
+//
+// ⚠️ FinishedProvisional, via TeamMatchesFinished, never Finished or
+// TeamMatchesStarted — see those functions' own comments. A live match has not
+// yet produced the evidence it would be counted for.
+func (e *Engine) minutesEvidence(el *fpl.Element) float64 {
+	n := e.TeamMatchesFinished(el.Team)
+	if n == 0 {
+		return 0
+	}
+	joined, err := time.Parse("2006-01-02", el.TeamJoinDate)
+	if el.TeamJoinDate == "" || err != nil {
+		return float64(n)
+	}
+	avail := 0
+	for _, f := range e.Fixtures {
+		if !f.FinishedProvisional || (f.TeamH != el.Team && f.TeamA != el.Team) {
+			continue
+		}
+		// A fixture with no kickoff time cannot be placed either side of his
+		// arrival, so it counts — the uncapped reading, which is the one that
+		// errs toward believing the club's record rather than toward wiping it.
+		if f.KickoffTime == nil || !f.KickoffTime.Before(joined) {
+			avail++
+		}
+	}
+	if avail < n {
+		return float64(avail)
+	}
+	return float64(n)
+}
+
 func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	base, ok := e.leagueRates[el.ElementType]
 	if !ok {
@@ -935,7 +985,38 @@ func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	// rates, BlendMinutesK for MinutesPerMatch/StartShare, shipped at 5
 	// against 8). Reusing LeagueShrinkK here would conflate two quantities
 	// that path deliberately tunes apart.
-	wMin := n90 / (n90 + e.Weights.BlendMinutesK)
+	// ⚠️ **VOLUME counts OPPORTUNITIES, not minutes, and that is the whole
+	// difference between a fact and a silence.**
+	//
+	// `n90` above is minutes played over 90. For a RATE that is right: a rate
+	// can only be estimated from football he actually played, and a player with
+	// no minutes has told you nothing about his xG per 90.
+	//
+	// For VOLUME it is exactly wrong, and it was used here until 2026-08-28. A
+	// player whose club has played ten matches without him has not produced "no
+	// evidence" about his minutes — he has produced ten zeroes, which is the
+	// strongest possible statement that he does not play. Weighting by his own
+	// minutes makes that evidence invisible: `n90` stays 0, `wMin` stays 0, and
+	// he takes the position's league average whole, forever. Measured across six
+	// seasons, a no-prior player unplayed at GW20 read **41.9 expected minutes a
+	// match against 0.6 actual**, and the gap WIDENED as the season ran, because
+	// the only thing that could close it was the quantity that stays zero.
+	//
+	// ⚠️ **The established-prior branch of `blendRatesCode` already does this
+	// correctly** — `n := TeamMatchesFinished(el.Team)` — and `metrics.go`'s
+	// `inLiveGameweekGap` doc comment already classes "blend.go's
+	// minutes-evidence mix" as an evidence COUNT that must use exactly that. One
+	// quantity, two implementations, and only the no-prior copy was blind. That
+	// is this project's signature failure, and it was hiding in the branch a
+	// reader is least likely to open.
+	//
+	// ⚠️ **A mid-season arrival must not be charged for matches he could not
+	// play in.** His club's finished-match count includes fixtures from before
+	// he was registered, and counting those would read a January signing as
+	// twenty gameweeks of proof that he does not play — inventing the opposite
+	// error for the one group the fallback exists to serve. `minutesEvidence`
+	// caps the count at the matches he has actually been available for.
+	wMin := e.minutesEvidence(el) / (e.minutesEvidence(el) + e.Weights.BlendMinutesK)
 	// ⚠️ The tilt multiplies the LEAGUE term and nothing else, so it fades with
 	// evidence by construction rather than by a guard: the mix already weights
 	// this term by `1 - wMin`, which is 1 for a player with no history and goes
