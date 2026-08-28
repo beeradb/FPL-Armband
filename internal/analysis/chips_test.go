@@ -251,17 +251,21 @@ func TestAFreeHitDoesNotShortenTheHorizon(t *testing.T) {
 
 // A bench boost inside the horizon must raise the bench weight.
 //
-// ⚠️ **The gameweek is derived from the calendar, not written down.** This test
-// asked for a bench boost at a hardcoded GW2 and passed for as long as GW2 was
-// still ahead — then failed the hour that deadline went by, on 2026-08-28,
-// against code that had not changed. A chip planned for a gameweek already gone
-// correctly changes nothing, so the test was asserting the opposite of the
-// behaviour it named.
+// ⚠️ The gameweeks are RELATIVE to the upcoming one, as they are in every other
+// test in this file. They were literals — `BenchBoost: 2` for the inside-the-
+// horizon case — and a literal gameweek stops being inside the horizon the
+// moment the season passes it. GW2's deadline passed on 2026-08-28 at 17:30 UTC
+// and this test began failing at that minute, on a tree nobody had touched, for
+// a model that was behaving correctly: a boost planned for a gameweek already
+// played is outside the horizon, so declining to raise the bench weight was the
+// right answer to the wrong question. `upcomingGW` is what the rest of the file
+// uses and it cannot go stale.
 //
-// Its two siblings above already do this properly with `up := upcomingGW(e)`;
-// this one was the odd copy out. It is the same rot AGENTS.md warns about for
-// player- and score-pinned tests, arriving through the calendar instead of the
-// data: what has to be constant is the RELATIONSHIP to the upcoming gameweek.
+// ⚠️ Its two siblings above already derived the gameweek this way; this was
+// the odd copy out, which is why the failure looked like a code regression
+// rather than the calendar moving. `chipgameweekliteral_test.go` now fails
+// on a chip gameweek written as a literal in any live-API test here, so the
+// next copy cannot be written silently.
 func TestBenchBoostRaisesBenchWeight(t *testing.T) {
 	e := chipEngine(t, one(ChipPlan{}))
 	up := upcomingGW(e)
@@ -270,17 +274,19 @@ func TestBenchBoostRaisesBenchWeight(t *testing.T) {
 		t.Errorf("no bench boost should leave bench weight alone, got %.3f", base)
 	}
 
-	boosted, why := e.SuggestBenchWeight(one(ChipPlan{BenchBoost: up + 1}))
+	boosted, why := e.SuggestBenchWeight(one(ChipPlan{BenchBoost: up}))
 	if boosted <= e.Weights.BenchWeight {
-		t.Errorf("bench boost at GW%d, from the upcoming GW%d, should raise bench "+
-			"weight, got %.3f", up+1, up, boosted)
+		t.Errorf("bench boost at the upcoming GW%d should raise bench weight, "+
+			"got %.3f", up, boosted)
 	}
 	if why == "" {
 		t.Error("bench weight raised without an explanation")
 	}
 
-	// A bench boost beyond the horizon should not affect this squad.
-	far, _ := e.SuggestBenchWeight(one(ChipPlan{BenchBoost: up + 30}))
+	// A bench boost beyond the horizon should not affect this squad. Expressed
+	// as the horizon's own far side rather than as 30, which is only "beyond"
+	// while the season is young enough.
+	far, _ := e.SuggestBenchWeight(one(ChipPlan{BenchBoost: up + e.Weights.Horizon + 1}))
 	if far != e.Weights.BenchWeight {
 		t.Errorf("a bench boost outside the horizon should not change bench weight, got %.3f", far)
 	}
