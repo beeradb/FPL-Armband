@@ -102,7 +102,7 @@
      falls back to the nearest weight actually loaded, 700, so headings render
      visibly lighter than the Jakarta 800 they replaced, not synthetically
      bolded to match. */
-  --display:'Inter',system-ui,-apple-system,sans-serif;
+  --display:'Plus Jakarta Sans',system-ui,sans-serif;
   --ui:'Inter',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
 

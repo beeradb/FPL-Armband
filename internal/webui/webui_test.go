@@ -414,12 +414,12 @@ func TestTheFontFilesAreDeduplicated(t *testing.T) {
 		t.Fatalf("reading fonts/: %v", err)
 	}
 	// Two families times two subsets. A per-weight generator would produce many more.
-	if len(entries) != 4 {
+	if len(entries) != 6 {
 		names := make([]string, 0, len(entries))
 		for _, e := range entries {
 			names = append(names, e.Name())
 		}
-		t.Errorf("fonts/ holds %d files, want 4 (two families x two subsets): %v\n"+
+		t.Errorf("fonts/ holds %d files, want 6 (three families x two subsets): %v\n"+
 			"These are variable fonts — one file serves every weight. See fontsubset.py.",
 			len(entries), names)
 	}
