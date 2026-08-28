@@ -236,6 +236,7 @@ func Build(in Input) (*State, error) {
 	if err := checkFinite(s); err != nil {
 		return nil, err
 	}
+	roundState(s)
 	return s, nil
 }
 
@@ -906,4 +907,85 @@ func walkFinite(v reflect.Value, path string) error {
 		}
 	}
 	return nil
+}
+
+// roundSkipField names the Go struct fields roundState must never touch, because app.js
+// does not only DISPLAY them -- it computes with the wire value itself, and the field's
+// full precision is part of the answer.
+//
+//   - Player.XP: app.js re-sorts the market and the squad from this field client-side
+//     (`sort((a,b)=>b.xp-a.xp)`), and the transfer picker's `clearsGate(t.xp-p.xp)` decides,
+//     live in the browser, whether a candidate swap clears the free-transfer gate. Market
+//     rows carry a server-computed `clears_gate` the picker deliberately does NOT use --
+//     see clearsGate's own comment in app.js -- because the picker's comparison is against
+//     the specific squad player being replaced, not the position's benchmark, and there is
+//     no server answer to mirror. Rounding XP to 3dp can move a delta by up to 0.001 (two
+//     independent roundings of at most 0.0005 each), which is enough to flip clearsGate's
+//     own 2dp-rounded comparison on a delta that was genuinely sitting on the gate. That
+//     would be a wrong recommendation shown to a reader, not merely a smaller number, so
+//     XP keeps its full precision on the wire and only sort ORDER is left to worry about --
+//     which needs no fix here: the arrays this package builds are already assembled in
+//     true-XP order upstream (watchlistFor's stable sort by Score, before this function
+//     ever runs), rounding does not reorder anything, and JS's Array.prototype.sort is
+//     specified stable (ES2019+), so a client re-sort on the rounded value breaks ties in
+//     the order the array already arrived in -- i.e. the true order. No change was needed
+//     in cmd/armband/page.go to get that guarantee; it already sorts before this rounds.
+//   - Market.Gate: clearsGate() in app.js reads this as its threshold (gateOf()), and it
+//     is pinned exactly by TestTheGateIsDecidedTheSameWayInBothLanguages against
+//     present.ClearsGate's own float, on a comparison the codebase's own comments say
+//     already disagrees with JS at certain boundary values (0.015, 0.295, 0.495) purely
+//     from Go's math.Round vs JS's Math.round -- not a boundary worth adding a second,
+//     independent source of disagreement to. It is one scalar, not a repeated field, so
+//     excluding it saves nothing and costs nothing.
+//
+// Every other float in State is read by app.js only to format it (toFixed) or to compare
+// it against other rounded values (a sort key, a table column) where a client-stable-sort
+// tie between two players who are genuinely within 0.001 of each other is not a wrong
+// answer -- see the package comment on roundState.
+var roundSkipField = map[string]bool{"XP": true, "Gate": true}
+
+// roundState rounds every float64 in State to 3 decimal places, except roundSkipField's
+// two entries. 3dp, not 2dp: app.js formats to 2dp at roughly 90 call sites, and rounding
+// to the displayed precision would make the wire value collide with its own formatted
+// string at the boundary (a value that should read "5.005" either becomes "5.00" or
+// "5.01" depending on which way float noise already below the model's real precision
+// happened to fall -- 3dp is ten times finer than anything rendered, which is what keeps
+// that from happening.
+//
+// It walks the same way checkFinite does, by reflection over the fields Go actually
+// declared rather than a hand-maintained list, so a projection added to Player two months
+// from now is rounded automatically -- or, if its precision turns out to be load-bearing,
+// is added to roundSkipField rather than silently joining the ~5,000 seventeen-digit
+// floats this exists to remove.
+//
+// Runs after checkFinite: rounding NaN/Inf still produces NaN/Inf, so the finite check
+// must see the model's own output first, not this function's.
+func roundState(s *State) {
+	roundFloats(reflect.ValueOf(s).Elem(), "")
+}
+
+func roundFloats(v reflect.Value, field string) {
+	switch v.Kind() {
+	case reflect.Float64:
+		if roundSkipField[field] || !v.CanSet() {
+			return
+		}
+		v.SetFloat(math.Round(v.Float()*1000) / 1000)
+	case reflect.Pointer:
+		if !v.IsNil() {
+			roundFloats(v.Elem(), field)
+		}
+	case reflect.Struct:
+		t := v.Type()
+		for i := 0; i < v.NumField(); i++ {
+			if !t.Field(i).IsExported() {
+				continue
+			}
+			roundFloats(v.Field(i), t.Field(i).Name)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			roundFloats(v.Index(i), field)
+		}
+	}
 }

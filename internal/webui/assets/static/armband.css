@@ -5,10 +5,13 @@
    ============================================================ */
 
 /* FONTS — deliberately NOT @import'ed. An @import chains a second round trip
-   before any paint. The HTML links them with preconnect + font-display:swap, so
-   the system stack in --ui / --display / --mono paints immediately and the
-   webfont swaps in. For the Wails build, self-host woff2 subsets next to this
-   file and swap the <link> for a local @font-face — no network on first paint. */
+   before any paint. app.html and landing.html inline fonts.css's @font-faces
+   directly into <head> instead of linking it, so the browser never blocks
+   first paint on a stylesheet fetch to learn the faces exist; the latin
+   subsets are separately preloaded (<link rel=preload as=font>) so the swap
+   in font-display:swap lands before layout rather than after it. team.html
+   and wildcard.html still link fonts.css the plain way -- see the commit that
+   did this for why only the two highest-traffic pages were worth it. */
 
 :root{
   /* --- surface ------------------------------------------------ */
@@ -89,6 +92,30 @@
   --fdr1:#0C7A4E; --fdr2:#2B6E4A; --fdr3:#3A4652; --fdr4:#7E3040; --fdr5:#A32338;
 
   /* --- type --------------------------------------------------- */
+  /* Plus Jakarta Sans, dropped 2026-08-27: 27,348 bytes and one request for
+     headings only (30 nodes /about, 76 nodes /), against Inter's 48,256 bytes
+     for 127/1,131 nodes and JetBrains Mono's 31,432 bytes for the numbers
+     themselves (58/2,112 nodes, off limits -- it is the accuracy story made
+     visible). The owner ruled speed over the third face. Cost: every
+     `font-weight:800` declaration below asks for a weight this build does not
+     ship for Inter (fonts.sh pulls 400/500/700/600 only) -- CSS font matching
+     falls back to the nearest weight actually loaded, 700, so headings render
+     visibly lighter than the Jakarta 800 they replaced, not synthetically
+     bolded to match. */
+  /* ⚠️ Plus Jakarta Sans IS STILL HERE, despite what `git log` says.
+     The squash commit that landed the preload work reads "...drop Plus Jakarta
+     Sans (#123)". The drop was reverted on that branch before it merged; the
+     title is the pull request's original one and was never updated, so
+     `git log --oneline` asserts a change that did not happen.
+
+     Why it was reverted, so the question is not reopened from the title alone:
+     --display is NOT headings-only. It styles `.card .xp b` — the expected-points
+     figure on every player card — plus eleven other numeric-emphasis sites, which
+     is why all 36 layout goldens moved when it was swapped. And the 27,348 bytes
+     it saves per page is an artefact of `cache-control: max-age=60` on assets,
+     not a real recurring cost: content-hashing the filenames unlocks a long
+     immutable cache and saves ~161KB of fonts plus all CSS and JS on repeat
+     visits, for no visual change. Fix the cache, not the typeface. */
   --display:'Plus Jakarta Sans',system-ui,sans-serif;
   --ui:'Inter',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;

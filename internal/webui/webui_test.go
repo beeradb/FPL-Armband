@@ -303,6 +303,13 @@ func TestEveryReferencedAssetResolves(t *testing.T) {
 		case ref == "/" || ref == "/app" || ref == "/armband-team" || ref == "/wildcard":
 			// The page routes. Served by cmd/armband/serve.go, not from static.
 			return
+		case strings.HasPrefix(ref, "/api/"):
+			// A server route, computed fresh on every request by cmd/armband/serve.go —
+			// there is no embedded file for a fetch preload to resolve to, the same reason
+			// the page routes above are exempt. Added for app.html's `<link rel=preload
+			// as=fetch href="/api/state">`, 2026-08-27: the first href/src this test ever
+			// saw pointing at an API route rather than a static file.
+			return
 		case ref == "/privacy":
 			// The privacy notice. It is a SITE surface rather than an application one:
 			// this binary neither embeds nor serves it, and a local `armband serve` will
@@ -377,8 +384,12 @@ func TestTheFontsCoverTheNamesFootballersActuallyHave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading fonts.css: %v", err)
 	}
+	// Checked against the @font-face rule itself, not the section comment that used to
+	// precede each one -- Static() now serves fonts.css with its comments stripped (see
+	// strip.go), so a check keyed on "/* family */" would fail on the served copy for a
+	// reason that has nothing to do with whether the face is actually declared.
 	for _, family := range []string{"Inter", "Plus Jakarta Sans", "JetBrains Mono"} {
-		if !strings.Contains(string(css), "/* "+family+" ") {
+		if !strings.Contains(string(css), "font-family: '"+family+"'") {
 			t.Errorf("fonts.css declares no %s face", family)
 		}
 	}
@@ -393,17 +404,20 @@ func TestTheFontsCoverTheNamesFootballersActuallyHave(t *testing.T) {
 // TestTheFontFilesAreDeduplicated pins the de-duplication, because the naive version of
 // the generator is the one someone will reach for.
 //
-// All three families are variable fonts: Google serves one file per (family, subset) and
+// Both families are variable fonts: Google serves one file per (family, subset) and
 // references it from every weight. Saving one file per @font-face rule stores the same
 // bytes four times. The generator keys files by content hash for this reason; this test
 // fails if that is undone.
+//
+// Plus Jakarta Sans (a third family) was dropped 2026-08-27 -- headings-only, 27,348
+// bytes and a request, in favour of pointing --display at Inter. See armband.css.
 func TestTheFontFilesAreDeduplicated(t *testing.T) {
 	static := Static()
 	entries, err := fs.ReadDir(static, "fonts")
 	if err != nil {
 		t.Fatalf("reading fonts/: %v", err)
 	}
-	// Three families times two subsets. A per-weight generator would produce 20.
+	// Two families times two subsets. A per-weight generator would produce many more.
 	if len(entries) != 6 {
 		names := make([]string, 0, len(entries))
 		for _, e := range entries {
@@ -417,6 +431,42 @@ func TestTheFontFilesAreDeduplicated(t *testing.T) {
 		if strings.ContainsAny(strings.TrimSuffix(e.Name(), ".woff2"), "0123456789") {
 			t.Errorf("%s is named for a weight. Variable fonts have no per-weight file; "+
 				"a numbered name means the de-duplication was removed.", e.Name())
+		}
+	}
+}
+
+// TestTheInlinedFontsMatchFontsCSS pins app.html and landing.html's inlined <style> block
+// against fonts.css, which is the ONLY thing fonts.sh/fontsubset.py regenerate.
+//
+// 2026-08-27: fonts.css stopped being linked from these two pages and started being
+// pasted into their <head> instead, to remove a render-blocking request from first paint
+// (see the commit that did this for the measurement). That paste is now a second
+// implementation of the same @font-face rules -- exactly the "one quantity, two
+// implementations" failure this project keeps naming as its most expensive recurring bug
+// -- so this test is what stands in for the compiler that would otherwise catch the drift:
+// regenerate fonts.css (fonts.sh) and NOT the two inlined copies, and this fails instead of
+// shipping a page whose fonts silently stop matching what /assets/fonts.css itself serves
+// (team.html and wildcard.html, which still link it).
+func TestTheInlinedFontsMatchFontsCSS(t *testing.T) {
+	static := Static()
+	css, err := fs.ReadFile(static, "fonts.css")
+	if err != nil {
+		t.Fatalf("reading fonts.css: %v", err)
+	}
+	// The inlined copy's font URLs are absolute (/assets/fonts/...) because the pages that
+	// carry it are served from more than one path ("/" and "/about"); fonts.css's own URLs
+	// are relative to itself (fonts/...), which only resolves correctly from /assets/.
+	want := strings.ReplaceAll(string(css), "url(fonts/", "url(/assets/fonts/")
+
+	for _, name := range []string{"app", "landing"} {
+		body, err := Page(name)
+		if err != nil {
+			t.Fatalf("Page(%q): %v", name, err)
+		}
+		if !strings.Contains(string(body), want) {
+			t.Errorf("%s.html's inlined font <style> does not match fonts.css (with its "+
+				"font urls rewritten to /assets/fonts/). Re-run internal/webui/fonts.sh, "+
+				"then paste its fonts.css output back into both pages' <head>.", name)
 		}
 	}
 }
