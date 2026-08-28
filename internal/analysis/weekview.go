@@ -441,6 +441,25 @@ func (e *Engine) gameweekClosed(gw int) bool {
 // struct so the two cannot drift apart or fall behind it.
 func (e *Engine) engineAt(gw int) *Engine { return e.engineAtHorizon(gw, 1) }
 
+// PoolAt scores every player in the pool against ONE gameweek, at horizon 1.
+//
+// AllMetrics answers "how good is this player over the configured horizon",
+// which is the right question for a squad you keep and the wrong one for a
+// single week: it averages over the horizon's fixtures, so a double reads as
+// two ordinary weeks and a blank is diluted rather than empty. Only at horizon
+// 1 does FixtureLoad reach Score at all, which is the difference between a
+// ranking that knows who plays twice and one that does not.
+//
+// ⚠️ **It is deliberately NOT WeekViews with the whole pool handed in as the
+// squad.** That route works, and it is how this project's first per-gameweek
+// ranking was built, but it sends ~600 players through an XI picker, a
+// formation search and a chip rebuild to arrive at a per-player number that
+// none of the three affect. Worse, it answers a squad-shaped question, so a
+// reader of that code cannot tell whether the eleven it picked was load-bearing.
+// This is the same derived engine and the same per-player scoring with the
+// detour removed.
+func (e *Engine) PoolAt(gw int) []PlayerMetrics { return e.engineAt(gw).AllMetrics() }
+
 // engineAtHorizon is engineAt with the horizon named.
 //
 // Horizon 1 is the week view itself. Anything longer is for a decision that
