@@ -28,30 +28,54 @@ Reproduce:
 | fix + tilt 0.50 | −0.5 | 0.061 | −0.23 | 5.9 | 3/6 |
 
 Every arm sits well inside its own threshold, and the best of them is a third of
-it. **The price tilt does not pay** — which is what the record's own rule
-predicts, since its ordering win was never a points claim: a better predictor can
-make a worse policy, because the transfer search is an argmax living in the tail.
+it. **The price tilt is closed on MECHANISM, and this sweep is consistent with that
+rather than establishing it.** The closure rests on the standing argmax rule plus
+the ordering evidence failing Holm; the points reading here is
+measured-and-unresolved, on an instrument the next section shows is far weaker
+than 36 cells implies. "Closed on points" would be a stronger word than this
+design earns, and is not vocabulary this record uses.
 
-## ⚠️ Read this as TWELVE cells, not thirty-six
+## ⚠️ Far fewer live cells than thirty-six, and the two knobs die differently
 
-The arms move `UnknownPriorShare` and `PriceMinutesPrior`, and **both are applied
-only on the pre-season path** — `unknownPriorRates`, reached from
-`blendRatesCode`'s `!SeasonHasStarted()` branch. An entry point after the season
-has started cannot reach either knob.
+⚠️ **An earlier version of this section said "both knobs are applied only on the
+pre-season path". That is true of one of them and false of the other**, and the
+error was already contradicted by a live check on the same day: setting
+`price_minutes_prior` to 0.5 at GW2 of the running season visibly changed
+`armband transfers`. Corrected here after review.
 
-So the middle and late start strata print **`+0.000` exactly**, in every arm.
-That is the record's own byte-identical signature: not a tie, a comparison that
-never ran. Twenty-four of the thirty-six cells are structurally inert.
+The two arms die for different reasons and at different times:
 
-Two consequences, and both cut against the numbers above:
+- **`UnknownPriorShare`** is read only in `unknownPriorRates`, reached only from
+  `blendRatesCode`'s `!SeasonHasStarted()` branch. Once any ball is kicked it is
+  unreachable. Pre-season only, as claimed.
+- **`PriceMinutesPrior`** is read in `priceMinutesTilt`, called from
+  `shrinkToLeague` — which `blendRatesCode` calls from **two** places, the
+  pre-season branch *and* the in-season no-prior branch. It is gated on
+  `GameweeksPlayed() < priceTiltFadesByGW` (11), not on `SeasonHasStarted()`, so
+  it keeps firing after kickoff and fades out around GW11.
 
-- **The pooled mean is diluted by about three**, because two thirds of the cells
-  are exact zeros by construction.
+Checked against the banked CSV on `squad_hash`, not on the log's rounded print:
+
+| entry gw | seasons where any arm differs from baseline | which arms |
+|---|---|---|
+| 1 | 6/6 | all three — both knobs live |
+| 6 | **2/6** | the two tilt arms only; `prior fix` is byte-identical in all six |
+| 11, 16, 21, 26 | 0/6 | none |
+
+So the live-cell count is **six guaranteed, plus up to six partial and
+knob-specific** — not a clean twelve, and not thirty-six. The middle and late
+strata print `+0.000` exactly, which is the record's byte-identical signature:
+not a tie, a comparison that never ran.
+
+Both consequences cut against the headline numbers:
+
+- **The pooled mean is diluted several-fold**, because most cells are exact zeros
+  by construction.
 - **The pooled SE is not honest.** It is computed across cells that could not
-  move, so it understates the spread of the twelve that could.
+  move, so it understates the spread of the few that could.
 
-The early stratum is the real comparison and it is twelve cells, which on this
-harness is close to the recorded "twelve cells could not resolve 37 points a
+The real comparison is nearer six to eight cells, which on this harness is below
+the recorded "twelve cells could not resolve 37 points a
 season".
 
 ## What this does NOT measure

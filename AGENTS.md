@@ -756,6 +756,12 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **`MinutesWeight` ships at 1.0 from 2026-08-25: a judgement to ship neutral, not a
   measurement — this harness cannot locate an optimum on it.** ⚠️ At 1.0
   `MinutesWeightByPosition` is inert. → **constants-and-sweeps**
+- **Giving an unknown player a prior buys nothing measurable, and the price tilt is
+  closed on mechanism.** `HOLD` +0.8 a season against a threshold of 25.3; both tilt
+  arms negative or flat. ⚠️ **Read it as ~6-8 live cells, not 36** — `UnknownPriorShare`
+  is pre-season-only and `PriceMinutesPrior` fades by GW11, so 24 of 36 cells are
+  byte-identical by construction. `PriceMinutesPrior` stays at 0.
+  `stats/cells/2026-08-28-unknownprior/`. → **recency-and-priors**
 
 ### Chips
 

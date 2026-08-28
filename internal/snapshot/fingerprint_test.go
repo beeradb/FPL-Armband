@@ -175,6 +175,9 @@ func TestEnvSwitchListIsComplete(t *testing.T) {
 		// the test itself, not from the environment, so nothing here reaches a
 		// sweep's fingerprint.
 		"FPL_TAPER_CSV": true,
+		// Where the blank-run-by-status diagnostic writes its per-season rows.
+		// Output path on a DIAG-only test that runs no sweep.
+		"FPL_BLANKSTATUS_CSV": true,
 		// Where the xGC-reconstruction dump writes, and which seasons it covers.
 		// Both are read ONLY by TestDiagXGCDump, which reads
 		// `clubXGAPerGameweek` and writes a CSV. It computes nothing on the
