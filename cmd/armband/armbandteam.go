@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	"armband/internal/fpl"
@@ -44,7 +45,11 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 	defer s.lockRender("armband-team-state")()
 
 	now := s.now()
-	event := latestClosedEvent(s.engine.Boot, now)
+	event, err := requestedEvent(s.engine.Boot, now, r.URL.Query().Get("gw"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	fixed, arrange := houseRealPicks(r.Context(), s.client, s.engine.Boot, s.cfg.EntryID, event)
 
 	b, err := buildSquadPage(r.Context(), *s.cfg, s.client, s.engine, pageOpts{
@@ -117,6 +122,54 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 // long FPL takes to flip it, which could be the whole first match. A deadline is a fact
 // this server already has and needs no such lag: the relevant gameweek is simply the one
 // with the LATEST deadline that has already passed.
+// requestedEvent is the gameweek this request is about.
+//
+// No `gw` parameter means the one being played or most recently gone --
+// latestClosedEvent, which is what this page has always shown and what every
+// link to it still asks for. That default is deliberately unchanged: the page's
+// own nav carries no parameter, so the common path does not go through the
+// parsing below at all.
+//
+// # Why a past gameweek needs no storage
+//
+// FPL serves a closed gameweek's picks and its per-player stats indefinitely, so
+// "render gameweek 1 on demand" and "save a static copy every week" answer the
+// same question, and only one of them needs an archive format, a cron job and
+// somebody remembering to run it. Nothing is written here.
+//
+// # ⚠️ Why a FUTURE gameweek is refused rather than rendered
+//
+// FPL does not publish anyone's picks before that gameweek's deadline, so there
+// is no team to show. The failure if this were allowed is not an empty page: the
+// picks fetch would fail, and buildSquadPage's documented fallback for an
+// unresolved squad is the model's own current optimum -- which this page would
+// then caption as the fifteen the house account fielded. A confident answer to a
+// question nobody can answer yet is the worst shape this page could take, and it
+// is the same class as the correction recorded on armbandTeamState above.
+func requestedEvent(boot *fpl.Bootstrap, now time.Time, raw string) (*fpl.Event, error) {
+	if raw == "" {
+		return latestClosedEvent(boot, now), nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return nil, fmt.Errorf("gw must be a gameweek number, not %q", raw)
+	}
+	for i := range boot.Events {
+		e := &boot.Events[i]
+		if e.ID != n {
+			continue
+		}
+		if e.DeadlineTime.After(now) {
+			return nil, fmt.Errorf("gameweek %d has not kicked off yet, so nobody's "+
+				"team for it is public", n)
+		}
+		return e, nil
+	}
+	// Bounds come from the season rather than from a literal 38, so a season
+	// that is not 38 gameweeks long needs no edit here.
+	return nil, fmt.Errorf("this season has no gameweek %d", n)
+}
+
 func latestClosedEvent(boot *fpl.Bootstrap, now time.Time) *fpl.Event {
 	var best *fpl.Event
 	for i := range boot.Events {
