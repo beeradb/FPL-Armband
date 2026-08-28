@@ -547,21 +547,27 @@ func (e *Engine) polish(start []PlayerMetrics, pool []PlayerMetrics, budget int,
 		// takes the search's own scratch, so a single-worker run reuses
 		// precisely the buffers the serial scan reused.
 		scratches := []*xiScratch{sc}
-		var chunks []pairChunk
-		var found [][]pairCandidate
+		// One chunk per (squad member, downgrade candidate), so the two
+		// buffers are sized once and refilled.
+		chunks := make([]pairChunk, 0, SquadSize*len(cheapByPos["DEF"]))
+		found := make([][]pairCandidate, 0, cap(chunks))
+		ps := &pairScan{
+			cheapByPos: cheapByPos, strongByPos: strongByPos,
+			clubCount: clubCount, locked: locked, mustStart: mustStart,
+			changes: changes, budget: budget,
+			benchWeight: benchWeight, boost: boost,
+		}
 
 		for iter := 0; iter < 60; iter++ {
-			ps := &pairScan{
-				current: current, cheapByPos: cheapByPos, strongByPos: strongByPos,
-				selected: selected, clubCount: clubCount,
-				locked: locked, mustStart: mustStart, changes: changes,
-				spend: spend, spent: spent, budget: budget,
-				benchWeight: benchWeight, boost: boost,
-				// The iteration's accept threshold, read once. Every worker
-				// filters against this fixed value; only the reduction sees
-				// the moving one.
-				entry: bestScore,
-			}
+			// The squad-dependent half, refreshed per iteration. Copied into
+			// the scan rather than captured, so the workers cannot see the
+			// search mutate them.
+			ps.current, ps.selected = current, selected
+			ps.spend, ps.spent = spend, spent
+			// The iteration's accept threshold, read once. Every worker filters
+			// against this fixed value; only the reduction sees the moving one.
+			ps.entry = bestScore
+
 			chunks = ps.chunkList(chunks)
 			if len(chunks) == 0 {
 				break
@@ -817,19 +823,27 @@ func (ps *pairScan) evaluate(scratches []*xiScratch, chunks []pairChunk,
 	// a static split leaves workers idle.
 	var next atomic.Int64
 	var wg sync.WaitGroup
-	for w := 0; w < workers; w++ {
+	work := func(ws *xiScratch) {
+		for {
+			c := int(next.Add(1)) - 1
+			if c >= len(chunks) {
+				return
+			}
+			found[c] = ps.scan(ws, found[c], chunks[c])
+		}
+	}
+	// Worker 0 is this goroutine. One fewer goroutine per iteration, and at one
+	// worker the scan is a plain loop with no goroutine at all — which is what
+	// makes single-worker parity with the serial search a measured fact rather
+	// than a rounding.
+	for w := 1; w < workers; w++ {
 		wg.Add(1)
 		go func(ws *xiScratch) {
 			defer wg.Done()
-			for {
-				c := int(next.Add(1)) - 1
-				if c >= len(chunks) {
-					return
-				}
-				found[c] = ps.scan(ws, found[c], chunks[c])
-			}
+			work(ws)
 		}(scratches[w])
 	}
+	work(scratches[0])
 	wg.Wait()
 	return scratches, found
 }
