@@ -101,7 +101,7 @@ def appearances(seasons=None, require_cache=True):
     not on the gameweek entry; a first attempt read both off the entry, got
     `None` for each, and silently collapsed to a single cluster.
 
-    ⚠️ Reads `.cache/fpl/backtest-v8-*.json` DIRECTLY, so `season.go`'s ungated
+    ⚠️ Reads `.cache/fpl/backtest-v9-*.json` DIRECTLY, so `season.go`'s ungated
     defect repairs — the phantom-match and duplicate-row drops — are NOT applied.
     Small for these seasons (10 duplicate rows in 2025-26, no phantoms) and
     stated because the rule is to state it.
@@ -112,7 +112,7 @@ def appearances(seasons=None, require_cache=True):
     """
     seasons = seasons or NATIVE_XG_SEASONS
     for s in seasons:
-        path = f'.cache/fpl/backtest-v8-{s}.json'
+        path = f'.cache/fpl/backtest-v9-{s}.json'
         try:
             d = json.load(open(path))
         except FileNotFoundError:

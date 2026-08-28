@@ -324,7 +324,14 @@ func Load(path string) (Config, error) {
 	// the defect this field exists to make measurable, not an off switch. Without
 	// the backfill every config written before the field existed would silently
 	// reinstate that bug on load. See Weights.UnknownPriorShare.
-	if cfg.Weights.UnknownPriorShare <= 0 {
+	// ⚠️ Presence-probed, not `<= 0`, and the distinction matters more here than
+	// almost anywhere else in this function. Zero is a REAL setting for this
+	// field — it reproduces the pre-fix behaviour so a sweep can measure it — so
+	// a `<= 0` backfill would silently overwrite a deliberate 0 with 1 and make
+	// the arm unreachable from a config file, indistinguishable from an old file
+	// that never carried the key. Same treatment `bonus_prior_weight` gets above,
+	// for the same reason.
+	if !hasKey(b, "weights", "unknown_prior_share") {
 		cfg.Weights.UnknownPriorShare = d.Weights.UnknownPriorShare
 	}
 	if cfg.Weights.BlendRateK <= 0 {

@@ -603,6 +603,27 @@ func (s *Season) ByCode() map[int]*Player {
 // that was blank that week: Chambers, Trossard, Barkley, Alcaraz. The two seasons that
 // carried real phantoms now read exactly zero, which is what makes the invariant a good
 // *audit* and a bad *gate*.
+// seasonCachePrefix names the parsed-season cache, version included.
+//
+// ⚠️ **FOUR PYTHON SCRIPTS READ THIS FILE DIRECTLY, and bumping the version
+// without them orphans every one of them.** `stats/xpoints_common.py`,
+// `stats/xpoints_permove.py`, `stats/xpoints_channel_audit.py` and
+// `scripts/flagcal.py` open the path themselves rather than going through this
+// package, because Go has no readable interchange format they could use instead.
+//
+// The v8 → v9 bump did exactly that before it was caught. Go stopped writing v8,
+// so those scripts silently kept reading a frozen snapshot from the week
+// before — and on a fresh checkout, where no v8 file has ever existed, they fail
+// permanently with "run from the repo root", which is no longer a fix because
+// nothing anywhere writes v8.
+//
+// It is a constant so there is ONE spelling on the Go side, and
+// `TestTheSeasonCacheVersionMatchesItsPythonReaders` scans the scripts for it.
+// That is the same treatment this project gives every other cross-language
+// duplicate it cannot delete: pin the two against one another rather than trust
+// a convention.
+const seasonCachePrefix = "backtest-v9-"
+
 func Load(ctx context.Context, cacheDir, season string) (*Season, error) {
 	// ⚠️ **v9 because GW.Selected was added, and a new field is exactly what this
 	// version number exists for.** A cache written by v8 has no `selected` key,
@@ -615,7 +636,7 @@ func Load(ctx context.Context, cacheDir, season string) (*Season, error) {
 	// a structural probe for ownership would false-negative on any season whose
 	// archive really has no `selected` column, and re-parse it on every load
 	// forever.
-	path := filepath.Join(cacheDir, "backtest-v9-"+season+".json")
+	path := filepath.Join(cacheDir, seasonCachePrefix+season+".json")
 	if b, err := os.ReadFile(path); err == nil {
 		var s Season
 		if err := json.Unmarshal(b, &s); err == nil && len(s.Players) > 0 &&

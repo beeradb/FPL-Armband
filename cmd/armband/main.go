@@ -47,10 +47,7 @@ Usage:
                             agrees with by itself, and which are still doing
                             work. Retiring a redundant one is less to maintain
                             each summer. Takes -within.
-  armband overrides         Which hand-written minutes overrides the model now
-                            agrees with by itself, and which are still doing
-                            work. Retiring a redundant one is less to maintain.
-  armband due               Run the review only if a deadline is near (for cron)
+  armband due              Run the review only if a deadline is near (for cron)
   armband schedule          Print a crontab line for the due command
   armband nations           Nationality codes, for post-tournament rest config
   armband priors            Cache last season's totals before FPL overwrites them

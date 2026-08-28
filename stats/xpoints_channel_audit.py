@@ -67,7 +67,7 @@ BANDS = [(60, 90, '60-89'), (90, 10 ** 9, '90+')]
 
 def rows(seasons):
     for s in seasons:
-        d = json.load(open(f'.cache/fpl/backtest-v8-{s}.json'))
+        d = json.load(open(f'.cache/fpl/backtest-v9-{s}.json'))
         ps = d['players']
         for p in (list(ps.values()) if isinstance(ps, dict) else ps):
             et = p.get('element_type') or p.get('type')
