@@ -107,7 +107,7 @@ func cmdDrift(ctx context.Context, cfg config.Config, args []string) error {
 	client := fpl.New(cfg.CacheDir, 24*time.Hour, 24*time.Hour)
 
 	var rows []driftRow
-	var skipped []int
+	var skipped, freeHit []int
 
 	for gw := *from; gw <= *through; gw++ {
 		picks, err := client.Picks(ctx, cfg.EntryID, gw)
@@ -115,6 +115,22 @@ func cmdDrift(ctx context.Context, cfg config.Config, args []string) error {
 			skipped = append(skipped, gw)
 			continue
 		}
+		// ⚠️ **A free hit's fifteen is not the squad you were holding**, and
+		// reporting it here would flatter the series exactly where it matters.
+		// FPL returns the one-week free-hit team for that gameweek; the
+		// persistent squad — the one whose decay this command exists to show —
+		// is handed straight back afterwards and never appears. A free-hit team
+		// is built for that week's fixtures, so it reads as LOW drift while the
+		// real squad's gap goes unmeasured.
+		//
+		// Skipped rather than flagged: a number that does not mean what its
+		// column says is worse than an absence, because only one of the two gets
+		// noticed.
+		if picks.ActiveChip != nil && *picks.ActiveChip == "freehit" {
+			freeHit = append(freeHit, gw)
+			continue
+		}
+
 		held := make([]int, 0, len(picks.Picks))
 		for _, p := range picks.Picks {
 			held = append(held, p.Element)
@@ -158,7 +174,19 @@ func cmdDrift(ctx context.Context, cfg config.Config, args []string) error {
 				gw, resolved, len(held), *season)
 		}
 
-		sq, err := e.Optimize(analysis.OptimizeRequest{Budget: budget})
+		// ⚠️ **The floors are not optional and their zero value is not a default.**
+		// Omitting them builds the comparison squad with NO minutes floor, so it
+		// can be filled with rotation risks and injured returnees that
+		// `armband squad`, `armband transfers` and the agent's own optimiser
+		// would all refuse to offer. Drift would then be measured against a
+		// laxer optimiser than any surface the user can act through, and would
+		// read systematically too high. The first version of this command did
+		// exactly that.
+		sq, err := e.Optimize(analysis.OptimizeRequest{
+			Budget:             budget,
+			MinMinutes:         analysis.PoolMinMinutes,
+			MinExpectedMinutes: analysis.PoolMinExpectedMinutes,
+		})
 		if err != nil || len(sq.Players) == 0 {
 			skipped = append(skipped, gw)
 			continue
@@ -182,10 +210,18 @@ func cmdDrift(ctx context.Context, cfg config.Config, args []string) error {
 	}
 
 	fmt.Printf("\nSQUAD DRIFT, entry %d, %s\n", cfg.EntryID, *season)
-	fmt.Printf("How far the eleven you fielded fell behind the best eleven buildable\n")
-	fmt.Printf("for the same money, in projected points a gameweek.\n")
+	// ⚠️ "the eleven you fielded" would overstate this. What is scored is the
+	// model's own best legal eleven from the fifteen you OWNED — not your actual
+	// starting eleven, not your captain, and not autosubs. The distinction is
+	// small in points and total in meaning: this is a claim about the squad, not
+	// about how you set it up.
+	fmt.Printf("How far the best eleven from the fifteen you OWNED fell behind the best\n")
+	fmt.Printf("eleven buildable for the same money, in projected points a gameweek.\n")
 	fmt.Printf("⚠️ Each row is scored on what was knowable BEFORE that gameweek, not on\n")
-	fmt.Printf("what happened in it — so this is not hindsight and not realised points.\n\n")
+	fmt.Printf("what happened in it — so this is not hindsight and not realised points.\n")
+	fmt.Printf("⚠️ Scored at horizon %d, so it is a multi-week average and cannot see one\n",
+		cfg.Weights.Horizon)
+	fmt.Printf("week's double or blank. Fixture load reaches Score at horizon 1 only.\n\n")
 	fmt.Printf("  %3s %9s %9s %8s %9s %9s\n", "gw", "yours", "best", "drift", "changes", "budget")
 	for _, r := range rows {
 		fmt.Printf("  %3d %9.2f %9.2f %8.2f %9d %9.1f\n",
@@ -194,6 +230,11 @@ func cmdDrift(ctx context.Context, cfg config.Config, args []string) error {
 	if len(skipped) > 0 {
 		fmt.Printf("\n  not read: %v — no picks, or the archive does not reach that week yet\n",
 			skipped)
+	}
+	if len(freeHit) > 0 {
+		fmt.Printf("  free hit: %v — skipped. FPL returns the one-week team for those, not\n",
+			freeHit)
+		fmt.Printf("            the squad you keep, so the gap there is not this series'.\n")
 	}
 	fmt.Printf("\n⚠️ `changes` counts how many of your fifteen the fresh squad replaced. It\n")
 	fmt.Printf("is a move count, not a price: swapping a bench player nobody would spend a\n")

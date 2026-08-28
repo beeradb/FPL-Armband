@@ -269,6 +269,17 @@ func run() error {
 		return cmdBackfill(ctx, cfg, flag.Args()[1:])
 	}
 
+	// Drift joins them for backfill's reason exactly. It builds its own engine
+	// per gameweek from the season archive, and reads the manager's historical
+	// picks — it never touches the live bootstrap or fixture list. Leaving it in
+	// the main switch made it pay for the whole live pipeline it does not use,
+	// and worse: `client.Bootstrap` and `client.Fixtures` below are HARD ERRORS,
+	// so a transient FPL outage would fail a command whose every input is
+	// already on disk or historical.
+	if cmd == "drift" {
+		return cmdDrift(ctx, cfg, flag.Args()[1:])
+	}
+
 	fmt.Fprint(os.Stderr, dim("Loading FPL data... "))
 	boot, err := client.Bootstrap(ctx)
 	if err != nil {
@@ -503,8 +514,6 @@ func run() error {
 		return cmdDue(ctx, cfg, *cfgPath, client, engine, !*noReport)
 	case "schedule":
 		return cmdSchedule(cfg)
-	case "drift":
-		return cmdDrift(ctx, cfg, flag.Args()[1:])
 	case "review":
 		return cmdAgent(ctx, cfg, *cfgPath, client, engine, reviewPrompt(engine), "Weekly Review", !*noReport)
 	default:

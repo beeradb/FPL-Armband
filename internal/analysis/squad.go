@@ -149,6 +149,31 @@ const (
 	DefaultBudget = 1000 // tenths of a million, i.e. £100.0m
 )
 
+// The shipped pool floors, which every squad-building caller must pass.
+//
+// ⚠️ **ZERO IS NOT "USE THE DEFAULT", IT IS "NO FLOOR AT ALL".** `Optimize`
+// applies nothing implicitly: `clearsMinutesFloor` returns true for everybody at
+// `minMinutes == 0`, and `cutByExpectedMinutes` returns early without cutting at
+// `minExpected <= 0`. So a caller that omits these does not get the shipped
+// behaviour — it gets a laxer optimiser that will offer rotation risks and
+// injured returnees no other surface in this project would show.
+//
+// They exist as constants because the literals were repeated at four call sites
+// and a fifth was written omitting them entirely, which is how
+// `armband drift` came to compare a real squad against an optimum built with no
+// floor. This is the same family as the recorded bug where a minutes floor had
+// THREE copies and the fix reached one of them.
+//
+// ⚠️ **`PoolMinMinutes` is a SEASON TOTAL and must never be compared raw.**
+// `Optimize` scales it per club through `ScaledMinMinutesFor`, which is why the
+// number here is 600 rather than a per-gameweek figure. A caller comparing 600
+// against fresh-season aggregates directly is the exact defect that emptied the
+// transfer pool for seven gameweeks.
+const (
+	PoolMinMinutes         = 600
+	PoolMinExpectedMinutes = 55
+)
+
 var squadQuota = map[string]int{"GKP": 2, "DEF": 5, "MID": 5, "FWD": 3}
 
 // XI formation bounds: exactly 1 keeper, 11 outfield slots total.
