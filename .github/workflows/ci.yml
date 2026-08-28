@@ -237,6 +237,22 @@ jobs:
       # proves it goes red on a mutated expectation BEFORE its green run is
       # allowed to mean anything. A green `claims` step whose selftest did not
       # run is worth exactly nothing.
+      # ⚠️ FORWARD-LOOKING ONLY. 74 functions are already over the threshold and
+      # every one is grandfathered. A global threshold would either sit above the
+      # worst (65, and therefore unable to ever fire) or block unrelated work
+      # until someone lowered it — the first is the unfalsified-guard failure this
+      # repo keeps hitting, the second is how a gate gets deleted. So the gate is
+      # on CHANGE: nothing NEW over the line, and nothing existing getting worse.
+      # Attacking the grandfathered list is separate, optional work.
+      - name: Install gocyclo
+        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+
+      - name: Prove the complexity ratchet can fail
+        run: python3 scripts/complexity-ratchet.py --selftest
+
+      - name: Complexity ratchet
+        run: python3 scripts/complexity-ratchet.py
+
       - name: Prove the claims checker can fail
         run: python3 scripts/claims.py --selftest
 
