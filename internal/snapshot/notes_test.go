@@ -1018,7 +1018,16 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// correcting a measured bias — an entry that stops before that reads as a
 	// recommendation.
 	//
-	// Raised by 2 KB, ~1.8 KB free.
+	// Raised by 2 KB, ~1.8 KB free at the raise.
+	//
+	// ⚠️ Down to ~1.0 KB the same day, and the entry that spent it is a
+	// RETRACTION rather than an addition: measuring the same defect in-season
+	// split the unknown players into one group the model handles nearly right
+	// and one it is out on by two orders of magnitude, which makes the share
+	// knob the wrong lever and makes the blended figure this file first carried
+	// misleading about what to do. A correction that costs bytes is still
+	// cheaper than the rebuild it prevents — but the next entry after this one
+	// needs another raise, not a trimmed qualifier.
 	//
 	// # 64 KB, 2026-08-26 — a shipped optimiser bug joined the bitten list, and two
 	// claims the same PR made false had to be withdrawn
