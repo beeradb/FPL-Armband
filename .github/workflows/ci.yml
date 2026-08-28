@@ -253,6 +253,16 @@ jobs:
       - name: Complexity ratchet
         run: python3 scripts/complexity-ratchet.py
 
+      # ⚠️ Runs HERE rather than in snapshot.yml, beside the ratchet's own
+      # selftest and for the same reason: it must run on every push, not only
+      # when the figures happen to move. The defect it covers made the figures
+      # gate UNSATISFIABLE on a pull request -- it looked for the author's
+      # trailer in GitHub's synthetic merge commit, where no author can write
+      # one -- and that went unseen for the gate's whole life because the gate
+      # only speaks when the figures move, which is rare.
+      - name: Prove the figures trailer is findable on a pull request
+        run: python3 scripts/figures-moved-check.py --selftest
+
       # ⚠️ THIS MUST LIVE HERE AND NOT IN snapshot.yml. The defect it catches
       # DISABLED snapshot.yml outright -- three steps carried two `if:` keys
       # each, which PyYAML resolves by keeping the last and GitHub rejects
