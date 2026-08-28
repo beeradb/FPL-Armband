@@ -43,6 +43,10 @@ Usage:
   armband transfers         Best transfers for the squad you own, as a team sheet
                             (no AI, no API cost)
   armband fixtures          Fixture difficulty table (no AI, no API cost)
+  armband xpoints           Every player ranked by expected points for ONE gameweek
+                            (no AI, no API cost). -gw, -pos, -sort, -n and
+                            -format table|csv|json. Scored at horizon 1, so
+                            unlike every other ranking here it can see a double.
   armband drift -season 2026-27
                             How far the eleven you fielded fell behind the best
                             eleven buildable for the same money, gameweek by
@@ -116,8 +120,8 @@ Examples:
   armband squad -html squad.html    WRONG, and an error rather than a squad
                                      printed with the file never written
 
-  Five commands parse their own flags, which therefore go AFTER the command:
-  capture, backfill, snapshot, serve and drift. Their flags still come
+  Six commands parse their own flags, which therefore go AFTER the command:
+  capture, backfill, snapshot, serve, drift and xpoints. Their flags still come
   before their own positional arguments, for the same reason — a FlagSet stops
   at the first non-flag argument too, so "backfill 2023-24 -coverage" reads
   -coverage as a second season name and crawls the archive it was meant to
@@ -418,6 +422,8 @@ func run() error {
 		return cmdTransfers(ctx, cfg, client, engine, *plain, *htmlOut)
 	case "fixtures":
 		return cmdFixtures(engine, cfg)
+	case "xpoints":
+		return cmdXPoints(cfg, engine, flag.Args()[1:])
 	case "nations":
 		return cmdNations(engine)
 	case "priors":
@@ -1647,6 +1653,7 @@ var commandsThatParseTheirOwnFlags = map[string]bool{
 	"backfill": true, // cmdBackfill takes -coverage, -per-gameweek and friends
 	"serve":    true, // cmdServe takes -addr
 	"drift":    true, // cmdDrift takes -season, -from, -through and -out
+	"xpoints":  true, // cmdXPoints takes -gw, -pos, -sort, -n and -format
 }
 
 // rejectFlagsAfterCommand turns a silent no-op into an error.
