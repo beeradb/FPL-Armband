@@ -245,13 +245,25 @@ jobs:
       # on CHANGE: nothing NEW over the line, and nothing existing getting worse.
       # Attacking the grandfathered list is separate, optional work.
       - name: Install gocyclo
-        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0
 
       - name: Prove the complexity ratchet can fail
         run: python3 scripts/complexity-ratchet.py --selftest
 
       - name: Complexity ratchet
         run: python3 scripts/complexity-ratchet.py
+
+      # ⚠️ THIS MUST LIVE HERE AND NOT IN snapshot.yml. The defect it catches
+      # DISABLED snapshot.yml outright -- three steps carried two `if:` keys
+      # each, which PyYAML resolves by keeping the last and GitHub rejects
+      # wholesale -- so every run produced zero jobs and a bare `failure` with
+      # no logs. A workflow cannot report that it is the one that will not
+      # parse, so the check has to run somewhere else.
+      - name: Prove the workflow linter can fail
+        run: python3 scripts/workflow-lint.py --selftest
+
+      - name: Lint the workflows
+        run: python3 scripts/workflow-lint.py
 
       - name: Prove the claims checker can fail
         run: python3 scripts/claims.py --selftest

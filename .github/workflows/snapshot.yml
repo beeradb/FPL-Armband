@@ -307,8 +307,7 @@ jobs:
           done
 
       - name: Build the accuracy dashboard
-        if: github.event_name != 'pull_request'
-        if: vars.PUBLISH_ACCURACY_PAGE == 'true'
+        if: github.event_name != 'pull_request' && vars.PUBLISH_ACCURACY_PAGE == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -317,14 +316,12 @@ jobs:
           rm -rf site/rel site/series.json
 
       - name: Upload the dashboard
-        if: github.event_name != 'pull_request'
-        if: vars.PUBLISH_ACCURACY_PAGE == 'true'
-        uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request' && vars.PUBLISH_ACCURACY_PAGE == 'true'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
       - name: Deploy to Pages
-        if: github.event_name != 'pull_request'
-        if: vars.PUBLISH_ACCURACY_PAGE == 'true'
+        if: github.event_name != 'pull_request' && vars.PUBLISH_ACCURACY_PAGE == 'true'
         id: deploy
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
