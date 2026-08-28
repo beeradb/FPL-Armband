@@ -1,0 +1,123 @@
+# Security scanning. Everything here is free on a public repository.
+#
+# # Why this exists at all
+#
+# Before 2026-08-28 this repo had no security scanning of any kind: no CodeQL, no
+# Dependabot, no vulnerability check, and nothing looking at the container image
+# it publishes to ghcr.io. That was not a considered position — it had simply
+# never been set up.
+#
+# The first run of `govulncheck` found SEVEN reachable standard-library
+# vulnerabilities, with call traces into `internal/fpl/client.go`. All were fixed
+# by a patch bump the repo had not taken. That is the argument for this file: the
+# tool paid for itself before it was even wired in.
+#
+# # Why these tools and not others
+#
+# `govulncheck` is reachability-based — it reports a vulnerability only when your
+# code actually calls the affected symbol, so its output is signal rather than a
+# CVE list to triage. `gosec` was considered and rejected: it flags patterns
+# rather than reachable defects, and CodeQL covers the same ground with a better
+# false-positive rate.
+#
+# ⚠️ EVERY ACTION IS PINNED BY COMMIT SHA, and in this file that is not a style
+# rule. These jobs run with `security-events: write`, so a floating tag here means
+# a compromised upstream release gets a write token on this repository's security
+# surface — the worst possible place to take that risk. The first draft of this
+# file used `@v3` and `@0.28.0` while `dependabot.yml`, three files away, praised
+# the pinning discipline it was breaking. Dependabot updates SHA pins and keeps
+# the trailing version comment, so the discipline costs nothing to maintain.
+#
+# ⚠️ Secret scanning and push protection are NOT here, and cannot be — they are
+# repository settings rather than workflow steps. Both are free on a public repo
+# and both need enabling in Settings → Code security. Recorded here because a
+# reader auditing this file should not conclude that secrets are covered.
+
+name: Security
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # ⚠️ The scheduled run is the load-bearing one, and the reason is specific to
+    # vulnerability scanning: a new CVE makes code vulnerable WITHOUT the code
+    # changing. A push-only trigger would go quiet on exactly the repository that
+    # is stable and therefore most likely to be running something known-broken.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  govulncheck:
+    name: Reachable vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+      # Fails the build on a reachable vulnerability. ⚠️ Deliberately a GATE and
+      # not a report: the whole point of reachability filtering is that a hit is
+      # actionable, so there is nothing to triage and no reason to let it through.
+      - name: Scan
+        run: govulncheck ./...
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          languages: go
+          # security-and-quality is broader than the default and noisier. Chosen
+          # anyway because the two least-covered packages in this repo
+          # (internal/agent at 29.7%, internal/fpl at 53.9%) are also the two
+          # handling untrusted input, and that is where a wider net earns its
+          # false positives.
+          queries: security-and-quality
+      - uses: github/codeql-action/autobuild@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+      - uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+
+  image:
+    name: Container image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Builds locally rather than pulling the published tag, so a pull request
+      # is scanned BEFORE its image ships rather than after.
+      - name: Build the image
+        run: docker build -t armband:scan .
+      - name: Scan the image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: armband:scan
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL,HIGH
+          # ⚠️ Reports rather than fails, and this is the one place that is right.
+          # Base-image CVEs arrive without any change to this repo and are often
+          # unfixed upstream for days. A gate here would block unrelated work on
+          # someone else's release schedule; the SARIF upload puts them in the
+          # security tab where they can be judged.
+          exit-code: "0"
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          sarif_file: trivy.sarif
+          category: trivy

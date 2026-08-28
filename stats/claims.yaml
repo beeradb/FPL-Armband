@@ -1,0 +1,204 @@
+# THE CLAIMS REGISTRY — every quantitative claim this project asserts, with the
+# means to check it rather than the number to trust.
+#
+# ⚠️ READ THIS BEFORE ADDING AN ENTRY.
+#
+# A copy is safe exactly when a CHECKER CAN REACH BOTH SIDES and runs on every
+# change. Duplication that no guard can span is the thing that rots — and this
+# project has retired such a store before, for precisely that reason: its source
+# lived where the checker could not read it, so no guard was constructible.
+#
+# ⚠️ That is NOT an argument against storing a value. It is an argument against
+# storing one nothing compares. This registry is the reachable case: entry and
+# source in one checkout, compared by CI on every commit. `internal/backtest/
+# cellcsv_regression_test.go` states the same idea repo-natively — "A wrong source
+# is the failure mode, not a wrong constant."
+#
+# So an entry stores HOW TO GET THE NUMBER **and** what it should be, and
+# `scripts/claims.py` re-runs and compares. ⚠️ That detects unintended CHANGE, not
+# WRONGNESS: a deliberate change is fixed by editing `expect`, and only review
+# catches a deliberate change that should not have happened.
+#
+# Where a number cannot be re-derived cheaply the entry is `measured` and stores
+# what INVALIDATES it instead, and the checker reports staleness.
+#
+# kind: derived   the command is the claim. Re-run every check; drift is impossible
+#                 because nothing is stored to drift from.
+# kind: measured  a run that cost real time. Cannot be re-executed per-commit, so
+#                 it carries the state it was measured at and the paths whose
+#                 change invalidates it. The checker reports staleness, not truth.
+# kind: judgement DOES NOT BELONG HERE. A verdict is not a statistic. Those live in
+#                 AGENTS.md and the research record.
+#
+# ⚠️ A `measured` entry MUST carry `threshold`. A result below the detection
+# threshold of its own comparison is not a result, and an entry without one
+# invites exactly the overclaim this registry exists to stop.
+
+# ⚠️ THE ADMISSION TEST — what belongs here is LOAD-BEARING, not "every number".
+#
+# A registry of every figure becomes a registry nobody maintains, which is the
+# same rot as a registry of values. A figure is load-bearing, and belongs here,
+# if ANY of these is true:
+#
+#   1. A DECISION depends on it. If the number moved, something we do would change
+#      — a constant that ships, a threshold a gate fires on, an effect size a
+#      verdict rests on.
+#   2. It is QUOTED OUTSIDE the file that computes it — in AGENTS.md, a PR body, a
+#      commit message, the research record. A figure that has escaped its
+#      generator is exactly the one that goes stale unnoticed.
+#   3. It is a DETECTION THRESHOLD. These decide whether other results count at
+#      all, so a wrong one silently promotes noise to a finding.
+#
+# Everything else stays out. A diagnostic's own output, an incidental count, a
+# number that appears once in the file that produced it — none of that is
+# load-bearing, and adding it buys maintenance cost with no protection.
+#
+# ⚠️ Criterion 2 is CHECKED: `asserted_in` must name a real file that CONTAINS the
+# value. Criteria 1 and 3 are judgement, so an entry admitted on those alone must
+# say which, in its `statement`.
+#
+# ⚠️ A FUZZY KEY SEARCH IS NOT A CLAIM. `[k for k in w if 'hit' in k and 'gain' in k]`
+# does not name a quantity — it names whatever happens to match, and silently
+# redefines the claim when the config changes. Name the exact key or path. This
+# rule exists because the first draft of this file did it and reported its own bug
+# as a discovery.
+#
+# ⚠️ A QUANTITY THAT CANNOT DRIFT DOES NOT NEED A GENERATOR. Two entries were
+# dropped on first run under this rule. `t_crit` at df 5 is mathematics — it is
+# load-bearing by criterion 3, but it cannot change, and re-deriving it needs a
+# dependency CI does not have; the honest form was a stored value with a print in
+# front of it. A diagnostic count is the other shape: it is a diagnostic's own
+# output, which the exclusion list above already refuses, and its only criterion-2
+# quote was a prose sentence the count had just falsified. Pinning either buys
+# maintenance and no protection.
+#
+# ⚠️ The test to apply when unsure: **if this number were wrong by 20%, would
+# anyone do anything differently?** If no, leave it out.
+
+claims:
+
+  - id: perf-gate-memory-tolerance
+    kind: derived
+    statement: >-
+      The perf gate's memory ceiling, above which a benchmark is reported as too
+      unstable to gate with rather than given a wider bar.
+    command: |
+      python3 -c "import re;print(re.search(r'^MEM_NULL_TOLERANCE_PCT = (\S+)',open('scripts/perf-gate.py').read(),re.M).group(1))"
+    expect: "1.0"
+    asserted_in:
+      - scripts/perf-gate.py
+
+  - id: perf-gate-runtime-floor
+    kind: derived
+    statement: >-
+      The floor under the runtime bar, so a quiet null cannot make the gate
+      hair-trigger.
+    command: |
+      python3 -c "import re;print(re.search(r'^MIN_TIME_BAR_PCT = (\S+)',open('scripts/perf-gate.py').read(),re.M).group(1))"
+    expect: "5.0"
+    asserted_in:
+      - scripts/perf-gate.py
+
+
+
+  - id: go-map-alloc-drift
+    kind: measured
+    statement: >-
+      A bare map[int]int over 20,000 fixed keys reports 145 allocs/op instead of
+      144 in roughly a quarter of processes, so memory is not deterministic across
+      processes and the perf gate cannot assume it is.
+    value: "6 of 24 processes at 145 allocs/op (~25%)"
+    threshold: >-
+      11 runs at -benchtime=1x for a 95% chance of observing the split at p=0.25,
+      and 24 at the Wilson 95% lower bound of 6/24 ([0.12, 0.45]). FEWER THAN 11
+      RUNS IS NOT A NULL — a 10-run null had a ~6% chance of missing it, and one
+      was reported as an absence.
+    measured_at: "go1.26.5 linux/arm64, -benchtime=1x, 24 separate processes"
+    reproduce: >-
+      Standalone module, no project code. b.N MUST be pinned: under the default,
+      Go varies b.N and reports total/N, which measures a different quantity and
+      hides the split entirely.
+    invalidated_by:
+      - "any Go toolchain bump (Go 1.24 replaced the map implementation)"
+      - "a different GOARCH — amd64 is untested, and CI runs amd64"
+    asserted_in:
+      - scripts/perf-gate.py
+
+  # --- shipped constants. Maximally load-bearing by test 1: every one of these
+  # changes what the model does on every player, every gameweek. They are derived
+  # from the config the engine actually loads, never transcribed.
+
+  - id: shipped-fixture-horizon
+    kind: derived
+    statement: >-
+      The fixture horizon the shipped model plans over. Load-bearing: it sets how
+      far ahead every transfer and squad decision looks.
+    command: |
+      python3 -c "import json;print(json.load(open('config.json'))['weights']['fixture_horizon'])"
+    expect: "5"
+    asserted_in:
+      - internal/backtest/replaypoints_diag_test.go
+
+  - id: shipped-minutes-half-life
+    kind: derived
+    statement: >-
+      The half-life on the minutes signal. Load-bearing: it governs how fast the
+      model forgets a player's recent minutes, which drives every availability call.
+    command: |
+      python3 -c "import json;print(json.load(open('config.json'))['weights']['minutes_half_life'])"
+    expect: "4"
+    asserted_in:
+      - AGENTS.md
+
+  - id: shipped-min-separable-gain
+    kind: derived
+    statement: >-
+      The band inside which the transfer search refuses to separate two plans, in
+      points per gameweek. Load-bearing on criteria 1 AND 2. Criterion 1: the
+      transfer board prints "All within N pts/gw of the pick above ... It cannot
+      separate them", so this decides what the product tells a reader it does not
+      know. Criterion 2, and this is the reason it is here rather than left to a
+      config test: the value ships in internal/config/policy.go but is DERIVED in
+      docs/accuracy.md, which is regenerated from the accuracy snapshot. The
+      source can move while the shipped constant does not, and nothing else spans
+      the files. README.md is listed as well as docs/accuracy.md: the figure has
+      escaped to THREE places, and the README's copy is audience-facing and sits
+      inside a chart's data array (`bar [0.41, 2.57, 1.03]`) where a stale value
+      would be read as a measurement rather than a quote.
+    command: |
+      python3 -c "import re;print(re.search(r'MinSeparableGain:\s+(\S+?),',open('internal/config/policy.go').read()).group(1))"
+    expect: "0.41"
+    asserted_in:
+      - docs/accuracy.md
+      - README.md
+
+  - id: shipped-min-gain-transfer
+    kind: derived
+    statement: >-
+      The floor a single transfer's gain must clear to be recommended at all, in
+      points per gameweek. Admitted on criterion 1 alone -- no file outside
+      policy.go quotes the literal, because the brief renders it through a format
+      string rather than writing it down. Pinned BESIDE min-separable-gain
+      deliberately: policy.go warns in its own comment that the two "must not be
+      confused", one being a bar a gain is compared against and the other a
+      distance between two gains. They are 0.4 and 0.41. If either drifted onto
+      the other's value the confusion would stop being hypothetical, and a single
+      checker spanning both is what makes that detectable.
+    command: |
+      python3 -c "import re;print(re.search(r'MinGainForTransfer:\s+(\S+?),',open('internal/config/policy.go').read()).group(1))"
+    expect: "0.4"
+
+  - id: shipped-min-gain-hit
+    kind: derived
+    statement: >-
+      The minimum net gain before the optimiser will take a four-point hit.
+      Load-bearing by criteria 1 and 3: it ships, and a verdict rests on it.
+      ⚠️ It travels under two names by design, and the mapping is already guarded:
+      config.json `review_policy.min_net_gain_for_minus_4` -> `Review.MinGainForHit`
+      (struct tag, internal/config/policy.go) -> `SimConfig.MinGainHit`, asserted in
+      internal/backtest/cellcsv_regression_test.go. That is NOT drift.
+    command: |
+      python3 -c "import json;print(json.load(open('config.json'))['review_policy']['min_net_gain_for_minus_4'])"
+    expect: "3"
+    asserted_in:
+      - internal/config/policy.go

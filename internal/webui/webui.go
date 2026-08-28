@@ -62,22 +62,26 @@ import (
 var assets embed.FS
 
 // Static is the tree served under /assets/ — the stylesheet, the generated font CSS, the
-// woff2 subsets and the mark.
+// woff2 subsets and the mark. Its CSS and JS are comment-stripped, once, the first time
+// Static or Page is called; see strippedfs.go's stripOnce.
 func Static() fs.FS {
-	sub, err := fs.Sub(assets, "assets/static")
-	if err != nil {
-		// Unreachable: the path is a compile-time constant and embed guarantees it
-		// exists. Panicking beats returning an error no caller could act on.
-		panic("webui: embedded assets/static missing: " + err.Error())
-	}
-	return sub
+	stripOnce()
+	return strippedStatic
 }
 
-// Page returns one document by name — "landing" or "app". It returns an error rather than
+// Page returns one document by name — "landing" or "app" — with its HTML comments
+// stripped (see strip.go's stripHTML), and returns a fresh copy on every call so a caller
+// downstream is free to treat the result as its own, the same guarantee embed.FS.ReadFile
+// gave before Page started serving from a shared cache. It returns an error rather than
 // panicking on an unknown name so a route typo surfaces as a 500 with a message, not a
 // dead server.
 func Page(name string) ([]byte, error) {
-	return assets.ReadFile("assets/pages/" + name + ".html")
+	stripOnce()
+	b, ok := strippedPages[name]
+	if !ok {
+		return nil, &fs.PathError{Op: "open", Path: "assets/pages/" + name + ".html", Err: fs.ErrNotExist}
+	}
+	return append([]byte(nil), b...), nil
 }
 
 // StaticHandler serves Static() under the given prefix.

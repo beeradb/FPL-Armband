@@ -5,17 +5,24 @@
 # mount and its own data as a volume, so this image says nothing about where or
 # how it is run.
 #
-# Both bases are pinned by DIGEST, not tag. golang:1.26.5-alpine is rebuilt on
+# Both bases are pinned by DIGEST, not tag. golang:1.26.7-alpine is rebuilt on
 # Alpine security updates and distroless :nonroot is republished on every CA
 # bundle refresh, so a tag would let the shipped runtime change without this
 # file recording that it had -- the same rule the workflow applies to actions,
 # and the base image is the larger surface of the two.
-FROM golang@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 AS build
+FROM golang@sha256:28d89ee9cc0ff9fec75c82ca201e6bf7fdf9a679d4b7b24dfa04f2bb766bb468 AS build
 
-# The module declares go 1.26.5. GOTOOLCHAIN=local turns a version mismatch into
+# The module declares go 1.26.7. GOTOOLCHAIN=local turns a version mismatch into
 # a build error rather than a silent download of a different compiler. (The
 # golang image already sets this; restated so the guarantee does not depend on
 # the base keeping it.)
+#
+# ⚠️ THAT COUPLING IS REAL AND IT BITES. Bumping go.mod without moving this digest
+# fails the image build with `go.mod requires go >= X (running Y; GOTOOLCHAIN=local)`
+# — which is the guarantee working, not a defect. It happened on the 1.26.5 -> 1.26.7
+# bump that took seven reachable CVEs to zero: go.mod moved, this digest did not, and
+# both the image build and the new Trivy scan went red until it did. **Move them in
+# the same commit.**
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOOS=linux
 
 # GOARCH follows BuildKit's per-platform TARGETARCH rather than being fixed, so
@@ -39,7 +46,7 @@ RUN go build -trimpath -ldflags='-s -w -buildid=' -o /out/armband ./cmd/armband
 # static-debian12 carries the CA bundle the live FPL API needs and nothing else:
 # no shell, no package manager. Nothing in the tree imports "C", so CGO stays off
 # and the binary is fully static.
-FROM gcr.io/distroless/static-debian12@sha256:1b7b9f0f0e0a1d2155f531db587cc48ec26aaf97ab64364225f5bf18a054e66a
+FROM gcr.io/distroless/static-debian12@sha256:d75cdd72874d4790092fcb1b058493ecf6bb5bf2b2b897045b00ff01d91843f2
 COPY --from=build /out/armband /usr/local/bin/armband
 
 # USER before WORKDIR, so /data is created owned by that uid on every builder

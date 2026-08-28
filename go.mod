@@ -1,9 +1,9 @@
 module armband
 
-go 1.26.5
+go 1.26.7
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.61.0
+	github.com/anthropics/anthropic-sdk-go v1.66.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/prometheus/client_golang v1.24.1
 	golang.org/x/sync v0.22.0

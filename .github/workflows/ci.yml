@@ -83,7 +83,7 @@ jobs:
       # could tamper with the tree between checkout and `go test`, which makes
       # this job's verdict untrustworthy, and that verdict is the entire point.
       - name: Check out the full history
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # ⚠️ LOAD-BEARING — do not "optimise" this to a shallow clone.
           # `TestAKeyDescribesTheCommitItNames` recomputes each snapshot key's
@@ -109,7 +109,7 @@ jobs:
           fi
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # Read from go.mod so the toolchain cannot drift from the module's
           # own declaration — one quantity, one implementation.
@@ -125,7 +125,7 @@ jobs:
       # the real fix and is not done here — but it means a green result stays
       # reproducible instead of being re-rolled on each run.
       - name: Cache the season archive
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/fpl
           # ⚠️ `.cache/fpl` is also `config.CacheDir` (internal/config/config.go),
@@ -227,6 +227,53 @@ jobs:
 
       - name: Vet
         run: go vet ./...
+
+      # ⚠️ THE SELFTEST RUNS FIRST, AND THAT ORDER IS THE POINT.
+      #
+      # The recurring failure this guards is not a wrong number, it is a CHECK
+      # TRUSTED WITHOUT EVIDENCE IT CAN FAIL. Five separate guards in this repo
+      # have run green while unable to act, and each was found by injecting the
+      # thing it claimed to catch — never by watching it pass. So the checker
+      # proves it goes red on a mutated expectation BEFORE its green run is
+      # allowed to mean anything. A green `claims` step whose selftest did not
+      # run is worth exactly nothing.
+      # ⚠️ FORWARD-LOOKING ONLY. 74 functions are already over the threshold and
+      # every one is grandfathered. A global threshold would either sit above the
+      # worst (65, and therefore unable to ever fire) or block unrelated work
+      # until someone lowered it — the first is the unfalsified-guard failure this
+      # repo keeps hitting, the second is how a gate gets deleted. So the gate is
+      # on CHANGE: nothing NEW over the line, and nothing existing getting worse.
+      # Attacking the grandfathered list is separate, optional work.
+      - name: Install gocyclo
+        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0
+
+      - name: Prove the complexity ratchet can fail
+        run: python3 scripts/complexity-ratchet.py --selftest
+
+      - name: Complexity ratchet
+        run: python3 scripts/complexity-ratchet.py
+
+      # ⚠️ THIS MUST LIVE HERE AND NOT IN snapshot.yml. The defect it catches
+      # DISABLED snapshot.yml outright -- three steps carried two `if:` keys
+      # each, which PyYAML resolves by keeping the last and GitHub rejects
+      # wholesale -- so every run produced zero jobs and a bare `failure` with
+      # no logs. A workflow cannot report that it is the one that will not
+      # parse, so the check has to run somewhere else.
+      - name: Prove the workflow linter can fail
+        run: python3 scripts/workflow-lint.py --selftest
+
+      - name: Lint the workflows
+        run: python3 scripts/workflow-lint.py
+
+      - name: Prove the claims checker can fail
+        run: python3 scripts/claims.py --selftest
+
+      # Re-derives every quantitative claim in stats/claims.yaml rather than
+      # trusting a number written down beside it. ⚠️ A registry of VALUES is the
+      # one design already proved to rot here — `ledger/` drifted in under 24
+      # hours — so entries store the COMMAND and this re-runs it.
+      - name: Check the claims registry
+        run: python3 scripts/claims.py
 
       # ⚠️ FPL_SNAPSHOTS_EXTERNAL=1 is load-bearing, added 2026-08-22 the same commit the
       # accuracy series stopped being committed. TestSnapshotCoversTheCurrentCode's own doc
