@@ -68,6 +68,12 @@ import (
 //     which would be a bigger finding and a less specific one.
 //   - ⚠️ **Uninterpretable if the no-history stratum is thin.** The count is
 //     printed per season and a stratum under ~30 players says nothing.
+//
+// priceTiltUnderTest is the lever value the ON column is scored at. Not the
+// shipped value — nothing ships — just a setting large enough that a failure to
+// move would mean the wiring is dead rather than the signal weak.
+const priceTiltUnderTest = 0.5
+
 func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 	requireDiag(t)
 	cfg := loadConfig(t)
@@ -84,14 +90,23 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 	fmt.Printf("that stratum is where the mechanism can be told from the circularity.\n")
 	fmt.Printf("⚠️ Ordering only. This does not say ownership belongs in Score — a\n")
 	fmt.Printf("better predictor can make a worse policy, and the replay decides that.\n\n")
-	fmt.Printf("  %-9s %-12s %6s %9s %9s %9s %8s\n",
-		"season", "stratum", "n", "own rho", "price rho", "model rho", "gap")
+	fmt.Printf("  %-9s %-12s %6s %9s %9s %9s %9s\n",
+		"season", "stratum", "n", "own rho", "price rho", "model OFF", "model ON")
 
 	sc := SimConfig{Weights: cfg.Weights, StartGW: 1}
 	for _, pr := range loadPairsOrSkip(t, cfg) {
 		// The model's view before a ball is kicked, which is what builds the
 		// opening fifteen.
 		e, _ := EngineAt(pr.Cur, pr.Prior, 0, sc)
+
+		// ⚠️ The SAME players scored twice, once with the price tilt off and
+		// once on, so the comparison is within-population and the stratum's own
+		// spread cancels. A second engine rather than a second run: two runs
+		// would differ in the parse cache and the season load as well as in the
+		// lever, and only one of those is the declared variable.
+		tilted := sc
+		tilted.Weights.PriceMinutesPrior = priceTiltUnderTest
+		et, _ := EngineAt(pr.Cur, pr.Prior, 0, tilted)
 
 		// Prior-season minutes by permanent player code: element ids are
 		// reassigned every summer, so matching on them would compare strangers.
@@ -110,7 +125,7 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 		// a ball is kicked and revised on transfer activity. They correlate —
 		// expensive players are owned more — so a stratum where both beat the
 		// model says less than one where they diverge.
-		type row struct{ own, price, model, actual float64 }
+		type row struct{ own, price, model, tilted, actual float64 }
 		strata := map[string][]row{}
 
 		for id, p := range pr.Cur.Players {
@@ -136,6 +151,7 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 				own:    float64(g1.Selected),
 				price:  float64(g1.Value),
 				model:  e.Metrics(el).ExpectedMinutes,
+				tilted: et.Metrics(el).ExpectedMinutes,
 				actual: actual,
 			})
 		}
@@ -143,15 +159,17 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 		for _, key := range []string{"NO history", "has history"} {
 			rs := strata[key]
 			if len(rs) < 8 {
-				fmt.Printf("  %-9s %-12s %6d %9s %9s %9s %8s\n",
+				fmt.Printf("  %-9s %-12s %6d %9s %9s %9s %9s\n",
 					pr.Name, key, len(rs), "-", "-", "-", "too thin")
 				continue
 			}
 			own, price := make([]float64, len(rs)), make([]float64, len(rs))
 			model, act := make([]float64, len(rs)), make([]float64, len(rs))
+			tilt := make([]float64, len(rs))
 			for i, r := range rs {
 				own[i], price[i] = r.own, r.price
 				model[i], act[i] = r.model, r.actual
+				tilt[i] = r.tilted
 			}
 			// ⚠️ Ownership is a COUNT and the totals differ between seasons, so
 			// only its ranking is comparable — which is why this is Spearman and
@@ -167,6 +185,7 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 			ro, ok1 := spearman(own, act)
 			rp, okp := spearman(price, act)
 			rm, ok2 := spearman(model, act)
+			rt, okt := spearman(tilt, act)
 			cell := func(r float64, ok bool) string {
 				if !ok {
 					return "FLAT"
@@ -179,9 +198,10 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 			} else if ok1 && !ok2 {
 				gap = "no rival"
 			}
-			fmt.Printf("  %-9s %-12s %6d %9s %9s %9s %8s\n",
+			_ = gap
+			fmt.Printf("  %-9s %-12s %6d %9s %9s %9s %9s\n",
 				pr.Name, key, len(rs), cell(ro, ok1), cell(rp, okp),
-				cell(rm, ok2), gap)
+				cell(rm, ok2), cell(rt, okt))
 		}
 	}
 
@@ -190,6 +210,6 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 	fmt.Printf("⚠️ A win on the NO-history stratum is the finding. A win on both is\n")
 	fmt.Printf("consistent with ownership simply being a better minutes model, which\n")
 	fmt.Printf("is a larger claim needing a larger test.\n")
-	fmt.Printf("⚠️ No standard error here. Six seasons is the clustering axis and the\n")
+	fmt.Printf("⚠️ No standard error here. Season is the clustering axis and the\n")
 	fmt.Printf("inference belongs in R, on the per-season gaps.\n")
 }

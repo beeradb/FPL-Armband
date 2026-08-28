@@ -338,6 +338,59 @@ type Weights struct {
 	BlendMinutesK float64 `json:"blend_minutes_k"`
 	BlendRateK    float64 `json:"blend_rate_k"`
 
+	// PriceMinutesPrior tilts the LEAGUE-AVERAGE volume fallback by how
+	// expensive a player is, for players the model has no history on. Zero is
+	// off and is what ships.
+	//
+	// # The hole it addresses, which is measured rather than assumed
+	//
+	// A player with no prior-season minutes has `n90 = 0`, so `shrinkToLeague`
+	// gives him his position's league-average volume — **the same number as
+	// every other player in that position**. Measured across six seasons, that
+	// is 122 to 284 players a gameweek-one squad is chosen from, and the model
+	// cannot rank a single one of them: Spearman against their coming minutes is
+	// undefined because the prediction has no variation at all.
+	//
+	// It is not losing a comparison. It is not making a prediction.
+	//
+	// # Why PRICE, and why not ownership
+	//
+	// Both were measured against minutes actually played in GW1-10, split on
+	// whether the player has a prior season. On the no-history stratum price
+	// ranks them at rho 0.29-0.50 and ownership at 0.16-0.39, price winning four
+	// of six seasons and winning the two where ownership is weakest. Where
+	// history DOES exist the order reverses and price is the weakest of the
+	// three (0.24-0.39 against the model's 0.57-0.64).
+	//
+	// The reading that fits: FPL prices a player before anyone owns him, so
+	// price is a small group stating an expectation, while gameweek-one
+	// ownership is a crowd that is largely echoing last season — which the model
+	// already has, in cleaner form. Price is a commitment; ownership is a
+	// reaction.
+	//
+	// ⚠️ **That holds at the season boundary and decays after it.** FPL revises
+	// price on transfer activity, so it becomes partly crowd once the season is
+	// running. This tilt is aimed at the opening squad and should not be read as
+	// a claim about mid-season price.
+	//
+	// # ⚠️ What it must not become
+	//
+	// It multiplies the LEAGUE term only, which the mix already weights by
+	// `1 - wMin`. So a player with real history is untouched by construction
+	// rather than by a guard, and the tilt fades as evidence arrives.
+	//
+	// ⚠️ **It is CENTRED on the position's median price**, so it reorders
+	// without inflating: the median-priced player is unchanged, and what one
+	// player gains another loses. A tilt that raised everyone would be a
+	// league-average change wearing a signal's clothes.
+	//
+	// ⚠️ **Ordering better is not scoring better.** This project's hardest-won
+	// result is that a better predictor can make a worse policy, because the
+	// transfer search is an argmax living in the tail. The measurement behind
+	// this knob is Spearman on minutes; nothing yet says it earns points, and
+	// that is what the replay is for.
+	PriceMinutesPrior float64 `json:"price_minutes_prior"`
+
 	// LeagueShrinkK is shrinkToLeague's own strength — how fast a player with no
 	// prior at all (a promoted club's starter, an arrival from abroad) is
 	// trusted on his own current-season sample rather than his position's
@@ -1286,6 +1339,13 @@ type Engine struct {
 	confirmedIDs  map[int]bool
 	absenceOnce   sync.Once
 	absenceByID   map[int]playerAbsence
+
+	// priceOnce guards pricePctile, which is a per-position ranking and so must
+	// be built from the whole bootstrap rather than per player. Under a Once for
+	// the same reason as absenceByID: the tool runner reaches Metrics from
+	// several goroutines at once.
+	priceOnce   sync.Once
+	pricePctile map[int]float64
 
 	// Priors holds last season's totals, so the model has something to fall
 	// back on once FPL overwrites its aggregates at GW1. Optional: nil means no

@@ -577,7 +577,9 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 		//
 		// Without blending the prior is identical to what the element carries,
 		// so this is a no-op then.
-		if p, ok := e.Priors.Get(el.Code); ok && p.Minutes > 0 && p.Minutes != el.Minutes {
+		p, hasPrior := e.Priors.Get(el.Code)
+		switch {
+		case hasPrior && p.Minutes > 0 && p.Minutes != el.Minutes:
 			b.MinutesPerMatch = float64(p.Minutes) / GameweeksPerSeason
 			b.StartShare = float64(p.Starts) / GameweeksPerSeason
 			b.XG90 = per90(p.XG, p.Minutes)
@@ -588,6 +590,33 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 			b.Saves90 = per90(float64(p.Saves), p.Minutes)
 			b.Yellow90 = per90(float64(p.Yellow), p.Minutes)
 			b.Red90 = per90(float64(p.Red), p.Minutes)
+
+		case !hasPrior || p.Minutes == 0:
+			// ⚠️ **A PLAYER WITH NO PRIOR USED TO RETURN FROM HERE AT ZERO
+			// MINUTES, and that is the fourth instance of the defect the comment
+			// above names.** The three recorded before it were all the
+			// in-season half of the same mistake; this is the pre-season half,
+			// and it is the one that builds the opening fifteen.
+			//
+			// The in-season path sends exactly this case to shrinkToLeague —
+			// "no prior of his own, a promoted club's player or an arrival from
+			// abroad" — and pre-season simply did not, so a summer signing, a
+			// promoted regular and a player returning from abroad all left this
+			// function with expected minutes of **exactly zero**.
+			//
+			// Measured before the fix: across six seasons, 122 to 284 players a
+			// season read 0.0000, so Spearman against their coming minutes was
+			// UNDEFINED — the model had no ordering over a fifth of the pool it
+			// picks an opening squad from. That is also why the shipped config
+			// carries thirteen hand-written minutes overrides, several of whose
+			// texts say it outright: "scores 0.00 only because he has no Premier
+			// League minutes".
+			//
+			// ⚠️ **Zero is not a weak prior, it is a wrong one.** Nothing is
+			// known about these players, and the honest expression of that is
+			// the position's league average, which is what shrinkToLeague
+			// supplies and what the in-season path has used since 2026-08-23.
+			b = e.shrinkToLeague(el, b)
 		}
 		// A minutes correction still wins over everything.
 		e.reassertMinutesOverride(el, ignoreCode, &b)
@@ -854,10 +883,104 @@ func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	// against 8). Reusing LeagueShrinkK here would conflate two quantities
 	// that path deliberately tunes apart.
 	wMin := n90 / (n90 + e.Weights.BlendMinutesK)
-	b.MinutesPerMatch = mix(b.MinutesPerMatch, base.MinutesPerMatch, wMin)
-	b.StartShare = mix(b.StartShare, base.StartShare, wMin)
+	// ⚠️ The tilt multiplies the LEAGUE term and nothing else, so it fades with
+	// evidence by construction rather than by a guard: the mix already weights
+	// this term by `1 - wMin`, which is 1 for a player with no history and goes
+	// to 0 as he plays. A player the model knows is untouched.
+	leagueMin, leagueStart := base.MinutesPerMatch, base.StartShare
+	tilt := e.priceMinutesTilt(el)
+	if tilt != 1 {
+		leagueMin *= tilt
+		leagueStart *= tilt
+	}
+	b.MinutesPerMatch = mix(b.MinutesPerMatch, leagueMin, wMin)
+	b.StartShare = mix(b.StartShare, leagueStart, wMin)
+	// ⚠️ **Clamped only when the tilt actually fired, and that is not fussiness.**
+	// `mix` is a convex combination, so with the lever off both outputs are
+	// bounded by inputs this function did not change — meaning an unconditional
+	// clamp here could only ever alter an EXISTING value, silently, under cover
+	// of a knob that ships at zero. A lever that changes shipped behaviour while
+	// switched off is the worst shape a lever can have.
+	//
+	// With the tilt on, the multiplier can push an individual past certainty
+	// even though it is centred, and a start share above 1 would propagate as
+	// confidence nobody has.
+	if tilt != 1 {
+		if b.StartShare > 1 {
+			b.StartShare = 1
+		}
+		if b.MinutesPerMatch > 90 {
+			b.MinutesPerMatch = 90
+		}
+	}
 	b.Weight = w
 	return b
+}
+
+// priceMinutesTilt is the multiplier this player's price earns on the
+// league-average volume fallback. Returns exactly 1 when the lever is off, so
+// the caller's `!= 1` check makes the whole feature free when unused.
+//
+// # Centred, and that is the load-bearing property
+//
+// The tilt is `1 + w*(2p - 1)` where `p` is the player's price percentile inside
+// his own position. A median-priced player gets exactly 1; the most expensive
+// gets `1 + w` and the cheapest `1 - w`. So it REORDERS without inflating — what
+// one player gains another loses, and the position's average volume is
+// unchanged.
+//
+// A tilt that raised everyone would be a change to the league fallback dressed
+// as a signal, and it would show up as a points effect that had nothing to do
+// with ranking anybody.
+//
+// ⚠️ **Percentile within POSITION, not across the league.** Goalkeepers and
+// forwards live on different price scales, so a league-wide percentile would
+// read every keeper as cheap and tilt the whole position down — a systematic
+// change to one position's minutes, which is not what this is for.
+//
+// ⚠️ **Ties share a percentile.** FPL prices cluster hard at the bottom, where
+// dozens of players sit at exactly 4.0m; splitting them by index would invent an
+// ordering the price does not contain and hand it to an argmax.
+func (e *Engine) priceMinutesTilt(el *fpl.Element) float64 {
+	w := e.Weights.PriceMinutesPrior
+	if w <= 0 || el == nil {
+		return 1
+	}
+	e.priceOnce.Do(func() {
+		byPos := map[int][]int{}
+		for i := range e.Boot.Elements {
+			p := &e.Boot.Elements[i]
+			byPos[p.ElementType] = append(byPos[p.ElementType], p.NowCost)
+		}
+		pct := map[int]float64{}
+		for i := range e.Boot.Elements {
+			p := &e.Boot.Elements[i]
+			costs := byPos[p.ElementType]
+			if len(costs) < 2 {
+				continue
+			}
+			// Share of the position priced strictly below him, plus half the
+			// share priced the same — the mid-rank convention, so a block of
+			// tied 4.0m players all land on one percentile instead of being
+			// spread across a range the price never distinguished.
+			below, equal := 0, 0
+			for _, c := range costs {
+				switch {
+				case c < p.NowCost:
+					below++
+				case c == p.NowCost:
+					equal++
+				}
+			}
+			pct[p.ID] = (float64(below) + float64(equal)/2) / float64(len(costs))
+		}
+		e.pricePctile = pct
+	})
+	p, ok := e.pricePctile[el.ID]
+	if !ok {
+		return 1
+	}
+	return 1 + w*(2*p-1)
 }
 
 // leagueRate is a position's aggregate per-90 output, used as the fallback
