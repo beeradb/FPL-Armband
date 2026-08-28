@@ -1377,6 +1377,39 @@ type SimConfig struct {
 	PriorMinutesHalfLife float64
 	PriorRateHalfLife    float64
 
+	// PriorTrimAfterGW drops last season's closing gameweeks from the prior
+	// entirely, above this number. Zero keeps every gameweek, which is what
+	// ships.
+	//
+	// # Why a trim is a different hypothesis from a longer half-life
+	//
+	// Weighting last season's closing minutes was measured and LOSES,
+	// monotonically: every half-life is worse than the flat prior and the loss
+	// shrinks as the half-life lengthens toward flat. The stated reason is that
+	// the summer resets roles, so May is a smaller sample rather than a
+	// privileged one.
+	//
+	// The trim tests a narrower claim that measurement did not: that the harm is
+	// concentrated in the DEAD RUBBER specifically. GW38 is measurably rotated —
+	// about 32% of established regulars benched or rotated, against ~25%
+	// mid-season — while GW36 and GW37 are NOT (21-26%, at or below the GW20-30
+	// level). Recency weights exactly the week that is most corrupted MOST
+	// heavily, which is the opposite of what the hypothesis wants.
+	//
+	// ⚠️ **This trims the SOURCE, it does not flatten the gradient.** With the
+	// trim at 37 a player's anchor becomes his last appearance at or before
+	// GW37, so GW37 still outweighs GW1 by the usual decay. A trim that removed
+	// the ordering would be testing the flat prior again, which is already
+	// known to win.
+	//
+	// ⚠️ **The prior evidence points against this**, and it is worth running
+	// anyway rather than assumed: the gradient toward flat is monotone, so a
+	// trim must REVERSE a consistent trend rather than nudge a null. And the
+	// half-life already counts back from the player's last appearance, not from
+	// GW38, so a player who stopped in March is anchored at March and the dead
+	// rubber is already partly blunted.
+	PriorTrimAfterGW int
+
 	// SquadFixtureWeight overrides FixtureWeight for the *opening squad only*,
 	// leaving the weekly transfer decision on the configured value. Negative
 	// means "leave it alone", because zero is a real setting meaning "ignore
@@ -4068,10 +4101,20 @@ func newPriorIndex(s *Season) priorIndex {
 //
 // Half-lives are in gameweeks, counting back from the last one the player
 // appeared in.
-func newPriorIndexRecent(s *Season, minutesHalfLife, rateHalfLife float64) priorIndex {
+func newPriorIndexRecent(s *Season, minutesHalfLife, rateHalfLife float64,
+	trimAfterGW int) priorIndex {
+
 	if minutesHalfLife <= 0 && rateHalfLife <= 0 {
 		return newPriorIndex(s)
 	}
+	// ⚠️ The trim only means anything alongside a half-life. Dropping gameweeks
+	// from a FLAT prior would change the totals without testing recency at all,
+	// which is a different arm nobody asked for — so the early return above
+	// stands and this is reached only when a half-life is set.
+	//
+	// keep reports whether a gameweek is inside the trimmed window. Zero keeps
+	// everything, which is what ships.
+	keep := func(gw int) bool { return trimAfterGW <= 0 || gw <= trimAfterGW }
 	m := map[int]*analysis.PriorPlayer{}
 	for _, q := range s.Players {
 		if q.Code == 0 || q.Minutes == 0 {
@@ -4082,9 +4125,15 @@ func newPriorIndexRecent(s *Season, minutesHalfLife, rateHalfLife float64) prior
 		// would have been measured and attributed to the half-life rather than to
 		// the missing field.
 		p := PriorFrom(q)
+		// ⚠️ The anchor is the player's own last appearance INSIDE the trimmed
+		// window, not the season's last gameweek. That is what keeps GW37
+		// outweighing GW1 when the trim is at 37: the decay still runs from the
+		// most recent football that counts, it just stops counting the dead
+		// rubber. Anchoring at a fixed 38 instead would flatten everyone who
+		// stopped playing early, which is the opposite of the intent.
 		last := 0
 		for gw := range q.GWs {
-			if gw > last {
+			if gw > last && keep(gw) {
 				last = gw
 			}
 		}
@@ -4094,6 +4143,9 @@ func newPriorIndexRecent(s *Season, minutesHalfLife, rateHalfLife float64) prior
 				// the evidence weight downstream keeps its usual units.
 				var num, den float64
 				for gw, g := range q.GWs {
+					if !keep(gw) {
+						continue
+					}
 					w := math.Pow(0.5, float64(last-gw)/minutesHalfLife)
 					num += float64(g.Minutes) * w
 					den += w
@@ -4112,7 +4164,12 @@ func newPriorIndexRecent(s *Season, minutesHalfLife, rateHalfLife float64) prior
 				// rate is evidence in proportion to the football behind it.
 				var rw, xg, xa, xgc, dc, bonus, saves float64
 				for gw, g := range q.GWs {
-					if g.Minutes == 0 {
+					// Trimmed on the same window as the minutes half-life
+					// above. Trimming one and not the other would build a
+					// prior whose two halves disagree about which football
+					// happened, and any arm varying the trim would be
+					// measuring that disagreement as well as the trim.
+					if g.Minutes == 0 || !keep(gw) {
 						continue
 					}
 					w := math.Pow(0.5, float64(last-gw)/rateHalfLife) *
