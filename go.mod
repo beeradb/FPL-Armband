@@ -1,6 +1,6 @@
 module armband
 
-go 1.26.5
+go 1.26.7
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.61.0

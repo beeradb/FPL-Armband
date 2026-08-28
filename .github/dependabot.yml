@@ -1,0 +1,36 @@
+# Dependency updates and alerts. Free on a public repository.
+#
+# ⚠️ Scope is deliberately narrow. This repo pins every GitHub Action by commit
+# SHA (see any workflow), which is the supply-chain control that actually
+# matters and which a floating tag would undo. Dependabot understands SHA pins
+# and updates them WITH the comment intact, so the pinning discipline survives.
+#
+# Grouped so a quiet week produces one pull request rather than six, because a
+# review channel that floods is a review channel that gets ignored — the same
+# reason the accuracy-baseline notice is a sticky edit rather than an append.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      go-dependencies:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The published image's base layers. Nothing scanned these before 2026-08-28.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
