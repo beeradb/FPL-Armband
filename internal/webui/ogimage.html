@@ -12,11 +12,13 @@
   exactly 1200x630 and writes the PNG.
 
   Why an HTML file and a browser, rather than drawing the card in SVG: the wordmark
-  and tagline have to be set in the site's OWN faces (Plus Jakarta Sans and Inter,
-  self-hosted under assets/static/fonts). An SVG rasteriser would need those fonts
-  installed system-wide and would silently substitute something else if they were
-  missing -- which is exactly how a share card ends up in the wrong typeface without
-  anyone noticing. Loading assets/static/fonts.css here means the card is set in the
+  and tagline have to be set in the site's OWN face (Inter, self-hosted under
+  assets/static/fonts -- the wordmark used Plus Jakarta Sans until that family was
+  dropped 2026-08-27; see --display's comment in armband.css). An SVG rasteriser
+  would need the font installed system-wide and would silently substitute something
+  else if it were missing -- which is exactly how a share card ends up in the wrong
+  typeface without anyone noticing. Loading assets/static/fonts.css here means the
+  card is set in the
   same bytes the site serves.
 
   1200x630 is the size both the Open Graph and Twitter summary_large_image specs
@@ -47,8 +49,8 @@
 
   .stack{position:relative;display:flex;flex-direction:column;align-items:center;gap:30px;}
   .wordmark{
-    font-family:'Plus Jakarta Sans',system-ui,sans-serif;
-    font-weight:800;letter-spacing:-.025em;font-size:82px;line-height:1;
+    font-family:'Inter',system-ui,sans-serif;
+    font-weight:700;letter-spacing:-.025em;font-size:82px;line-height:1;
     color:#EAF2F8;white-space:nowrap;
   }
   /* FPL in --ink, Armband in --ink2 at 700. This split is the site's existing

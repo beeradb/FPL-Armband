@@ -15,7 +15,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-FAMILIES='family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap'
+FAMILIES='family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap'
 # A modern desktop UA, because the css2 endpoint serves woff2 only to browsers it
 # recognises. curl's default UA gets a truetype fallback several times the size.
 UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36'
