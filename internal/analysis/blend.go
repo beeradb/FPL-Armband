@@ -1016,7 +1016,16 @@ func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	// twenty gameweeks of proof that he does not play — inventing the opposite
 	// error for the one group the fallback exists to serve. `minutesEvidence`
 	// caps the count at the matches he has actually been available for.
-	wMin := e.minutesEvidence(el) / (e.minutesEvidence(el) + e.Weights.BlendMinutesK)
+	// ⚠️ Hoisted to a local rather than called twice, for two reasons and the
+	// second is the one that bit. It walks every fixture, so calling it on both
+	// sides of the ratio does that work twice per player per scoring pass. And
+	// written as a call it stops LOOKING like a shrinkage weight — the
+	// one-implementation scan in internal/stats matches the `n/(n+k)` shape by
+	// its source text, so the copy went invisible and the scan failed on its own
+	// debt list having silently shrunk. A guard that can no longer see a copy is
+	// worse than one that has never seen it.
+	nMin := e.minutesEvidence(el)
+	wMin := nMin / (nMin + e.Weights.BlendMinutesK)
 	// ⚠️ The tilt multiplies the LEAGUE term and nothing else, so it fades with
 	// evidence by construction rather than by a guard: the mix already weights
 	// this term by `1 - wMin`, which is 1 for a player with no history and goes
