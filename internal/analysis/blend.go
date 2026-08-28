@@ -953,10 +953,43 @@ func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 // ⚠️ **Ties share a percentile.** FPL prices cluster hard at the bottom, where
 // dozens of players sit at exactly 4.0m; splitting them by index would invent an
 // ordering the price does not contain and hand it to an argmax.
+// priceTiltFadesByGW is the gameweek at which the price tilt reaches zero.
+//
+// ⚠️ **It fades on the CALENDAR, and that is a claim about the SIGNAL rather
+// than about the player.** The existing fade — the `1 - wMin` weight on the
+// league term — is per player: it shrinks as HE accumulates minutes, which is
+// the right shape for "how much do we still need a prior". This one is
+// different and both are needed.
+//
+// Price is an expert judgement **at the season boundary**: FPL sets it before a
+// ball is kicked, and nobody owns anybody yet. It stops being that as the season
+// runs, because FPL revises price on transfer activity — so by GW10 it is partly
+// the crowd chasing form, which is the thing the measurement showed is WEAKER
+// than the model where history exists.
+//
+// Without a calendar fade a January signing with three appearances would be
+// tilted as hard as an August one, on a price that by then encodes months of
+// bandwagon rather than a pre-season forecast. The evidence behind this lever
+// covers GW1-10 ordering and says nothing about that case.
+//
+// ⚠️ Not swept, and deliberately not a tuning target: it expresses WHEN the
+// signal stops being what was measured, not where an optimum lies. Eleven is the
+// middle of the owner's stated "by ten to twelve gameweeks we should fully trust
+// actual data", and the fade is linear so there is no cliff for a squad to sit
+// either side of.
+const priceTiltFadesByGW = 11
+
 func (e *Engine) priceMinutesTilt(el *fpl.Element) float64 {
 	w := e.Weights.PriceMinutesPrior
 	if w <= 0 || el == nil {
 		return 1
+	}
+	// Linear from full weight pre-season to nothing by priceTiltFadesByGW.
+	if played := e.GameweeksPlayed(); played > 0 {
+		if played >= priceTiltFadesByGW {
+			return 1
+		}
+		w *= 1 - float64(played)/float64(priceTiltFadesByGW)
 	}
 	e.priceOnce.Do(func() {
 		byPos := map[int][]int{}
