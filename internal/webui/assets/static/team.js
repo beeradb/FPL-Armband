@@ -28,8 +28,23 @@
  */
 'use strict';
 
-fetch('/api/armband-team', {credentials:'same-origin'})
-  .then(r => { if(!r.ok) throw new Error(`the server answered ${r.status}`); return r.json(); })
+// The page's own ?gw is forwarded to the API and nothing else is. A whitelist
+// rather than passing location.search through: this URL is one a reader can hand
+// around, so whatever else ends up on it (a utm_ tag, a tracker, a paste
+// accident) must not become part of an API request. An absent or empty gw is
+// omitted entirely, so the default path requests exactly the URL it always did.
+const gw = new URLSearchParams(location.search).get('gw');
+const stateURL = gw ? `/api/armband-team?gw=${encodeURIComponent(gw)}` : '/api/armband-team';
+
+fetch(stateURL, {credentials:'same-origin'})
+  .then(r => {
+    // 400 is this page refusing a gameweek rather than failing: a future one, or
+    // one this season does not have. The server's sentence is the useful thing to
+    // show, so it is read rather than replaced with a status code.
+    if(r.status === 400) return r.text().then(t => { throw new Error(t.trim()); });
+    if(!r.ok) throw new Error(`the server answered ${r.status}`);
+    return r.json();
+  })
   .then(st => {
     const ht = st.results;
     const houseEl = document.getElementById('houseteam');

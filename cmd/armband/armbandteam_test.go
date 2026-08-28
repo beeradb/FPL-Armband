@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -178,5 +179,96 @@ func TestFixtureMatchStatusThreeWay(t *testing.T) {
 				t.Errorf("fixtureMatchStatus(%+v) = %q, want %q", c.f, got, c.want)
 			}
 		})
+	}
+}
+
+// eventsBoot is a bootstrap carrying gameweeks 1..n, one week apart, with
+// gameweek `closed` the last whose deadline has passed at the returned `now`.
+func eventsBoot(n, closed int) (*fpl.Bootstrap, time.Time) {
+	base := time.Date(2026, 8, 7, 17, 30, 0, 0, time.UTC)
+	b := &fpl.Bootstrap{}
+	for i := 1; i <= n; i++ {
+		b.Events = append(b.Events, fpl.Event{
+			ID:           i,
+			DeadlineTime: base.AddDate(0, 0, 7*(i-1)),
+		})
+	}
+	// An hour after the closing gameweek's deadline, and six days before the next.
+	return b, base.AddDate(0, 0, 7*(closed-1)).Add(time.Hour)
+}
+
+// No parameter must mean exactly what this page meant before it took one. Every
+// link to /armband-team carries no gw, so a regression here changes the page
+// everybody actually sees rather than the one nobody has linked yet.
+func TestNoGameweekParameterIsTheLatestClosedGameweek(t *testing.T) {
+	boot, now := eventsBoot(38, 3)
+	got, err := requestedEvent(boot, now, "")
+	if err != nil {
+		t.Fatalf("empty gw should not error: %v", err)
+	}
+	want := latestClosedEvent(boot, now)
+	if got != want {
+		t.Errorf("empty gw resolved to %v, want latestClosedEvent %v", got, want)
+	}
+	if got == nil || got.ID != 3 {
+		t.Errorf("expected gameweek 3, got %v", got)
+	}
+}
+
+// The whole point: a closed gameweek renders on demand, with no stored copy.
+func TestAPastGameweekResolvesToItself(t *testing.T) {
+	boot, now := eventsBoot(38, 3)
+	for _, gw := range []int{1, 2, 3} {
+		got, err := requestedEvent(boot, now, strconv.Itoa(gw))
+		if err != nil {
+			t.Fatalf("gw=%d should resolve: %v", gw, err)
+		}
+		if got.ID != gw {
+			t.Errorf("gw=%d resolved to gameweek %d", gw, got.ID)
+		}
+	}
+}
+
+// ⚠️ The failure this refusal exists to prevent is not an empty page. FPL does not
+// publish picks before a deadline, so the picks fetch fails, and buildSquadPage's
+// documented fallback for an unresolved squad is the MODEL'S OWN OPTIMUM — which
+// this page would caption as the fifteen the house account fielded. That is the
+// same class as the correction already recorded on armbandTeamState: a confident
+// answer to a question nobody can answer yet.
+func TestAFutureGameweekIsRefusedRatherThanRendered(t *testing.T) {
+	boot, now := eventsBoot(38, 3)
+	for _, gw := range []int{4, 5, 38} {
+		if _, err := requestedEvent(boot, now, strconv.Itoa(gw)); err == nil {
+			t.Errorf("gw=%d was accepted; a gameweek whose deadline has not passed "+
+				"has no public team and must not fall through to the optimum", gw)
+		}
+	}
+	// The boundary is the deadline itself, not the day: gameweek 4 one second
+	// after its deadline is readable, one second before is not.
+	gw4 := boot.Events[3].DeadlineTime
+	if _, err := requestedEvent(boot, gw4.Add(-time.Second), "4"); err == nil {
+		t.Error("gameweek 4 was readable a second BEFORE its deadline")
+	}
+	if _, err := requestedEvent(boot, gw4.Add(time.Second), "4"); err != nil {
+		t.Errorf("gameweek 4 was refused a second AFTER its deadline: %v", err)
+	}
+}
+
+// Junk in the URL is a 400 with a sentence, not a page built around gameweek 0.
+func TestUnparseableOrAbsentGameweeksAreRefused(t *testing.T) {
+	boot, now := eventsBoot(38, 3)
+	for _, raw := range []string{"one", "3.5", "-1", "0", "39", " ", "2; drop"} {
+		if _, err := requestedEvent(boot, now, raw); err == nil {
+			t.Errorf("gw=%q was accepted", raw)
+		}
+	}
+}
+
+// A season shorter than 38 needs no edit to the resolver: the bound comes from
+// the events the bootstrap carries, not from a literal.
+func TestTheSeasonLengthComesFromTheBootstrapNotALiteral(t *testing.T) {
+	boot, now := eventsBoot(20, 3)
+	if _, err := requestedEvent(boot, now, "21"); err == nil {
+		t.Error("gameweek 21 was accepted in a 20-gameweek season")
 	}
 }
