@@ -167,8 +167,9 @@ func TestEnvSwitchListIsComplete(t *testing.T) {
 		// and its per-position levels, for stats/unknown_prior_ranks.R. Both are
 		// output paths on a DIAG-only test that runs no sweep and banks no cell,
 		// so neither can move a measured number.
-		"FPL_RANKS_CSV":  true,
-		"FPL_LEVELS_CSV": true,
+		"FPL_RANKS_CSV":    true,
+		"FPL_LEVELS_CSV":   true,
+		"FPL_INSEASON_CSV": true,
 		// Where the xGC-reconstruction dump writes, and which seasons it covers.
 		// Both are read ONLY by TestDiagXGCDump, which reads
 		// `clubXGAPerGameweek` and writes a CSV. It computes nothing on the

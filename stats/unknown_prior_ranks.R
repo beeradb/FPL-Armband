@@ -106,10 +106,24 @@ t_crit <- function(df) qt(0.975, df)
 # comparison must not both be counted: doing so both inflates the family and
 # double-reports the evidence. `model_on - own` and `price - own` are one test,
 # because within a position the tilt induces price's own ordering exactly.
+#
+# ⚠️ **The family is GROUPED, and the group is not cosmetic.** Holm is
+# step-down: the largest p in a family is compared against alpha/1, so adding
+# strong tests to a family makes the WEAKEST one easier to pass. That is correct
+# Holm and it is a trap the moment two different instruments are pooled.
+#
+# It bit on the first run of this script against an in-season levels file: the
+# ordering contrast `price - own` reads raw p 0.044 either way, but its Holm
+# value moved from 0.068 (unresolved) to 0.044 (resolving) purely because the
+# level tests it was pooled with got stronger. Nothing about the ordering
+# evidence changed. Grouping by instrument makes that impossible: an ordering
+# contrast is judged against ordering contrasts, a calibration test against
+# calibration tests, because they answer different questions and you would act
+# on them separately.
 FAMILY <- list()
-record <- function(label, mean, se, df, alt_of = 1) {
+record <- function(label, mean, se, df, alt_of = 1, group = "ordering") {
   FAMILY[[length(FAMILY) + 1]] <<- list(
-    label = label, mean = mean, se = se, df = df,
+    label = label, mean = mean, se = se, df = df, group = group,
     p = 2 * pt(-abs((mean - alt_of) / se), df))
 }
 
@@ -264,7 +278,7 @@ if (length(lv) == 1 && file.exists(lv)) {
     e <- u$ratio[match(key, u$season)] / k$ratio[match(key, k$season)]
     m <- mean(e)
     se <- sd(e) / sqrt(length(e))
-    record(sprintf("level excess %s", ps), m, se, length(e) - 1, 1)
+    record(sprintf("level excess %s", ps), m, se, length(e) - 1, 1, "calibration")
     cat(sprintf("  %-4s %8.3f %8.3f %8.3f %8.2f %10.3f %8.2f %8.2f %d/%d\n",
                 ps, m, se, t_crit(length(e) - 1) * se, (m - 1) / se, 1 / m,
                 min(e), max(e), sum(e > 1), length(e)))
@@ -317,25 +331,77 @@ if (length(lv) == 1 && file.exists(lv)) {
 # ⚠️ The family is what this script reports in one run. Running it twice on
 # different populations and quoting the better outcome puts the argmax back.
 if (length(FAMILY)) {
+  cat("\n\nFAMILY VERDICT -- Holm, corrected WITHIN each instrument.\n")
+  cat("This supersedes every 'nominal pass' printed earlier.\n")
+  cat("⚠️ Grouped on purpose. Pooling instruments lets a strong calibration\n")
+  cat("test carry a weak ordering one over the line without a single number\n")
+  cat("about the ordering having changed -- which it did, on the run that\n")
+  cat("prompted this grouping.\n")
+  for (g in unique(sapply(FAMILY, function(f) f$group))) {
+    fam <- Filter(function(f) f$group == g, FAMILY)
+    ps <- sapply(fam, function(f) f$p)
+    ord <- order(ps)
+    k <- length(ps)
+    holm <- rep(NA_real_, k)
+    running <- 0
+    for (i in seq_len(k)) {
+      # The step-down running maximum is what makes the adjusted p-values
+      # monotone; without it a later test can appear to beat an earlier one.
+      running <- max(running, min(1, ps[ord[i]] * (k - i + 1)))
+      holm[ord[i]] <- running
+    }
+    cat(sprintf("\n  %s -- %d test(s)\n", toupper(g), k))
+    cat(sprintf("  %-44s %9s %9s  %s\n", "test", "p", "Holm p", "verdict"))
+    for (i in ord) {
+      cat(sprintf("  %-44s %9.5f %9.5f  %s\n", fam[[i]]$label, fam[[i]]$p, holm[i],
+                  if (holm[i] < 0.05) "RESOLVES" else "unresolved"))
+    }
+  }
+  # ⚠️ **The grouping is a defensible choice, and a choice is a degree of
+  # freedom.** Grouping by instrument is the right call on the merits — the two
+  # answer different questions and you act on them separately — but it was
+  # introduced by someone who had already seen that it helps one of the
+  # contrasts, and it does: the step-down running maximum in a pooled family
+  # drags a boundary test upward, so ungrouping can flip a verdict.
+  #
+  # So BOTH readings print, always, and where they disagree the pooled one
+  # stands. Not because pooling is more correct — it is not — but because the
+  # analyst does not get to pick the family after seeing which choice wins.
+  # A contrast whose verdict depends on that choice is a contrast on the
+  # boundary, and "on the boundary" is honestly reported as unresolved.
   ps <- sapply(FAMILY, function(f) f$p)
   ord <- order(ps)
   k <- length(ps)
-  holm <- rep(NA_real_, k)
+  pooled <- rep(NA_real_, k)
   running <- 0
   for (i in seq_len(k)) {
-    # The step-down running maximum is what makes the adjusted p-values
-    # monotone; without it a later test can appear to beat an earlier one.
     running <- max(running, min(1, ps[ord[i]] * (k - i + 1)))
-    holm[ord[i]] <- running
+    pooled[ord[i]] <- running
   }
-  cat("\n\nFAMILY VERDICT -- Holm across all", k, "tests reported above.\n")
-  cat("This supersedes every 'nominal pass' printed earlier.\n\n")
-  cat(sprintf("  %-44s %9s %9s  %s\n", "test", "p", "Holm p", "verdict"))
-  for (i in ord) {
-    f <- FAMILY[[i]]
-    cat(sprintf("  %-44s %9.5f %9.5f  %s\n", f$label, f$p, holm[i],
-                if (holm[i] < 0.05) "RESOLVES" else "unresolved"))
+  disagree <- FALSE
+  for (i in seq_len(k)) {
+    fam <- Filter(function(f) f$group == FAMILY[[i]]$group, FAMILY)
+    gp <- sapply(fam, function(f) f$p)
+    go <- order(gp); gk <- length(gp); gh <- rep(NA_real_, gk); r <- 0
+    for (j in seq_len(gk)) {
+      r <- max(r, min(1, gp[go[j]] * (gk - j + 1)))
+      gh[go[j]] <- r
+    }
+    mine <- gh[which(sapply(fam, function(f) identical(f$label, FAMILY[[i]]$label)))[1]]
+    if ((mine < 0.05) != (pooled[i] < 0.05)) {
+      if (!disagree) {
+        cat("\n  ⚠️ THE TWO FAMILY CHOICES DISAGREE. The POOLED reading stands.\n")
+        disagree <- TRUE
+      }
+      cat(sprintf("     %-40s grouped %.5f, pooled %.5f -> UNRESOLVED\n",
+                  FAMILY[[i]]$label, mine, pooled[i]))
+    }
   }
+  if (!disagree) {
+    cat("\n  Grouped and pooled Holm agree on every test, so the grouping\n")
+    cat("  changed no verdict and is not load-bearing here.\n")
+  }
+
   cat("\nA test that survives Holm is still an ORDERING or CALIBRATION result and\n")
   cat("prices nothing. One that does not survive is unresolved, which on six\n")
   cat("clusters is the expected reading for a real effect.\n")

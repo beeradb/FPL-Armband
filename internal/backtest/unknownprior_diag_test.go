@@ -33,13 +33,24 @@ import (
 //
 // # PRE-REGISTERED, and the prediction comes from a DIFFERENT instrument
 //
+// ⚠️ **AMENDED 2026-08-28, before this sweep was ever run, because the table
+// below was withdrawn.** The figures are POOLED, and pooled is the wrong scope:
+// the league fallback is constant inside a position and differs between them, so
+// a pooled rank over unknowns is largely a rank by POSITION. That is what the
+// `-0.190 to -0.058` row is measuring, and it is not an ordering failure — within
+// position the fix's prediction has no ordering at all to be negative about. The
+// table is kept rather than deleted so the amendment can be checked; the amended
+// prediction is printed by the test itself and is the one that stands.
+//
 // The ordering benchmark (`TestDiagOwnershipPredictsMinutes`) measured all three
 // states against minutes actually played in GW1-10, six seasons, Spearman:
 //
 //	                     no-history stratum      has-history stratum
 //	baseline (zero)      FLAT — undefined        0.565 to 0.640
-//	prior fix only       -0.190 to -0.058        unchanged
-//	fix + price tilt     +0.253 to +0.474        unchanged
+//	prior fix only       -0.190 to -0.058        unchanged      ← WITHDRAWN: pooled
+//	fix + price tilt     +0.253 to +0.474        unchanged      ← pooled; within
+//	                                                              position it is
+//	                                                              +0.492, SE 0.040
 //
 // So, before running:
 //

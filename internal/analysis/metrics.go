@@ -380,17 +380,28 @@ type Weights struct {
 	// # Why PRICE, and why not ownership
 	//
 	// Both were measured against minutes actually played in GW1-10, split on
-	// whether the player has a prior season. On the no-history stratum price
-	// ranks them at rho 0.29-0.50 and ownership at 0.16-0.39, price winning four
-	// of six seasons and winning the two where ownership is weakest. Where
-	// history DOES exist the order reverses and price is the weakest of the
-	// three (0.24-0.39 against the model's 0.57-0.64).
+	// whether the player has a prior season. WITHIN POSITION — the only scope
+	// that means anything here, because the fallback is constant inside a
+	// position so a pooled rank over unknowns is mostly a rank by position — the
+	// no-history stratum reads price +0.492 (SE 0.040) against ownership +0.346
+	// (SE 0.030), both 6 of 6 seasons positive. Where history DOES exist the
+	// order reverses: ownership +0.558 against price's +0.411.
 	//
-	// The reading that fits: FPL prices a player before anyone owns him, so
-	// price is a small group stating an expectation, while gameweek-one
-	// ownership is a crowd that is largely echoing last season — which the model
-	// already has, in cleaner form. Price is a commitment; ownership is a
-	// reaction.
+	// ⚠️ **The head-to-head DOES NOT RESOLVE, and an earlier version of this
+	// comment did not say so.** price − ownership is +0.146 (SE 0.055), positive
+	// in FIVE of six seasons with 2021-22 at −0.051, raw p 0.044. Under Holm
+	// across the tests that run with it, its verdict depends on how the family
+	// is drawn — 0.044 grouped by instrument, 0.068 pooled — and a contrast
+	// whose answer turns on that choice is on the boundary. `unknown_prior_ranks.R`
+	// reports both readings and takes the conservative one, so: **unresolved.**
+	//
+	// The reading that FITS — and it is a reading, not a result — is that FPL
+	// prices a player before anyone owns him, so price is a small group stating
+	// an expectation, while gameweek-one ownership is a crowd largely echoing
+	// last season, which the model already has in cleaner form. Price is a
+	// commitment; ownership is a reaction. What supports it is the double
+	// dissociation above, which was predicted before the run; what does not is
+	// the margin, which is not established.
 	//
 	// ⚠️ **That holds at the season boundary and decays after it.** FPL revises
 	// price on transfer activity, so it becomes partly crowd once the season is
