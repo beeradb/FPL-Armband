@@ -106,14 +106,9 @@ func cmdOverrideCheck(ctx context.Context, cfg config.Config, client *fpl.Client
 			fmt.Printf("  %-18s %9.0f %9s %8s  %s\n", r.name, r.override, "-", "-", r.note)
 			continue
 		}
-		verdict := ""
-		if r.gap < *within && r.gap > -*within {
-			verdict = "redundant — the model now agrees"
+		verdict, isRedundant := overrideVerdict(r.gap, *within)
+		if isRedundant {
 			redundant++
-		} else if r.gap < 0 {
-			verdict = "still lifting him"
-		} else {
-			verdict = "still holding him down"
 		}
 		fmt.Printf("  %-18s %9.0f %9.1f %+8.1f  %s\n",
 			r.name, r.override, r.actual, r.gap, verdict)
@@ -123,4 +118,27 @@ func cmdOverrideCheck(ctx context.Context, cfg config.Config, client *fpl.Client
 	fmt.Printf("⚠️ A redundant override is not automatically safe to delete: it may be\n")
 	fmt.Printf("holding the estimate where it is. Re-check after removing one.\n")
 	return nil
+}
+
+// overrideVerdict reads one override's gap — the model's natural estimate MINUS
+// the override — and says which way the override is still pushing.
+//
+// A separate function because the command around it cannot run without the live
+// FPL bootstrap, and the sign convention is the one thing here that can be
+// silently backwards: a NEGATIVE gap means the model says fewer minutes than the
+// override does, so the override is lifting him. Getting that inverted would
+// mislabel every row while still printing a plausible table.
+//
+// The tolerance is exclusive at both ends, so a gap exactly at the boundary is
+// reported as still acting rather than as redundant — the direction that keeps
+// an override rather than the one that invites deleting it.
+func overrideVerdict(gap, within float64) (verdict string, redundant bool) {
+	switch {
+	case gap < within && gap > -within:
+		return "redundant — the model now agrees", true
+	case gap < 0:
+		return "still lifting him", false
+	default:
+		return "still holding him down", false
+	}
 }

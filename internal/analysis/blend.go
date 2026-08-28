@@ -991,6 +991,23 @@ func (e *Engine) priceMinutesTilt(el *fpl.Element) float64 {
 		}
 		w *= 1 - float64(played)/float64(priceTiltFadesByGW)
 	}
+	// ⚠️ **The percentile map is computed once per Engine and never refreshed, and
+	// `serve` builds ONE Engine at startup for every later reader.** The fade
+	// above governs the tilt's WEIGHT, not this map's freshness, so they do not
+	// cover each other: a server left up for days would keep tilting against
+	// prices frozen at boot, while FPL revises price continuously on transfer
+	// activity.
+	//
+	// Inert as shipped — `PriceMinutesPrior` is 0, so the guard above returns
+	// before `Do` is ever reached — and this is the same write-once idiom as
+	// `restOnce`, `bandOnce` and `confirmedOnce` beside it, which read data that
+	// really is fixed for a season. Price is not.
+	//
+	// **So anyone turning this knob on for a long-lived `serve` owes it a
+	// refresh, not just a sweep.** Recorded here rather than fixed because the
+	// fix belongs with the decision to ship the lever: an invalidation hook for a
+	// knob that is off is a mechanism with no caller, which this project has
+	// already paid for once.
 	e.priceOnce.Do(func() {
 		byPos := map[int][]int{}
 		for i := range e.Boot.Elements {

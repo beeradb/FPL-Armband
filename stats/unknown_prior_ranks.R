@@ -76,6 +76,28 @@ d$rankable <- as.logical(d$rankable)
 
 t_crit <- function(df) qt(0.975, df)
 
+# ---------------------------------------------------------------------------
+# ⚠️ Every test this script reports lands in ONE family, and the family is
+# Holm-corrected at the end.
+#
+# The first version printed a bare "RESOLVES" per contrast at the nominal 0.05.
+# It reported five of them from a single run — one ordering contrast and four
+# position excesses — and the closest cleared its own threshold by 3.8% with one
+# of six seasons pointing the other way. Five nominal passes at df 5 is exactly
+# the situation `AGENTS.md` names Holm for, and an uncorrected pass read as
+# established is how an argmax over contrasts gets mistaken for a finding.
+#
+# ⚠️ **A test enters the family once.** Two rows that are algebraically the same
+# comparison must not both be counted: doing so both inflates the family and
+# double-reports the evidence. `model_on - own` and `price - own` are one test,
+# because within a position the tilt induces price's own ordering exactly.
+FAMILY <- list()
+record <- function(label, mean, se, df, alt_of = 1) {
+  FAMILY[[length(FAMILY) + 1]] <<- list(
+    label = label, mean = mean, se = se, df = df,
+    p = 2 * pt(-abs((mean - alt_of) / se), df))
+}
+
 # level reports one arm on its own: is this predictor's mean rho distinguishable
 # from no ordering at all?
 level <- function(stratum, scope, predictor) {
@@ -101,7 +123,7 @@ level <- function(stratum, scope, predictor) {
 # contrast pairs two predictors WITHIN each season and differences them there,
 # so the season's own difficulty — how many unknowns, how settled the market —
 # cancels before anything is averaged.
-contrast <- function(stratum, scope, a, b) {
+contrast <- function(stratum, scope, a, b, family = TRUE) {
   ra <- d[d$stratum == stratum & d$scope == scope & d$predictor == a, ]
   rb <- d[d$stratum == stratum & d$scope == scope & d$predictor == b, ]
   key <- intersect(ra$season, rb$season)
@@ -124,10 +146,11 @@ contrast <- function(stratum, scope, a, b) {
                 lab, length(diff)))
     return(invisible(NULL))
   }
+  if (family) record(sprintf("%s %s: %s - %s", stratum, scope, a, b), m, se, df, 0)
   cat(sprintf("  %s  %+.3f  SE %.3f  t %+6.2f  thr %.3f  %d/%d seasons > 0  %s\n",
               lab, m, se, m / se, t_crit(df) * se,
               sum(diff > 0), length(diff),
-              if (abs(m) > t_crit(df) * se) "RESOLVES" else "unresolved"))
+              if (abs(m) > t_crit(df) * se) "nominal pass" else "unresolved"))
 }
 
 cat("\nSpearman of each predictor against minutes played, one rho per season.\n")
@@ -142,11 +165,20 @@ for (st in c("NO history", "has history")) {
 }
 
 cat("\nCONTRASTS -- paired within season, so the season's own difficulty cancels.\n")
+cat("⚠️ 'nominal pass' is uncorrected. The family verdict is at the bottom.\n")
 # Does the fix+tilt beat doing nothing, on the players it was built for?
 contrast("NO history", "pooled", "model_on", "model_off")
 contrast("NO history", "within_pos", "model_on", "model_off")
 # Against the two market signals, on the stratum where they are not an echo.
-contrast("NO history", "within_pos", "model_on", "own")
+#
+# ⚠️ `model_on - own` and `price - own` are ONE test, not two. Within a position
+# the tilt is a strictly monotone function of price percentile applied to a
+# constant base, so it induces price's ordering exactly — the two rows are
+# algebraically identical, which the run confirms to the last digit. The first
+# is printed for continuity with the table above and kept OUT of the family;
+# counting it twice would both inflate the correction and double-report one
+# piece of evidence.
+contrast("NO history", "within_pos", "model_on", "own", family = FALSE)
 contrast("NO history", "within_pos", "model_on", "price")
 contrast("NO history", "within_pos", "price", "own")
 # ⚠️ The confinement check. The tilt must not touch a player the prior can
@@ -206,8 +238,9 @@ if (length(lv) == 1 && file.exists(lv)) {
   # a stratum reading 1.6x too high implies a share near 1/1.6.
   cat("\nEXCESS -- the unknown stratum's ratio over the KNOWN stratum's, paired\n")
   cat("within season and position. Conventions cancel; 1.000 is calibrated.\n\n")
-  cat(sprintf("  %-4s %8s %8s %8s %8s %10s %s\n",
-              "pos", "excess", "SE", "thr", "t", "1/excess", "seasons > 1"))
+  cat(sprintf("  %-4s %8s %8s %8s %8s %10s %8s %8s %s\n",
+              "pos", "excess", "SE", "thr", "t", "1/excess",
+              "min szn", "max szn", "seasons > 1"))
   for (ps in c("GK", "DEF", "MID", "FWD")) {
     u <- L[L$stratum == "NO history" & L$pos == ps, ]
     k <- L[L$stratum == "has history" & L$pos == ps, ]
@@ -216,11 +249,34 @@ if (length(lv) == 1 && file.exists(lv)) {
     e <- u$ratio[match(key, u$season)] / k$ratio[match(key, k$season)]
     m <- mean(e)
     se <- sd(e) / sqrt(length(e))
-    cat(sprintf("  %-4s %8.3f %8.3f %8.3f %8.2f %10.3f %d/%d\n",
+    record(sprintf("level excess %s", ps), m, se, length(e) - 1, 1)
+    cat(sprintf("  %-4s %8.3f %8.3f %8.3f %8.2f %10.3f %8.2f %8.2f %d/%d\n",
                 ps, m, se, t_crit(length(e) - 1) * se, (m - 1) / se, 1 / m,
-                sum(e > 1), length(e)))
+                min(e), max(e), sum(e > 1), length(e)))
+    # ⚠️ Every season printed, in season order, because the summary above hides
+    # a shape. These series RISE across the six seasons in all four positions,
+    # which a mean and an SE describe as noise. It is printed rather than
+    # tested: an unpredicted trend found by looking is an argmax over shapes,
+    # and adding it to the family would spend the correction on a fishing trip.
+    # What it does mean is that a single flat constant fitted to the six-season
+    # mean would under-correct the most recent seasons — the ones that matter.
+    cat(sprintf("       by season: %s\n",
+                paste(sprintf("%s %.2f", substr(key, 3, 7),
+                              e), collapse = "  ")))
   }
   cat("\n⚠️ The t column tests the excess against 1, not against 0.\n")
+  cat("⚠️ **Read the min and max season columns before quoting any excess as a\n")
+  cat("LOCATION.** This is a ratio of means and its denominator is small where the\n")
+  cat("unknowns barely play, which is leverage rather than symmetric noise -- one\n")
+  cat("season can carry the mean. Where min and max span a factor of several, the\n")
+  cat("DIRECTION is what six seasons agree on and the magnitude is not.\n")
+  cat("⚠️ The known stratum reads about 1.1, not 1.0 -- a GW1 forecast loses to a\n")
+  cat("ten-week window through injury and rotation. It is near-uniform across the\n")
+  cat("four positions, which is why it cancels in the ratio; that near-uniformity\n")
+  cat("is the assumption, and it is visible in the LEVEL table above.\n")
+  cat("⚠️ 1/excess is the implied share only for a LINEAR pipeline. The fallback\n")
+  cat("passes through clamps and a power-mean before it reaches ExpectedMinutes,\n")
+  cat("so treat the reciprocal as a starting point for a sweep, not a setting.\n")
   cat("⚠️ This sizes a MISCALIBRATION. It does not say a correction pays: this\n")
   cat("project has lost points five times correcting a measured bias, and only\n")
   cat("the replay can settle it.\n")
@@ -228,4 +284,44 @@ if (length(lv) == 1 && file.exists(lv)) {
   cat("\n(no levels file given -- pass --levels=levels.csv to also read the LEVEL\n")
   cat("half, which every rho above is blind to. Produce it with\n")
   cat("FPL_LEVELS_CSV=/tmp/levels.csv on the same Go run.)\n")
+}
+
+# ---------------------------------------------------------------------------
+# THE FAMILY VERDICT
+#
+# Everything above prints "nominal pass" at the uncorrected 0.05. This is where
+# a verdict is actually reached, because the run offers several tests at once
+# and keeping whichever clears is an argmax over contrasts — the failure this
+# record names as its most load-bearing idea.
+#
+# Holm is step-down: sort the p-values ascending and compare the i-th against
+# alpha/(k-i+1), stopping at the first failure. It controls the chance of ANY
+# false positive in the family, assumes nothing about independence between the
+# tests, and is uniformly more powerful than Bonferroni.
+#
+# ⚠️ The family is what this script reports in one run. Running it twice on
+# different populations and quoting the better outcome puts the argmax back.
+if (length(FAMILY)) {
+  ps <- sapply(FAMILY, function(f) f$p)
+  ord <- order(ps)
+  k <- length(ps)
+  holm <- rep(NA_real_, k)
+  running <- 0
+  for (i in seq_len(k)) {
+    # The step-down running maximum is what makes the adjusted p-values
+    # monotone; without it a later test can appear to beat an earlier one.
+    running <- max(running, min(1, ps[ord[i]] * (k - i + 1)))
+    holm[ord[i]] <- running
+  }
+  cat("\n\nFAMILY VERDICT -- Holm across all", k, "tests reported above.\n")
+  cat("This supersedes every 'nominal pass' printed earlier.\n\n")
+  cat(sprintf("  %-44s %9s %9s  %s\n", "test", "p", "Holm p", "verdict"))
+  for (i in ord) {
+    f <- FAMILY[[i]]
+    cat(sprintf("  %-44s %9.5f %9.5f  %s\n", f$label, f$p, holm[i],
+                if (holm[i] < 0.05) "RESOLVES" else "unresolved"))
+  }
+  cat("\nA test that survives Holm is still an ORDERING or CALIBRATION result and\n")
+  cat("prices nothing. One that does not survive is unresolved, which on six\n")
+  cat("clusters is the expected reading for a real effect.\n")
 }
