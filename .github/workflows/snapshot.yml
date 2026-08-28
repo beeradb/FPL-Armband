@@ -74,20 +74,20 @@ jobs:
 
     steps:
       - name: Check out the full history
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The key records a watched digest recomputed from the commit it names,
           # so the history has to be here. See ci.yml, which says this at length.
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Cache the season archive
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/fpl
           key: fpl-archive-${{ hashFiles('internal/backtest/season.go', 'internal/priors/priors.go') }}
@@ -319,7 +319,7 @@ jobs:
       - name: Upload the dashboard
         if: github.event_name != 'pull_request'
         if: vars.PUBLISH_ACCURACY_PAGE == 'true'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
@@ -327,4 +327,4 @@ jobs:
         if: github.event_name != 'pull_request'
         if: vars.PUBLISH_ACCURACY_PAGE == 'true'
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
