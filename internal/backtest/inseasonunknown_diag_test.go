@@ -76,21 +76,41 @@ func TestDiagInSeasonUnknownLevel(t *testing.T) {
 	requireDiag(t)
 	cfg := loadConfig(t)
 
-	// Entry after GW1, and the window that follows it. Ten gameweeks to match
-	// the pre-season diagnostic's window exactly, so the two excesses are
-	// comparable rather than merely similar-looking.
-	const through = 1
+	// Ten gameweeks to match the pre-season diagnostic's window exactly, so the
+	// excesses are comparable rather than merely similar-looking.
 	const window = 10
 
-	fmt.Printf("\n=== DOES THE UNKNOWN OVER-STATEMENT REACH THE IN-SEASON PATH?\n")
-	fmt.Printf("Entry after GW%d; predicted per-match minutes against GW%d-%d actual.\n",
-		through, through+1, through+window)
-	fmt.Printf("⚠️ Ratio of the NO-history stratum's over-statement to the KNOWN\n")
-	fmt.Printf("stratum's, so the units and the blank-gameweek convention cancel.\n")
-	fmt.Printf("Above 1 is over-statement. The pre-season reading was GK 4.47,\n")
-	fmt.Printf("DEF 1.55, MID 1.89, FWD 1.48 — compare against those.\n\n")
-	fmt.Printf("  %-9s %-4s %6s %10s %10s %8s\n",
-		"season", "pos", "n", "pred/act", "known", "excess")
+	// ⚠️ **Several entry points, because ONE cannot tell a persistent defect
+	// from an early-season transient**, and those want different fixes.
+	//
+	// The hypothesis under test is that `shrinkToLeague` weights a player's own
+	// rate by `wMin = n90/(n90 + BlendMinutesK)`, so a player who does not play
+	// keeps `n90 = 0`, keeps `wMin = 0`, and keeps receiving the league average
+	// in full — the evidence that would displace it being the very quantity that
+	// stays zero.
+	//
+	// It makes a falsifiable split prediction, and the split is the test:
+	//
+	//	no prior, HAS played by now    the model has evidence -> excess shrinks
+	//	no prior, STILL has not        the model never learns -> excess persists
+	//
+	// If instead both decay, this is a transient nobody needs to fix. If both
+	// persist, the mechanism is not what is claimed here and the story is wrong
+	// even though the defect is real.
+	entries := []int{1, 5, 10, 20}
+
+	fmt.Printf("\n=== DOES THE UNKNOWN OVER-STATEMENT PERSIST, OR IS IT A TRANSIENT?\n")
+	fmt.Printf("Predicted per-match minutes against the next %d gameweeks actual,\n", window)
+	fmt.Printf("as a ratio to the KNOWN stratum measured identically, so the units\n")
+	fmt.Printf("and the blank-gameweek convention cancel. Above 1 is over-statement.\n")
+	fmt.Printf("Pre-season read GK 4.47, DEF 1.55, MID 1.89, FWD 1.48.\n\n")
+	fmt.Printf("⚠️ The no-prior players are SPLIT on whether they have played yet.\n")
+	fmt.Printf("The claim under test is that the model cannot learn from a player\n")
+	fmt.Printf("who does not play, because the weight on his own rate is driven by\n")
+	fmt.Printf("the minutes he has not got. If so, 'unplayed' stays high all season\n")
+	fmt.Printf("while 'played' falls away.\n\n")
+	fmt.Printf("  %-6s %-9s %-4s %6s %10s %10s %8s\n",
+		"entry", "season", "pos", "n", "pred/act", "known", "excess")
 
 	var csv *os.File
 	if path := os.Getenv("FPL_INSEASON_CSV"); path != "" {
@@ -100,87 +120,118 @@ func TestDiagInSeasonUnknownLevel(t *testing.T) {
 		}
 		defer f.Close()
 		csv = f
-		fmt.Fprintln(csv, "season,stratum,pos,n,pred_off,pred_on,actual,window,price_tilt")
+		fmt.Fprintln(csv, "season,stratum,pos,n,pred_off,pred_on,actual,window,price_tilt,entry_gw")
 	}
 
 	sc := SimConfig{Weights: cfg.Weights, StartGW: 1}
-	for _, pr := range loadPairsOrSkip(t, cfg) {
-		// ⚠️ `through` is the point-in-time boundary, so nothing after GW1 is
-		// visible to the engine. That is the whole reason this is a replay
-		// question and not one a live season can answer: the answer needs
-		// minutes the model must not be allowed to see.
-		e, _ := EngineAt(pr.Cur, pr.Prior, through, sc)
+	pairs := loadPairsOrSkip(t, cfg)
+	for _, through := range entries {
+		for _, pr := range pairs {
+			// ⚠️ `through` is the point-in-time boundary, so nothing after GW1 is
+			// visible to the engine. That is the whole reason this is a replay
+			// question and not one a live season can answer: the answer needs
+			// minutes the model must not be allowed to see.
+			e, _ := EngineAt(pr.Cur, pr.Prior, through, sc)
 
-		priorMins := map[int]int{}
-		if pr.Prior != nil {
-			for _, q := range pr.Prior.Players {
-				if q.Code != 0 {
-					priorMins[q.Code] += q.Minutes
+			priorMins := map[int]int{}
+			if pr.Prior != nil {
+				for _, q := range pr.Prior.Players {
+					if q.Code != 0 {
+						priorMins[q.Code] += q.Minutes
+					}
 				}
 			}
-		}
 
-		// Accumulated per (stratum, position): the predicted rate, the realised
-		// window total, and the count.
-		type acc struct {
-			pred, actual float64
-			n            int
-		}
-		cells := map[string]map[int]*acc{}
+			// Accumulated per (stratum, position): the predicted rate, the realised
+			// window total, and the count.
+			type acc struct {
+				pred, actual float64
+				n            int
+			}
+			cells := map[string]map[int]*acc{}
 
-		for id, p := range pr.Cur.Players {
-			el := e.Boot.ElementByID(id)
-			if el == nil {
-				continue
-			}
-			var actual float64
-			for gw := through + 1; gw <= through+window; gw++ {
-				if g, ok := p.GWs[gw]; ok {
-					actual += float64(g.Minutes)
-				}
-			}
-			key := "has history"
-			if priorMins[p.Code] == 0 {
-				key = "NO history"
-			}
-			if cells[key] == nil {
-				cells[key] = map[int]*acc{}
-			}
-			a := cells[key][el.ElementType]
-			if a == nil {
-				a = &acc{}
-				cells[key][el.ElementType] = a
-			}
-			a.pred += e.Metrics(el).ExpectedMinutes
-			a.actual += actual
-			a.n++
-		}
-
-		for _, key := range []string{"NO history", "has history"} {
-			for _, pos := range []int{1, 2, 3, 4} {
-				a := cells[key][pos]
-				if a == nil || a.n < 4 {
+			for id, p := range pr.Cur.Players {
+				el := e.Boot.ElementByID(id)
+				if el == nil {
 					continue
 				}
-				n := float64(a.n)
-				if csv != nil {
-					fmt.Fprintf(csv, "%s,%s,%s,%d,%.4f,%.4f,%.4f,%d,%.3f\n",
-						pr.Name, key, positionNames[pos], a.n,
-						a.pred/n, a.pred/n, a.actual/n, window, 0.0)
+				var actual float64
+				for gw := through + 1; gw <= through+window; gw++ {
+					if g, ok := p.GWs[gw]; ok {
+						actual += float64(g.Minutes)
+					}
 				}
+				// ⚠️ The split that tests the mechanism. "Played" means he has any
+				// minutes at all BEFORE the entry point — the evidence `wMin` is
+				// built from. A player with none has `n90 = 0`, so his own rate
+				// carries no weight and he takes the league average whole.
+				var playedSoFar int
+				for gw := 1; gw <= through; gw++ {
+					if g, ok := p.GWs[gw]; ok {
+						playedSoFar += g.Minutes
+					}
+				}
+				key := "has history"
+				if priorMins[p.Code] == 0 {
+					key = "unknown unplayed"
+					if playedSoFar > 0 {
+						key = "unknown played"
+					}
+				}
+				if cells[key] == nil {
+					cells[key] = map[int]*acc{}
+				}
+				a := cells[key][el.ElementType]
+				if a == nil {
+					a = &acc{}
+					cells[key][el.ElementType] = a
+				}
+				a.pred += e.Metrics(el).ExpectedMinutes
+				a.actual += actual
+				a.n++
 			}
-			// Printed per position beside the known stratum's own figure, so a
-			// reader sees the control rather than being asked to trust it.
-			for _, pos := range []int{1, 2, 3, 4} {
-				u := cells[key][pos]
-				k := cells["has history"][pos]
-				if u == nil || k == nil || u.n < 4 || k.n < 4 || key != "NO history" {
-					continue
+
+			for _, key := range []string{"unknown unplayed", "unknown played", "has history"} {
+				for _, pos := range []int{1, 2, 3, 4} {
+					a := cells[key][pos]
+					if a == nil || a.n < 4 {
+						continue
+					}
+					n := float64(a.n)
+					if csv != nil {
+						// ⚠️ The entry point is its OWN COLUMN, not glued into the
+						// stratum name. A composite key reads fine until something
+						// downstream wants to group by one half of it — and a
+						// stratum name carrying a COMMA silently shifts every
+						// later column, which is how the first version of this
+						// file wrote an unreadable CSV.
+						fmt.Fprintf(csv, "%s,%s,%s,%d,%.4f,%.4f,%.4f,%d,%.3f,%d\n",
+							pr.Name, key, positionNames[pos], a.n,
+							a.pred/n, a.pred/n, a.actual/n, window, 0.0, through)
+					}
 				}
-				ur := (u.pred / float64(u.n)) / ((u.actual / float64(u.n)) / window)
-				kr := (k.pred / float64(k.n)) / ((k.actual / float64(k.n)) / window)
-				fmt.Printf("  %-9s %-4s %6d %10.3f %10.3f %8.3f\n",
-					pr.Name, positionNames[pos], u.n, ur, kr, ur/kr)
+				// Printed per position beside the known stratum's own figure, so a
+				// reader sees the control rather than being asked to trust it.
+				for _, pos := range []int{1, 2, 3, 4} {
+					u := cells[key][pos]
+					k := cells["has history"][pos]
+					if u == nil || k == nil || u.n < 4 || k.n < 4 || key == "has history" {
+						continue
+					}
+					if u.actual == 0 {
+						// Nobody in the cell played a single minute in the window.
+						// The ratio is undefined, and printing a huge number would
+						// read as a measurement rather than a division by nothing.
+						fmt.Printf("  GW%-4d %-9s %-4s %6d %10s %10s %8s  %s\n",
+							through, pr.Name, positionNames[pos], u.n,
+							"none", "-", "-", key)
+						continue
+					}
+					ur := (u.pred / float64(u.n)) / ((u.actual / float64(u.n)) / window)
+					kr := (k.pred / float64(k.n)) / ((k.actual / float64(k.n)) / window)
+					fmt.Printf("  GW%-4d %-9s %-4s %6d %10.3f %10.3f %8.3f  %s\n",
+						through, pr.Name, positionNames[pos], u.n, ur, kr, ur/kr, key)
+				}
 			}
 		}
 	}

@@ -1,12 +1,23 @@
 package analysis
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestResearchTargetsFindTheZeroDataBlindSpot is the case that motivated the
-// whole step. A promoted club's first-choice defender and their fourth-choice
-// goalkeeper both score 0.00, because neither has Premier League minutes. The
-// model cannot separate them, so the list has to surface them for a human or an
-// agent to settle.
+// whole step: a player with meaningful ownership and no minutes for the model to
+// read has to reach a human, because the model cannot settle him.
+//
+// ⚠️ **This test used to assert the DEFECT.** It required `p.Score == 0` for
+// every such player, and failed loudly the moment a player with no prior season
+// stopped leaving `blendRatesCode` at zero expected minutes. That assertion was
+// a faithful description of the behaviour when it was written and became a lock
+// on a bug — the shape worth recognising is a test that says "this must stay
+// broken" without ever using the word.
+//
+// What it pins now is the surfacing, which is the step's actual job, and the
+// split that makes the advice attached to it correct.
 func TestResearchTargetsFindTheZeroDataBlindSpot(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
 	cats := e.ResearchTargets(nil)
@@ -19,15 +30,55 @@ func TestResearchTargetsFindTheZeroDataBlindSpot(t *testing.T) {
 		for _, p := range c.Targets {
 			if p.Minutes == 0 && p.Ownership >= researchOwnershipFloor {
 				found = true
-				if p.Score != 0 {
-					t.Errorf("%s has no minutes but scores %.2f", p.Name, p.Score)
-				}
 			}
 		}
 	}
 	if !found {
 		t.Error("no zero-minutes player was surfaced despite meaningful ownership — " +
 			"promoted-club starters are exactly what this step exists to catch")
+	}
+}
+
+// TestTheGuessedAndTheEvidencedAreSeparateCategories pins the split, because the
+// two populations want opposite advice and one list cannot carry both.
+//
+// A player the model has never seen is scored from his position's league
+// average, which over-states his minutes; a player it has a full prior season
+// for is simply yet to play. Told apart, the first is "discount this" and the
+// second is "check for an injury". Told together — which is what `Minutes == 0`
+// alone gives — the section has to pick one recommendation and is wrong for half
+// its rows.
+//
+// ⚠️ The engine here has NO prior index, which is a supported state
+// `blendRatesCode` has always guarded and this step did not: reaching through a
+// nil `Priors` panicked the whole research step. With no priors nobody has one,
+// so every surfaced player must land in the guessing category and none in the
+// evidenced one. That degenerate case is the assertion, because it is also the
+// regression test for the panic.
+func TestTheGuessedAndTheEvidencedAreSeparateCategories(t *testing.T) {
+	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	if e.Priors != nil {
+		t.Fatal("this test needs an engine with no prior index, which is what " +
+			"roleEngine builds; something now sets Priors and the nil-guard " +
+			"regression below would no longer be exercised")
+	}
+
+	var guessed, evidenced int
+	for _, c := range e.ResearchTargets(nil) {
+		switch {
+		case strings.Contains(c.Name, "No Premier League history"):
+			guessed = len(c.Targets)
+		case strings.Contains(c.Name, "full prior season"):
+			evidenced = len(c.Targets)
+		}
+	}
+	if guessed == 0 {
+		t.Error("no player reached the guessing category, but with a nil prior " +
+			"index every zero-minutes player has no prior by definition")
+	}
+	if evidenced != 0 {
+		t.Errorf("%d players were called evidence-backed by an engine that holds "+
+			"no prior season at all", evidenced)
 	}
 }
 

@@ -111,20 +111,63 @@ func (e *Engine) ResearchTargets(squad []PlayerMetrics) []ResearchCategory {
 		"how long is he out, who replaces him, and should every defensive asset at that club be "+
 			"marked down?", keyOut)
 
-	// The model cannot rate a player with no Premier League minutes at all. A
-	// promoted club's first-choice defender scores 0.00 exactly like their
-	// fourth-choice keeper. Ownership is the only signal that separates them.
-	var blind []PlayerMetrics
+	// ⚠️ **This section used to say these players score 0.00 and are therefore
+	// underrated, and BOTH halves of that stopped being true on the same
+	// commit.** Until a player with no prior season was given his position's
+	// league rates, he really did leave the blend at zero expected minutes, and
+	// "the model will never find him" was correct advice. He is now scored, and
+	// measured against players the model does have history for, that fallback
+	// OVER-states his minutes rather than understating them.
+	//
+	// Leaving the old wording would have been worse than saying nothing: it
+	// pointed a reader at a real population with a recommendation that had
+	// inverted underneath it.
+	//
+	// The two groups are also split, because `Minutes == 0` alone conflates them
+	// — a settled starter who was rested last week reads identically to a
+	// promoted club's debutant, and only the second is a player the model is
+	// guessing about.
+	var noPrior, restedOrNew []PlayerMetrics
 	for _, m := range all {
-		if m.Minutes == 0 && m.Ownership >= researchOwnershipFloor {
-			blind = append(blind, m)
+		if m.Minutes > 0 || m.Ownership < researchOwnershipFloor {
+			continue
 		}
+		// ⚠️ **A nil `Priors` is a supported state, not a bug**, and reaching
+		// through it panicked this step the moment the split was added.
+		// `blendRatesCode` has guarded it since long before — an engine built
+		// without a prior index scores every player from the current season
+		// alone — and every consumer owes the same check.
+		//
+		// With no prior index at all, nobody has a prior, so the whole list is
+		// the guessing population. That is the honest degenerate answer rather
+		// than a silently empty section.
+		//
+		// ⚠️ Priors are keyed by the PERMANENT player code, not the element id,
+		// which FPL reassigns every summer. `PlayerMetrics` carries the id, so
+		// the bootstrap is the translation and there is no shortcut.
+		if e.Priors != nil {
+			if el := e.Boot.ElementByID(m.ID); el != nil {
+				if p, ok := e.Priors.Get(el.Code); ok && p.Minutes > 0 {
+					restedOrNew = append(restedOrNew, m)
+					continue
+				}
+			}
+		}
+		noPrior = append(noPrior, m)
 	}
-	push("No Premier League data — scored 0.00 regardless of role",
-		"promoted clubs and overseas arrivals have no minutes for the model to read, so a nailed "+
-			"starter and a fourth-choice keeper score identically. A cheap nailed starter here is "+
-			"the classic enabler, and the model will never find one.",
-		"is he in the predicted XI? If so he is badly underrated and worth a squad slot.", blind)
+	push("No Premier League history — the model is guessing from the league average",
+		"promoted clubs and overseas arrivals have no minutes for the model to read, so it "+
+			"substitutes the position's league average. Measured against players it does have "+
+			"history for, that fallback OVER-states minutes by roughly 2.4x to 3.2x outfield and "+
+			"far more for goalkeepers — every position, all six replayed seasons. So these scores "+
+			"are guesses, and they lean high.",
+		"is he in the predicted XI? If he is, the score may be about right. If he is not, treat "+
+			"the score as unearned — this is the population the model most over-rates.", noPrior)
+	push("No minutes yet this season, but a full prior season",
+		"the model has real history for these players; they simply have not played yet. The "+
+			"blend still leans on last season, so the score is evidence-backed rather than a guess.",
+		"is he injured, suspended, rotated, or newly out of favour? The prior cannot see any of "+
+			"those.", restedOrNew)
 
 	// Heavy ownership on a player the model rates below his position's median
 	// usually means a role change, a promotion, or a return from injury.

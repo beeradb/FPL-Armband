@@ -235,6 +235,16 @@ cat("⚠️ A contrast against a NOT RANKABLE arm is refused rather than scored.
 if (length(lv) == 1 && file.exists(lv)) {
   L <- read_sidecar(lv)
   L$ratio <- L$pred_off / (L$actual / L$window)
+  # ⚠️ Entry point is optional in the schema: the pre-season levels file has no
+  # such column because it has only one entry. Defaulting to 0 keeps ONE code
+  # path for both files rather than branching on which file arrived.
+  if (is.null(L$entry_gw)) L$entry_gw <- 0
+  # Every stratum that is not the control is compared against the control. Named
+  # generically rather than as a literal pair, because the in-season instrument
+  # splits the unknowns into played and unplayed and a hardcoded "NO history"
+  # would silently measure neither.
+  CONTROL <- "has history"
+  arms <- setdiff(unique(L$stratum), CONTROL)
   cat("\nLEVEL -- predicted per-match minutes over actual, by position.\n")
   cat("Above 1 is over-statement. The tilt does not enter here: it reorders\n")
   cat("within a position and the position's MEAN is what this reads.\n\n")
@@ -267,21 +277,33 @@ if (length(lv) == 1 && file.exists(lv)) {
   # a stratum reading 1.6x too high implies a share near 1/1.6.
   cat("\nEXCESS -- the unknown stratum's ratio over the KNOWN stratum's, paired\n")
   cat("within season and position. Conventions cancel; 1.000 is calibrated.\n\n")
-  cat(sprintf("  %-4s %8s %8s %8s %8s %10s %8s %8s %s\n",
-              "pos", "excess", "SE", "thr", "t", "1/excess",
+  cat(sprintf("  %-4s %-22s %-5s %8s %8s %8s %8s %8s %s\n",
+              "pos", "stratum", "entry", "excess", "SE", "t",
               "min szn", "max szn", "seasons > 1"))
-  for (ps in c("GK", "DEF", "MID", "FWD")) {
-    u <- L[L$stratum == "NO history" & L$pos == ps, ]
-    k <- L[L$stratum == "has history" & L$pos == ps, ]
+  for (combo in split(expand.grid(pos = c("GK", "DEF", "MID", "FWD"),
+                                  arm = arms, gw = sort(unique(L$entry_gw)),
+                                  stringsAsFactors = FALSE),
+                      seq_len(4 * length(arms) * length(unique(L$entry_gw))))) {
+    ps <- combo$pos; arm <- combo$arm; gw <- combo$gw
+    u <- L[L$stratum == arm & L$pos == ps & L$entry_gw == gw, ]
+    k <- L[L$stratum == CONTROL & L$pos == ps & L$entry_gw == gw, ]
     key <- intersect(u$season, k$season)
     if (length(key) < 2) next
     e <- u$ratio[match(key, u$season)] / k$ratio[match(key, k$season)]
+    # A cell where nobody played gives an infinite ratio, which is a division by
+    # nothing rather than a very large effect. Dropped, and SAID.
+    if (any(!is.finite(e))) {
+      cat(sprintf("  %-4s %-22s gw%-3d dropped: %d of %d seasons have no minutes at all\n",
+                  ps, arm, gw, sum(!is.finite(e)), length(e)))
+      next
+    }
     m <- mean(e)
     se <- sd(e) / sqrt(length(e))
-    record(sprintf("level excess %s", ps), m, se, length(e) - 1, 1, "calibration")
-    cat(sprintf("  %-4s %8.3f %8.3f %8.3f %8.2f %10.3f %8.2f %8.2f %d/%d\n",
-                ps, m, se, t_crit(length(e) - 1) * se, (m - 1) / se, 1 / m,
-                min(e), max(e), sum(e > 1), length(e)))
+    record(sprintf("excess %s %s gw%d", ps, arm, gw), m, se, length(e) - 1, 1,
+           "calibration")
+    cat(sprintf("  %-4s %-22s gw%-3d %8.3f %8.3f %8.2f %8.2f %8.2f %d/%d\n",
+                ps, arm, gw, m, se, (m - 1) / se, min(e), max(e),
+                sum(e > 1), length(e)))
     # ⚠️ Every season printed, in season order, because the summary above hides
     # a shape. These series RISE across the six seasons in all four positions,
     # which a mean and an SE describe as noise. It is printed rather than
