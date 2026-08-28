@@ -63,7 +63,7 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
       # Fails the build on a reachable vulnerability. ⚠️ Deliberately a GATE and
       # not a report: the whole point of reachability filtering is that a hit is
       # actionable, so there is nothing to triage and no reason to let it through.
