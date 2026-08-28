@@ -40,10 +40,14 @@ package backtest
 //     three tuned seasons but that is the best of six swept values against a ±20
 //     noise floor, and out of sample on 2022-23 it loses 12."* That is an argmax
 //     over six values whose winner sits **inside its own stated noise floor** —
-//     the winner's curse, self-documented. This sweep runs 0 / 1 / 2, so
-//     **s = 0.25 remains unrun** and the deciding arm has not been re-measured on
-//     the repaired archive. Anyone reading this run as "the recorded verdict was
-//     re-tested" should read that sentence again.
+//     the winner's curse, self-documented.
+//
+//     ⚠️ **UPDATED 2026-08-28: s = 0.25 is now run, and this paragraph's warning
+//     no longer applies to it.** The arm was added as a named contrast against 0,
+//     pre-registered as `0 vs 0.25` alone — see the variant's own comment for why
+//     it is not a fourth candidate in an argmax. 1 stays a full-strength
+//     reference and 2 stays the canary; neither is part of the decision contrast,
+//     so the ladder is wider without the winner's curse being wider.
 //   - **The data underneath it changed, on half this grid rather than a sixth.**
 //     The often-quoted "6 of 24 cells, all 2022-23" is a *four-season* fact. On the
 //     grid this runs, `FPL_NO_XGC_REPAIR` moves **18 of 36 cells** — 2020-21,
@@ -226,6 +230,27 @@ func TestDiagBandStrength(t *testing.T) {
 		{
 			label:   "band_strength 0 — FPL's blended FDR alone (ships)",
 			apply:   band(0),
+			setting: strengthOf,
+		},
+		{
+			// ⚠️ THE DECIDING ARM, and until 2026-08-28 it had never been re-run.
+			// `bad797c`'s message records that quarter strength "gains +18 on the
+			// three tuned seasons but that is the best of six swept values against
+			// a ±20 noise floor, and out of sample on 2022-23 it loses 12" — and
+			// that twelve-point out-of-sample loss is the whole evidence for the
+			// shipped zero. 2022-23 is also precisely the season the backfills
+			// moved, so the arm that decided the constant was measured on data
+			// that no longer exists.
+			//
+			// ⚠️ It is added as a NAMED CONTRAST, not as a fourth candidate to
+			// argmax over. The original decision was an argmax over six values
+			// whose winner sat inside its own stated noise floor — the winner's
+			// curse, self-documented in the header — and widening the ladder to
+			// beat that is how it would be committed a second time. The reading
+			// is `0 vs 0.25` alone, pre-registered here before the run. 1 and 2
+			// remain what they were: a full-strength reference and a canary.
+			label:   "band_strength 0.25 — the arm that decided the shipped zero",
+			apply:   band(0.25),
 			setting: strengthOf,
 		},
 		{
