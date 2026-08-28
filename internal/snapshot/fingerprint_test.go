@@ -170,6 +170,11 @@ func TestEnvSwitchListIsComplete(t *testing.T) {
 		"FPL_RANKS_CSV":    true,
 		"FPL_LEVELS_CSV":   true,
 		"FPL_INSEASON_CSV": true,
+		// Where the shrinkage-taper diagnostic writes its per-k rows. An output
+		// path on a DIAG-only test; the k it varies is set on the SimConfig in
+		// the test itself, not from the environment, so nothing here reaches a
+		// sweep's fingerprint.
+		"FPL_TAPER_CSV": true,
 		// Where the xGC-reconstruction dump writes, and which seasons it covers.
 		// Both are read ONLY by TestDiagXGCDump, which reads
 		// `clubXGAPerGameweek` and writes a CSV. It computes nothing on the

@@ -1,0 +1,19 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+TestDiagUnknownPrior#1,1787946230-3681742,policy,"prior fix: league average, unordered",1,baseline: unknowns read zero minutes,-0.041666666666666664,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,policy,fix + price tilt 0.25,2,baseline: unknowns read zero minutes,-0.13157894736842085,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,policy,fix + price tilt 0.50,3,baseline: unknowns read zero minutes,0.06259968102073385,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,policy_xpoints,"prior fix: league average, unordered",1,baseline: unknowns read zero minutes,0.04632519965313185,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,policy_xpoints,fix + price tilt 0.25,2,baseline: unknowns read zero minutes,-0.020387217193005982,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,policy_xpoints,fix + price tilt 0.50,3,baseline: unknowns read zero minutes,0.06796011041136671,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold,"prior fix: league average, unordered",1,baseline: unknowns read zero minutes,0.02192982456140334,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold,fix + price tilt 0.25,2,baseline: unknowns read zero minutes,-0.10561757930178987,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold,fix + price tilt 0.50,3,baseline: unknowns read zero minutes,-0.013888888888888888,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold_xpoints,"prior fix: league average, unordered",1,baseline: unknowns read zero minutes,-0.04687661448607905,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold_xpoints,fix + price tilt 0.25,2,baseline: unknowns read zero minutes,-0.07721642193265962,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold_xpoints,fix + price tilt 0.50,3,baseline: unknowns read zero minutes,-0.018667882153020524,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold_fixedcap,"prior fix: league average, unordered",1,baseline: unknowns read zero minutes,0.02923976608187119,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold_fixedcap,fix + price tilt 0.25,2,baseline: unknowns read zero minutes,-0.10415559099769646,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold_fixedcap,fix + price tilt 0.50,3,baseline: unknowns read zero minutes,-0.013888888888889086,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold_nocap,"prior fix: league average, unordered",1,baseline: unknowns read zero minutes,-0.09064327485380118,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold_nocap,fix + price tilt 0.25,2,baseline: unknowns read zero minutes,-0.10415559099769646,36,-
+TestDiagUnknownPrior#1,1787946230-3681742,hold_nocap,fix + price tilt 0.50,3,baseline: unknowns read zero minutes,-0.013888888888888888,36,-

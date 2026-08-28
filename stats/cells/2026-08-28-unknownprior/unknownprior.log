@@ -1,0 +1,158 @@
+replay: slot 1/3, MemoryHigh=2G MemoryMax=4G, started 15:43:49
+
+--- run stamp: TestDiagUnknownPrior
+  commit:  1428eef16afd182fd1188c67ceff9c4c9b424099
+  env:     digest e3b0c44298fc  (no fingerprinted switch set)
+  compare: two tables may be differenced only if commit and env digest both match,
+           or the difference between them IS the declared variable.
+
+=== DOES A PRIOR FOR THE UNKNOWN EARN POINTS, AND DOES PRICE ORDER IT?
+Baseline reproduces the defect: a player with no prior reads zero
+expected minutes before the season starts.
+⚠️ Pre-registered from the ORDERING instrument, AMENDED 2026-08-28
+before this sweep was ever run, because its basis was withdrawn.
+It read: the fix alone is negative on ordering in every season, so
+expect it flat-to-negative here. That negative is a POOLING artefact
+-- within position the fix's prediction is CONSTANT in every season,
+so it has no ordering at all, and the pooled rho was a rank by
+position. The amended prediction: the fix alone moves points only
+through the LEVEL it assigns, which is over-stated against the known
+population by 1.5-1.9x outfield and 4.5x for goalkeepers, so expect
+it to be flat-to-negative for THAT reason; and expect the fix+price
+contrast to carry whatever positive there is, since price is the only
+arm that orders these players at all.
+⚠️ Read HOLD at --scale=per_gw, and read the moves column first.
+
+variant                     gw1      gw6     gw11     gw16     gw21     gw26    POLICY |      HOLD   moves
+baseline: unknowns read zero minutes    13313    11683    10047     8248     6521     4552     54364 |     46491     909
+prior fix: league average, unordered    13256    11683    10047     8248     6521     4552     54307 |     46521     904  <-- HOLD MOVED
+fix + price tilt 0.25     13133    11683    10047     8248     6521     4552     54184 |     46330     913  <-- HOLD MOVED
+fix + price tilt 0.50     13409    11674    10047     8248     6521     4552     54451 |     46457     915  <-- HOLD MOVED
+
+--- POLICY (the weekly transfer decision) ---
+Paired against "baseline: unknowns read zero minutes" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+prior fix: league average, unordered   -0.042       36
+    early (prior-led)    -0.125       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.25    -0.132       36
+    early (prior-led)    -0.395       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.50    +0.063       36
+    early (prior-led)    +0.188       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- POLICY on accumulated xPoints (instrument; read beside POLICY) ---
+Paired against "baseline: unknowns read zero minutes" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+prior fix: league average, unordered   +0.046       36
+    early (prior-led)    +0.139       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.25    -0.020       36
+    early (prior-led)    -0.061       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.50    +0.068       36
+    early (prior-led)    +0.204       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD (the opening fifteen; use this for scoring constants) ---
+Paired against "baseline: unknowns read zero minutes" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+prior fix: league average, unordered   +0.022       36
+    early (prior-led)    +0.066       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.25    -0.106       36
+    early (prior-led)    -0.317       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.50    -0.014       36
+    early (prior-led)    -0.042       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD on accumulated xPoints (instrument; read beside HOLD) ---
+Paired against "baseline: unknowns read zero minutes" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+prior fix: league average, unordered   -0.047       36
+    early (prior-led)    -0.141       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.25    -0.077       36
+    early (prior-led)    -0.232       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.50    -0.019       36
+    early (prior-led)    -0.056       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with the armband pinned to the day-one pick (diagnostic instrument) ---
+Paired against "baseline: unknowns read zero minutes" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+prior fix: league average, unordered   +0.029       36
+    early (prior-led)    +0.088       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.25    -0.104       36
+    early (prior-led)    -0.312       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.50    -0.014       36
+    early (prior-led)    -0.042       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+--- HOLD with nobody doubled (diagnostic instrument; not what FPL pays) ---
+Paired against "baseline: unknowns read zero minutes" — same season, same start, one setting changed.
+variant                    mean        n   (SE, t and p: see stats/sweep_inference.R)
+prior fix: league average, unordered   -0.091       36
+    early (prior-led)    -0.272       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.25    -0.104       36
+    early (prior-led)    -0.312       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+fix + price tilt 0.50    -0.014       36
+    early (prior-led)    -0.042       12
+    middle               +0.000       12
+    late (season-led)    +0.000       12
+
+mean is points **per gameweek played**, so cells with different
+horizons are comparable. Multiply by ~38 for a full-season figure.
+
+Cells written. Now: Rscript stats/sweep_inference.R <the FPL_CELLS path>
+
+⚠️ The contrast that answers the question is (fix + price) MINUS (fix
+alone), within a cell. Reading either against the baseline conflates
+giving unknowns a prior at all with ordering them once they have one.
+⚠️ Two tilt settings, so the answer can be a SHAPE rather than one
+value. Taking whichever scores highest is an argmax over correlated
+estimates and is not a result.
+⚠️ Absolute totals here are NOT comparable with anything recorded
+before this change: the baseline arm is the old behaviour, and the
+other three are a different scoring era. Paired differences survive.
+PASS
+replay: exit=0 peak_rss=123 MB elapsed=3:22.64
