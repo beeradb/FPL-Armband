@@ -20,12 +20,21 @@
 // "BonusWeight ships at 1.0". This run does not repeat the comparison; it
 // measures the shipped value against its own neighbours on the current archive.
 //
-// The record is harsher still on the old table's provenance: three GW1 cells on
-// `POLICY`, on absolute totals, an argmax over five values, from the 2026-08-05
-// data state — inside the zero-penalty window and before the doubles,
-// substitution and selling-price fixes. Four of the five contamination events
-// bear on it, and 66% of the associated 67 points is 2024-25, the season the
-// zero-penalty bug was worth 113.
+// The old table's provenance is thin on its own terms: three cells and an argmax
+// over five values, on absolute totals, from a data state predating the doubles
+// fix (2026-08-08, dated in internal/backtest/cleansheet_calibration_test.go) and
+// predating the substitution, selling-price and zero-penalty fixes. See
+// AGENTS.md, "Absolute point totals are not comparable across eras of this
+// codebase".
+//
+// 66% of the 67 points is one season: the per-season 0.00 -> 1.00 gaps in the
+// table above are 20 / 133 / 49, summing to 202, and 133 of those 202 are
+// 2024-25 — the season AGENTS.md records the unset congestion penalty was worth
+// 113 on.
+//
+// ⚠️ a0bb150 is NOT reachable from origin/main; the history was reset. The sha is
+// quoted from the doc comment that names it and cannot be resolved in a fresh
+// clone, so nothing here rests on inspecting it.
 //
 // # Pre-registration
 //
