@@ -194,7 +194,7 @@ func TestEveryArchivePriorProjectionCarriesTheSameFields(t *testing.T) {
 	// DefCon left flat is then divided by a smaller denominator downstream. It is
 	// re-based with the others now; TestRecencyArmRebasesDefConWithTheOtherRates
 	// pins that.
-	idx := newPriorIndexRecent(s, 0, 0)
+	idx := newPriorIndexRecent(s, 0, 0, 0)
 	rec, ok := idx.Get(70)
 	if !ok {
 		t.Fatal("newPriorIndexRecent found no player")
@@ -227,11 +227,11 @@ func TestRecencyArmRebasesDefConWithTheOtherRates(t *testing.T) {
 	}
 	s := &Season{Name: "2025-26", Players: map[int]*Player{1: q}}
 
-	flat, ok := newPriorIndexRecent(s, 0, 0).Get(10)
+	flat, ok := newPriorIndexRecent(s, 0, 0, 0).Get(10)
 	if !ok {
 		t.Fatal("flat arm found no player")
 	}
-	recent, ok := newPriorIndexRecent(s, 0, 3).Get(10)
+	recent, ok := newPriorIndexRecent(s, 0, 3, 0).Get(10)
 	if !ok {
 		t.Fatal("recency arm found no player")
 	}

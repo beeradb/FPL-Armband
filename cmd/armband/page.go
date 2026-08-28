@@ -156,8 +156,8 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	// TestSquadBuildersDoNotNameABenchWeight.
 	req := analysis.OptimizeRequest{
 		Budget:             budget,
-		MinMinutes:         600,
-		MinExpectedMinutes: 55,
+		MinMinutes:         analysis.PoolMinMinutes,
+		MinExpectedMinutes: analysis.PoolMinExpectedMinutes,
 	}
 	for _, note := range applyRoster(cfg, e, &req) {
 		fmt.Printf("\n%s\n", dim(note))

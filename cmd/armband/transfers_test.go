@@ -332,7 +332,7 @@ func TestEverySelfParsingCommandIsDispatchedBeforeTheGuard(t *testing.T) {
 	// would silently stop covering a real command that was renamed.
 	known := map[string]bool{
 		"snapshot": true, "capture": true,
-		"backfill": true, "serve": true, "overrides": true,
+		"backfill": true, "serve": true, "overrides": true, "drift": true,
 	}
 	for cmd := range commandsThatParseTheirOwnFlags {
 		if !known[cmd] {

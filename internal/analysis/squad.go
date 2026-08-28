@@ -149,6 +149,31 @@ const (
 	DefaultBudget = 1000 // tenths of a million, i.e. £100.0m
 )
 
+// The shipped pool floors, which every squad-building caller must pass.
+//
+// ⚠️ **ZERO IS NOT "USE THE DEFAULT", IT IS "NO FLOOR AT ALL".** `Optimize`
+// applies nothing implicitly: `clearsMinutesFloor` returns true for everybody at
+// `minMinutes == 0`, and `cutByExpectedMinutes` returns early without cutting at
+// `minExpected <= 0`. So a caller that omits these does not get the shipped
+// behaviour — it gets a laxer optimiser that will offer rotation risks and
+// injured returnees no other surface in this project would show.
+//
+// They exist as constants because the literals were repeated at four call sites
+// and a fifth was written omitting them entirely, which is how
+// `armband drift` came to compare a real squad against an optimum built with no
+// floor. This is the same family as the recorded bug where a minutes floor had
+// THREE copies and the fix reached one of them.
+//
+// ⚠️ **`PoolMinMinutes` is a SEASON TOTAL and must never be compared raw.**
+// `Optimize` scales it per club through `ScaledMinMinutesFor`, which is why the
+// number here is 600 rather than a per-gameweek figure. A caller comparing 600
+// against fresh-season aggregates directly is the exact defect that emptied the
+// transfer pool for seven gameweeks.
+const (
+	PoolMinMinutes         = 600
+	PoolMinExpectedMinutes = 55
+)
+
 var squadQuota = map[string]int{"GKP": 2, "DEF": 5, "MID": 5, "FWD": 3}
 
 // XI formation bounds: exactly 1 keeper, 11 outfield slots total.
@@ -2139,6 +2164,41 @@ func sortForDisplay(squad []PlayerMetrics) []PlayerMetrics {
 // exactly as a manager would rather than freezing the opening selection.
 func BestXI(squad []PlayerMetrics) (xi, bench []PlayerMetrics, formation string) {
 	return bestXI(squad)
+}
+
+// XIPoints is what a squad's best legal eleven scores, summed on Score.
+//
+// # Why this is here rather than in the backtest, where it was written
+//
+// It is the unit of **squad drift** — how far a held fifteen has fallen behind
+// what could be built instead — and drift is only a replay quantity by accident
+// of where it was first needed. A live manager wants the same number about his
+// own team, so the function has two callers in different packages and must have
+// one definition. `internal/backtest` cannot host it, because nothing in the
+// product may depend on the replay harness.
+//
+// ⚠️ **It reuses [BestXI] rather than taking the top eleven by Score, and that is
+// not an optimisation.** The top eleven by Score fields illegal formations — four
+// goalkeepers, no forward — and so flatters a squad that is strong in one
+// position and empty in another. Drift measured that way would read a lopsided
+// squad as healthy.
+//
+// ⚠️ **A player the bootstrap does not know is skipped, not scored as zero.** A
+// squad carrying an id from a different season would otherwise report a drift
+// made of absences, which reads exactly like a squad that has decayed.
+func XIPoints(e *Engine, squad []int) float64 {
+	var ms []PlayerMetrics
+	for _, id := range squad {
+		if el := e.Boot.ElementByID(id); el != nil {
+			ms = append(ms, e.Metrics(el))
+		}
+	}
+	xi, _, _ := BestXI(ms)
+	var sum float64
+	for _, p := range xi {
+		sum += p.Score
+	}
+	return sum
 }
 
 // ownedSquad resolves the caller's squad ids against the scored pool, in a
