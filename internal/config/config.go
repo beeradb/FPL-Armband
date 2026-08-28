@@ -319,6 +319,14 @@ func Load(path string) (Config, error) {
 	if cfg.Weights.BlendMinutesK <= 0 {
 		cfg.Weights.BlendMinutesK = d.Weights.BlendMinutesK
 	}
+	// ⚠️ **This backfill is load-bearing in a way most are not.** JSON's zero
+	// value is 0, and 0 here means "a player nobody has data on will not play" —
+	// the defect this field exists to make measurable, not an off switch. Without
+	// the backfill every config written before the field existed would silently
+	// reinstate that bug on load. See Weights.UnknownPriorShare.
+	if cfg.Weights.UnknownPriorShare <= 0 {
+		cfg.Weights.UnknownPriorShare = d.Weights.UnknownPriorShare
+	}
 	if cfg.Weights.BlendRateK <= 0 {
 		cfg.Weights.BlendRateK = d.Weights.BlendRateK
 	}

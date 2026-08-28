@@ -616,7 +616,19 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 			// known about these players, and the honest expression of that is
 			// the position's league average, which is what shrinkToLeague
 			// supplies and what the in-season path has used since 2026-08-23.
-			b = e.shrinkToLeague(el, b)
+			// UnknownPriorShare scales how much of that fallback he receives, so
+			// the sweep can reach the old zero as an ARM. It is 1 in every
+			// shipped configuration; see its own comment for why 0 is a claim
+			// rather than an off switch.
+			shrunk := e.shrinkToLeague(el, b)
+			if s := e.Weights.UnknownPriorShare; s < 1 {
+				if s < 0 {
+					s = 0
+				}
+				shrunk.MinutesPerMatch *= s
+				shrunk.StartShare *= s
+			}
+			b = shrunk
 		}
 		// A minutes correction still wins over everything.
 		e.reassertMinutesOverride(el, ignoreCode, &b)

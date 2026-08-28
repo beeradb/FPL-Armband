@@ -338,6 +338,30 @@ type Weights struct {
 	BlendMinutesK float64 `json:"blend_minutes_k"`
 	BlendRateK    float64 `json:"blend_rate_k"`
 
+	// UnknownPriorShare is how much of the position's league average a player
+	// with NO prior receives before the season starts. Ships at 1.
+	//
+	// ⚠️ **It exists so the sweep can reach the old behaviour, not because zero
+	// is a defensible setting.** Before this was fixed, such a player returned
+	// from `blendRatesCode`'s pre-season branch at exactly zero expected
+	// minutes, and 122 to 284 players a season did. Setting this to 0
+	// reproduces that, which is what makes the fix an attributable ARM rather
+	// than a change that can only be compared across commits — and this
+	// record's own rule is that two tables may be differenced only when the
+	// difference between them IS the declared variable.
+	//
+	// ⚠️ **A zero here is not the same kind of thing as a zero in most weights.**
+	// Elsewhere zero means "off" and off is a real setting. Here zero means "tell
+	// the optimiser a player it knows nothing about will not play", which is a
+	// claim, and a false one. It is available for measurement and should not be
+	// shipped.
+	//
+	// ⚠️ **This field NEEDS ITS BACKFILL.** JSON's zero value is 0, so a config
+	// written before this field existed would load as "reproduce the bug" —
+	// silently, on every existing install. `config.Load` backfills it to 1; see
+	// there.
+	UnknownPriorShare float64 `json:"unknown_prior_share"`
+
 	// PriceMinutesPrior tilts the LEAGUE-AVERAGE volume fallback by how
 	// expensive a player is, for players the model has no history on. Zero is
 	// off and is what ships.
@@ -505,7 +529,11 @@ func DefaultWeights() Weights {
 		MinutesWeightByPosition: map[string]float64{
 			"GKP": 1.0, "DEF": 1.0, "MID": 0.75, "FWD": 1.0,
 		},
-		BlendMinutesK:      5,
+		BlendMinutesK: 5,
+		// A player nobody has data on gets his position's full league average.
+		// See the field comment: 0 is reachable for the sweep and is a claim, not
+		// an off switch.
+		UnknownPriorShare:  1,
 		BlendRateK:         8,
 		LeagueShrinkK:      8,
 		RestPlayers:        DefaultRestPlayers(),
