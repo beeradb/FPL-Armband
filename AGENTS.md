@@ -471,6 +471,17 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   and made unconditional 2026-08-25. ⚠️ It was briefly gated on `GameweeksPlayed() == 0`; that
   gate was a workaround for the optimiser bug below, not a statement about evidence, and must
   not be reintroduced. `TestAFinishedGameweekDoesNotMakeADebutantLookNailed`.
+- **A player with NO prior read ZERO minutes, not the league average.** →
+  **recency-and-priors**. `blendRatesCode`'s pre-season branch returned early when `Priors`
+  held no entry, so 122-284 players a season — summer signings, promoted-club regulars, the
+  population the hand-written overrides exist for — scored as if they would never play. They
+  now take the position's league rates. ⚠️ **Read that fallback's ordering WITHIN position,
+  never pooled**: it is constant inside a position and differs between them, so a pooled rank
+  over unknowns is mostly a rank by position and carries either sign for that reason. ⚠️ Its
+  LEVEL over-states against known players; MID and FWD resolve under Holm, DEF and GK do not,
+  and the excess rises across seasons. `UnknownPriorShare` (ships 1.0) is the lever and is
+  **unswept — no points claim in either direction**.
+  `TestAShareOfZeroReproducesTheOldZeroMinutes`.
 - **`starts_per_90` is not a rotation signal.** Use minutes and starts against the full
   38-game season.
 - **Single-swap local search stalls, and paired swaps are not enough either.** `dpseed.go`

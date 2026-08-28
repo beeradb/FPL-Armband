@@ -117,8 +117,13 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 		}
 		defer f.Close()
 		csv = f
-		fmt.Fprintf(csv, "# window=%d price_tilt=%.3f\n", window, priceTiltUnderTest)
-		fmt.Fprintln(csv, "season,stratum,n,scope,predictor,rho,rankable")
+		// ⚠️ The provenance is COLUMNS, not a `#` header. A comment line needs a
+		// reader that skips it, and the sanctioned reader (`read_sidecar` in
+		// stats/cells_common.R) does not — a raw read.csv here trips the
+		// one-implementation guard. Columns are the better answer anyway: they
+		// survive stacking two runs made at different settings, where a header
+		// comment silently describes only the first file.
+		fmt.Fprintln(csv, "season,stratum,n,scope,predictor,rho,rankable,window,price_tilt")
 	}
 
 	// The level half, in its own file because it is a different shape: a rho per
@@ -132,8 +137,7 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 		}
 		defer f.Close()
 		csv2 = f
-		fmt.Fprintf(csv2, "# window=%d price_tilt=%.3f\n", window, priceTiltUnderTest)
-		fmt.Fprintln(csv2, "season,stratum,pos,n,pred_off,pred_on,actual,window")
+		fmt.Fprintln(csv2, "season,stratum,pos,n,pred_off,pred_on,actual,window,price_tilt")
 	}
 
 	sc := SimConfig{Weights: cfg.Weights, StartGW: 1}
@@ -271,8 +275,9 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 						// ⚠️ ok is carried, not dropped. R must be able to tell
 						// "could not rank" from "ranked at zero" — they are
 						// opposite findings and a bare rho column conflates them.
-						fmt.Fprintf(csv, "%s,%s,%d,%s,%s,%.6f,%t\n",
-							pr.Name, key, len(rs), scope, p.name, r, ok)
+						fmt.Fprintf(csv, "%s,%s,%d,%s,%s,%.6f,%t,%d,%.3f\n",
+							pr.Name, key, len(rs), scope, p.name, r, ok,
+							window, priceTiltUnderTest)
 					}
 				}
 			}
@@ -310,9 +315,9 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 						actual += r.actual
 					}
 					n := float64(len(pr2))
-					fmt.Fprintf(csv2, "%s,%s,%s,%d,%.4f,%.4f,%.4f,%d\n",
+					fmt.Fprintf(csv2, "%s,%s,%s,%d,%.4f,%.4f,%.4f,%d,%.3f\n",
 						pr.Name, key, positionNames[pos], len(pr2),
-						off/n, on/n, actual/n, window)
+						off/n, on/n, actual/n, window, priceTiltUnderTest)
 				}
 			}
 		}

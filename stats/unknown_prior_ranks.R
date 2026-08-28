@@ -68,7 +68,22 @@ if (length(args) < 1) {
   stop("usage: unknown_prior_ranks.R [--levels=levels.csv] ranks.csv [more.csv ...]")
 }
 
-d <- do.call(rbind, lapply(args, function(p) read.csv(p, comment.char = "#")))
+# Neither file is a cells file, so both read through the shared SIDECAR reader
+# rather than a raw read.csv. That reader is the sanctioned home — a raw read
+# here trips the one-implementation guard, and the guard is right: reading the
+# file is where this family's divergences lived.
+local({
+  a <- commandArgs(trailingOnly = FALSE)
+  f <- sub("^--file=", "", a[grep("^--file=", a)])
+  d <- if (length(f) > 0) dirname(normalizePath(f[1])) else "stats"
+  p <- file.path(d, "cells_common.R")
+  if (!file.exists(p)) {
+    stop("cannot find cells_common.R beside this script (looked in ", d, ")")
+  }
+  source(p, local = FALSE)
+})
+
+d <- do.call(rbind, lapply(args, read_sidecar))
 need <- c("season", "stratum", "n", "scope", "predictor", "rho", "rankable")
 miss <- setdiff(need, names(d))
 if (length(miss)) stop("missing columns: ", paste(miss, collapse = ", "))
@@ -204,7 +219,7 @@ cat("⚠️ A contrast against a NOT RANKABLE arm is refused rather than scored.
 # per match; actual is a window total, so it is divided by the window before the
 # two are compared. A ratio above 1 is over-statement.
 if (length(lv) == 1 && file.exists(lv)) {
-  L <- read.csv(lv, comment.char = "#")
+  L <- read_sidecar(lv)
   L$ratio <- L$pred_off / (L$actual / L$window)
   cat("\nLEVEL -- predicted per-match minutes over actual, by position.\n")
   cat("Above 1 is over-statement. The tilt does not enter here: it reorders\n")

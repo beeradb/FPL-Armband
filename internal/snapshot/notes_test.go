@@ -989,6 +989,37 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// against twice above. Left about 3 KB free rather than repeating the 14-byte
 	// and 74-byte near-misses.
 	//
+	// # 66 KB, 2026-08-28 — a scoring path scored a whole population at zero, and
+	// the entry recording it has to carry the trap in HOW it is read
+	//
+	// `blendRatesCode`'s pre-season branch returned early for a player with no
+	// `Priors` entry, leaving him at zero expected minutes — 122-284 players a
+	// season, and precisely the ones the shipped config's hand-written overrides
+	// exist to describe. That is a bitten-list entry on its own.
+	//
+	// It needs three qualifiers, and each is a fact a reader would otherwise get
+	// wrong rather than a decoration.
+	//
+	// The ordering must be read WITHIN position and never pooled. The fallback is
+	// constant inside a position and differs between them, so a pooled rank over
+	// unknowns is largely a rank by position — which is how the fix's first
+	// measurement read as a t of −5.13 against it, a number that says nothing
+	// about the ordering `Optimize` consumes when it fills a quota. Without this
+	// sentence the next reader re-derives that scare and may revert a correct fix.
+	//
+	// The LEVEL defect has to name WHICH positions resolve. MID and FWD survive
+	// Holm across the family; DEF and GK do not, and the GK point estimate is
+	// carried by one season with a near-zero denominator. "The level is wrong" on
+	// its own invites a single flat correction, which the rising per-season shape
+	// also argues against.
+	//
+	// And it has to say `UnknownPriorShare` is UNSWEPT. The lever is visible, the
+	// miscalibration is measured, and this project has lost points five times
+	// correcting a measured bias — an entry that stops before that reads as a
+	// recommendation.
+	//
+	// Raised by 2 KB, ~1.8 KB free.
+	//
 	// # 64 KB, 2026-08-26 — a shipped optimiser bug joined the bitten list, and two
 	// claims the same PR made false had to be withdrawn
 	//
@@ -1135,7 +1166,7 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	//
 	// Every one of those is a qualifier carrying the uncertainty, which is the class
 	// this comment says must never be cut to fit. Raised rather than compressed.
-	const budget = 64 * 1024
+	const budget = 66 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.
