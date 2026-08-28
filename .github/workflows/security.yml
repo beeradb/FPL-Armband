@@ -20,6 +20,14 @@
 # rather than reachable defects, and CodeQL covers the same ground with a better
 # false-positive rate.
 #
+# ⚠️ EVERY ACTION IS PINNED BY COMMIT SHA, and in this file that is not a style
+# rule. These jobs run with `security-events: write`, so a floating tag here means
+# a compromised upstream release gets a write token on this repository's security
+# surface — the worst possible place to take that risk. The first draft of this
+# file used `@v3` and `@0.28.0` while `dependabot.yml`, three files away, praised
+# the pinning discipline it was breaking. Dependabot updates SHA pins and keeps
+# the trailing version comment, so the discipline costs nothing to maintain.
+#
 # ⚠️ Secret scanning and push protection are NOT here, and cannot be — they are
 # repository settings rather than workflow steps. Both are free on a public repo
 # and both need enabling in Settings → Code security. Recorded here because a
@@ -71,7 +79,7 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@6f5948dfacef28e207b48d0905cf90c03365536d # v3
         with:
           languages: go
           # security-and-quality is broader than the default and noisier. Chosen
@@ -80,8 +88,8 @@ jobs:
           # handling untrusted input, and that is where a wider net earns its
           # false positives.
           queries: security-and-quality
-      - uses: github/codeql-action/autobuild@v3
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/autobuild@6f5948dfacef28e207b48d0905cf90c03365536d # v3
+      - uses: github/codeql-action/analyze@6f5948dfacef28e207b48d0905cf90c03365536d # v3
 
   image:
     name: Container image
@@ -96,7 +104,7 @@ jobs:
       - name: Build the image
         run: docker build -t armband:scan .
       - name: Scan the image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: armband:scan
           format: sarif
@@ -109,7 +117,7 @@ jobs:
           # security tab where they can be judged.
           exit-code: "0"
       - name: Upload results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@6f5948dfacef28e207b48d0905cf90c03365536d # v3
         with:
           sarif_file: trivy.sarif
           category: trivy
