@@ -40,8 +40,11 @@
 package backtest
 
 import (
+	"encoding/csv"
 	"fmt"
+	"os"
 	"sort"
+	"strconv"
 	"testing"
 )
 
@@ -149,6 +152,39 @@ func TestDiagBandCalibration(t *testing.T) {
 			fmt.Printf(" %7.1f%%", 100*float64(c.played60)/float64(c.n))
 		}
 		fmt.Println()
+	}
+
+	// Banked so the table above is re-derivable rather than only re-measurable.
+	// The BandStrength run one PR earlier set this precedent; a calibration with
+	// no row anywhere is exactly the state that made its own predecessor
+	// impossible to check.
+	if path := os.Getenv("FPL_CELLS"); path != "" {
+		f, err := os.Create(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		w := csv.NewWriter(f)
+		if err := w.Write([]string{"season", "band", "n", "sum_minutes", "played60", "played0"}); err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range seasons {
+			for _, b := range order {
+				c := perSeason[s][b]
+				if c == nil {
+					continue
+				}
+				if err := w.Write([]string{s, b, strconv.Itoa(c.n), strconv.Itoa(c.minutes),
+					strconv.Itoa(c.played60), strconv.Itoa(c.played0)}); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		w.Flush()
+		if err := w.Error(); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Printf("\n  cells written to %s\n", path)
 	}
 
 	fmt.Printf("\n  %d player-gameweeks banded; %d (%.1f%%) had no archive row and were EXCLUDED,\n",
