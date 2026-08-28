@@ -228,6 +228,25 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # ⚠️ THE SELFTEST RUNS FIRST, AND THAT ORDER IS THE POINT.
+      #
+      # The recurring failure this guards is not a wrong number, it is a CHECK
+      # TRUSTED WITHOUT EVIDENCE IT CAN FAIL. Five separate guards in this repo
+      # have run green while unable to act, and each was found by injecting the
+      # thing it claimed to catch — never by watching it pass. So the checker
+      # proves it goes red on a mutated expectation BEFORE its green run is
+      # allowed to mean anything. A green `claims` step whose selftest did not
+      # run is worth exactly nothing.
+      - name: Prove the claims checker can fail
+        run: python3 scripts/claims.py --selftest
+
+      # Re-derives every quantitative claim in stats/claims.yaml rather than
+      # trusting a number written down beside it. ⚠️ A registry of VALUES is the
+      # one design already proved to rot here — `ledger/` drifted in under 24
+      # hours — so entries store the COMMAND and this re-runs it.
+      - name: Check the claims registry
+        run: python3 scripts/claims.py
+
       # ⚠️ FPL_SNAPSHOTS_EXTERNAL=1 is load-bearing, added 2026-08-22 the same commit the
       # accuracy series stopped being committed. TestSnapshotCoversTheCurrentCode's own doc
       # comment says the flag is for when "the series is expected to come from CI rather

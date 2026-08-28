@@ -48,6 +48,10 @@ on:
 
 permissions:
   contents: write
+  # Needed by "Tell open pull requests their accuracy baseline moved". Inert on a
+  # pull_request run, where that step is skipped and GitHub downgrades the token
+  # for forks regardless of what is declared here.
+  pull-requests: write
   # Pages deployment needs both, and they are inert unless the dashboard steps
   # run — which they only do when PUBLISH_ACCURACY_PAGE is set on the repository.
   pages: write
@@ -243,6 +247,65 @@ jobs:
       # failure never costs the series itself. It is left to fail loudly rather
       # than continue-on-error: a red main that nobody reads is how this
       # repository lost its staleness guard for four days.
+      # ⚠️ TELLS OPEN PULL REQUESTS THEIR BASELINE MOVED.
+      #
+      # `pr-model-report.yml` posts "what moved" against the newest published
+      # Release, and it triggers on `pull_request` ONLY — opened, synchronize,
+      # reopened. It never re-runs when `main` moves. So the moment the step above
+      # publishes a new snapshot, every open pull request carries a comment
+      # computed against a Release that is no longer newest, still reporting on a
+      # comparison that no longer exists.
+      #
+      # The baseline moved iff a new snapshot was published, which is exactly when
+      # this step runs — so no figure comparison is needed to decide whether to
+      # speak, and none is done.
+      #
+      # ⚠️ IT DOES NOT RECOMPUTE ANYTHING, and says so in the comment it posts.
+      # Re-running the diagnostics for every open pull request on every merge would
+      # be minutes of grid time to answer a question one push answers. This is a
+      # STALENESS NOTICE. The distinction is stated in the body because a notice
+      # that read like a recomputation would be trusted as one.
+      #
+      # ⚠️ ONE STICKY NOTICE PER PULL REQUEST, edited in place via the marker
+      # comment. Appending a fresh notice per merge is how a channel earns being
+      # muted, and a muted channel is worse than no channel.
+      - name: Tell open pull requests their accuracy baseline moved
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="snapshot-$(echo "$SHA" | cut -c1-7)"
+          prs="$(gh pr list --state open --json number -q '.[].number' || true)"
+          if [ -z "$prs" ]; then echo "no open pull requests"; exit 0; fi
+          body="$(printf '%s\n' \
+            "<!-- accuracy-baseline-moved -->" \
+            "⚠️ **Your accuracy baseline moved.** \`main\` has published a new snapshot, \`$tag\`." \
+            "" \
+            "The **Model accuracy** comment on this pull request was computed against the" \
+            "*previous* newest Release, so its \"What moved\" section answers a question about" \
+            "a baseline that is no longer current." \
+            "" \
+            "**Push any commit to refresh it.** \`pr-model-report.yml\` triggers on" \
+            "\`pull_request\`, so it re-runs on the next push and recomputes against \`$tag\`." \
+            "" \
+            "⚠️ This notice is not a recomputation. It does not claim your figures moved — only" \
+            "that the thing they were compared against did.")"
+          for n in $prs; do
+            id="$(gh api "repos/$REPO/issues/$n/comments" --paginate \
+                  -q '.[] | select(.body | contains("<!-- accuracy-baseline-moved -->")) | .id' \
+                  | head -1 || true)"
+            if [ -n "$id" ]; then
+              gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" >/dev/null \
+                && echo "refreshed notice on #$n" || echo "could not edit notice on #$n"
+            else
+              gh pr comment "$n" --body "$body" >/dev/null \
+                && echo "posted notice on #$n" || echo "could not comment on #$n"
+            fi
+          done
+
       - name: Build the accuracy dashboard
         if: github.event_name != 'pull_request'
         if: vars.PUBLISH_ACCURACY_PAGE == 'true'
