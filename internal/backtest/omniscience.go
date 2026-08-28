@@ -165,8 +165,7 @@ func newOraclePriors(s *Season, through int, base analysis.PriorSeason) analysis
 func (c SimConfig) priors(cur, prior *Season) analysis.PriorSeason {
 	var base analysis.PriorSeason
 	if c.PriorMinutesHalfLife > 0 || c.PriorRateHalfLife > 0 {
-		base = newPriorIndexRecent(prior, c.PriorMinutesHalfLife, c.PriorRateHalfLife,
-			c.PriorTrimAfterGW)
+		base = newPriorIndexRecent(prior, c.PriorMinutesHalfLife, c.PriorRateHalfLife)
 	} else {
 		base = newPriorIndexMulti(append([]*Season{prior}, c.OlderPriors...), c.PriorHalfLife)
 	}
