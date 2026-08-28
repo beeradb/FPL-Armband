@@ -67,22 +67,16 @@ type XIDrift struct {
 
 // xiPoints is a squad's best eleven, summed on Score.
 //
-// It reuses `analysis.BestXI` — the same formation search the simulation fields a
-// team with — rather than taking the top eleven by Score, which would field
-// illegal formations and flatter squads that are strong in one position.
+// ⚠️ **A one-line delegation to [analysis.XIPoints], and it must stay one.** The
+// body moved into `internal/analysis` when the product needed the same number
+// about a live manager's own squad: drift is not a replay quantity, it was
+// merely first needed here. Two packages computing "what does this fifteen's
+// best eleven score" separately is this project's signature failure, and the
+// two would drift the moment either formation rule changed.
+//
+// The name stays so this package's diagnostics read as they always have.
 func xiPoints(e *analysis.Engine, squad []int) float64 {
-	var ms []analysis.PlayerMetrics
-	for _, id := range squad {
-		if el := e.Boot.ElementByID(id); el != nil {
-			ms = append(ms, e.Metrics(el))
-		}
-	}
-	xi, _, _ := analysis.BestXI(ms)
-	var sum float64
-	for _, p := range xi {
-		sum += p.Score
-	}
-	return sum
+	return analysis.XIPoints(e, squad)
 }
 
 // xiDriftOf measures `held` against the unconstrained optimum at the same budget.

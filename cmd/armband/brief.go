@@ -611,8 +611,8 @@ func briefOptimal(b *strings.Builder, cfg config.Config, e *analysis.Engine) ([]
 	// config.json's bench_weight backfilled to analysis.DefaultBenchWeight. Naming
 	// a weight here instead would make this command disagree with `armband squad`
 	// and would make the config key inert. See TestSquadBuildersDoNotNameABenchWeight.
-	req := analysis.OptimizeRequest{Budget: budget, MinMinutes: 600,
-		MinExpectedMinutes: 55}
+	req := analysis.OptimizeRequest{Budget: budget, MinMinutes: analysis.PoolMinMinutes,
+		MinExpectedMinutes: analysis.PoolMinExpectedMinutes}
 	// The overrides listed at the top of this document must bind the squad
 	// printed in it, or the brief contradicts itself.
 	applyRoster(cfg, e, &req)

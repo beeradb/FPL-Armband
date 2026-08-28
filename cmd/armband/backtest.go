@@ -52,7 +52,7 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 	e := analysis.NewEngineFull(boot, fx, cfg.Weights, analysis.Congestion{}, analysis.RoleRisk{})
 
 	sq, err := e.Optimize(analysis.OptimizeRequest{
-		MinMinutes: 600, MinExpectedMinutes: 55, BenchWeight: analysis.DefaultBenchWeight,
+		MinMinutes: analysis.PoolMinMinutes, MinExpectedMinutes: analysis.PoolMinExpectedMinutes, BenchWeight: analysis.DefaultBenchWeight,
 	})
 	if err != nil {
 		return fmt.Errorf("optimising: %w", err)

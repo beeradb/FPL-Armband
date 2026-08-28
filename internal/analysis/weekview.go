@@ -272,8 +272,8 @@ func (e *Engine) ChipWeekView(squad []PlayerMetrics, gw int, chip string,
 		if budget, _, err := e.AssemblyBudget(); err == nil {
 			rebuildReq := req
 			rebuildReq.Budget = budget
-			rebuildReq.MinMinutes = 600
-			rebuildReq.MinExpectedMinutes = 55
+			rebuildReq.MinMinutes = PoolMinMinutes
+			rebuildReq.MinExpectedMinutes = PoolMinExpectedMinutes
 			// The two chips want fifteens built to different questions, so
 			// they are built on different engines.
 			//
