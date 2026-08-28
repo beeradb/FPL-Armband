@@ -27,12 +27,10 @@ func one(p ChipPlan) ChipSchedule { return ChipSchedule{First: p} }
 // Relative arithmetic beats skipping the window: the assertions stay live all
 // season instead of going quiet for the ten months when a regression is most
 // likely to reach them.
-func upcomingGW(e *Engine) int {
-	if next := e.Boot.NextEvent(); next != nil {
-		return next.ID
-	}
-	return 1
-}
+// ⚠️ Delegates rather than re-deriving. This was one of three spellings of
+// "which gameweek is being decided"; `Engine.UpcomingGW` is now the only
+// implementation, and its doc comment carries the rest of the story.
+func upcomingGW(e *Engine) int { return e.UpcomingGW() }
 
 func chipEngine(t *testing.T, plan ChipSchedule) *Engine {
 	t.Helper()
@@ -73,9 +71,15 @@ func TestChipWindowsReportCurrentHalfOnly(t *testing.T) {
 
 func TestChipPlanValidation(t *testing.T) {
 	e := chipEngine(t, one(ChipPlan{}))
+	up := upcomingGW(e)
 
-	// Two chips in the same gameweek is illegal.
-	problems := e.ValidateChipPlan(one(ChipPlan{BenchBoost: 5, TripleCaptain: 5}))
+	// Two chips in the same gameweek is illegal. WHICH gameweek is immaterial —
+	// only that both chips name the same one — so it is expressed relative to
+	// now. Written as a literal GW5 it asserted the clash rule until GW5 went
+	// by and then asserted it about a gameweek in the past, where the validator
+	// has a different and more urgent complaint.
+	clash := up + 1
+	problems := e.ValidateChipPlan(one(ChipPlan{BenchBoost: clash, TripleCaptain: clash}))
 	var sawClash bool
 	for _, p := range problems {
 		if contains(p, "only one chip may be played per gameweek") {
@@ -83,19 +87,25 @@ func TestChipPlanValidation(t *testing.T) {
 		}
 	}
 	if !sawClash {
-		t.Errorf("two chips in GW5 not flagged; got %v", problems)
+		t.Errorf("two chips in GW%d not flagged; got %v", clash, problems)
 	}
 
-	// A wildcard in GW1 is outside its GW2-19 window.
-	problems = e.ValidateChipPlan(one(ChipPlan{Wildcard: 1}))
-	var sawWindow bool
+	// ⚠️ A genuinely FIXED gameweek, and the one case the relative rule does not
+	// cover: the wildcard's window opens at GW2 because that is the competition's
+	// rule, so GW1 is outside it in every week of every season. Named rather than
+	// written inline so it reads as a boundary rather than as a date somebody
+	// forgot to update — and so the guard in chipgameweekliteral_test.go, which
+	// cannot tell the two apart, is answered explicitly.
+	const beforeTheWildcardWindow = 1
+	problems = e.ValidateChipPlan(one(ChipPlan{Wildcard: beforeTheWildcardWindow}))
+	var sawProblem bool
 	for _, p := range problems {
 		if contains(p, "Wildcard planned for GW1") {
-			sawWindow = true
+			sawProblem = true
 		}
 	}
-	if !sawWindow {
-		t.Errorf("wildcard in GW1 not flagged as out of window; got %v", problems)
+	if !sawProblem {
+		t.Errorf("wildcard in GW1 not flagged; got %v", problems)
 	}
 }
 

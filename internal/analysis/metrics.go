@@ -2474,6 +2474,36 @@ func (e *Engine) SeasonHasStarted() bool {
 	return false
 }
 
+// UpcomingGW is the gameweek being decided right now — the next one whose
+// deadline has not passed — or 1 before the season starts.
+//
+// ⚠️ **Exists so that "the gameweek to reason about" has ONE implementation.**
+// It had three: an unexported `upcomingGW` in `internal/analysis`'s test files,
+// an inline re-derivation in `internal/agent`'s tests because that helper was
+// not importable, and a hardcoded literal in a third test. The literal is how
+// the defect showed itself — `TestBenchBoostRaisesBenchWeight` asked for a chip
+// at gameweek 2, passed for as long as gameweek 2 was ahead, and failed the hour
+// that deadline went by against code nobody had touched.
+//
+// ⚠️ **A test against the live API may not write a gameweek number down.** What
+// has to stay constant is the RELATIONSHIP to now — `UpcomingGW()+1` is a
+// gameweek in the near future in August and still one in March. An absolute
+// number is true for a week and then silently becomes an assertion about the
+// past, which is a different question with a different right answer: a chip
+// planned for a gameweek already gone correctly changes nothing, so the test
+// ends up asserting the opposite of the behaviour it is named for.
+//
+// This is the calendar's version of the rot AGENTS.md already warns about for
+// tests pinned to a player or a score. Synthetic fixtures that build their own
+// `Events` are exempt and should stay exempt: they control their own calendar,
+// so a literal there is stable by construction.
+func (e *Engine) UpcomingGW() int {
+	if ev := e.Boot.NextEvent(); ev != nil {
+		return ev.ID
+	}
+	return 1
+}
+
 // GameweeksPlayed is how many gameweeks have finished. Zero before the season
 // starts.
 func (e *Engine) GameweeksPlayed() int {
