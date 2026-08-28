@@ -102,6 +102,20 @@
      falls back to the nearest weight actually loaded, 700, so headings render
      visibly lighter than the Jakarta 800 they replaced, not synthetically
      bolded to match. */
+  /* ⚠️ Plus Jakarta Sans IS STILL HERE, despite what `git log` says.
+     The squash commit that landed the preload work reads "...drop Plus Jakarta
+     Sans (#123)". The drop was reverted on that branch before it merged; the
+     title is the pull request's original one and was never updated, so
+     `git log --oneline` asserts a change that did not happen.
+
+     Why it was reverted, so the question is not reopened from the title alone:
+     --display is NOT headings-only. It styles `.card .xp b` — the expected-points
+     figure on every player card — plus eleven other numeric-emphasis sites, which
+     is why all 36 layout goldens moved when it was swapped. And the 27,348 bytes
+     it saves per page is an artefact of `cache-control: max-age=60` on assets,
+     not a real recurring cost: content-hashing the filenames unlocks a long
+     immutable cache and saves ~161KB of fonts plus all CSS and JS on repeat
+     visits, for no visual change. Fix the cache, not the typeface. */
   --display:'Plus Jakarta Sans',system-ui,sans-serif;
   --ui:'Inter',system-ui,-apple-system,sans-serif;
   --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
