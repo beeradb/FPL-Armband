@@ -471,6 +471,26 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   and made unconditional 2026-08-25. ⚠️ It was briefly gated on `GameweeksPlayed() == 0`; that
   gate was a workaround for the optimiser bug below, not a statement about evidence, and must
   not be reintroduced. `TestAFinishedGameweekDoesNotMakeADebutantLookNailed`.
+- **A player with NO prior read ZERO minutes, not the league average.** →
+  **recency-and-priors**. `blendRatesCode`'s pre-season branch returned early when `Priors`
+  held no entry, so 122-284 players a season — summer signings, promoted-club regulars, the
+  population the hand-written overrides exist for — scored as if they would never play. They
+  now take the position's league rates. ⚠️ **Read that fallback's ordering WITHIN position,
+  never pooled**: it is constant inside a position and differs between them, so a pooled rank
+  over unknowns is mostly a rank by position and carries either sign for that reason. ⚠️ Its
+  LEVEL over-states against known players; MID and FWD resolve under Holm, DEF and GK do not.
+  `UnknownPriorShare` (ships 1.0) is the pre-season lever and is **unswept — no points claim**.
+  `TestAShareOfZeroReproducesTheOldZeroMinutes`.
+- **A player who never plays generates no evidence that he does not play, and a SHARE knob
+  cannot fix it.** → **recency-and-priors**. `shrinkToLeague` weights a player's own rate by
+  `wMin = n90/(n90+BlendMinutesK)`, so one with no minutes keeps `wMin` 0 and takes the league
+  average whole, all season. At GW20 a no-prior player unplayed for twenty gameweeks is
+  predicted **41.9 min/match and averages 0.6**; a no-prior player who HAS played reads
+  1.1-1.4x and a player with history is calibrated. ⚠️ **So the blended in-season figure
+  (2.4-3.2x) averages two populations wanting opposite treatment**, and scaling the fallback
+  would break the near-right group to patch the far-wrong one. `UnknownPriorShare` is the wrong
+  lever here and does not reach the in-season path at all. Whether `blankRunFactor` misses this
+  population or is too weak is **untested**.
 - **`starts_per_90` is not a rotation signal.** Use minutes and starts against the full
   38-game season.
 - **Single-swap local search stalls, and paired swaps are not enough either.** `dpseed.go`
@@ -736,6 +756,12 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **`MinutesWeight` ships at 1.0 from 2026-08-25: a judgement to ship neutral, not a
   measurement — this harness cannot locate an optimum on it.** ⚠️ At 1.0
   `MinutesWeightByPosition` is inert. → **constants-and-sweeps**
+- **Giving an unknown player a prior buys nothing measurable, and the price tilt is
+  closed on mechanism.** `HOLD` +0.8 a season against a threshold of 25.3; both tilt
+  arms negative or flat. ⚠️ **Read it as ~6-8 live cells, not 36** — `UnknownPriorShare`
+  is pre-season-only and `PriceMinutesPrior` fades by GW11, so 24 of 36 cells are
+  byte-identical by construction. `PriceMinutesPrior` stays at 0.
+  `stats/cells/2026-08-28-unknownprior/`. → **recency-and-priors**
 
 ### Chips
 

@@ -111,20 +111,38 @@ func (e *Engine) ResearchTargets(squad []PlayerMetrics) []ResearchCategory {
 		"how long is he out, who replaces him, and should every defensive asset at that club be "+
 			"marked down?", keyOut)
 
-	// The model cannot rate a player with no Premier League minutes at all. A
-	// promoted club's first-choice defender scores 0.00 exactly like their
-	// fourth-choice keeper. Ownership is the only signal that separates them.
-	var blind []PlayerMetrics
-	for _, m := range all {
-		if m.Minutes == 0 && m.Ownership >= researchOwnershipFloor {
-			blind = append(blind, m)
-		}
-	}
-	push("No Premier League data — scored 0.00 regardless of role",
-		"promoted clubs and overseas arrivals have no minutes for the model to read, so a nailed "+
-			"starter and a fourth-choice keeper score identically. A cheap nailed starter here is "+
-			"the classic enabler, and the model will never find one.",
-		"is he in the predicted XI? If so he is badly underrated and worth a squad slot.", blind)
+	// ⚠️ **This section used to say these players score 0.00 and are therefore
+	// underrated, and BOTH halves of that stopped being true on the same
+	// commit.** Until a player with no prior season was given his position's
+	// league rates, he really did leave the blend at zero expected minutes, and
+	// "the model will never find him" was correct advice. He is now scored, and
+	// measured against players the model does have history for, that fallback
+	// OVER-states his minutes rather than understating them.
+	//
+	// Leaving the old wording would have been worse than saying nothing: it
+	// pointed a reader at a real population with a recommendation that had
+	// inverted underneath it.
+	//
+	// The two groups are also split, because `Minutes == 0` alone conflates them
+	// — a settled starter who was rested last week reads identically to a
+	// promoted club's debutant, and only the second is a player the model is
+	// guessing about.
+	noPrior, restedOrNew := e.splitOnPriorEvidence(all)
+	push("No Premier League history — the model is guessing from the league average",
+		"promoted clubs and overseas arrivals have no minutes for the model to read, so it "+
+			"substitutes the position's league average — and it keeps substituting it, because "+
+			"the weight on a player's own record is driven by minutes he has not got. Measured "+
+			"across six replayed seasons: a player still unplayed twenty gameweeks in is "+
+			"predicted at a half-match workload and goes on to average under a minute. Worse "+
+			"for goalkeepers. So these scores are guesses, and they lean high.",
+		"is he in the predicted XI? If he is, the score may be about right — a player here who "+
+			"actually plays turns out close to calibrated. If he is not, treat the score as "+
+			"unearned: this is the population the model most over-rates.", noPrior)
+	push("No minutes yet this season, but a full prior season",
+		"the model has real history for these players; they simply have not played yet. The "+
+			"blend still leans on last season, so the score is evidence-backed rather than a guess.",
+		"is he injured, suspended, rotated, or newly out of favour? The prior cannot see any of "+
+			"those.", restedOrNew)
 
 	// Heavy ownership on a player the model rates below his position's median
 	// usually means a role change, a promotion, or a return from injury.
@@ -179,4 +197,52 @@ func (e *Engine) ResearchTargets(squad []PlayerMetrics) []ResearchCategory {
 		"where does he fit in the new side, and is he starting in pre-season?", signings)
 
 	return cats
+}
+
+// splitOnPriorEvidence separates the players with no current-season minutes into
+// the ones the model is guessing about and the ones it has a full prior season
+// for. Only players over the ownership floor are considered; the rest are noise.
+//
+// The two want opposite advice, so one list cannot carry both: a player the model
+// has never seen is scored from his position's league average and over-stated,
+// while one it has history for is simply yet to play. `Minutes == 0` alone
+// conflates them.
+//
+// ⚠️ **A nil `Priors` is a supported state, not a bug**, and reaching through it
+// panicked this step the moment the split was added. `blendRatesCode` has guarded
+// it since long before — an engine built without a prior index scores every
+// player from the current season alone — and every consumer owes the same check.
+// With no prior index nobody has a prior, so everyone lands in the guessing
+// group, which is the honest degenerate answer rather than a silently empty
+// section.
+//
+// ⚠️ Priors are keyed by the PERMANENT player code, not the element id, which FPL
+// reassigns every summer. `PlayerMetrics` carries the id, so the bootstrap is the
+// translation and there is no shortcut.
+func (e *Engine) splitOnPriorEvidence(all []PlayerMetrics) (noPrior, evidenced []PlayerMetrics) {
+	for _, m := range all {
+		if m.Minutes > 0 || m.Ownership < researchOwnershipFloor {
+			continue
+		}
+		if e.hasPriorSeason(m.ID) {
+			evidenced = append(evidenced, m)
+			continue
+		}
+		noPrior = append(noPrior, m)
+	}
+	return noPrior, evidenced
+}
+
+// hasPriorSeason reports whether the prior index holds real minutes for the
+// element id, translating id to permanent code on the way.
+func (e *Engine) hasPriorSeason(id int) bool {
+	if e.Priors == nil {
+		return false
+	}
+	el := e.Boot.ElementByID(id)
+	if el == nil {
+		return false
+	}
+	p, ok := e.Priors.Get(el.Code)
+	return ok && p.Minutes > 0
 }

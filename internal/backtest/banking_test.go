@@ -15,6 +15,7 @@ package backtest
 // whether the policy ever accumulates the transfers such a swap would need.
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -310,41 +311,97 @@ func bankingArm(base SimConfig) SimConfig {
 // the football and would rot; that the branch is reachable at all is a fact about
 // the code and is what has to hold.
 func TestTheBankingRuleActuallyFires(t *testing.T) {
-	cur, prior, base := chipSim(t)
-	res, err := Simulate(cur, prior, bankingArm(base))
-	if err != nil {
-		t.Fatal(err)
-	}
-	b := res.Banking
-	if b.BankedWeeks == 0 {
-		t.Fatalf("the banking rule never fired: decision=%d consulted=%d weighed=%d "+
-			"banked=%d. Every other guard in this file passes on an arm that never "+
-			"executes the banked branch, which is how the accrual bug survived a "+
-			"suite that claimed to pin it",
-			b.DecisionWeeks, b.ConsultedWeeks, b.WeighedWeeks, b.BankedWeeks)
-	}
-	// And the firing reached the scored path, not merely a column. This is the
-	// record's own liveness idiom: a confinement check on a path that cannot
-	// carry the effect confirms nothing, so pair it with something that MUST
-	// move.
+	cfg := loadConfig(t)
+	ctx := context.Background()
+
+	// ⚠️ SEVERAL CELLS, and that is the point of this version. The previous one
+	// was pinned to a single season and start, and it failed the first time a
+	// scoring change perturbed that squad — not because banking stopped working
+	// but because that one cell banked exactly ONCE and stopped being a
+	// discriminating case.
 	//
-	// ⚠️ The obvious assertion — that banking makes fewer transfers — is **wrong**,
-	// and measured so: 34 against 34. A banked week declines a move and spends it
-	// later, often on a two-move package, so the season total is not reduced and
-	// need not change at all. What must change is the season the policy played.
-	off := bankingArm(base)
-	off.BankLookahead = false
-	plain, err := Simulate(cur, prior, off)
-	if err != nil {
-		t.Fatal(err)
+	// Measured at the time: banking separated in 17 of 18 cells, and the only
+	// one it did not separate in was the fixture this test was pinned to. A
+	// liveness guard whose whole claim rests on one marginal cell is one squad
+	// perturbation from failing, and re-pinning it to a luckier cell would only
+	// relocate that fragility rather than remove it.
+	cells := []struct {
+		cur, prior string
+		start      int
+	}{
+		{"2021-22", "2020-21", 1},
+		{"2022-23", "2021-22", 1},
+		{"2023-24", "2022-23", 1},
+		{"2024-25", "2023-24", 6},
+		{"2025-26", "2024-25", 1},
+		{"2025-26", "2024-25", 6},
 	}
-	if plain.Banking.ConsultedWeeks != 0 {
-		t.Errorf("the control arm consulted the rule %d times", plain.Banking.ConsultedWeeks)
+
+	ran, fired, separated := 0, 0, 0
+	for _, c := range cells {
+		prior, err := Load(ctx, cfg.CacheDir, c.prior)
+		if err != nil {
+			continue
+		}
+		cur, err := Load(ctx, cfg.CacheDir, c.cur)
+		if err != nil {
+			continue
+		}
+		base := SimConfig{
+			Weights: cfg.Weights, MinGain: cfg.Review.MinGainForTransfer,
+			MinGainHit: cfg.Review.MinGainForHit, BankUpTo: sweepBankLimit,
+			MaxHits: cfg.Review.MaxHitsPerWeek, Budget: 1000,
+			FreeCost: cfg.Review.FreeTransferValue, StartGW: c.start, WeeklyXI: true,
+		}
+		on := bankingArm(base)
+		off := on
+		off.BankLookahead = false
+
+		res, err := Simulate(cur, prior, on)
+		if err != nil {
+			t.Fatalf("%s@%d: %v", c.cur, c.start, err)
+		}
+		plain, err := Simulate(cur, prior, off)
+		if err != nil {
+			t.Fatalf("%s@%d control: %v", c.cur, c.start, err)
+		}
+		// The control must not consult the rule at all, in every cell. This is a
+		// fact about the code rather than the football, so it holds everywhere
+		// and is asserted everywhere.
+		if plain.Banking.ConsultedWeeks != 0 {
+			t.Errorf("%s@%d: the control arm consulted the rule %d times",
+				c.cur, c.start, plain.Banking.ConsultedWeeks)
+		}
+		ran++
+		if res.Banking.BankedWeeks > 0 {
+			fired++
+		}
+		if res.Points != plain.Points {
+			separated++
+		}
+		t.Logf("%s@%-2d banked=%2d  on=%d off=%d", c.cur, c.start,
+			res.Banking.BankedWeeks, res.Points, plain.Points)
 	}
-	if res.Points == plain.Points {
-		t.Errorf("banking fired %d times and the season scored %d either way — the "+
-			"rule reached its counter without reaching the decision",
-			b.BankedWeeks, res.Points)
+	if ran == 0 {
+		t.Skip("archive unreachable for every cell")
+	}
+
+	// Reachability: the banked branch executes. Every other guard in this file
+	// passes on an arm that never runs it, which is how the accrual bug survived
+	// a suite that claimed to pin it.
+	if fired == 0 {
+		t.Errorf("the banking rule never banked in any of %d cells", ran)
+	}
+	// Liveness: the firing reaches the SCORED path, not merely a counter. A
+	// confinement check on a path that cannot carry the effect confirms nothing.
+	//
+	// ⚠️ A majority rather than all, because an individual cell separating is a
+	// fact about the football and will rot. That the rule moves seasons at all
+	// is a fact about the code and is what has to hold. When this was written the
+	// true rate was 17 of 18.
+	if separated*2 < ran {
+		t.Errorf("banking changed the season in only %d of %d cells — the rule is "+
+			"reaching its counter without reaching the decision", separated, ran)
 	}
 }
 

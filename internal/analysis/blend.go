@@ -1,6 +1,10 @@
 package analysis
 
-import "armband/internal/fpl"
+import (
+	"time"
+
+	"armband/internal/fpl"
+)
 
 // Blending last season into this one.
 //
@@ -577,18 +581,7 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 		//
 		// Without blending the prior is identical to what the element carries,
 		// so this is a no-op then.
-		if p, ok := e.Priors.Get(el.Code); ok && p.Minutes > 0 && p.Minutes != el.Minutes {
-			b.MinutesPerMatch = float64(p.Minutes) / GameweeksPerSeason
-			b.StartShare = float64(p.Starts) / GameweeksPerSeason
-			b.XG90 = per90(p.XG, p.Minutes)
-			b.XA90 = per90(p.XA, p.Minutes)
-			b.XGC90 = per90(p.XGC, p.Minutes)
-			b.DefCon90 = per90(float64(p.DefCon), p.Minutes)
-			b.Bonus90 = per90(float64(p.Bonus), p.Minutes)
-			b.Saves90 = per90(float64(p.Saves), p.Minutes)
-			b.Yellow90 = per90(float64(p.Yellow), p.Minutes)
-			b.Red90 = per90(float64(p.Red), p.Minutes)
-		}
+		b = e.preSeasonRates(el, b)
 		// A minutes correction still wins over everything.
 		e.reassertMinutesOverride(el, ignoreCode, &b)
 		return b
@@ -727,6 +720,99 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 // rate90 converts a counting stat to a per-90 rate.
 func rate90(count, minutes int) float64 { return per90(float64(count), minutes) }
 
+// preSeasonRates decides which of three states a player is in before a ball is
+// kicked, and there are exactly three — the missing one is the reason this is a
+// switch rather than an if/else.
+//
+//	a usable prior that DIFFERS from what FPL carries → believe the prior
+//	no prior at all, or one with no minutes         → the league fallback
+//	a prior identical to what FPL carries           → change nothing
+//
+// The third case is why `default:` would be wrong here: falling through
+// untouched is the correct answer for a player whose prior the bootstrap already
+// reproduces, and collapsing it into either of the others would either re-derive
+// the same numbers or overwrite a real history with a league average.
+func (e *Engine) preSeasonRates(el *fpl.Element, b blend) blend {
+	p, hasPrior := e.Priors.Get(el.Code)
+	switch {
+	case hasPrior && p.Minutes > 0 && p.Minutes != el.Minutes:
+		return priorSeasonRates(p, b)
+	case !hasPrior || p.Minutes == 0:
+		return e.unknownPriorRates(el, b)
+	}
+	return b
+}
+
+// priorSeasonRates rewrites a pre-season blend as last season's per-90 rates.
+//
+// Pure, and taking the prior rather than the Engine, so the arithmetic that
+// converts a season TOTAL into a rate has one home and can be read without the
+// surrounding branch. The two denominators are deliberately different:
+// minutes and starts are per GAMEWEEK of a full season, everything else is
+// per 90 minutes actually played.
+func priorSeasonRates(p *PriorPlayer, b blend) blend {
+	b.MinutesPerMatch = float64(p.Minutes) / GameweeksPerSeason
+	b.StartShare = float64(p.Starts) / GameweeksPerSeason
+	b.XG90 = per90(p.XG, p.Minutes)
+	b.XA90 = per90(p.XA, p.Minutes)
+	b.XGC90 = per90(p.XGC, p.Minutes)
+	b.DefCon90 = per90(float64(p.DefCon), p.Minutes)
+	b.Bonus90 = per90(float64(p.Bonus), p.Minutes)
+	b.Saves90 = per90(float64(p.Saves), p.Minutes)
+	b.Yellow90 = per90(float64(p.Yellow), p.Minutes)
+	b.Red90 = per90(float64(p.Red), p.Minutes)
+	return b
+}
+
+// unknownPriorRates is what a player the archive has never seen gets before a
+// ball is kicked.
+//
+// ⚠️ **A PLAYER WITH NO PRIOR USED TO RETURN AT ZERO MINUTES, and that is the
+// fourth instance of the defect `blendRatesCode` names.** The three recorded
+// before it were all the in-season half of the same mistake; this is the
+// pre-season half, and it is the one that builds the opening fifteen.
+//
+// The in-season path sends exactly this case to shrinkToLeague — "no prior of
+// his own, a promoted club's player or an arrival from abroad" — and pre-season
+// simply did not, so a summer signing, a promoted regular and a player
+// returning from abroad all left with expected minutes of **exactly zero**.
+//
+// Measured before the fix: across six seasons, 122 to 284 players a season read
+// 0.0000, so Spearman against their coming minutes was UNDEFINED — the model had
+// no ordering over a fifth of the pool it picks an opening squad from. That is
+// also why the shipped config carries thirteen hand-written minutes overrides,
+// several of whose texts say it outright: "scores 0.00 only because he has no
+// Premier League minutes".
+//
+// ⚠️ **Zero is not a weak prior, it is a wrong one.** Nothing is known about
+// these players, and the honest expression of that is the position's league
+// average, which is what shrinkToLeague supplies and what the in-season path has
+// used since 2026-08-23.
+//
+// ⚠️ **Read the fallback's ordering WITHIN a position, never pooled.** It is
+// constant inside a position and differs between them, so a pooled rank over
+// these players is mostly a rank by position and carries either sign for that
+// reason. Its LEVEL over-states against players who do have history — measured,
+// resolving on MID and FWD under Holm — and `UnknownPriorShare` is the lever
+// that would correct it. **Unswept: no points claim in either direction.**
+//
+// UnknownPriorShare scales how much of the fallback he receives, so a sweep can
+// reach the old zero as an ARM. It is 1 in every shipped configuration; see its
+// own comment for why 0 is a claim rather than an off switch.
+func (e *Engine) unknownPriorRates(el *fpl.Element, b blend) blend {
+	shrunk := e.shrinkToLeague(el, b)
+	s := e.Weights.UnknownPriorShare
+	if s >= 1 {
+		return shrunk
+	}
+	if s < 0 {
+		s = 0
+	}
+	shrunk.MinutesPerMatch *= s
+	shrunk.StartShare *= s
+	return shrunk
+}
+
 func per90(total float64, minutes int) float64 {
 	if minutes <= 0 {
 		return 0
@@ -791,6 +877,52 @@ func defCon90(el *fpl.Element) float64 {
 // Ships because the ranking failure it closes is live and reproduced;
 // BlendMinutesK's use here (as opposed to a dedicated constant) is still a
 // candidate for the same backtest calibration LeagueShrinkK itself is owed.
+// minutesEvidence is how many matches of evidence the model has about whether
+// this player PLAYS — as distinct from how much football he has played, which is
+// what a rate needs and what this deliberately is not.
+//
+// A club match he sat out is a data point, and the strongest kind: it is a zero.
+// Counting his own minutes instead makes those zeroes invisible, which is how a
+// player unplayed for twenty gameweeks kept reading as a half-match starter.
+//
+// ⚠️ **Capped at the matches he could actually have played in.** His club's
+// finished-match count includes fixtures from before he was registered, and
+// charging a January signing for the autumn would invent the opposite error —
+// reading "he was not at the club" as "he does not get picked", for exactly the
+// group the league fallback exists to serve. `TeamJoinDate` is the same field
+// `newSigning` reads; when FPL does not supply it, the uncapped count is used,
+// which is correct for the overwhelming majority who were there in August.
+//
+// ⚠️ FinishedProvisional, via TeamMatchesFinished, never Finished or
+// TeamMatchesStarted — see those functions' own comments. A live match has not
+// yet produced the evidence it would be counted for.
+func (e *Engine) minutesEvidence(el *fpl.Element) float64 {
+	n := e.TeamMatchesFinished(el.Team)
+	if n == 0 {
+		return 0
+	}
+	joined, err := time.Parse("2006-01-02", el.TeamJoinDate)
+	if el.TeamJoinDate == "" || err != nil {
+		return float64(n)
+	}
+	avail := 0
+	for _, f := range e.Fixtures {
+		if !f.FinishedProvisional || (f.TeamH != el.Team && f.TeamA != el.Team) {
+			continue
+		}
+		// A fixture with no kickoff time cannot be placed either side of his
+		// arrival, so it counts — the uncapped reading, which is the one that
+		// errs toward believing the club's record rather than toward wiping it.
+		if f.KickoffTime == nil || !f.KickoffTime.Before(joined) {
+			avail++
+		}
+	}
+	if avail < n {
+		return float64(avail)
+	}
+	return float64(n)
+}
+
 func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	base, ok := e.leagueRates[el.ElementType]
 	if !ok {
@@ -853,11 +985,195 @@ func (e *Engine) shrinkToLeague(el *fpl.Element, b blend) blend {
 	// rates, BlendMinutesK for MinutesPerMatch/StartShare, shipped at 5
 	// against 8). Reusing LeagueShrinkK here would conflate two quantities
 	// that path deliberately tunes apart.
-	wMin := n90 / (n90 + e.Weights.BlendMinutesK)
-	b.MinutesPerMatch = mix(b.MinutesPerMatch, base.MinutesPerMatch, wMin)
-	b.StartShare = mix(b.StartShare, base.StartShare, wMin)
+	// ⚠️ **VOLUME counts OPPORTUNITIES, not minutes, and that is the whole
+	// difference between a fact and a silence.**
+	//
+	// `n90` above is minutes played over 90. For a RATE that is right: a rate
+	// can only be estimated from football he actually played, and a player with
+	// no minutes has told you nothing about his xG per 90.
+	//
+	// For VOLUME it is exactly wrong, and it was used here until 2026-08-28. A
+	// player whose club has played ten matches without him has not produced "no
+	// evidence" about his minutes — he has produced ten zeroes, which is the
+	// strongest possible statement that he does not play. Weighting by his own
+	// minutes makes that evidence invisible: `n90` stays 0, `wMin` stays 0, and
+	// he takes the position's league average whole, forever. Measured across six
+	// seasons, a no-prior player unplayed at GW20 read **41.9 expected minutes a
+	// match against 0.6 actual**, and the gap WIDENED as the season ran, because
+	// the only thing that could close it was the quantity that stays zero.
+	//
+	// ⚠️ **The established-prior branch of `blendRatesCode` already does this
+	// correctly** — `n := TeamMatchesFinished(el.Team)` — and `metrics.go`'s
+	// `inLiveGameweekGap` doc comment already classes "blend.go's
+	// minutes-evidence mix" as an evidence COUNT that must use exactly that. One
+	// quantity, two implementations, and only the no-prior copy was blind. That
+	// is this project's signature failure, and it was hiding in the branch a
+	// reader is least likely to open.
+	//
+	// ⚠️ **A mid-season arrival must not be charged for matches he could not
+	// play in.** His club's finished-match count includes fixtures from before
+	// he was registered, and counting those would read a January signing as
+	// twenty gameweeks of proof that he does not play — inventing the opposite
+	// error for the one group the fallback exists to serve. `minutesEvidence`
+	// caps the count at the matches he has actually been available for.
+	// ⚠️ Hoisted to a local rather than called twice, for two reasons and the
+	// second is the one that bit. It walks every fixture, so calling it on both
+	// sides of the ratio does that work twice per player per scoring pass. And
+	// written as a call it stops LOOKING like a shrinkage weight — the
+	// one-implementation scan in internal/stats matches the `n/(n+k)` shape by
+	// its source text, so the copy went invisible and the scan failed on its own
+	// debt list having silently shrunk. A guard that can no longer see a copy is
+	// worse than one that has never seen it.
+	nMin := e.minutesEvidence(el)
+	wMin := nMin / (nMin + e.Weights.BlendMinutesK)
+	// ⚠️ The tilt multiplies the LEAGUE term and nothing else, so it fades with
+	// evidence by construction rather than by a guard: the mix already weights
+	// this term by `1 - wMin`, which is 1 for a player with no history and goes
+	// to 0 as he plays. A player the model knows is untouched.
+	leagueMin, leagueStart := base.MinutesPerMatch, base.StartShare
+	tilt := e.priceMinutesTilt(el)
+	if tilt != 1 {
+		leagueMin *= tilt
+		leagueStart *= tilt
+	}
+	b.MinutesPerMatch = mix(b.MinutesPerMatch, leagueMin, wMin)
+	b.StartShare = mix(b.StartShare, leagueStart, wMin)
+	// ⚠️ **Clamped only when the tilt actually fired, and that is not fussiness.**
+	// `mix` is a convex combination, so with the lever off both outputs are
+	// bounded by inputs this function did not change — meaning an unconditional
+	// clamp here could only ever alter an EXISTING value, silently, under cover
+	// of a knob that ships at zero. A lever that changes shipped behaviour while
+	// switched off is the worst shape a lever can have.
+	//
+	// With the tilt on, the multiplier can push an individual past certainty
+	// even though it is centred, and a start share above 1 would propagate as
+	// confidence nobody has.
+	if tilt != 1 {
+		if b.StartShare > 1 {
+			b.StartShare = 1
+		}
+		if b.MinutesPerMatch > 90 {
+			b.MinutesPerMatch = 90
+		}
+	}
 	b.Weight = w
 	return b
+}
+
+// priceMinutesTilt is the multiplier this player's price earns on the
+// league-average volume fallback. Returns exactly 1 when the lever is off, so
+// the caller's `!= 1` check makes the whole feature free when unused.
+//
+// # Centred, and that is the load-bearing property
+//
+// The tilt is `1 + w*(2p - 1)` where `p` is the player's price percentile inside
+// his own position. A median-priced player gets exactly 1; the most expensive
+// gets `1 + w` and the cheapest `1 - w`. So it REORDERS without inflating — what
+// one player gains another loses, and the position's average volume is
+// unchanged.
+//
+// A tilt that raised everyone would be a change to the league fallback dressed
+// as a signal, and it would show up as a points effect that had nothing to do
+// with ranking anybody.
+//
+// ⚠️ **Percentile within POSITION, not across the league.** Goalkeepers and
+// forwards live on different price scales, so a league-wide percentile would
+// read every keeper as cheap and tilt the whole position down — a systematic
+// change to one position's minutes, which is not what this is for.
+//
+// ⚠️ **Ties share a percentile.** FPL prices cluster hard at the bottom, where
+// dozens of players sit at exactly 4.0m; splitting them by index would invent an
+// ordering the price does not contain and hand it to an argmax.
+// priceTiltFadesByGW is the gameweek at which the price tilt reaches zero.
+//
+// ⚠️ **It fades on the CALENDAR, and that is a claim about the SIGNAL rather
+// than about the player.** The existing fade — the `1 - wMin` weight on the
+// league term — is per player: it shrinks as HE accumulates minutes, which is
+// the right shape for "how much do we still need a prior". This one is
+// different and both are needed.
+//
+// Price is an expert judgement **at the season boundary**: FPL sets it before a
+// ball is kicked, and nobody owns anybody yet. It stops being that as the season
+// runs, because FPL revises price on transfer activity — so by GW10 it is partly
+// the crowd chasing form, which is the thing the measurement showed is WEAKER
+// than the model where history exists.
+//
+// Without a calendar fade a January signing with three appearances would be
+// tilted as hard as an August one, on a price that by then encodes months of
+// bandwagon rather than a pre-season forecast. The evidence behind this lever
+// covers GW1-10 ordering and says nothing about that case.
+//
+// ⚠️ Not swept, and deliberately not a tuning target: it expresses WHEN the
+// signal stops being what was measured, not where an optimum lies. Eleven is the
+// middle of the owner's stated "by ten to twelve gameweeks we should fully trust
+// actual data", and the fade is linear so there is no cliff for a squad to sit
+// either side of.
+const priceTiltFadesByGW = 11
+
+func (e *Engine) priceMinutesTilt(el *fpl.Element) float64 {
+	w := e.Weights.PriceMinutesPrior
+	if w <= 0 || el == nil {
+		return 1
+	}
+	// Linear from full weight pre-season to nothing by priceTiltFadesByGW.
+	if played := e.GameweeksPlayed(); played > 0 {
+		if played >= priceTiltFadesByGW {
+			return 1
+		}
+		w *= 1 - float64(played)/float64(priceTiltFadesByGW)
+	}
+	// ⚠️ **The percentile map is computed once per Engine and never refreshed, and
+	// `serve` builds ONE Engine at startup for every later reader.** The fade
+	// above governs the tilt's WEIGHT, not this map's freshness, so they do not
+	// cover each other: a server left up for days would keep tilting against
+	// prices frozen at boot, while FPL revises price continuously on transfer
+	// activity.
+	//
+	// Inert as shipped — `PriceMinutesPrior` is 0, so the guard above returns
+	// before `Do` is ever reached — and this is the same write-once idiom as
+	// `restOnce`, `bandOnce` and `confirmedOnce` beside it, which read data that
+	// really is fixed for a season. Price is not.
+	//
+	// **So anyone turning this knob on for a long-lived `serve` owes it a
+	// refresh, not just a sweep.** Recorded here rather than fixed because the
+	// fix belongs with the decision to ship the lever: an invalidation hook for a
+	// knob that is off is a mechanism with no caller, which this project has
+	// already paid for once.
+	e.priceOnce.Do(func() {
+		byPos := map[int][]int{}
+		for i := range e.Boot.Elements {
+			p := &e.Boot.Elements[i]
+			byPos[p.ElementType] = append(byPos[p.ElementType], p.NowCost)
+		}
+		pct := map[int]float64{}
+		for i := range e.Boot.Elements {
+			p := &e.Boot.Elements[i]
+			costs := byPos[p.ElementType]
+			if len(costs) < 2 {
+				continue
+			}
+			// Share of the position priced strictly below him, plus half the
+			// share priced the same — the mid-rank convention, so a block of
+			// tied 4.0m players all land on one percentile instead of being
+			// spread across a range the price never distinguished.
+			below, equal := 0, 0
+			for _, c := range costs {
+				switch {
+				case c < p.NowCost:
+					below++
+				case c == p.NowCost:
+					equal++
+				}
+			}
+			pct[p.ID] = (float64(below) + float64(equal)/2) / float64(len(costs))
+		}
+		e.pricePctile = pct
+	})
+	p, ok := e.pricePctile[el.ID]
+	if !ok {
+		return 1
+	}
+	return 1 + w*(2*p-1)
 }
 
 // leagueRate is a position's aggregate per-90 output, used as the fallback

@@ -26,10 +26,10 @@ func TestResearchTargetsLeavesTheSharedEngineAlone(t *testing.T) {
 	tb := testToolbox(t)
 	e := tb.Engine
 
-	next := 1
-	if ev := e.Boot.NextEvent(); ev != nil {
-		next = ev.ID
-	}
+	// ⚠️ Was an inline re-derivation of Engine.UpcomingGW, written because the
+	// analysis package's own helper is unexported test-only code and this is a
+	// different package. That is how a quantity acquires a third implementation.
+	next := e.UpcomingGW()
 	// Inside the horizon, so EffectiveHorizon has something to shorten. Anything
 	// at or beyond it would make this test unable to detect the defect.
 	wc := next + 2

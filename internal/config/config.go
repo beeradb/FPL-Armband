@@ -179,6 +179,39 @@ func Default() Config {
 }
 
 // Load reads config from path, creating it with defaults if absent.
+// backfillProbedWeights fills the weights whose Go ZERO is a meaningful setting,
+// so their absence has to be PROBED rather than inferred from the value.
+//
+// The ordinary `<= 0` backfill in Load asks "is this unset?" and answers with
+// the value, which is correct only where zero is meaningless. For the fields
+// here it is not, so a value-check would silently overwrite a deliberate 0 with
+// the default and make that arm unreachable from a config file —
+// indistinguishable from an old file that never carried the key at all.
+//
+// A table, and its own function, rather than a run of near-identical `if
+// !hasKey` blocks in Load: the idiom is subtle enough that the second copy of it
+// was written by reading the first, and one quantity with two implementations is
+// this project's signature failure. The next field that needs it adds a row.
+//
+//	bonus_prior_weight   disabled is -1; 0 means "ignore a purely historical
+//	                     bonus rate", so an absent key unmarshalling to 0 would
+//	                     silently switch the schedule ON
+//	unknown_prior_share  ships at 1; 0 is the ARM that reproduces the old
+//	                     zero-minutes defect and must stay reachable
+func backfillProbedWeights(cfg *Config, d Config, b []byte) {
+	for _, w := range []struct {
+		key string
+		set func()
+	}{
+		{"bonus_prior_weight", func() { cfg.Weights.BonusPriorWeight = d.Weights.BonusPriorWeight }},
+		{"unknown_prior_share", func() { cfg.Weights.UnknownPriorShare = d.Weights.UnknownPriorShare }},
+	} {
+		if !hasKey(b, "weights", w.key) {
+			w.set()
+		}
+	}
+}
+
 func Load(path string) (Config, error) {
 	cfg := Default()
 
@@ -223,13 +256,7 @@ func Load(path string) (Config, error) {
 	if cfg.Weights.MinutesHalfLife <= 0 {
 		cfg.Weights.MinutesHalfLife = d.Weights.MinutesHalfLife
 	}
-	// BonusPriorWeight's disabled state is -1, not 0: zero is a real setting
-	// meaning "ignore a purely historical bonus rate entirely". An absent key
-	// unmarshals to 0, which would silently switch the schedule on, so it is
-	// probed for presence the way rest_minutes_factor is.
-	if !hasKey(b, "weights", "bonus_prior_weight") {
-		cfg.Weights.BonusPriorWeight = d.Weights.BonusPriorWeight
-	}
+	backfillProbedWeights(&cfg, d, b)
 	if cfg.Weights.BenchWeight <= 0 {
 		cfg.Weights.BenchWeight = d.Weights.BenchWeight
 	}
@@ -319,6 +346,12 @@ func Load(path string) (Config, error) {
 	if cfg.Weights.BlendMinutesK <= 0 {
 		cfg.Weights.BlendMinutesK = d.Weights.BlendMinutesK
 	}
+	// ⚠️ **UnknownPriorShare's backfill is load-bearing in a way most are not,
+	// and it lives in the presence-probed table above rather than here.** JSON's
+	// zero value is 0, and 0 here means "a player nobody has data on will not
+	// play" — the defect this field exists to make measurable, not an off
+	// switch. Without the backfill every config written before the field existed
+	// would silently reinstate that bug on load.
 	if cfg.Weights.BlendRateK <= 0 {
 		cfg.Weights.BlendRateK = d.Weights.BlendRateK
 	}

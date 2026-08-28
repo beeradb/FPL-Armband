@@ -102,7 +102,7 @@ def load():
     """Per season: {player_id: (element_type, {gw: (points, residual, value)})}."""
     out = {}
     for s in xc.NATIVE_XG_SEASONS:
-        path = f'.cache/fpl/backtest-v8-{s}.json'
+        path = f'.cache/fpl/backtest-v9-{s}.json'
         try:
             d = json.load(open(path))
         except FileNotFoundError:

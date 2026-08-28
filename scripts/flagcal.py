@@ -15,7 +15,7 @@ CAP = os.environ.get('FLAGCAL_CAPTURES', 'data/captures').rstrip('/') + '/'
 # CHECKOUT DIRECTORY, so `.cache/` sits inside the working tree and never in $HOME.
 # Reading a home directory out of an absolute path is easy to get backwards; the giveaway
 # is that the segment after the user is a repo name.
-CACHE = os.environ.get('FLAGCAL_CACHE', '.cache/fpl/backtest-v8-%s.json')
+CACHE = os.environ.get('FLAGCAL_CACHE', '.cache/fpl/backtest-v9-%s.json')
 SEASONS = ['2021-22', '2022-23', '2023-24', '2024-25', '2025-26']  # cached archive seasons
 
 # 1. flags: season -> gw -> code -> (chance, status)

@@ -88,6 +88,31 @@ type GW struct {
 	// model has no concept of it, so a replay can measure what that costs.
 	Value int `json:"value"`
 
+	// Selected is how many FPL managers owned him that week — a COUNT, not a
+	// percentage, because that is what the archive publishes.
+	//
+	// # Why it is parsed when nothing scores it
+	//
+	// The model has no channel for what the market knows. Its prior is last
+	// season's minutes, which say nothing about a summer signing, a promoted
+	// club's regular, or a keeper who has just been named first choice — and the
+	// shipped config carries thirteen hand-written roster overrides that exist to
+	// supply exactly that, several citing ownership in their own reasoning
+	// ("19% of managers already hold him — the market is right and the model
+	// cannot see why").
+	//
+	// A count of owners is a consensus forecast of ROLE, formed from the same
+	// public information the overrides are written from. Parsing it makes that
+	// testable; it does not make it true, and nothing reads this on a scoring
+	// path.
+	//
+	// ⚠️ **A count, so it is not comparable across seasons or across weeks
+	// without normalising.** The total number of entries grows through a season
+	// and differs between seasons, so a raw count is only meaningful as a
+	// RANKING within one gameweek. Anything comparing levels must divide by the
+	// gameweek's own total.
+	Selected int `json:"selected"`
+
 	Starts int `json:"starts"`
 	// StartsReconstructed marks a Starts value this parser inferred from minutes
 	// because the archive recorded none. Read the three boundaries on
@@ -578,8 +603,40 @@ func (s *Season) ByCode() map[int]*Player {
 // that was blank that week: Chambers, Trossard, Barkley, Alcaraz. The two seasons that
 // carried real phantoms now read exactly zero, which is what makes the invariant a good
 // *audit* and a bad *gate*.
+// seasonCachePrefix names the parsed-season cache, version included.
+//
+// ⚠️ **FOUR PYTHON SCRIPTS READ THIS FILE DIRECTLY, and bumping the version
+// without them orphans every one of them.** `stats/xpoints_common.py`,
+// `stats/xpoints_permove.py`, `stats/xpoints_channel_audit.py` and
+// `scripts/flagcal.py` open the path themselves rather than going through this
+// package, because Go has no readable interchange format they could use instead.
+//
+// The v8 → v9 bump did exactly that before it was caught. Go stopped writing v8,
+// so those scripts silently kept reading a frozen snapshot from the week
+// before — and on a fresh checkout, where no v8 file has ever existed, they fail
+// permanently with "run from the repo root", which is no longer a fix because
+// nothing anywhere writes v8.
+//
+// It is a constant so there is ONE spelling on the Go side, and
+// `TestTheSeasonCacheVersionMatchesItsPythonReaders` scans the scripts for it.
+// That is the same treatment this project gives every other cross-language
+// duplicate it cannot delete: pin the two against one another rather than trust
+// a convention.
+const seasonCachePrefix = "backtest-v9-"
+
 func Load(ctx context.Context, cacheDir, season string) (*Season, error) {
-	path := filepath.Join(cacheDir, "backtest-v8-"+season+".json")
+	// ⚠️ **v9 because GW.Selected was added, and a new field is exactly what this
+	// version number exists for.** A cache written by v8 has no `selected` key,
+	// so `json.Unmarshal` leaves it at zero and every reader sees a league where
+	// nobody owns anybody — silently, and indistinguishably from an archive that
+	// genuinely lacks the column. The first run of the ownership diagnostic
+	// reported every stratum empty for precisely this reason.
+	//
+	// Bumping the name rather than extending `parsedByThisVersion` is deliberate:
+	// a structural probe for ownership would false-negative on any season whose
+	// archive really has no `selected` column, and re-parse it on every load
+	// forever.
+	path := filepath.Join(cacheDir, seasonCachePrefix+season+".json")
 	if b, err := os.ReadFile(path); err == nil {
 		var s Season
 		if err := json.Unmarshal(b, &s); err == nil && len(s.Players) > 0 &&
@@ -1314,6 +1371,10 @@ func (s *Season) loadGameweeks(ctx context.Context) error {
 		// Price is a level, not a count: the second fixture's value is the
 		// current one and summing them would double a player's price.
 		g.Value = ival(rec, col, "value")
+		// Ownership is a level too, and for the same reason — the archive
+		// repeats the current owner count on each of a double's rows, so
+		// accumulating would report twice as many managers as exist.
+		g.Selected = ival(rec, col, "selected")
 		p.GWs[gw] = g
 	})
 	if err != nil {

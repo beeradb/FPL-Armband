@@ -163,6 +163,21 @@ func TestEnvSwitchListIsComplete(t *testing.T) {
 		// Where the prediction benchmark writes its per-gameweek sufficient
 		// statistics. An output path, so it cannot change a measured number.
 		"FPL_PREDICTION_CSV": true,
+		// Where the unknown-prior ordering diagnostic writes its per-season rhos
+		// and its per-position levels, for stats/unknown_prior_ranks.R. Both are
+		// output paths on a DIAG-only test that runs no sweep and banks no cell,
+		// so neither can move a measured number.
+		"FPL_RANKS_CSV":    true,
+		"FPL_LEVELS_CSV":   true,
+		"FPL_INSEASON_CSV": true,
+		// Where the shrinkage-taper diagnostic writes its per-k rows. An output
+		// path on a DIAG-only test; the k it varies is set on the SimConfig in
+		// the test itself, not from the environment, so nothing here reaches a
+		// sweep's fingerprint.
+		"FPL_TAPER_CSV": true,
+		// Where the blank-run-by-status diagnostic writes its per-season rows.
+		// Output path on a DIAG-only test that runs no sweep.
+		"FPL_BLANKSTATUS_CSV": true,
 		// Where the xGC-reconstruction dump writes, and which seasons it covers.
 		// Both are read ONLY by TestDiagXGCDump, which reads
 		// `clubXGAPerGameweek` and writes a CSV. It computes nothing on the

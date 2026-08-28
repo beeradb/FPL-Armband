@@ -338,6 +338,94 @@ type Weights struct {
 	BlendMinutesK float64 `json:"blend_minutes_k"`
 	BlendRateK    float64 `json:"blend_rate_k"`
 
+	// UnknownPriorShare is how much of the position's league average a player
+	// with NO prior receives before the season starts. Ships at 1.
+	//
+	// ⚠️ **It exists so the sweep can reach the old behaviour, not because zero
+	// is a defensible setting.** Before this was fixed, such a player returned
+	// from `blendRatesCode`'s pre-season branch at exactly zero expected
+	// minutes, and 122 to 284 players a season did. Setting this to 0
+	// reproduces that, which is what makes the fix an attributable ARM rather
+	// than a change that can only be compared across commits — and this
+	// record's own rule is that two tables may be differenced only when the
+	// difference between them IS the declared variable.
+	//
+	// ⚠️ **A zero here is not the same kind of thing as a zero in most weights.**
+	// Elsewhere zero means "off" and off is a real setting. Here zero means "tell
+	// the optimiser a player it knows nothing about will not play", which is a
+	// claim, and a false one. It is available for measurement and should not be
+	// shipped.
+	//
+	// ⚠️ **This field NEEDS ITS BACKFILL.** JSON's zero value is 0, so a config
+	// written before this field existed would load as "reproduce the bug" —
+	// silently, on every existing install. `config.Load` backfills it to 1; see
+	// there.
+	UnknownPriorShare float64 `json:"unknown_prior_share"`
+
+	// PriceMinutesPrior tilts the LEAGUE-AVERAGE volume fallback by how
+	// expensive a player is, for players the model has no history on. Zero is
+	// off and is what ships.
+	//
+	// # The hole it addresses, which is measured rather than assumed
+	//
+	// A player with no prior-season minutes has `n90 = 0`, so `shrinkToLeague`
+	// gives him his position's league-average volume — **the same number as
+	// every other player in that position**. Measured across six seasons, that
+	// is 122 to 284 players a gameweek-one squad is chosen from, and the model
+	// cannot rank a single one of them: Spearman against their coming minutes is
+	// undefined because the prediction has no variation at all.
+	//
+	// It is not losing a comparison. It is not making a prediction.
+	//
+	// # Why PRICE, and why not ownership
+	//
+	// Both were measured against minutes actually played in GW1-10, split on
+	// whether the player has a prior season. WITHIN POSITION — the only scope
+	// that means anything here, because the fallback is constant inside a
+	// position so a pooled rank over unknowns is mostly a rank by position — the
+	// no-history stratum reads price +0.492 (SE 0.040) against ownership +0.346
+	// (SE 0.030), both 6 of 6 seasons positive. Where history DOES exist the
+	// order reverses: ownership +0.558 against price's +0.411.
+	//
+	// ⚠️ **The head-to-head DOES NOT RESOLVE, and an earlier version of this
+	// comment did not say so.** price − ownership is +0.146 (SE 0.055), positive
+	// in FIVE of six seasons with 2021-22 at −0.051, raw p 0.044. Under Holm
+	// across the tests that run with it, its verdict depends on how the family
+	// is drawn — 0.044 grouped by instrument, 0.068 pooled — and a contrast
+	// whose answer turns on that choice is on the boundary. `unknown_prior_ranks.R`
+	// reports both readings and takes the conservative one, so: **unresolved.**
+	//
+	// The reading that FITS — and it is a reading, not a result — is that FPL
+	// prices a player before anyone owns him, so price is a small group stating
+	// an expectation, while gameweek-one ownership is a crowd largely echoing
+	// last season, which the model already has in cleaner form. Price is a
+	// commitment; ownership is a reaction. What supports it is the double
+	// dissociation above, which was predicted before the run; what does not is
+	// the margin, which is not established.
+	//
+	// ⚠️ **That holds at the season boundary and decays after it.** FPL revises
+	// price on transfer activity, so it becomes partly crowd once the season is
+	// running. This tilt is aimed at the opening squad and should not be read as
+	// a claim about mid-season price.
+	//
+	// # ⚠️ What it must not become
+	//
+	// It multiplies the LEAGUE term only, which the mix already weights by
+	// `1 - wMin`. So a player with real history is untouched by construction
+	// rather than by a guard, and the tilt fades as evidence arrives.
+	//
+	// ⚠️ **It is CENTRED on the position's median price**, so it reorders
+	// without inflating: the median-priced player is unchanged, and what one
+	// player gains another loses. A tilt that raised everyone would be a
+	// league-average change wearing a signal's clothes.
+	//
+	// ⚠️ **Ordering better is not scoring better.** This project's hardest-won
+	// result is that a better predictor can make a worse policy, because the
+	// transfer search is an argmax living in the tail. The measurement behind
+	// this knob is Spearman on minutes; nothing yet says it earns points, and
+	// that is what the replay is for.
+	PriceMinutesPrior float64 `json:"price_minutes_prior"`
+
 	// LeagueShrinkK is shrinkToLeague's own strength — how fast a player with no
 	// prior at all (a promoted club's starter, an arrival from abroad) is
 	// trusted on his own current-season sample rather than his position's
@@ -452,7 +540,11 @@ func DefaultWeights() Weights {
 		MinutesWeightByPosition: map[string]float64{
 			"GKP": 1.0, "DEF": 1.0, "MID": 0.75, "FWD": 1.0,
 		},
-		BlendMinutesK:      5,
+		BlendMinutesK: 5,
+		// A player nobody has data on gets his position's full league average.
+		// See the field comment: 0 is reachable for the sweep and is a claim, not
+		// an off switch.
+		UnknownPriorShare:  1,
 		BlendRateK:         8,
 		LeagueShrinkK:      8,
 		RestPlayers:        DefaultRestPlayers(),
@@ -1286,6 +1378,13 @@ type Engine struct {
 	confirmedIDs  map[int]bool
 	absenceOnce   sync.Once
 	absenceByID   map[int]playerAbsence
+
+	// priceOnce guards pricePctile, which is a per-position ranking and so must
+	// be built from the whole bootstrap rather than per player. Under a Once for
+	// the same reason as absenceByID: the tool runner reaches Metrics from
+	// several goroutines at once.
+	priceOnce   sync.Once
+	pricePctile map[int]float64
 
 	// Priors holds last season's totals, so the model has something to fall
 	// back on once FPL overwrites its aggregates at GW1. Optional: nil means no
@@ -2373,6 +2472,36 @@ func (e *Engine) SeasonHasStarted() bool {
 		}
 	}
 	return false
+}
+
+// UpcomingGW is the gameweek being decided right now — the next one whose
+// deadline has not passed — or 1 before the season starts.
+//
+// ⚠️ **Exists so that "the gameweek to reason about" has ONE implementation.**
+// It had three: an unexported `upcomingGW` in `internal/analysis`'s test files,
+// an inline re-derivation in `internal/agent`'s tests because that helper was
+// not importable, and a hardcoded literal in a third test. The literal is how
+// the defect showed itself — `TestBenchBoostRaisesBenchWeight` asked for a chip
+// at gameweek 2, passed for as long as gameweek 2 was ahead, and failed the hour
+// that deadline went by against code nobody had touched.
+//
+// ⚠️ **A test against the live API may not write a gameweek number down.** What
+// has to stay constant is the RELATIONSHIP to now — `UpcomingGW()+1` is a
+// gameweek in the near future in August and still one in March. An absolute
+// number is true for a week and then silently becomes an assertion about the
+// past, which is a different question with a different right answer: a chip
+// planned for a gameweek already gone correctly changes nothing, so the test
+// ends up asserting the opposite of the behaviour it is named for.
+//
+// This is the calendar's version of the rot AGENTS.md already warns about for
+// tests pinned to a player or a score. Synthetic fixtures that build their own
+// `Events` are exempt and should stay exempt: they control their own calendar,
+// so a literal there is stable by construction.
+func (e *Engine) UpcomingGW() int {
+	if ev := e.Boot.NextEvent(); ev != nil {
+		return ev.ID
+	}
+	return 1
 }
 
 // GameweeksPlayed is how many gameweeks have finished. Zero before the season
