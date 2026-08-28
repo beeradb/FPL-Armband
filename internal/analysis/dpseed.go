@@ -1,6 +1,11 @@
 package analysis
 
-import "slices"
+import (
+	"runtime"
+	"slices"
+	"sync"
+	"sync/atomic"
+)
 
 // Exact dynamic-programming seeds for the squad optimiser.
 //
@@ -493,68 +498,78 @@ func (e *Engine) polish(start []PlayerMetrics, pool []PlayerMetrics, budget int,
 	// lowers the objective, so steepest-ascent rejects it and the search stalls
 	// in a local optimum. This move evaluates both halves together, which is
 	// what a human manager actually does when building a squad.
+	//
+	// # The scan runs in parallel; the reduction does not
+	//
+	// A CPU profile of a real `/api/state` request put 85% of the whole request
+	// in this one scan — 257,988 objective evaluations per request, over about
+	// five pair iterations of 15 x 14 x 15 x 30 — and the process never used
+	// more than one core. GOMAXPROCS 1/3/6 returned 1.209s/1.012s/0.974s, and
+	// with GOGC=off the CPU time barely moved, so that 1.24x was concurrent GC
+	// rather than the search.
+	//
+	// The evaluations are independent of one another. The only thing that was
+	// not was the single xiScratch they all wrote through, so each worker gets
+	// its own — see xiScratch's own note on why it is a local rather than
+	// Engine state. A lock around one shared scratch would have reintroduced
+	// exactly the serialisation being removed.
+	//
+	// ⚠️ THE REDUCTION IS ORDER-DEPENDENT AND IS NOT A MAX. The accept test is
+	// `s > best.score+1e-9` against a best that MOVES as the scan proceeds, so
+	// which of several near-equal candidates wins depends on the order they are
+	// seen in — and near-equal candidates are the normal case here, not a
+	// corner. Workers racing to update a shared best would have made the
+	// recommended squad differ between two page loads from byte-identical
+	// inputs, and no existing test would have failed, because every one of
+	// those squads is legal.
+	//
+	// Reducing a per-worker best in fixed index order is NOT sufficient either,
+	// and this is the trap worth stating: because the threshold moves, a chunk
+	// evaluated from the iteration's entry score can stop somewhere the full
+	// scan would have walked straight past. With an epsilon of 1, an entry
+	// score of 0 and candidates [1, 1.5], the full scan takes 1 and then
+	// rejects 1.5 as too close; a chunk holding only 1.5 offers 1.5, and the
+	// reduction cannot tell that it should have been suppressed by a candidate
+	// in an earlier chunk. So the scan RECORDS every candidate it accepts and
+	// the reduction REPLAYS them, in the scan's own index order, through the
+	// scan's own test. That is bit-identical by construction rather than by
+	// argument. TestPairScanMatchesTheSerialSearch pins it against a frozen
+	// copy of the serial search.
+	//
+	// The one thing the scan drops is candidates at or below the iteration's
+	// entry score: best.score starts there and only ever rises, so such a
+	// candidate could not have been accepted at any point of the serial scan.
+	// That keeps the recorded list to the handful of genuine improvements
+	// rather than tens of thousands of evaluations.
 	runPairs := func() {
+		// Held across iterations: the scratches are grow-only, and the
+		// per-chunk buffers are refilled rather than reallocated. Worker 0
+		// takes the search's own scratch, so a single-worker run reuses
+		// precisely the buffers the serial scan reused.
+		scratches := []*xiScratch{sc}
+		var chunks []pairChunk
+		var found [][]pairCandidate
+
 		for iter := 0; iter < 60; iter++ {
-			type pairMove struct {
-				downOut, downIn PlayerMetrics
-				upOut, upIn     PlayerMetrics
-				score           float64
+			ps := &pairScan{
+				current: current, cheapByPos: cheapByPos, strongByPos: strongByPos,
+				selected: selected, clubCount: clubCount,
+				locked: locked, mustStart: mustStart, changes: changes,
+				spend: spend, spent: spent, budget: budget,
+				benchWeight: benchWeight, boost: boost,
+				// The iteration's accept threshold, read once. Every worker
+				// filters against this fixed value; only the reduction sees
+				// the moving one.
+				entry: bestScore,
 			}
-			best := pairMove{score: bestScore}
-
-			for _, downOut := range current {
-				if locked[downOut.ID] {
-					continue
-				}
-				for _, downIn := range cheapByPos[downOut.Position] {
-					if _, already := selected[downIn.ID]; already {
-						continue
-					}
-					freed := int(downOut.Price*10+0.5) - int(downIn.Price*10+0.5)
-					if freed <= 0 {
-						continue
-					}
-					if c := clubCountAfter(clubCount, downOut.Team, downIn.Team); c > MaxPerClub {
-						continue
-					}
-
-					for _, upOut := range current {
-						if upOut.ID == downOut.ID || locked[upOut.ID] {
-							continue
-						}
-						for _, upIn := range strongByPos[upOut.Position] {
-							if upIn.ID == downIn.ID {
-								continue
-							}
-							if _, already := selected[upIn.ID]; already {
-								continue
-							}
-							newSpend := spend - int(downOut.Price*10+0.5) + int(downIn.Price*10+0.5) -
-								int(upOut.Price*10+0.5) + int(upIn.Price*10+0.5)
-							if newSpend > budget {
-								continue
-							}
-							if !clubsLegalAfterPair(clubCount, downOut, downIn, upOut, upIn) {
-								continue
-							}
-
-							d := changes.delta(downOut, downIn) + changes.delta(upOut, upIn)
-							if !changes.unlimited() && spent+d > changes.Max {
-								continue
-							}
-							// Two buffers: the second replace reads the first's
-							// output, so they must not be the same array.
-							sc.trial = replaceInto(sc.trial, current, downOut.ID, downIn)
-							sc.trial2 = replaceInto(sc.trial2, sc.trial, upOut.ID, upIn)
-							if s := sc.objective(sc.trial2, benchWeight, mustStart, boost); s > best.score+1e-9 {
-								best = pairMove{downOut, downIn, upOut, upIn, s}
-							}
-						}
-					}
-				}
+			chunks = ps.chunkList(chunks)
+			if len(chunks) == 0 {
+				break
 			}
+			scratches, found = ps.evaluate(scratches, chunks, found)
 
-			if best.downIn.ID == 0 {
+			best, ok := ps.reduce(chunks, found)
+			if !ok {
 				break
 			}
 			spent += changes.delta(best.downOut, best.downIn) +
@@ -624,6 +639,227 @@ func (e *Engine) polish(start []PlayerMetrics, pool []PlayerMetrics, budget int,
 	}
 	runSingles()
 	return current, bestScore, spend
+}
+
+// observePairScan, if set, is handed the worker count and the chunk count of
+// every iteration of the paired scan. Nil in production.
+//
+// It is the liveness half of the determinism evidence, and it is not
+// decoration: TestPairScanIsDeterministicAcrossWorkerCounts asserts that the
+// answer does not move as GOMAXPROCS changes, and a scan that had quietly
+// stopped running on more than one goroutine would pass that test for the
+// wrong reason. This is the check that must MOVE where the other must not.
+var observePairScan func(workers, chunks int)
+
+// pairChunk is one (downOut, downIn) pair of the paired scan's outer two loops:
+// the unit of work a single goroutine claims.
+type pairChunk struct {
+	downOutIdx int // into the current squad
+	downInIdx  int // into cheapByPos[current[downOutIdx].Position]
+}
+
+// pairCandidate is one accepted evaluation from that scan, held so the
+// reduction can replay the scan in its original order.
+//
+// The four players are indices rather than values on purpose: PlayerMetrics is
+// 592 bytes, and a scan that materialised its candidates would cost more than
+// the arithmetic it is recording.
+type pairCandidate struct {
+	downOutIdx, downInIdx int
+	upOutIdx, upInIdx     int
+	score                 float64
+}
+
+// pairMove is the winner of one iteration of the paired scan.
+type pairMove struct {
+	downOut, downIn PlayerMetrics
+	upOut, upIn     PlayerMetrics
+	score           float64
+}
+
+// pairScan is one iteration of the paired downgrade-and-upgrade scan: every
+// field is read by the workers and none is written by them.
+//
+// It is a struct rather than a closure over polish's locals so that the scan is
+// visibly READ-ONLY over the search's state. polish mutates `current`, `spend`,
+// `spent` and `bestScore` between iterations; a closure would have captured
+// those by reference and the workers would have been reading them live, which
+// is a data race that happens to be benign until the day someone moves a line.
+// Copying them into one value per iteration makes the boundary the type system's
+// problem rather than a comment's.
+type pairScan struct {
+	current                 []PlayerMetrics
+	cheapByPos, strongByPos map[string][]PlayerMetrics
+	selected                map[int]PlayerMetrics
+	clubCount               map[string]int
+	locked, mustStart       map[int]bool
+	changes                 changeBudget
+	spend, spent, budget    int
+	benchWeight             float64
+	boost                   bool
+	// entry is the iteration's accept threshold. See scan.
+	entry float64
+}
+
+// chunkList enumerates the work in the scan's own order, so reduce can walk it
+// back. Chunking two levels deep rather than one gives ~210 pieces instead of
+// 15, which is what keeps eight workers fed on a scan whose per-downOut cost
+// varies with how many candidates the position has.
+func (ps *pairScan) chunkList(dst []pairChunk) []pairChunk {
+	dst = dst[:0]
+	for i := range ps.current {
+		if ps.locked[ps.current[i].ID] {
+			continue
+		}
+		for j := range ps.cheapByPos[ps.current[i].Position] {
+			dst = append(dst, pairChunk{i, j})
+		}
+	}
+	return dst
+}
+
+// scan evaluates one chunk, appending every candidate that clears the
+// iteration's entry threshold.
+//
+// It records rather than decides. Candidates at or below the entry score are
+// dropped because best.score starts there and only ever rises, so such a
+// candidate could not have been accepted at any point of the serial scan —
+// which keeps the recorded list to the handful of genuine improvements rather
+// than the tens of thousands of evaluations behind them.
+func (ps *pairScan) scan(ws *xiScratch, out []pairCandidate, ch pairChunk) []pairCandidate {
+	downOut := ps.current[ch.downOutIdx]
+	downIn := ps.cheapByPos[downOut.Position][ch.downInIdx]
+	if _, already := ps.selected[downIn.ID]; already {
+		return out
+	}
+	freed := int(downOut.Price*10+0.5) - int(downIn.Price*10+0.5)
+	if freed <= 0 {
+		return out
+	}
+	if c := clubCountAfter(ps.clubCount, downOut.Team, downIn.Team); c > MaxPerClub {
+		return out
+	}
+
+	for k := range ps.current {
+		upOut := ps.current[k]
+		if upOut.ID == downOut.ID || ps.locked[upOut.ID] {
+			continue
+		}
+		// Hoisted out of the innermost loop: read per upIn this was a
+		// string-keyed map lookup per evaluation, where the range expression
+		// of the serial loop did one per upOut. It cost 11% of the whole
+		// search before it was pulled back out.
+		ups := ps.strongByPos[upOut.Position]
+		for l := range ups {
+			upIn := ups[l]
+			if upIn.ID == downIn.ID {
+				continue
+			}
+			if _, already := ps.selected[upIn.ID]; already {
+				continue
+			}
+			newSpend := ps.spend - int(downOut.Price*10+0.5) + int(downIn.Price*10+0.5) -
+				int(upOut.Price*10+0.5) + int(upIn.Price*10+0.5)
+			if newSpend > ps.budget {
+				continue
+			}
+			if !clubsLegalAfterPair(ps.clubCount, downOut, downIn, upOut, upIn) {
+				continue
+			}
+
+			d := ps.changes.delta(downOut, downIn) + ps.changes.delta(upOut, upIn)
+			if !ps.changes.unlimited() && ps.spent+d > ps.changes.Max {
+				continue
+			}
+			// Two buffers: the second replace reads the first's output, so
+			// they must not be the same array.
+			ws.trial = replaceInto(ws.trial, ps.current, downOut.ID, downIn)
+			ws.trial2 = replaceInto(ws.trial2, ws.trial, upOut.ID, upIn)
+			if s := ws.objective(ws.trial2, ps.benchWeight, ps.mustStart, ps.boost); s > ps.entry+1e-9 {
+				out = append(out, pairCandidate{ch.downOutIdx, ch.downInIdx, k, l, s})
+			}
+		}
+	}
+	return out
+}
+
+// evaluate runs every chunk across GOMAXPROCS workers, each with its own
+// scratch, and returns the grown scratch and buffer slices for reuse.
+//
+// found[c] is written by exactly one worker — the one that claimed chunk c —
+// and distinct slice elements are distinct memory, so there is nothing to lock.
+func (ps *pairScan) evaluate(scratches []*xiScratch, chunks []pairChunk,
+	found [][]pairCandidate) ([]*xiScratch, [][]pairCandidate) {
+
+	for len(found) < len(chunks) {
+		found = append(found, nil)
+	}
+	for c := range chunks {
+		found[c] = found[c][:0]
+	}
+
+	workers := runtime.GOMAXPROCS(0)
+	if workers > len(chunks) {
+		workers = len(chunks)
+	}
+	if workers < 1 {
+		workers = 1
+	}
+	for len(scratches) < workers {
+		scratches = append(scratches, &xiScratch{})
+	}
+	if observePairScan != nil {
+		observePairScan(workers, len(chunks))
+	}
+
+	// Chunks are claimed rather than dealt out: the cost of one varies by an
+	// order of magnitude with how many upgrade candidates its position has, so
+	// a static split leaves workers idle.
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func(ws *xiScratch) {
+			defer wg.Done()
+			for {
+				c := int(next.Add(1)) - 1
+				if c >= len(chunks) {
+					return
+				}
+				found[c] = ps.scan(ws, found[c], chunks[c])
+			}
+		}(scratches[w])
+	}
+	wg.Wait()
+	return scratches, found
+}
+
+// reduce replays the recorded candidates, in the scan's own index order,
+// through the scan's own accept test.
+//
+// ⚠️ THIS IS THE PART THAT MAY NOT BE PARALLELISED, AND IT IS NOT A MAX. See
+// runPairs' own comment for why, and for why a per-chunk best folded in index
+// order is not equivalent either.
+func (ps *pairScan) reduce(chunks []pairChunk, found [][]pairCandidate) (pairMove, bool) {
+	best := pairMove{score: ps.entry}
+	ok := false
+	for c := range chunks {
+		for _, cand := range found[c] {
+			if cand.score <= best.score+1e-9 {
+				continue
+			}
+			downOut, upOut := ps.current[cand.downOutIdx], ps.current[cand.upOutIdx]
+			best = pairMove{
+				downOut: downOut,
+				downIn:  ps.cheapByPos[downOut.Position][cand.downInIdx],
+				upOut:   upOut,
+				upIn:    ps.strongByPos[upOut.Position][cand.upInIdx],
+				score:   cand.score,
+			}
+			ok = true
+		}
+	}
+	return best, ok
 }
 
 // repairClubs swaps out surplus players until no club exceeds MaxPerClub,
