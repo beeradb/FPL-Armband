@@ -495,16 +495,19 @@ func run() error {
 		return cmdVerifyCompetitions(cfg, *cfgPath, engine)
 	case "chips":
 		return cmdChips(ctx, cfg, client, engine)
-	case "advise":
-		return cmdAgent(ctx, cfg, *cfgPath, client, engine, advicePrompt(engine), "FPL Advice", !*noReport)
+	case "advise", "review":
+		// The two agent-backed commands differ only in which prompt they build
+		// and what the report is called, so they dispatch through one case. Kept
+		// together rather than as two near-identical lines because the shared
+		// argument list is long enough that a change to it has already been
+		// applied to one and missed on the other.
+		return runAgentCommand(ctx, cfg, *cfgPath, client, engine, cmd, !*noReport)
 	case "due":
 		return cmdDue(ctx, cfg, *cfgPath, client, engine, !*noReport)
 	case "schedule":
 		return cmdSchedule(cfg)
 	case "overrides":
 		return cmdOverrideCheck(ctx, cfg, client, engine, flag.Args()[1:])
-	case "review":
-		return cmdAgent(ctx, cfg, *cfgPath, client, engine, reviewPrompt(engine), "Weekly Review", !*noReport)
 	default:
 		return fmt.Errorf("unknown command %q — run `armband help`", cmd)
 	}
@@ -728,6 +731,18 @@ func seasonBefore(season string) string {
 		return ""
 	}
 	return fmt.Sprintf("%d-%d", pStart, pStart+1)
+}
+
+// runAgentCommand dispatches the two commands that hand a prompt to the
+// reasoning layer. `cmd` is "advise" or "review"; nothing else reaches here,
+// because the switch in run() is the only caller and names both.
+func runAgentCommand(ctx context.Context, cfg config.Config, cfgPath string,
+	client *fpl.Client, engine *analysis.Engine, cmd string, report bool) error {
+	prompt, title := advicePrompt(engine), "FPL Advice"
+	if cmd == "review" {
+		prompt, title = reviewPrompt(engine), "Weekly Review"
+	}
+	return cmdAgent(ctx, cfg, cfgPath, client, engine, prompt, title, report)
 }
 
 func advicePrompt(e *analysis.Engine) string {

@@ -577,59 +577,7 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 		//
 		// Without blending the prior is identical to what the element carries,
 		// so this is a no-op then.
-		p, hasPrior := e.Priors.Get(el.Code)
-		switch {
-		case hasPrior && p.Minutes > 0 && p.Minutes != el.Minutes:
-			b.MinutesPerMatch = float64(p.Minutes) / GameweeksPerSeason
-			b.StartShare = float64(p.Starts) / GameweeksPerSeason
-			b.XG90 = per90(p.XG, p.Minutes)
-			b.XA90 = per90(p.XA, p.Minutes)
-			b.XGC90 = per90(p.XGC, p.Minutes)
-			b.DefCon90 = per90(float64(p.DefCon), p.Minutes)
-			b.Bonus90 = per90(float64(p.Bonus), p.Minutes)
-			b.Saves90 = per90(float64(p.Saves), p.Minutes)
-			b.Yellow90 = per90(float64(p.Yellow), p.Minutes)
-			b.Red90 = per90(float64(p.Red), p.Minutes)
-
-		case !hasPrior || p.Minutes == 0:
-			// ⚠️ **A PLAYER WITH NO PRIOR USED TO RETURN FROM HERE AT ZERO
-			// MINUTES, and that is the fourth instance of the defect the comment
-			// above names.** The three recorded before it were all the
-			// in-season half of the same mistake; this is the pre-season half,
-			// and it is the one that builds the opening fifteen.
-			//
-			// The in-season path sends exactly this case to shrinkToLeague —
-			// "no prior of his own, a promoted club's player or an arrival from
-			// abroad" — and pre-season simply did not, so a summer signing, a
-			// promoted regular and a player returning from abroad all left this
-			// function with expected minutes of **exactly zero**.
-			//
-			// Measured before the fix: across six seasons, 122 to 284 players a
-			// season read 0.0000, so Spearman against their coming minutes was
-			// UNDEFINED — the model had no ordering over a fifth of the pool it
-			// picks an opening squad from. That is also why the shipped config
-			// carries thirteen hand-written minutes overrides, several of whose
-			// texts say it outright: "scores 0.00 only because he has no Premier
-			// League minutes".
-			//
-			// ⚠️ **Zero is not a weak prior, it is a wrong one.** Nothing is
-			// known about these players, and the honest expression of that is
-			// the position's league average, which is what shrinkToLeague
-			// supplies and what the in-season path has used since 2026-08-23.
-			// UnknownPriorShare scales how much of that fallback he receives, so
-			// the sweep can reach the old zero as an ARM. It is 1 in every
-			// shipped configuration; see its own comment for why 0 is a claim
-			// rather than an off switch.
-			shrunk := e.shrinkToLeague(el, b)
-			if s := e.Weights.UnknownPriorShare; s < 1 {
-				if s < 0 {
-					s = 0
-				}
-				shrunk.MinutesPerMatch *= s
-				shrunk.StartShare *= s
-			}
-			b = shrunk
-		}
+		b = e.preSeasonRates(el, b)
 		// A minutes correction still wins over everything.
 		e.reassertMinutesOverride(el, ignoreCode, &b)
 		return b
@@ -767,6 +715,99 @@ func (e *Engine) blendRatesCode(el *fpl.Element, m PlayerMetrics, ignoreCode int
 
 // rate90 converts a counting stat to a per-90 rate.
 func rate90(count, minutes int) float64 { return per90(float64(count), minutes) }
+
+// preSeasonRates decides which of three states a player is in before a ball is
+// kicked, and there are exactly three — the missing one is the reason this is a
+// switch rather than an if/else.
+//
+//	a usable prior that DIFFERS from what FPL carries → believe the prior
+//	no prior at all, or one with no minutes         → the league fallback
+//	a prior identical to what FPL carries           → change nothing
+//
+// The third case is why `default:` would be wrong here: falling through
+// untouched is the correct answer for a player whose prior the bootstrap already
+// reproduces, and collapsing it into either of the others would either re-derive
+// the same numbers or overwrite a real history with a league average.
+func (e *Engine) preSeasonRates(el *fpl.Element, b blend) blend {
+	p, hasPrior := e.Priors.Get(el.Code)
+	switch {
+	case hasPrior && p.Minutes > 0 && p.Minutes != el.Minutes:
+		return priorSeasonRates(p, b)
+	case !hasPrior || p.Minutes == 0:
+		return e.unknownPriorRates(el, b)
+	}
+	return b
+}
+
+// priorSeasonRates rewrites a pre-season blend as last season's per-90 rates.
+//
+// Pure, and taking the prior rather than the Engine, so the arithmetic that
+// converts a season TOTAL into a rate has one home and can be read without the
+// surrounding branch. The two denominators are deliberately different:
+// minutes and starts are per GAMEWEEK of a full season, everything else is
+// per 90 minutes actually played.
+func priorSeasonRates(p *PriorPlayer, b blend) blend {
+	b.MinutesPerMatch = float64(p.Minutes) / GameweeksPerSeason
+	b.StartShare = float64(p.Starts) / GameweeksPerSeason
+	b.XG90 = per90(p.XG, p.Minutes)
+	b.XA90 = per90(p.XA, p.Minutes)
+	b.XGC90 = per90(p.XGC, p.Minutes)
+	b.DefCon90 = per90(float64(p.DefCon), p.Minutes)
+	b.Bonus90 = per90(float64(p.Bonus), p.Minutes)
+	b.Saves90 = per90(float64(p.Saves), p.Minutes)
+	b.Yellow90 = per90(float64(p.Yellow), p.Minutes)
+	b.Red90 = per90(float64(p.Red), p.Minutes)
+	return b
+}
+
+// unknownPriorRates is what a player the archive has never seen gets before a
+// ball is kicked.
+//
+// ⚠️ **A PLAYER WITH NO PRIOR USED TO RETURN AT ZERO MINUTES, and that is the
+// fourth instance of the defect `blendRatesCode` names.** The three recorded
+// before it were all the in-season half of the same mistake; this is the
+// pre-season half, and it is the one that builds the opening fifteen.
+//
+// The in-season path sends exactly this case to shrinkToLeague — "no prior of
+// his own, a promoted club's player or an arrival from abroad" — and pre-season
+// simply did not, so a summer signing, a promoted regular and a player
+// returning from abroad all left with expected minutes of **exactly zero**.
+//
+// Measured before the fix: across six seasons, 122 to 284 players a season read
+// 0.0000, so Spearman against their coming minutes was UNDEFINED — the model had
+// no ordering over a fifth of the pool it picks an opening squad from. That is
+// also why the shipped config carries thirteen hand-written minutes overrides,
+// several of whose texts say it outright: "scores 0.00 only because he has no
+// Premier League minutes".
+//
+// ⚠️ **Zero is not a weak prior, it is a wrong one.** Nothing is known about
+// these players, and the honest expression of that is the position's league
+// average, which is what shrinkToLeague supplies and what the in-season path has
+// used since 2026-08-23.
+//
+// ⚠️ **Read the fallback's ordering WITHIN a position, never pooled.** It is
+// constant inside a position and differs between them, so a pooled rank over
+// these players is mostly a rank by position and carries either sign for that
+// reason. Its LEVEL over-states against players who do have history — measured,
+// resolving on MID and FWD under Holm — and `UnknownPriorShare` is the lever
+// that would correct it. **Unswept: no points claim in either direction.**
+//
+// UnknownPriorShare scales how much of the fallback he receives, so a sweep can
+// reach the old zero as an ARM. It is 1 in every shipped configuration; see its
+// own comment for why 0 is a claim rather than an off switch.
+func (e *Engine) unknownPriorRates(el *fpl.Element, b blend) blend {
+	shrunk := e.shrinkToLeague(el, b)
+	s := e.Weights.UnknownPriorShare
+	if s >= 1 {
+		return shrunk
+	}
+	if s < 0 {
+		s = 0
+	}
+	shrunk.MinutesPerMatch *= s
+	shrunk.StartShare *= s
+	return shrunk
+}
 
 func per90(total float64, minutes int) float64 {
 	if minutes <= 0 {
