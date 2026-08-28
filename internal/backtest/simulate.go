@@ -4139,20 +4139,53 @@ func newPriorIndexRecent(s *Season, minutesHalfLife, rateHalfLife float64,
 		}
 		if last > 0 {
 			if minutesHalfLife > 0 {
-				// Weighted mean minutes per gameweek, rescaled to a season so
-				// the evidence weight downstream keeps its usual units.
+				// Weighted mean minutes PER MATCH, rescaled to a season so the
+				// evidence weight downstream keeps its usual units.
+				//
+				// ⚠️ **Per MATCH, not per GAMEWEEK, and the difference was a
+				// live defect.** `GW.Minutes` is a total across that gameweek's
+				// fixtures — its own comment says "minutes of 180 means two full
+				// matches, not an impossible one" — so dividing the weighted sum
+				// by a count of GAMEWEEKS treated a double as a 180-minute rate
+				// and then projected a season of them. For a player who played
+				// 90 minutes in every match and therefore has no trend at all,
+				// that overstated the prior by 26% at half-life 2, 13% at 4, 6%
+				// at 8 and 4% at 12, and produced 49 starts in a season
+				// containing 39 matches.
+				//
+				// ⚠️ **The inflation was monotone in the half-life, which is the
+				// same ordering the recency sweep reported and attributed to
+				// recency.** Weighting the denominator by fixtures is what
+				// separates the two: with it, an unchanged player reads
+				// identically at every half-life, so anything the sweep finds is
+				// the trend rather than the units.
+				//
+				// The numerator is unchanged — each match already contributes
+				// its own minutes. Only the denominator counts matches instead
+				// of gameweeks.
 				var num, den float64
 				for gw, g := range q.GWs {
 					if !keep(gw) {
 						continue
 					}
+					fx := float64(g.Fixtures)
+					if fx <= 0 {
+						// A row with no fixture count predates the field or is a
+						// blank; treat it as the single match its minutes describe
+						// rather than dividing by zero.
+						fx = 1
+					}
 					w := math.Pow(0.5, float64(last-gw)/minutesHalfLife)
 					num += float64(g.Minutes) * w
-					den += w
+					den += w * fx
 				}
 				if den > 0 {
-					perGW := num / den
-					p.Minutes = int(perGW * float64(analysis.GameweeksPerSeason))
+					// Every club plays exactly 38 matches — doubles are paid for
+					// by blanks — so the season's MATCH count and its gameweek
+					// count are the same number, and rescaling a per-match rate
+					// by it is right rather than a coincidence.
+					perMatch := num / den
+					p.Minutes = int(perMatch * float64(analysis.GameweeksPerSeason))
 					if q.Minutes > 0 {
 						p.Starts = int(float64(q.Starts) *
 							float64(p.Minutes) / float64(q.Minutes))
