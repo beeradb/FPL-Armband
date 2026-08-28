@@ -150,6 +150,44 @@ claims:
     asserted_in:
       - AGENTS.md
 
+  - id: shipped-min-separable-gain
+    kind: derived
+    statement: >-
+      The band inside which the transfer search refuses to separate two plans, in
+      points per gameweek. Load-bearing on criteria 1 AND 2. Criterion 1: the
+      transfer board prints "All within N pts/gw of the pick above ... It cannot
+      separate them", so this decides what the product tells a reader it does not
+      know. Criterion 2, and this is the reason it is here rather than left to a
+      config test: the value ships in internal/config/policy.go but is DERIVED in
+      docs/accuracy.md, which is regenerated from the accuracy snapshot. The
+      source can move while the shipped constant does not, and nothing else spans
+      the files. README.md is listed as well as docs/accuracy.md: the figure has
+      escaped to THREE places, and the README's copy is audience-facing and sits
+      inside a chart's data array (`bar [0.41, 2.57, 1.03]`) where a stale value
+      would be read as a measurement rather than a quote.
+    command: |
+      python3 -c "import re;print(re.search(r'MinSeparableGain:\s+(\S+?),',open('internal/config/policy.go').read()).group(1))"
+    expect: "0.41"
+    asserted_in:
+      - docs/accuracy.md
+      - README.md
+
+  - id: shipped-min-gain-transfer
+    kind: derived
+    statement: >-
+      The floor a single transfer's gain must clear to be recommended at all, in
+      points per gameweek. Admitted on criterion 1 alone -- no file outside
+      policy.go quotes the literal, because the brief renders it through a format
+      string rather than writing it down. Pinned BESIDE min-separable-gain
+      deliberately: policy.go warns in its own comment that the two "must not be
+      confused", one being a bar a gain is compared against and the other a
+      distance between two gains. They are 0.4 and 0.41. If either drifted onto
+      the other's value the confusion would stop being hypothetical, and a single
+      checker spanning both is what makes that detectable.
+    command: |
+      python3 -c "import re;print(re.search(r'MinGainForTransfer:\s+(\S+?),',open('internal/config/policy.go').read()).group(1))"
+    expect: "0.4"
+
   - id: shipped-min-gain-hit
     kind: derived
     statement: >-
