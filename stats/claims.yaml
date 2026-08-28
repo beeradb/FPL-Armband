@@ -57,6 +57,15 @@
 # value. Criteria 1 and 3 are judgement, so an entry admitted on those alone must
 # say which, in its `statement`.
 #
+# ⚠️ CRITERION 2's CHECK IS SUBSTRING MATCHING, AND THAT IS WEAK FOR SHORT VALUES.
+# `asserted_in` passes when the value's text appears in the named file — so a
+# constant of `0`, `2` or `5` passes trivially against any prose document, because
+# those digits are everywhere. Found while sweeping AGENTS.md: `prior_half_life = 0`
+# and `free_transfer_value = 2` both "passed" on coincidence. **Admit a constant on
+# criterion 2 only when the value is DISTINCTIVE (0.83, 2.571, 3.0) or you have read
+# the quote in context.** For a short value, name the source file instead and admit
+# on criterion 1.
+#
 # ⚠️ A FUZZY KEY SEARCH IS NOT A CLAIM. `[k for k in w if 'hit' in k and 'gain' in k]`
 # does not name a quantity — it names whatever happens to match, and silently
 # redefines the claim when the config changes. Name the exact key or path. This
@@ -202,3 +211,36 @@ claims:
     expect: "3"
     asserted_in:
       - internal/config/policy.go
+
+  # --- swept from AGENTS.md 2026-08-28 under criterion 2: the value is quoted in
+  # prose, outside the file that computes it, with context confirming the quote is
+  # about this constant rather than a coincidental digit.
+
+  - id: shipped-rest-minutes-factor
+    kind: derived
+    statement: >-
+      The minutes multiplier applied to a club's players in the gameweeks after a
+      European or cup fixture. ⚠️ AGENTS.md is emphatic that the EFFECTIVE
+      multiplier is this value PRORATED across the horizon, not this value itself —
+      0.83 becomes 0.93 at a 5-gameweek horizon with a 2-gameweek window. Registered
+      because the prorating makes the raw constant easy to misquote.
+    command: |
+      python3 -c "import json;print(json.load(open('config.json'))['weights']['rest_minutes_factor'])"
+    expect: "0.83"
+    asserted_in:
+      - AGENTS.md
+
+  - id: shipped-free-transfer-value
+    kind: derived
+    statement: >-
+      What a banked free transfer is worth to the optimiser. Load-bearing by
+      criterion 1 — it prices every do-nothing decision against every transfer.
+      ⚠️ Admitted on criterion 1, NOT criterion 2: the value is `2`, and a bare "2"
+      matches an 857-line document by coincidence, so asserted_in names the source
+      rather than the prose. AGENTS.md discusses it as "the flat free_transfer_value
+      ladder resolves nothing — 2.0 ships unchanged".
+    command: |
+      python3 -c "import json;print(json.load(open('config.json'))['review_policy']['free_transfer_value'])"
+    expect: "2"
+    asserted_in:
+      - config.json
