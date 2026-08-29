@@ -430,13 +430,27 @@ func TestDiagAttackDefenceLeanDecomposition(t *testing.T) {
 	fmt.Printf("S was separately expected near 0.98. Measured here, pooled: S = %.4f (lnS = %.4f),\n",
 		math.Exp(pooled.lnS), pooled.lnS)
 	fmt.Printf("C = %.4f (lnC = %.4f). ", math.Exp(pooled.lnC), pooled.lnC)
+	// C's reference is NOT 980/990, and an earlier version of this block said it was.
+	// The ~980 figure was measured before 5b970338 removed the
+	// `e.GameweeksPlayed() == 0` gate on shrinkToLeague's volume branch, which made
+	// the league minutes-shrink unconditional: expected minutes per club per match
+	// moved to about 1371, and 7d9144ea then walked it back to about 1058. So a C
+	// near 1.058/990 is the CURRENT expectation, and a C near 0.99 would mean the
+	// gate is back.
+	//
+	// This matters beyond the number. The old text told the reader that on divergence
+	// "the first suspect is this implementation, not the prior measurement" — which is
+	// backwards here, because the prior measurement is the stale one and the drift is
+	// this diagnostic's own subject. Re-derive from
+	// `git log -- internal/analysis/blend.go` rather than trusting either figure.
 	nearS := math.Abs(math.Exp(pooled.lnS)-0.9822) < 0.01
-	nearC := math.Abs(math.Exp(pooled.lnC)-980.0/990.0) < 0.01
+	nearC := math.Abs(math.Exp(pooled.lnC)-1058.0/990.0) < 0.02
 	if nearS && nearC {
-		fmt.Printf("Both land within 0.01 of the prior-work figures.\n")
+		fmt.Printf("Both land near current expectations (S~0.982, C~1.069 post-5b970338).\n")
 	} else {
-		fmt.Printf("At least one diverges from the prior-work figures by more than 0.01 — reported\n")
-		fmt.Printf("as measured; the first suspect is this implementation, not the prior measurement.\n")
+		fmt.Printf("At least one diverges from its current expectation — reported as measured.\n")
+		fmt.Printf("C's reference moved with 5b970338 and 7d9144ea; check blend.go's history\n")
+		fmt.Printf("before suspecting this implementation.\n")
 	}
 	fmt.Printf("\n-lnK + G carries the remainder: %.4f (of the pooled meanD_direct %.4f).\n",
 		-pooled.lnK+pooled.g, pooled.meanDDirect)
