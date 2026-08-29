@@ -261,6 +261,7 @@ import (
 	"testing"
 
 	"armband/internal/analysis"
+	"armband/internal/config"
 )
 
 // cohCutoff is the gameweek every fixture's model quantities are built
@@ -280,6 +281,13 @@ type cohObs struct {
 	season             string
 	gw                 int
 	attacker, defender string
+	// attackerID, defenderID are the two clubs' FPL team ids for this
+	// fixture — added alongside leandecomp_diag_test.go so that diagnostic
+	// can resolve an observation back to the cohClubModel it was built from
+	// (attacker/defender above are short names, for printing only, and carry
+	// no way back to the club map). Unused by this file's own tables, which
+	// only ever needed the names.
+	attackerID, defenderID int
 	// rate is the attacker's fixture-blind expected goals per match, at the
 	// cutoff. atkMul is the attacker's own attacking multiplier for this
 	// fixture, from Engine.FixtureMultipliersFor on the attacker's own
@@ -336,6 +344,265 @@ func cohDivergence(o cohObs, factor, scale float64) (float64, bool) {
 		return 0, false
 	}
 	return math.Log(a / b), true
+}
+
+// cohClubModel accumulates one club's cutoff-time model, at the granularity
+// leandecomp_diag_test.go's lean decomposition needs to reconstruct rate()
+// and defRate() as an exact per-club product rather than a single number.
+// Package-level, not scoped to one test function, because
+// TestDiagAttackDefenceCoherence and TestDiagAttackDefenceLeanDecomposition
+// both need the IDENTICAL per-club scan — see AGENTS.md's standing rule that
+// a diagnostic must never carry its own copy of the thing it is checking.
+//
+// Every field is a sum over the club's REGISTERED players at the cutoff,
+// each weighted by ExpectedMinutes (EM) — the same minutes-weighting this
+// file's header already documents for what were xgcNum/xgcDen before this
+// refactor. Field names match the decomposition algebra in
+// leandecomp_diag_test.go's header exactly, so the two can be read side by
+// side:
+//
+//	emSum          = sum(EM)                     registered minutes evidence
+//	xgEmSum        = sum(XG90 x EM)               feeds mwmA = xgEmSum/emSum
+//	xgXgscaleEmSum = sum(XG90 x XGScale x EM)      rate() = this / 90
+//	xgcEmSum       = sum(XGC90 x EM)               feeds mwmB = xgcEmSum/emSum
+//	xgcCfEmSum     = sum(XGC90 x cf x EM)          defRate() = this / emSum
+type cohClubModel struct {
+	emSum, xgEmSum, xgXgscaleEmSum, xgcEmSum, xgcCfEmSum float64
+}
+
+// rate is the club's fixture-blind expected goals per match — bit-for-bit
+// the pre-refactor inline clubModel.rate. Every summand is non-negative, so
+// a zero return means no registered player contributed a positive XG90;
+// callers gate on rate() > 0, reproducing the original `c.rate > 0` check.
+func (c *cohClubModel) rate() float64 { return c.xgXgscaleEmSum / 90 }
+
+// defRate is the club's fixture-blind implied expected goals conceded per
+// match. The bool reproduces the original `c.xgcDen > 0 && c.xgcNum > 0`
+// gate unchanged (xgcDen == emSum, xgcNum == xgcCfEmSum here).
+func (c *cohClubModel) defRate() (float64, bool) {
+	if c.emSum <= 0 || c.xgcCfEmSum <= 0 {
+		return 0, false
+	}
+	return c.xgcCfEmSum / c.emSum, true
+}
+
+// cohCoverage counts, through cohCutoff, how many of a season's rows carry a
+// positive xG or xGC value and what share of the xGC rows are reconstructed
+// rather than sourced. Both diagnostics in this package that read xGC print
+// this before their own tables, since the defence side is built entirely
+// from xGC and four of the archive's six seasons carry none natively. Left
+// as a small standalone function rather than folded into cohSeasonBuild: it
+// reads only cur.Players, no engine and no fixture list, so it is not part
+// of "the model scan" the standing rule above is about — sharing it here is
+// a convenience, not a correctness requirement.
+func cohCoverage(cur *Season) (xgRows, xgcRows, xgcRebuilt float64) {
+	for _, id := range sortedPlayerIDs(cur) {
+		for gw, g := range cur.Players[id].GWs {
+			if gw > cohCutoff {
+				continue
+			}
+			if g.XG > 0 {
+				xgRows++
+			}
+			if g.XGC > 0 {
+				xgcRows++
+				if g.XGCReconstructed {
+					xgcRebuilt++
+				}
+			}
+		}
+	}
+	return
+}
+
+// cohSeasonBuild loads one prior/current season pair, builds the
+// point-in-time engine and per-club model, and returns the directed fixture
+// observation set together with the per-club accumulators it was built
+// from — the load-bearing scan TestDiagAttackDefenceCoherence and
+// TestDiagAttackDefenceLeanDecomposition both call, rather than each
+// re-deriving its own copy (AGENTS.md, "a diagnostic must never carry its
+// own copy of the thing it is checking"). This is bit-for-bit the
+// pre-refactor inline body of TestDiagAttackDefenceCoherence's per-pair
+// loop, moved and renamed, not re-derived.
+//
+// xgScaleSum/xgScaleN, if non-nil, receive this pair's contribution to the
+// pooled per-position mean XGScale the coherence diagnostic prints as
+// context ("live scale asymmetry") — accumulated here because it needs
+// e.Metrics(el) from inside this same per-player scan, not because it is
+// part of the identity either test checks. Pass nil maps to skip it.
+func cohSeasonBuild(ctx context.Context, cfg config.Config, pair [2]string,
+	xgScaleSum, xgScaleN map[int]float64) (
+	obs []cohObs, clubs map[int]*cohClubModel, dropped, mismatched, doubles int, err error) {
+
+	prior, err := Load(ctx, cfg.CacheDir, pair[0])
+	if err != nil {
+		return nil, nil, 0, 0, 0, err
+	}
+	cur, err := Load(ctx, cfg.CacheDir, pair[1])
+	if err != nil {
+		return nil, nil, 0, 0, 0, err
+	}
+
+	boot, fx := PointInTime(cur, prior, cohCutoff)
+	w := cfg.Weights
+	w.Horizon = 1
+	e := analysis.NewEngineFull(boot, fx, w, analysis.Congestion{}, analysis.RoleRisk{})
+	e.Priors = newPriorIndex(prior)
+	e.Recent = newRecentIndexWith(cur, cohCutoff, w.MinutesHalfLife, w.RateHalfLife)
+
+	// The cutoff-time model of every club: the fixture-blind attacking rate
+	// and the fixture-blind implied-concession baseline, both from
+	// registered players only.
+	clubs = map[int]*cohClubModel{}
+	registered := map[int]bool{}
+	for i := range boot.Elements {
+		el := &boot.Elements[i]
+		m := e.Metrics(el)
+		c := clubs[el.Team]
+		if c == nil {
+			c = &cohClubModel{}
+			clubs[el.Team] = c
+		}
+		c.xgEmSum += m.XG90 * m.ExpectedMinutes
+		c.xgXgscaleEmSum += m.XG90 * m.XGScale * m.ExpectedMinutes
+		cf := e.DefconCleanFactorFor(el.ElementType, m.DefCon90)
+		c.xgcEmSum += m.XGC90 * m.ExpectedMinutes
+		c.xgcCfEmSum += m.XGC90 * cf * m.ExpectedMinutes
+		c.emSum += m.ExpectedMinutes
+		registered[el.ID] = true
+		if xgScaleSum != nil {
+			xgScaleSum[el.ElementType] += m.XGScale
+			xgScaleN[el.ElementType]++
+		}
+	}
+	rate := map[int]float64{}
+	defRate := map[int]float64{}
+	for id, c := range clubs {
+		if v := c.rate(); v > 0 {
+			rate[id] = v
+		}
+		if v, ok := c.defRate(); ok {
+			defRate[id] = v
+		}
+	}
+
+	// Per (team, gameweek): the fixture count PointInTime's list carries,
+	// the archive's played-match count, realised goals and realised
+	// expected goals. Mirrors TestDiagFixtureReconciliation's acc.
+	type key struct{ team, gw int }
+	type acc struct{ nFx, played, goals, xg float64 }
+	byGW := map[key]*acc{}
+	get := func(team, gw int) *acc {
+		k := key{team, gw}
+		if a := byGW[k]; a != nil {
+			return a
+		}
+		a := &acc{}
+		byGW[k] = a
+		return a
+	}
+
+	for _, f := range fx {
+		if f.Event == nil || *f.Event < cohFrom || *f.Event > 38 {
+			continue
+		}
+		get(f.TeamH, *f.Event).nFx++
+		get(f.TeamA, *f.Event).nFx++
+	}
+	for _, f := range cur.Fixtures {
+		if f.Event == nil || *f.Event < cohFrom || *f.Event > 38 {
+			continue
+		}
+		if f.TeamHScore == nil || f.TeamAScore == nil {
+			continue // not played, or the archive did not record it
+		}
+		h, a := get(f.TeamH, *f.Event), get(f.TeamA, *f.Event)
+		h.played++
+		a.played++
+		h.goals += float64(*f.TeamHScore)
+		a.goals += float64(*f.TeamAScore)
+	}
+	for _, id := range sortedPlayerIDs(cur) {
+		p := cur.Players[id]
+		if !registered[id] {
+			continue
+		}
+		for gw, g := range p.GWs {
+			if gw < cohFrom || gw > 38 {
+				continue
+			}
+			get(p.Team, gw).xg += g.XG
+		}
+	}
+
+	realXG := map[key]float64{}
+	realG := map[key]float64{}
+	for k, a := range byGW {
+		switch {
+		case a.nFx == 0 || a.played == 0:
+			dropped++
+		case a.nFx != a.played:
+			mismatched++
+		case a.xg <= 0:
+			dropped++
+		default:
+			realXG[k] = a.xg / a.played
+			realG[k] = a.goals / a.played
+			if a.nFx >= 2 {
+				doubles++
+			}
+		}
+	}
+
+	// Now the fixtures themselves, read from fx (point-in-time) so nothing
+	// past the cutoff leaks in through the difficulty ratings.
+	for _, f := range fx {
+		if f.Event == nil || *f.Event < cohFrom || *f.Event > 38 {
+			continue
+		}
+		gw := *f.Event
+		atkH, defH := e.FixtureMultipliersFor(analysis.FixtureBrief{
+			Event: gw, OpponentID: f.TeamA, Difficulty: f.TeamHDifficulty,
+		})
+		atkA, defA := e.FixtureMultipliersFor(analysis.FixtureBrief{
+			Event: gw, OpponentID: f.TeamH, Difficulty: f.TeamADifficulty,
+		})
+
+		// Direction 1: home attacks, away defends.
+		if rH, ok := rate[f.TeamH]; ok {
+			if dA, ok2 := defRate[f.TeamA]; ok2 {
+				if xg, ok3 := realXG[key{f.TeamH, gw}]; ok3 {
+					obs = append(obs, cohObs{
+						season: cur.Name, gw: gw,
+						attacker:   teamShortName(cur.Teams, f.TeamH),
+						defender:   teamShortName(cur.Teams, f.TeamA),
+						attackerID: f.TeamH, defenderID: f.TeamA,
+						rate: rH, atkMul: atkH, atkDiff: f.TeamHDifficulty,
+						defRate: dA, defMul: defA, defDiff: f.TeamADifficulty,
+						actXG: xg, actG: realG[key{f.TeamH, gw}],
+					})
+				}
+			}
+		}
+		// Direction 2: away attacks, home defends.
+		if rA, ok := rate[f.TeamA]; ok {
+			if dH, ok2 := defRate[f.TeamH]; ok2 {
+				if xg, ok3 := realXG[key{f.TeamA, gw}]; ok3 {
+					obs = append(obs, cohObs{
+						season: cur.Name, gw: gw,
+						attacker:   teamShortName(cur.Teams, f.TeamA),
+						defender:   teamShortName(cur.Teams, f.TeamH),
+						attackerID: f.TeamA, defenderID: f.TeamH,
+						rate: rA, atkMul: atkA, atkDiff: f.TeamADifficulty,
+						defRate: dH, defMul: defH, defDiff: f.TeamHDifficulty,
+						actXG: xg, actG: realG[key{f.TeamA, gw}],
+					})
+				}
+			}
+		}
+	}
+
+	return obs, clubs, dropped, mismatched, doubles, nil
 }
 
 func TestDiagAttackDefenceCoherence(t *testing.T) {
@@ -401,196 +668,28 @@ func TestDiagAttackDefenceCoherence(t *testing.T) {
 	posName := map[int]string{1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
 
 	for _, pair := range sweepPairNames() {
-		prior, err := Load(ctx, cfg.CacheDir, pair[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		// cur is loaded again here (cohSeasonBuild loads its own copy) purely
+		// for the coverage block and cur.Name below — Load is a cache read,
+		// and this keeps cohCoverage decoupled from the model scan, per its
+		// own doc comment.
 		cur, err := Load(ctx, cfg.CacheDir, pair[1])
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		var xgRows, xgcRows, xgcRebuilt float64
-		for _, id := range sortedPlayerIDs(cur) {
-			for gw, g := range cur.Players[id].GWs {
-				if gw > cohCutoff {
-					continue
-				}
-				if g.XG > 0 {
-					xgRows++
-				}
-				if g.XGC > 0 {
-					xgcRows++
-					if g.XGCReconstructed {
-						xgcRebuilt++
-					}
-				}
-			}
-		}
+		xgRows, xgcRows, xgcRebuilt := cohCoverage(cur)
 		var rebuiltPct float64
 		if xgcRows > 0 {
 			rebuiltPct = 100 * xgcRebuilt / xgcRows
 		}
 		fmt.Printf("%-10s %10.0f %10.0f %11.0f%%\n", cur.Name, xgRows, xgcRows, rebuiltPct)
 
-		boot, fx := PointInTime(cur, prior, cohCutoff)
-		w := cfg.Weights
-		w.Horizon = 1
-		e := analysis.NewEngineFull(boot, fx, w, analysis.Congestion{}, analysis.RoleRisk{})
-		e.Priors = newPriorIndex(prior)
-		e.Recent = newRecentIndexWith(cur, cohCutoff, w.MinutesHalfLife, w.RateHalfLife)
-
-		// The cutoff-time model of every club: the fixture-blind attacking
-		// rate and the fixture-blind implied-concession baseline, both from
-		// registered players only.
-		type clubModel struct{ rate, xgcNum, xgcDen float64 }
-		models := map[int]*clubModel{}
-		registered := map[int]bool{}
-		for i := range boot.Elements {
-			el := &boot.Elements[i]
-			m := e.Metrics(el)
-			c := models[el.Team]
-			if c == nil {
-				c = &clubModel{}
-				models[el.Team] = c
-			}
-			c.rate += m.XG90 * m.XGScale * m.ExpectedMinutes / 90
-			cf := e.DefconCleanFactorFor(el.ElementType, m.DefCon90)
-			c.xgcNum += m.XGC90 * cf * m.ExpectedMinutes
-			c.xgcDen += m.ExpectedMinutes
-			registered[el.ID] = true
-			xgScaleSum[el.ElementType] += m.XGScale
-			xgScaleN[el.ElementType]++
-		}
-		rate := map[int]float64{}
-		defRate := map[int]float64{}
-		for id, c := range models {
-			if c.rate > 0 {
-				rate[id] = c.rate
-			}
-			if c.xgcDen > 0 && c.xgcNum > 0 {
-				defRate[id] = c.xgcNum / c.xgcDen
-			}
-		}
-
-		// Per (team, gameweek): the fixture count PointInTime's list carries,
-		// the archive's played-match count, realised goals and realised
-		// expected goals. Mirrors TestDiagFixtureReconciliation's acc.
-		type key struct{ team, gw int }
-		type acc struct{ nFx, played, goals, xg float64 }
-		byGW := map[key]*acc{}
-		get := func(team, gw int) *acc {
-			k := key{team, gw}
-			if a := byGW[k]; a != nil {
-				return a
-			}
-			a := &acc{}
-			byGW[k] = a
-			return a
-		}
-
-		for _, f := range fx {
-			if f.Event == nil || *f.Event < cohFrom || *f.Event > 38 {
-				continue
-			}
-			get(f.TeamH, *f.Event).nFx++
-			get(f.TeamA, *f.Event).nFx++
-		}
-		for _, f := range cur.Fixtures {
-			if f.Event == nil || *f.Event < cohFrom || *f.Event > 38 {
-				continue
-			}
-			if f.TeamHScore == nil || f.TeamAScore == nil {
-				continue // not played, or the archive did not record it
-			}
-			h, a := get(f.TeamH, *f.Event), get(f.TeamA, *f.Event)
-			h.played++
-			a.played++
-			h.goals += float64(*f.TeamHScore)
-			a.goals += float64(*f.TeamAScore)
-		}
-		for _, id := range sortedPlayerIDs(cur) {
-			p := cur.Players[id]
-			if !registered[id] {
-				continue
-			}
-			for gw, g := range p.GWs {
-				if gw < cohFrom || gw > 38 {
-					continue
-				}
-				get(p.Team, gw).xg += g.XG
-			}
-		}
-
-		realXG := map[key]float64{}
-		realG := map[key]float64{}
-		var dropped, mismatched, doubles int
-		for k, a := range byGW {
-			switch {
-			case a.nFx == 0 || a.played == 0:
-				dropped++
-			case a.nFx != a.played:
-				mismatched++
-			case a.xg <= 0:
-				dropped++
-			default:
-				realXG[k] = a.xg / a.played
-				realG[k] = a.goals / a.played
-				if a.nFx >= 2 {
-					doubles++
-				}
-			}
+		seasonObs, _, dropped, mismatched, doubles, err := cohSeasonBuild(ctx, cfg, pair, xgScaleSum, xgScaleN)
+		if err != nil {
+			t.Fatal(err)
 		}
 		totalDropped += dropped
 		totalMismatched += mismatched
 		totalDoubles += doubles
-
-		// Now the fixtures themselves, read from fx (point-in-time) so
-		// nothing past the cutoff leaks in through the difficulty ratings.
-		var seasonObs []cohObs
-		for _, f := range fx {
-			if f.Event == nil || *f.Event < cohFrom || *f.Event > 38 {
-				continue
-			}
-			gw := *f.Event
-			atkH, defH := e.FixtureMultipliersFor(analysis.FixtureBrief{
-				Event: gw, OpponentID: f.TeamA, Difficulty: f.TeamHDifficulty,
-			})
-			atkA, defA := e.FixtureMultipliersFor(analysis.FixtureBrief{
-				Event: gw, OpponentID: f.TeamH, Difficulty: f.TeamADifficulty,
-			})
-
-			// Direction 1: home attacks, away defends.
-			if rH, ok := rate[f.TeamH]; ok {
-				if dA, ok2 := defRate[f.TeamA]; ok2 {
-					if xg, ok3 := realXG[key{f.TeamH, gw}]; ok3 {
-						seasonObs = append(seasonObs, cohObs{
-							season: cur.Name, gw: gw,
-							attacker: teamShortName(cur.Teams, f.TeamH),
-							defender: teamShortName(cur.Teams, f.TeamA),
-							rate:     rH, atkMul: atkH, atkDiff: f.TeamHDifficulty,
-							defRate: dA, defMul: defA, defDiff: f.TeamADifficulty,
-							actXG: xg, actG: realG[key{f.TeamH, gw}],
-						})
-					}
-				}
-			}
-			// Direction 2: away attacks, home defends.
-			if rA, ok := rate[f.TeamA]; ok {
-				if dH, ok2 := defRate[f.TeamH]; ok2 {
-					if xg, ok3 := realXG[key{f.TeamA, gw}]; ok3 {
-						seasonObs = append(seasonObs, cohObs{
-							season: cur.Name, gw: gw,
-							attacker: teamShortName(cur.Teams, f.TeamA),
-							defender: teamShortName(cur.Teams, f.TeamH),
-							rate:     rA, atkMul: atkA, atkDiff: f.TeamADifficulty,
-							defRate: dH, defMul: defH, defDiff: f.TeamHDifficulty,
-							actXG: xg, actG: realG[key{f.TeamA, gw}],
-						})
-					}
-				}
-			}
-		}
 		if len(seasonObs) == 0 {
 			continue
 		}
