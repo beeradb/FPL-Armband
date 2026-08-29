@@ -299,7 +299,7 @@ func run() error {
 	// as-of run fail on a live outage, which is the dependency the capture exists
 	// to remove.
 	if cmd == "asof" {
-		return cmdAsOf(cfg, flag.Args()[1:])
+		return cmdAsOf(ctx, cfg, flag.Args()[1:])
 	}
 
 	fmt.Fprint(os.Stderr, dim("Loading FPL data... "))
