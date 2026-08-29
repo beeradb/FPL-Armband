@@ -3027,6 +3027,16 @@ func (e *Engine) cleanSheetSensitiveAt(m PlayerMetrics, pos int, def float64) fl
 // one. Evidence is the same n90/(n90+k) share blendFor uses to mix the rate in
 // the first place — blend.Weight cannot be reused because it reads 1.0
 // pre-season, when FPL's totals *are* last season and there is nothing to blend.
+// AppliedBonusWeight is bonusWeightFor, exported so a diagnostic can report where
+// the schedule actually lands without copying the formula.
+//
+// ⚠️ It exists because copying it is a real hazard rather than a style point: the
+// expression is a saturating ratio, TestTheCopiedExpressionsHaveOneImplementation
+// counts every occurrence of that shape in the tree, and a test-side copy would
+// drift from the shipped curve while still compiling and still printing a
+// plausible table. One implementation, called from both places.
+func (e *Engine) AppliedBonusWeight(el *fpl.Element) float64 { return e.bonusWeightFor(el) }
+
 func (e *Engine) bonusWeightFor(el *fpl.Element) float64 {
 	hi := e.Weights.BonusWeight
 	lo := e.Weights.BonusPriorWeight

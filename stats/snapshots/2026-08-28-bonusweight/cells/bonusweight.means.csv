@@ -1,0 +1,19 @@
+sweep,run_id,metric,variant,variant_index,baseline_variant,mean_per_gw,n_cells,oracle
+bonusweight#1,1787958271-3930594,policy,bonus_weight 0.5 — collapses the schedule to flat prior,1,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),-0.939064041800502,36,-
+bonusweight#1,1787958271-3930594,policy,"bonus_weight 1.0 — the old flat table's peak, under the schedule",2,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),-0.27655469512830205,36,-
+bonusweight#1,1787958271-3930594,policy,bonus_weight 2.0 — leaning further into a circular term,3,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),-0.5976255889490061,36,-
+bonusweight#1,1787958271-3930594,policy_xpoints,bonus_weight 0.5 — collapses the schedule to flat prior,1,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),-0.47375722037214313,36,-
+bonusweight#1,1787958271-3930594,policy_xpoints,"bonus_weight 1.0 — the old flat table's peak, under the schedule",2,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),-0.043721077248648633,36,-
+bonusweight#1,1787958271-3930594,policy_xpoints,bonus_weight 2.0 — leaning further into a circular term,3,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),-0.32105071383847356,36,-
+bonusweight#1,1787958271-3930594,hold,bonus_weight 0.5 — collapses the schedule to flat prior,1,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),-0.029335458873979862,36,-
+bonusweight#1,1787958271-3930594,hold,"bonus_weight 1.0 — the old flat table's peak, under the schedule",2,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),0.1251021522760648,36,-
+bonusweight#1,1787958271-3930594,hold,bonus_weight 2.0 — leaning further into a circular term,3,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),0.6309796617767626,36,-
+bonusweight#1,1787958271-3930594,hold_xpoints,bonus_weight 0.5 — collapses the schedule to flat prior,1,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),-0.16099768227826455,36,-
+bonusweight#1,1787958271-3930594,hold_xpoints,"bonus_weight 1.0 — the old flat table's peak, under the schedule",2,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),0.07356495625857089,36,-
+bonusweight#1,1787958271-3930594,hold_xpoints,bonus_weight 2.0 — leaning further into a circular term,3,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),0.2624862251406744,36,-
+bonusweight#1,1787958271-3930594,hold_fixedcap,bonus_weight 0.5 — collapses the schedule to flat prior,1,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),-0.09798323657019342,36,-
+bonusweight#1,1787958271-3930594,hold_fixedcap,"bonus_weight 1.0 — the old flat table's peak, under the schedule",2,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),0.14143733346631887,36,-
+bonusweight#1,1787958271-3930594,hold_fixedcap,bonus_weight 2.0 — leaning further into a circular term,3,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),0.6475593984651954,36,-
+bonusweight#1,1787958271-3930594,hold_nocap,bonus_weight 0.5 — collapses the schedule to flat prior,1,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),0.020438297612210832,36,-
+bonusweight#1,1787958271-3930594,hold_nocap,"bonus_weight 1.0 — the old flat table's peak, under the schedule",2,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),0.19567536596522117,36,-
+bonusweight#1,1787958271-3930594,hold_nocap,bonus_weight 2.0 — leaning further into a circular term,3,bonus_weight 1.5 — the evidence end of the schedule (SHIPS),0.5804328521719826,36,-

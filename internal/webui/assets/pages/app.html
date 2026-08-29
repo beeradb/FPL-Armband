@@ -30,16 +30,43 @@
 <link rel="apple-touch-icon" href="/assets/icon-180.png">
 <link rel="manifest" href="/assets/site.webmanifest">
 <meta name="theme-color" content="#070B10">
-<!-- Still no og: tags here, but not for the old reason -- there is no gate left to sit
-     behind. Two reasons stand in its place. First, a preview crawler would be describing
-     the WRONG thing: a shared link opens the reader's own session, whatever they last
-     dragged, locked, or imported, not a fixed pitch a card image could usefully summarise
-     -- landing.html is the fixed, shareable pitch, and it carries the full og:/twitter:
-     set already. Second, this document's Content-Security-Policy is deliberately the
-     tighter one (connect-src 'self', no signupOrigin -- see connectSrcFor's doc comment in
-     cmd/armband/webroutes.go), because it renders FPL's prose and player names by
-     innerHTML; adding a crawler-facing feature here is one more reason for someone to
-     widen that policy later; landing.html renders nothing untrusted, and this page does. -->
+<!-- Share tags, added 2026-08-29. This document had none, deliberately, and the two
+     reasons recorded for that are answered rather than ignored.
+       "A crawler would describe the WRONG thing, because a shared link opens the reader's
+     own session." True of a card generated PER SESSION, and these are not: every value
+     below is a fixed string describing the product, the same copy landing.html carries.
+     A crawler fetching this page unauthenticated gets the default shell, and what it
+     reads is this block, not anyone's pitch.
+       "The CSP here is deliberately the tighter one, and a crawler-facing feature is one
+     more reason to widen it later." The policy is not touched by these tags and cannot
+     be: connect-src governs where the PAGE may fetch (see connectSrcFor in
+     cmd/armband/webroutes.go), an og: tag issues no request from the page at all, and
+     the image is same-origin under /assets/. The slippery-slope half of that argument
+     stands on its own -- so it is restated here rather than deleted: this document
+     renders FPL prose and player names by innerHTML, landing.html renders nothing
+     untrusted, and that asymmetry is a reason to refuse the NEXT crawler-facing thing
+     that does want a policy change.
+       What changed is the cost of having none. "/" serves this document, so every share
+     of fplarmband.com -- the exact mechanism by which a manager-to-manager product
+     spreads -- unfurled as a bare URL, while the tags and the image sat on /about where
+     almost nothing links. Verified live before this change: "/" returned 0 og:/twitter:
+     tags and /about returned 6.
+     ⚠️ og:url is "/" and not "/about": it must name the page that carries the tag, or a
+     crawler canonicalises the share to somewhere the sharer did not link. -->
+<meta name="description" content="Every Fantasy Premier League player marked from Nailed down to Fringe before you pick him, with FPL's own team news read into his score — and the working shown, so the call stays yours. Free while it's in preview.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FPL Armband">
+<meta property="og:url" content="https://fplarmband.com/">
+<meta property="og:title" content="FPL Armband — before the team sheet">
+<meta property="og:description" content="Every Fantasy Premier League player marked from Nailed down to Fringe before you pick him, with FPL's own team news read into his score. The working is shown, so the call stays yours.">
+<meta property="og:image" content="https://fplarmband.com/assets/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The FPL Armband mark: a captain's armband carrying the C.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="FPL Armband — before the team sheet">
+<meta name="twitter:description" content="Every Fantasy Premier League player marked from Nailed down to Fringe before you pick him, with FPL's own team news read into his score. The working is shown, so the call stays yours.">
+<meta name="twitter:image" content="https://fplarmband.com/assets/og-image.png">
 <!-- The write token, filled in by the server per request. Empty in the embedded file,
      so a copy of this document taken off disk carries no capability. -->
 <meta name="armband-token" content="">

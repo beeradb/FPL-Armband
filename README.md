@@ -81,6 +81,7 @@ go build -o armband ./cmd/armband
 ./armband squad          # best 15 it can find under the real rules
 ./armband transfers      # best transfers for the squad you own
 ./armband fixtures       # fixture difficulty table
+./armband forecast       # projected goals for and against, per fixture
 ./armband serve          # the planner, on 127.0.0.1
 ./armband brief          # the whole deterministic picture, as Markdown
 ```

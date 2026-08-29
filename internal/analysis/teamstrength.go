@@ -329,3 +329,67 @@ func SavesTermFor(saves90 float64) float64 {
 	}
 	return poissonFloorDiv(savesBlock, saves90)
 }
+
+// TeamRatesFor exposes a club's blended goals for and against per match.
+//
+// The rates themselves are the whole of this file's fitted content, and until
+// now nothing outside it could read them: the two consumers, magnitudeAttack
+// and magnitudeDefence, sit behind FPL_MAGNITUDE and ship off. Reading a rate
+// is not the same as scoring a player with it — this accessor does not turn
+// the magnitude feature on.
+func (e *Engine) TeamRatesFor(teamID int) TeamRates {
+	return e.teamRates(teamID)
+}
+
+// FixtureGoals projects the goals each side scores in one fixture: a club's own
+// rate, scaled by how leaky the opponent actually is.
+//
+// # What is fitted here, and what is assumed
+//
+// `teamRates` is fitted: a club's goals per match, blended between FPL's
+// pre-season rating and this season's record, with the blend constants
+// measured out of sample in TestDiagTeamBlendPriorSource.
+//
+// The multiplier is the damped `magnitudeAttack` rather than a raw ratio,
+// because that is this package's only fitted response to opponent strength and
+// a second one would be a second implementation of the same idea.
+//
+// ⚠️ **But it was fitted against a different quantity than this one.** The
+// square root and the [0.60, 1.60] clamp come from ATTACKING RETURNS — FPL
+// points from goals, assists and bonus — where re-rating the worst defences
+// gave +30% against a measured +23%. Here it scales a club's raw GOALS. Those
+// two elasticities need not be equal, and nothing has measured whether they
+// are, so the choice is conservative rather than correct: the damped form
+// under-reacts to a leaky defence where a raw ratio would over-react, and
+// under-reacting is the cheaper error for a number that gets published.
+// TestFixtureGoalsUsesTheDampedMultiplierRatherThanTheRawRatio pins which form
+// ships; it does not establish that this one is right.
+//
+// ⚠️ **This is a reporting surface, not a fixture-difficulty rating for
+// picking players.** The closed line against a custom FDR was measured on
+// replayed points totals, and this changes no scoring path: `magnitudeAttack`
+// still reaches Score only under FPL_MAGNITUDE, which still ships off.
+//
+// The neutral-opponent identity is what keeps the number readable on its own,
+// and it is pinned: against an opponent conceding exactly the league average
+// the projection IS the club's own scored rate, because the multiplier is 1.
+// TestAFixtureAgainstAnAverageOpponentIsTheClubsOwnRate.
+//
+// ⚠️ **There is no home advantage in this number.** priorFromStrength averages
+// FPL's home and away ratings, and the season half is a plain per-match rate
+// over both, so swapping which club is at home changes nothing. Stating it
+// because the argument order invites the opposite assumption.
+//
+// ⚠️ **These are projected GOALS, not xG.** Nothing here reads
+// `expected_goals`; the season half is goals actually scored and conceded and
+// the prior is FPL's strength rating. A caller labelling the output "xG" would
+// be naming a different quantity — FPL publishes a real per-player xG and this
+// is not built from it.
+//
+// ⚠️ **It is a projection, so it works before there is a season to read.** At
+// GW1 both clubs' rates are their priors, which is the case a backward-looking
+// xG table cannot cover at all.
+func (e *Engine) FixtureGoals(homeID, awayID int) (home, away float64) {
+	return e.teamRates(homeID).Scored * e.magnitudeAttack(awayID),
+		e.teamRates(awayID).Scored * e.magnitudeAttack(homeID)
+}

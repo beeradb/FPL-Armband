@@ -1,0 +1,8 @@
+key,value
+commit,ceded851360585886831d9b026fa1f142a595e37
+base,0d44f073f8c449e2492fd6855d6ad133fc8fba82
+dirty,false — see the commit that adds this file
+test,TestDiagTemplateCore
+seasons,2020-21..2025-26
+slots_per_season,418
+unit,"STARTING SLOTS, not points"
