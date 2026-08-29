@@ -89,6 +89,8 @@ func TestDiagTemplateCore(t *testing.T) {
 	fmt.Printf("start. A model reproducing a template has a small core and low breadth.\n\n")
 	fmt.Printf("%-9s %6s %6s %7s %8s %8s %9s %9s  %s\n",
 		"season", "weeks", "N50", "top15", "core>=80", "cond>=60", "breadth", "top-8 hit", "most-used")
+	fmt.Printf("%-9s %6s %6s %6s   the ladder in SLOTS: the core, the squad, the pool\n",
+		"", "N50", "N75", "N90")
 
 	// Banked so the tables below are re-derivable rather than only
 	// re-measurable. This diagnostic printed and banked nothing until
@@ -147,14 +149,35 @@ func TestDiagTemplateCore(t *testing.T) {
 			total += n
 		}
 		sort.Sort(sort.Reverse(sort.IntSlice(counts)))
-		n50, run := 0, 0
-		for _, n := range counts {
-			run += n
-			n50++
-			if run*2 >= total {
-				break
+		// nAt is how many distinct players supply the given share of all
+		// starting slots.
+		//
+		// ⚠️ There is NO NULL for any rung. Nothing here establishes what a
+		// churning projection would score, and an over-concentrated
+		// deterministic argmax reads low too — this is a census of what the
+		// optimum did, not a result against noise.
+		//
+		// Slots are the currency the season actually spends —
+		// eleven a week, no more — so the ladder is denominated in them and not
+		// in points. Points are what the slots are spent FOR, and that is a
+		// different quantity measured elsewhere.
+		//
+		// ⚠️ The three rungs answer different questions and only the first is the
+		// owner's original claim. N50 is the CORE. N90 is closer to "everyone who
+		// could reasonably feature" — the squad you would actually have to rate
+		// well — and the gap between them is the size of the rotating edge.
+		nAt := func(pct int) int {
+			k, run := 0, 0
+			for _, n := range counts {
+				run += n
+				k++
+				if run*100 >= total*pct {
+					break
+				}
 			}
+			return k
 		}
+		n50, n75, n90 := nAt(50), nAt(75), nAt(90)
 		var top15 int
 		for i, n := range counts {
 			if i >= 15 {
@@ -222,10 +245,12 @@ func TestDiagTemplateCore(t *testing.T) {
 			}
 			names = append(names, fmt.Sprintf("%s%s(%d%%)", n, mark, 100*inXI[id]/weeks))
 		}
+		fmt.Printf("%-9s %6d %6d %6d\n", pr.Name, n50, n75, n90)
 		fmt.Printf("%-9s %6d %6d %6.0f%% %8d %8d %9d %9s  %v\n",
 			pr.Name, weeks, n50, 100*float64(top15)/float64(total), len(core80),
 			len(condCore), len(inXI), fmt.Sprintf("%d/%d", hit, len(core80)), names)
 		conc = append(conc, []string{pr.Name, strconv.Itoa(weeks), strconv.Itoa(n50),
+			strconv.Itoa(n75), strconv.Itoa(n90),
 			strconv.FormatFloat(100*float64(top15)/float64(total), 'f', 1, 64),
 			strconv.Itoa(len(core80)), strconv.Itoa(len(condCore)),
 			strconv.Itoa(len(inXI)), strconv.Itoa(hit)})
@@ -356,7 +381,7 @@ func TestDiagTemplateCore(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		write("concentration.csv", []string{"season", "weeks", "n50", "top15_pct",
+		write("concentration.csv", []string{"season", "weeks", "n50", "n75", "n90", "top15_pct",
 			"core_ge80", "cond_ge60", "breadth", "top8_hit"}, conc)
 		// held and seen rather than a percentage: a ratio cannot be re-aggregated
 		// across seasons and the counts can.
