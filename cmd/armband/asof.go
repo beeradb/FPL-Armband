@@ -106,6 +106,20 @@ func cmdAsOf(ctx context.Context, cfg config.Config, args []string) error {
 	// before this one began — so loading them introduces no leakage. The gate is
 	// the live path's: only once the season has started, because before then FPL's
 	// own aggregates already ARE last season's totals.
+	// ⚠️ The live path has TWO prior sources and this has one. When
+	// prior_half_life is set it first tries recent.LoadPriors, a multi-season
+	// blend that needs a live client — which an as-of run does not have and must
+	// not acquire. It ships at 0, so with the deployed config the two paths are
+	// exactly equivalent; if anyone turns it on, this would silently score a
+	// different model than the live engine while still claiming parity. Refuse
+	// rather than diverge quietly.
+	if cfg.Weights.PriorHalfLife > 0 {
+		return fmt.Errorf("prior_half_life is %v, so the live path would blend "+
+			"multiple prior seasons through a live client that an as-of run does "+
+			"not have; this command would score a different model than the engine "+
+			"it is being compared against", cfg.Weights.PriorHalfLife)
+	}
+
 	if engine.SeasonHasStarted() {
 		s, err := priors.Load(ctx, cfg.CacheDir, priorSeasonName(engine))
 		if err != nil {
