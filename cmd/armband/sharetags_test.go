@@ -67,6 +67,16 @@ func TestTheFrontDoorCarriesItsShareTags(t *testing.T) {
 		t.Error("the card is declared summary_large_image but no same-origin " +
 			"og:image backs it")
 	}
+
+	// ⚠️ And the image must actually RESOLVE. Matching the string only proves the
+	// page names a path; a rename or deletion of the asset would leave this test
+	// green and the card blank, which is the same class of miss as pinning a
+	// filename instead of the route. Raised in review — the asset exists today,
+	// so this closes a hole rather than fixing a break.
+	if img := get(t, s, prefixAssets+"og-image.png"); img.Code != http.StatusOK {
+		t.Errorf("the og:image the front door names answers %d, not 200 — the "+
+			"card would unfurl with a blank image well", img.Code)
+	}
 }
 
 // TestTheAboutPageKeepsItsOwnShareTags guards the other half.
