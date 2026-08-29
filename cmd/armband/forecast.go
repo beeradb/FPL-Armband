@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"armband/internal/analysis"
+	"armband/internal/fpl"
 )
 
 // cmdForecast prints projected goals for and against, per fixture.
@@ -34,13 +35,20 @@ func cmdForecast(e *analysis.Engine, args []string) error {
 		return fmt.Errorf("loading Europe/London: %w", err)
 	}
 
-	// Default to the next gameweek that still has an unfinished fixture. Doing
-	// this rather than "the current event" because a gameweek FPL still calls
-	// current can be entirely played out.
+	// Default to the next gameweek that still has a fixture this command can
+	// show. Doing this rather than "the current event" because a gameweek FPL
+	// still calls current can be entirely played out.
+	//
+	// ⚠️ It scans on `showable`, the same predicate the rows are built with. An
+	// earlier version scanned on a LOOSER one that ignored a missing kick-off
+	// time, so a gameweek holding nothing but a rearranged TBC fixture could be
+	// chosen and then render zero rows — the command going silent at exactly
+	// the moment it had a later gameweek's worth of fixtures to print. Two
+	// predicates for one question is how that happens; there is now one.
 	if *week == 0 && *date == "" {
 		best := 0
 		for _, f := range e.Fixtures {
-			if f.Finished || f.Event == nil {
+			if !showable(f) || f.Event == nil {
 				continue
 			}
 			if best == 0 || *f.Event < best {
@@ -76,7 +84,7 @@ func cmdForecast(e *analysis.Engine, args []string) error {
 
 	var rows []row
 	for _, f := range e.Fixtures {
-		if f.Finished || f.KickoffTime == nil || f.Event == nil {
+		if !showable(f) || f.Event == nil {
 			continue
 		}
 		if *week != 0 && *f.Event != *week {
@@ -126,4 +134,17 @@ func cmdForecast(e *analysis.Engine, args []string) error {
 			dim(fmt.Sprintf("(%d played)", r.Played)))
 	}
 	return nil
+}
+
+// showable reports whether a fixture can appear in a forecast at all: still to
+// be played, and with a kick-off time to sort and group it by. A rearranged
+// fixture with a TBC date has no time yet and is not showable — it is not
+// missing from the season, only from this card, and it reappears the moment FPL
+// sets a date.
+//
+// ⚠️ Both the row filter and the default-gameweek scan go through this. They
+// are one question and must not drift apart; see cmdForecast's comment for what
+// happened when they did.
+func showable(f fpl.Fixture) bool {
+	return !f.Finished && f.KickoffTime != nil
 }

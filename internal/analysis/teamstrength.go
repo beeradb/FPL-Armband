@@ -344,20 +344,35 @@ func (e *Engine) TeamRatesFor(teamID int) TeamRates {
 // FixtureGoals projects the goals each side scores in one fixture: a club's own
 // rate, scaled by how leaky the opponent actually is.
 //
-// # Why this is a composition and not a new model
+// # What is fitted here, and what is assumed
 //
-// Both halves already exist and are already fitted. `teamRates` gives a club's
-// goals per match, blended between FPL's pre-season rating and this season's
-// record. `magnitudeAttack` gives the opponent-leakiness multiplier, and it is
-// the DAMPED form for a measured reason: a straight ratio re-rating the worst
-// defences gave attackers +30% where the measured truth is +23%, so the
-// exponent is a square root and the result is clamped to [0.60, 1.60]. Using
-// the raw ratio here would silently discard that finding and re-introduce the
-// overshoot it was fitted to remove.
+// `teamRates` is fitted: a club's goals per match, blended between FPL's
+// pre-season rating and this season's record, with the blend constants
+// measured out of sample in TestDiagTeamBlendPriorSource.
 //
-// The neutral-opponent identity is what makes the composition honest, and it is
-// pinned: against an opponent conceding exactly the league average the
-// projection IS the club's own scored rate, because the multiplier is 1.
+// The multiplier is the damped `magnitudeAttack` rather than a raw ratio,
+// because that is this package's only fitted response to opponent strength and
+// a second one would be a second implementation of the same idea.
+//
+// ⚠️ **But it was fitted against a different quantity than this one.** The
+// square root and the [0.60, 1.60] clamp come from ATTACKING RETURNS — FPL
+// points from goals, assists and bonus — where re-rating the worst defences
+// gave +30% against a measured +23%. Here it scales a club's raw GOALS. Those
+// two elasticities need not be equal, and nothing has measured whether they
+// are, so the choice is conservative rather than correct: the damped form
+// under-reacts to a leaky defence where a raw ratio would over-react, and
+// under-reacting is the cheaper error for a number that gets published.
+// TestFixtureGoalsUsesTheDampedMultiplierRatherThanTheRawRatio pins which form
+// ships; it does not establish that this one is right.
+//
+// ⚠️ **This is a reporting surface, not a fixture-difficulty rating for
+// picking players.** The closed line against a custom FDR was measured on
+// replayed points totals, and this changes no scoring path: `magnitudeAttack`
+// still reaches Score only under FPL_MAGNITUDE, which still ships off.
+//
+// The neutral-opponent identity is what keeps the number readable on its own,
+// and it is pinned: against an opponent conceding exactly the league average
+// the projection IS the club's own scored rate, because the multiplier is 1.
 // TestAFixtureAgainstAnAverageOpponentIsTheClubsOwnRate.
 //
 // ⚠️ **There is no home advantage in this number.** priorFromStrength averages

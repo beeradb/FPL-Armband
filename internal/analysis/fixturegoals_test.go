@@ -56,12 +56,17 @@ func TestAFixtureAgainstAnAverageOpponentIsTheClubsOwnRate(t *testing.T) {
 	}
 }
 
-// TestFixtureGoalsUsesTheDampedMultiplierRatherThanTheRawRatio guards the
-// measured finding the composition could most easily throw away. A straight
-// ratio re-rating the leakiest defences gave attackers +30% where the measured
-// truth is +23%; magnitudeRatio takes a square root for exactly that reason.
-// Multiplying by the raw ratio here would reintroduce the overshoot silently,
-// because both forms move in the same direction and only the SIZE differs.
+// TestFixtureGoalsUsesTheDampedMultiplierRatherThanTheRawRatio pins WHICH form
+// ships, and deliberately does not claim it is the right one.
+//
+// The two forms move in the same direction and differ only in SIZE, so a swap
+// between them is invisible in any output a person eyeballs — which is the only
+// reason this test exists. ⚠️ It is not evidence for the damped form. The
+// square root was fitted against attacking RETURNS and is used here on club
+// GOALS, and whether those two respond to a leaky defence by the same amount is
+// unmeasured; see FixtureGoals's doc comment. If someone measures it and the
+// raw ratio wins, this test is what they should change, not what should stop
+// them.
 func TestFixtureGoalsUsesTheDampedMultiplierRatherThanTheRawRatio(t *testing.T) {
 	// A leaky opponent (club 2, weak defence) against two average clubs, so the
 	// league average is pulled by only one club and the ratio is well above 1.
@@ -85,10 +90,10 @@ func TestFixtureGoalsUsesTheDampedMultiplierRatherThanTheRawRatio(t *testing.T) 
 		t.Errorf("projection %v, want the DAMPED %v", home, damped)
 	}
 	if math.Abs(home-raw) < 1e-9 {
-		t.Errorf("projection %v equals the RAW ratio form %v. The exponent was "+
-			"fitted because the raw ratio overshoots — +30%% against the "+
-			"leakiest defences where the measured truth is +23%% — so a "+
-			"FixtureGoals that agrees with it is discarding that measurement",
+		t.Errorf("projection %v equals the RAW ratio form %v, so the damping is "+
+			"no longer being applied. That may be the right call — nothing has "+
+			"measured the two on club goals — but it is a change of shipped "+
+			"behaviour and must be made deliberately rather than by a refactor",
 			home, raw)
 	}
 }
