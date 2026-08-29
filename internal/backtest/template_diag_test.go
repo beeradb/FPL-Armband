@@ -150,7 +150,14 @@ func TestDiagTemplateCore(t *testing.T) {
 		}
 		sort.Sort(sort.Reverse(sort.IntSlice(counts)))
 		// nAt is how many distinct players supply the given share of all
-		// starting slots. Slots are the currency the season actually spends —
+		// starting slots.
+		//
+		// ⚠️ There is NO NULL for any rung. Nothing here establishes what a
+		// churning projection would score, and an over-concentrated
+		// deterministic argmax reads low too — this is a census of what the
+		// optimum did, not a result against noise.
+		//
+		// Slots are the currency the season actually spends —
 		// eleven a week, no more — so the ladder is denominated in them and not
 		// in points. Points are what the slots are spent FOR, and that is a
 		// different quantity measured elsewhere.
