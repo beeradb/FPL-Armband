@@ -426,7 +426,9 @@ func TestDiagAttackDefenceLeanDecomposition(t *testing.T) {
 
 	fmt.Printf("\n=== sanity check against prior work — NOT a target, a divergence is reported either way\n")
 	fmt.Printf("Prior work (TestDiagTeamGoalShare's \"expected minutes per club per match\") measured\n")
-	fmt.Printf("modelMinutes/990 averaging close to 0.99 across club-seasons — exactly this file's C.\n")
+	fmt.Printf("modelMinutes/990 near 0.99 — the same quantity as this file's C, but that figure is\n")
+	fmt.Printf("STALE: it predates 5b970338, which removed the GameweeksPlayed()==0 gate on\n")
+	fmt.Printf("shrinkToLeague's volume branch. The current expectation is 1058/990 ~ 1.069.\n")
 	fmt.Printf("S was separately expected near 0.98. Measured here, pooled: S = %.4f (lnS = %.4f),\n",
 		math.Exp(pooled.lnS), pooled.lnS)
 	fmt.Printf("C = %.4f (lnC = %.4f). ", math.Exp(pooled.lnC), pooled.lnC)
