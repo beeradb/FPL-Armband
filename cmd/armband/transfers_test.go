@@ -333,7 +333,7 @@ func TestEverySelfParsingCommandIsDispatchedBeforeTheGuard(t *testing.T) {
 	known := map[string]bool{
 		"snapshot": true, "capture": true,
 		"backfill": true, "serve": true, "overrides": true, "drift": true,
-		"xpoints": true,
+		"xpoints": true, "forecast": true,
 	}
 	for cmd := range commandsThatParseTheirOwnFlags {
 		if !known[cmd] {

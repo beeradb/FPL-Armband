@@ -43,6 +43,10 @@ Usage:
   armband transfers         Best transfers for the squad you own, as a team sheet
                             (no AI, no API cost)
   armband fixtures          Fixture difficulty table (no AI, no API cost)
+  armband forecast          Projected goals for and against, per fixture — the
+                            magnitude FPL's integer 1-5 difficulty cannot
+                            express. Projected GOALS, not xG. Takes -date,
+                            -gameweek and -json. (no AI, no API cost)
   armband overrides         Which hand-written minutes overrides the model now
                             agrees with by itself, and which are still doing
                             work. Retiring a redundant one is less to maintain
@@ -124,9 +128,9 @@ Examples:
   armband squad -html squad.html    WRONG, and an error rather than a squad
                                      printed with the file never written
 
-  Seven commands parse their own flags, which therefore go AFTER the command:
-  capture, backfill, snapshot, serve, overrides, drift and xpoints. Their flags
-  still come
+  Eight commands parse their own flags, which therefore go AFTER the command:
+  capture, backfill, snapshot, serve, overrides, drift, xpoints and forecast.
+  Their flags still come
   before their own positional arguments, for the same reason — a FlagSet stops
   at the first non-flag argument too, so "backfill 2023-24 -coverage" reads
   -coverage as a second season name and crawls the archive it was meant to
@@ -427,6 +431,8 @@ func run() error {
 		return cmdTransfers(ctx, cfg, client, engine, *plain, *htmlOut)
 	case "fixtures":
 		return cmdFixtures(engine, cfg)
+	case "forecast":
+		return cmdForecast(engine, flag.Args()[1:])
 	case "xpoints":
 		return cmdXPoints(cfg, engine, flag.Args()[1:])
 	case "nations":
@@ -1677,6 +1683,7 @@ var commandsThatParseTheirOwnFlags = map[string]bool{
 	"overrides": true, // cmdOverrideCheck takes -within
 	"drift":     true, // cmdDrift takes -season, -from, -through and -out
 	"xpoints":   true, // cmdXPoints takes -gw, -pos, -sort, -n and -format
+	"forecast":  true, // cmdForecast takes -date, -gameweek and -json
 }
 
 // rejectFlagsAfterCommand turns a silent no-op into an error.
