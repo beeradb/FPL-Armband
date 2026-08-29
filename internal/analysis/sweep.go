@@ -641,6 +641,12 @@ func PlaysAtAll(meanMinutes float64) float64 { return playsAtAll(meanMinutes) }
 // package's diagnostics and once fed a published figure.
 func AttackMultiplier(difficulty int) float64 { return attackMultiplier(difficulty) }
 
+// DefenceMultiplier is the shipped defensive fixture ladder at one FPL
+// difficulty, exported for the same reason AttackMultiplier is — a diagnostic
+// comparing the two ladders' gains must read the ladder the model runs, not a
+// hand-copied set of numbers that can drift from it.
+func DefenceMultiplier(difficulty int) float64 { return defenceMultiplier(difficulty) }
+
 // SetUnifiedAppearance routes blankRate through the single appearance estimator
 // (true, shipped) or through the second start-share fit it replaced (false). See
 // appearance.go for why there were two and which one is better. Not safe to call
