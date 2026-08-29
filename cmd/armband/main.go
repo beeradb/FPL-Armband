@@ -293,6 +293,15 @@ func run() error {
 		return cmdDrift(ctx, cfg, flag.Args()[1:])
 	}
 
+	// As-of joins them for drift's reason exactly: it builds its own engine from a
+	// capture on disk and never talks to FPL, so a live fetch first would be a
+	// round trip in service of a command that reads none of it — and would make an
+	// as-of run fail on a live outage, which is the dependency the capture exists
+	// to remove.
+	if cmd == "asof" {
+		return cmdAsOf(cfg, flag.Args()[1:])
+	}
+
 	fmt.Fprint(os.Stderr, dim("Loading FPL data... "))
 	boot, err := client.Bootstrap(ctx)
 	if err != nil {
@@ -1683,6 +1692,7 @@ var commandsThatParseTheirOwnFlags = map[string]bool{
 	"overrides": true, // cmdOverrideCheck takes -within
 	"drift":     true, // cmdDrift takes -season, -from, -through and -out
 	"xpoints":   true, // cmdXPoints takes -gw, -pos, -sort, -n and -format
+	"asof":      true, // cmdAsOf takes -budget and -json
 	"forecast":  true, // cmdForecast takes -date, -gameweek and -json
 }
 
