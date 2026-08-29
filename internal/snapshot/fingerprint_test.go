@@ -135,6 +135,11 @@ func TestEnvSwitchListIsComplete(t *testing.T) {
 	skip := map[string]bool{
 		"FPL_SESSION": true, // a credential; a snapshot is committed
 		"FPL_CELLS":   true, // where to write, not what to compute
+		// Where TestDiagTemplateCore writes its two cell files. An output
+		// directory on the same footing as FPL_CELLS: nothing on the scoring or
+		// replay path reads it, and with it unset the diagnostic computes and
+		// prints exactly the same tables. It cannot move a measured number.
+		"FPL_CELLS_DIR": true,
 		// Forces the layout goldens to compare in CI, where they are otherwise
 		// skipped because GitHub's runners render every shot 2/255 off the
 		// committed PNGs. It gates a TEST, not a model input: nothing on the
