@@ -192,11 +192,79 @@ package backtest
 // is one edit away from one that also dedups or picks a representative, and this
 // keeps that edit safe rather than merely currently harmless.
 //
+// # The SIZE of the effect, not just its correlation
+//
+// The owner's own framing, verbatim: "If it moves any minutes for our core
+// players then it's worth it… let's look at the slope. Focus on the top
+// producers." A correlation clearing its 5% critical value says the
+// relationship is unlikely to be pure noise; it says nothing about how many
+// MINUTES it is worth, and on a spread this narrow (see the histogram above —
+// 110 of 126 defenders sit in one 10-minute bin) a real correlation can still
+// be practically nil. So this diagnostic also fits an ordinary-least-squares
+// regression of minutes_per_start on defcon_per_90, within position, and
+// reports:
+//
+//   - the slope itself, in minutes of minutes_per_start per unit of
+//     defcon_per_90, with its standard error (`defconComputeOLS`, the
+//     closed-form OLS estimator over the same centred sums `correlation`
+//     above already takes — its r² is cross-checked against
+//     correlation(xs,ys)^2 in TestDefconSlopeGroups rather than trusted as an
+//     independent second implementation of the same quantity)
+//   - the PREDICTED minutes_per_start at the 10th and 90th percentile of
+//     defcon_per_90 actually observed in that population (`defconPercentile`,
+//     linear interpolation between order statistics — R's default "type 7"),
+//     and the difference between the two predictions. That difference, not
+//     the slope's raw units, is the number the owner is actually asking for:
+//     how many minutes does moving from a low-defcon to a high-defcon player
+//     in this position buy, over the spread that actually exists in the data —
+//     rather than an extrapolation to some arbitrary round number of
+//     defcon/90 nobody in the population is near.
+//   - r², beside the slope, so the share of variance explained sits next to
+//     the size rather than needing a second table to see.
+//
+// # Restricted to TOP PRODUCERS — defined by REALISED points, never by the model
+//
+// ⚠️ **The population is realised total points (`Player.TotalPoints`, read
+// straight off `players_raw.csv`'s season aggregate), never the model's own
+// optimum, squad selection or expected points.** A sibling finding in this
+// project's record is explicit about exactly why that alternative would be
+// circular: defining "the core" as whatever the model's own optimum already
+// picked, then asking whether a signal the model does not use would have
+// picked the same players, answers a question about the model's existing
+// blind spots rather than about football. Realised points is an OUTCOME
+// external to every scoring term this codebase computes, so a slope measured
+// against it cannot be inflated or deflated by anything `Score` does.
+//
+// Three nested populations per position, all built from the SAME qualifying
+// set as the correlation above (Starts == 1, StartsReconstructed == false,
+// Fixtures == 1, Minutes > 0, minimum 10 starts — `defconFilterByStarts`):
+// every qualifying player, then the top 30 by season TotalPoints within that
+// position (`defconTopByPoints`), then the top 15. Narrowing this way answers
+// a question the pooled correlation cannot: does the effect strengthen,
+// weaken or hold as the population shrinks toward the players a squad would
+// actually contain? The points cutoff — the lowest TotalPoints value still
+// inside a group — is printed beside every table, since "top 30" silently
+// means "top 9" wherever a position does not have 30 qualifying players
+// (goalkeepers, most seasons, and possibly others depending on the row
+// filter's own attrition).
+//
+// # The 60-minute channel
+//
+// Appearance points and clean-sheet eligibility both turn on 60 minutes
+// played in a match — a discontinuity a smooth slope cannot, by itself, show
+// is harmless or dangerous. A five-minute shift that stays at 80 minutes
+// changes nothing FPL pays for; the same five minutes crossing 60 changes two
+// scoring rules at once. So every predicted figure (at the 10th and 90th
+// percentile of defcon_per_90, for every group) is labelled against 60
+// explicitly (`defconMinutesChannel`) rather than left for a reader to eyeball
+// a number against a threshold this diagnostic already knows.
+//
 // # What this changes
 //
-// Nothing. No scoring term moves and no config value changes. This is a coverage
-// and correlation READING; a positive result would make the defcon-as-role-proxy
-// idea worth building, not something this diagnostic ships on its own.
+// Nothing. No scoring term moves and no config value changes. This is a coverage,
+// correlation and effect-SIZE reading; a positive result would make the
+// defcon-as-role-proxy idea worth building, not something this diagnostic ships
+// on its own.
 
 import (
 	"context"
@@ -472,6 +540,189 @@ func defconHistogram(xs []float64, binWidth, maxVal float64) []int {
 	return bins
 }
 
+// defconOLSResult is an ordinary-least-squares fit of some y on some x (here,
+// minutes_per_start on defcon_per_90), with the closed-form slope, its
+// standard error and r². haveFit is false below n=3 (`correlation`'s own
+// guard, mirrored here) or when x is constant, where the slope is undefined
+// rather than zero.
+type defconOLSResult struct {
+	n         int
+	slope     float64
+	intercept float64
+	seSlope   float64
+	r2        float64
+	haveFit   bool
+}
+
+// defconComputeOLS fits y = intercept + slope*x by ordinary least squares,
+// the closed form over centred sums — the same sums `correlation` above
+// already takes, so this function's r² is cross-checked against
+// correlation(xs,ys)^2 in TestDefconSlopeGroups rather than trusted as an
+// independent second implementation of one quantity, which is this package's
+// own recorded failure mode (stats_test.go's header).
+func defconComputeOLS(xs, ys []float64) defconOLSResult {
+	res := defconOLSResult{n: len(xs)}
+	if len(xs) != len(ys) || len(xs) < 3 {
+		return res
+	}
+	n := float64(len(xs))
+	var sx, sy float64
+	for i := range xs {
+		sx += xs[i]
+		sy += ys[i]
+	}
+	mx, my := sx/n, sy/n
+	var sxx, syy, sxy float64
+	for i := range xs {
+		dx, dy := xs[i]-mx, ys[i]-my
+		sxx += dx * dx
+		syy += dy * dy
+		sxy += dx * dy
+	}
+	if sxx == 0 {
+		return res // every x identical: the slope is undefined, not zero
+	}
+	slope := sxy / sxx
+	intercept := my - slope*mx
+	// SSE = Syy - slope*Sxy, algebraically identical to Syy - slope^2*Sxx.
+	sse := syy - slope*sxy
+	if sse < 0 {
+		sse = 0 // float noise only; a true residual sum of squares cannot be negative
+	}
+	df := len(xs) - 2
+	var seSlope float64
+	if df > 0 {
+		seSlope = math.Sqrt((sse / float64(df)) / sxx)
+	}
+	var r2 float64
+	if syy > 0 {
+		r2 = (sxy * sxy) / (sxx * syy)
+	}
+	res.slope, res.intercept, res.seSlope, res.r2, res.haveFit = slope, intercept, seSlope, r2, true
+	return res
+}
+
+// defconPercentile is the p-th percentile (p in [0,1]) of xs by linear
+// interpolation between order statistics — R's default ("type 7") quantile
+// estimator. Sorts a copy; the caller's slice order is not disturbed, since
+// several callers elsewhere in this package pass a slice whose order carries
+// meaning (see [stats.Median]'s own comment on the same point).
+func defconPercentile(xs []float64, p float64) float64 {
+	n := len(xs)
+	if n == 0 {
+		return 0
+	}
+	s := append([]float64(nil), xs...)
+	sort.Float64s(s)
+	if n == 1 {
+		return s[0]
+	}
+	pos := p * float64(n-1)
+	lo := int(math.Floor(pos))
+	hi := int(math.Ceil(pos))
+	if lo == hi {
+		return s[lo]
+	}
+	frac := pos - float64(lo)
+	return s[lo]*(1-frac) + s[hi]*frac
+}
+
+// defconTopByPoints returns the n players in players with the highest
+// Player.TotalPoints (via points, id -> season total), ties broken by id
+// ascending for determinism — the same convention `topByPoints`
+// (appearancefloor_diag_test.go) already uses for the identical "top N by
+// realised points" idea. Kept as a separate function because that helper
+// selects from a `seasonMatches` pool league-wide, not per position, and this
+// diagnostic's population is `defconPlayerAgg`, this file's own per-player
+// aggregate over qualifying rows only. Returns fewer than n, never pads or
+// errors, when the qualifying population itself is smaller than n — which the
+// caller must report as the actual group size, not silently claim n.
+func defconTopByPoints(players []*defconPlayerAgg, points map[int]int, n int) []*defconPlayerAgg {
+	sorted := append([]*defconPlayerAgg(nil), players...)
+	sort.Slice(sorted, func(i, j int) bool {
+		pi, pj := points[sorted[i].id], points[sorted[j].id]
+		if pi != pj {
+			return pi > pj
+		}
+		return sorted[i].id < sorted[j].id
+	})
+	if n > len(sorted) {
+		n = len(sorted)
+	}
+	return sorted[:n]
+}
+
+// defconFilterByStarts is the >= threshold starts filter, factored out so the
+// slope tables below and the correlation table above draw from the identical
+// qualifying set rather than two expressions of "enough starts to trust".
+func defconFilterByStarts(players []*defconPlayerAgg, minStarts int) []*defconPlayerAgg {
+	var out []*defconPlayerAgg
+	for _, a := range players {
+		if a.starts >= minStarts {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// defconSlopeGroup is one population (every qualifying player at a position,
+// or a top-N-by-points slice of them) with its OLS fit and the predicted
+// minutes_per_start at the observed 10th and 90th percentile of
+// defcon_per_90 — the gap between those two predictions is the number the
+// owner's brief asks for.
+type defconSlopeGroup struct {
+	label            string
+	n                int
+	havePointsCutoff bool
+	pointsCutoff     int // lowest TotalPoints inside this group; meaningless (havePointsCutoff false) for "all qualifying"
+	ols              defconOLSResult
+	p10, p90         float64 // observed defcon_per_90 at the 10th/90th percentile of this group
+	pred10, pred90   float64 // predicted minutes_per_start at those two percentiles
+	diff             float64 // pred90 - pred10, algebraically slope*(p90-p10) — the practical lever
+}
+
+func defconComputeSlopeGroup(label string, players []*defconPlayerAgg, points map[int]int, reportCutoff bool) defconSlopeGroup {
+	g := defconSlopeGroup{label: label, n: len(players)}
+	if reportCutoff && len(players) > 0 {
+		g.havePointsCutoff = true
+		g.pointsCutoff = points[players[0].id]
+		for _, a := range players {
+			if points[a.id] < g.pointsCutoff {
+				g.pointsCutoff = points[a.id]
+			}
+		}
+	}
+	var xs, ys []float64
+	for _, a := range players {
+		xs = append(xs, a.defconPer90())
+		ys = append(ys, a.minutesPerStart())
+	}
+	g.ols = defconComputeOLS(xs, ys)
+	if g.ols.haveFit {
+		g.p10 = defconPercentile(xs, 0.10)
+		g.p90 = defconPercentile(xs, 0.90)
+		g.pred10 = g.ols.intercept + g.ols.slope*g.p10
+		g.pred90 = g.ols.intercept + g.ols.slope*g.p90
+		g.diff = g.pred90 - g.pred10
+	}
+	return g
+}
+
+// defconMinutesChannel labels which side of the 60-minute appearance/clean-
+// sheet threshold a predicted minutes figure falls on, per the header's "The
+// 60-minute channel" section — stated explicitly so a reader does not have to
+// eyeball every predicted figure against 60 by hand.
+func defconMinutesChannel(mins float64) string {
+	switch {
+	case mins < 60:
+		return "BELOW 60 — appearance/clean-sheet points at risk"
+	case mins < 75:
+		return "60-75 — within reach of the threshold"
+	default:
+		return ">=75 — nowhere near 60"
+	}
+}
+
 func TestDiagDefconMinutesPerStart(t *testing.T) {
 	requireDiag(t)
 	cfg := loadConfig(t)
@@ -623,10 +874,73 @@ func TestDiagDefconMinutesPerStart(t *testing.T) {
 	fmt.Printf("between the rightmost bins and a separate lower cluster is the bimodal shape\n")
 	fmt.Printf("the centre-back/full-back hypothesis predicts for DEF specifically.\n")
 
+	fmt.Printf("\n=== the SIZE: OLS slope of minutes_per_start on defcon_per_90, for TOP\n")
+	fmt.Printf("PRODUCERS (realised season TotalPoints — never a model output, squad pick or\n")
+	fmt.Printf("expected points, see header) within each position, at the headline >= %d\n", defconMinStarts)
+	fmt.Printf("starts filter. \"cutoff\" is the lowest TotalPoints value still inside that\n")
+	fmt.Printf("group; \"diff\" is the predicted minutes_per_start at the 90th percentile of\n")
+	fmt.Printf("defcon_per_90 minus the same at the 10th — the practical lever the owner asked\n")
+	fmt.Printf("for, over the spread that actually exists in this population.\n\n")
+
+	points := map[int]int{}
+	for id, p := range s.Players {
+		points[id] = p.TotalPoints
+	}
+
+	printSlopeGroup := func(g defconSlopeGroup) {
+		cutoffStr := "n/a"
+		if g.havePointsCutoff {
+			cutoffStr = fmt.Sprintf("%d", g.pointsCutoff)
+		}
+		if !g.ols.haveFit {
+			fmt.Printf("  %-16s n=%-4d cutoff=%-6s (n<3 or defcon_per_90 constant across the group: no fit)\n",
+				g.label, g.n, cutoffStr)
+			return
+		}
+		fmt.Printf("  %-16s n=%-4d cutoff=%-6s slope=%8.3f (SE %6.3f)  r2=%5.3f\n",
+			g.label, g.n, cutoffStr, g.ols.slope, g.ols.seSlope, g.ols.r2)
+		fmt.Printf("  %-16s   defcon/90 p10=%6.3f -> pred mins/start=%6.1f (%s)\n",
+			"", g.p10, g.pred10, defconMinutesChannel(g.pred10))
+		fmt.Printf("  %-16s   defcon/90 p90=%6.3f -> pred mins/start=%6.1f (%s)\n",
+			"", g.p90, g.pred90, defconMinutesChannel(g.pred90))
+		fmt.Printf("  %-16s   difference (p90 minus p10 prediction): %6.1f minutes\n", "", g.diff)
+	}
+
+	for _, pos := range positions {
+		qualifying := defconFilterByStarts(byPos[pos], defconMinStarts)
+		fmt.Printf("--- %s: %d qualifying (>= %d starts) ---\n", defconPosName[pos], len(qualifying), defconMinStarts)
+		if len(qualifying) == 0 {
+			fmt.Printf("  (no qualifying players)\n\n")
+			continue
+		}
+		printSlopeGroup(defconComputeSlopeGroup("all qualifying", qualifying, points, false))
+		for _, n := range []int{30, 15} {
+			top := defconTopByPoints(qualifying, points, n)
+			label := fmt.Sprintf("top %d", n)
+			if len(top) < n {
+				label = fmt.Sprintf("top %d (n=%d)", n, len(top))
+			}
+			printSlopeGroup(defconComputeSlopeGroup(label, top, points, true))
+		}
+		fmt.Printf("\n")
+	}
+
+	fmt.Printf("Read the three rows per position top to bottom: if the difference holds or\n")
+	fmt.Printf("grows as the population narrows from \"all qualifying\" to \"top 15\", the effect\n")
+	fmt.Printf("is not an artefact of players who barely play; if it shrinks or flips sign, the\n")
+	fmt.Printf("pooled correlation above was mostly about players outside the squad a manager\n")
+	fmt.Printf("would actually field. Every predicted figure already carries its own label\n")
+	fmt.Printf("against the 60-minute threshold (header, \"The 60-minute channel\") — if none of\n")
+	fmt.Printf("the top-producer rows print BELOW 60 or 60-75, the effect cannot pay through\n")
+	fmt.Printf("that specific channel regardless of its size, and this reading says so plainly\n")
+	fmt.Printf("rather than leaving it to be read off the numbers by eye.\n")
+
 	fmt.Printf("\nThis diagnostic authorises nothing: no scoring term moves. A material\n")
-	fmt.Printf("within-position |r| clearing its own critical value, concentrated in DEF and\n")
-	fmt.Printf("paired with a bimodal DEF histogram, would make the defcon-as-role-proxy idea\n")
-	fmt.Printf("worth building; anything less is reported plainly as such.\n")
+	fmt.Printf("within-position |r| clearing its own critical value, concentrated in DEF,\n")
+	fmt.Printf("paired with a bimodal DEF histogram, AND a slope that holds up (or grows) for\n")
+	fmt.Printf("top producers specifically, would make the defcon-as-role-proxy idea worth\n")
+	fmt.Printf("building; anything less is reported plainly as such, including a small or\n")
+	fmt.Printf("shrinking size — that is a perfectly good result to report.\n")
 }
 
 // TestDefconMinutesPerStartWiring pins the row filter and the critical-value
@@ -744,6 +1058,158 @@ func TestDefconMinutesPerStartWiring(t *testing.T) {
 	for i := range want {
 		if bins[i] != want[i] {
 			t.Fatalf("bins = %v, want %v", bins, want)
+		}
+	}
+}
+
+// TestDefconSlopeGroups pins the OLS arithmetic, the percentile estimator,
+// the top-by-points slicing and the 60-minute channel label — the additions
+// this diagnostic grew to answer the owner's "how many minutes, for the top
+// producers" question, none of which TestDefconMinutesPerStartWiring above
+// (row filter, significance arithmetic, histogram) touches.
+func TestDefconSlopeGroups(t *testing.T) {
+	// --- defconComputeOLS: exact by construction, y = 2 + 3x with no noise ---
+	xs := []float64{1, 2, 3, 4, 5}
+	ys := make([]float64, len(xs))
+	for i, x := range xs {
+		ys[i] = 2 + 3*x
+	}
+	ols := defconComputeOLS(xs, ys)
+	if !ols.haveFit {
+		t.Fatal("haveFit = false for a clean linear fit")
+	}
+	if math.Abs(ols.slope-3) > 1e-9 {
+		t.Fatalf("slope = %v, want 3", ols.slope)
+	}
+	if math.Abs(ols.intercept-2) > 1e-9 {
+		t.Fatalf("intercept = %v, want 2", ols.intercept)
+	}
+	if ols.seSlope > 1e-9 {
+		t.Fatalf("seSlope = %v, want ~0 for a noiseless fit", ols.seSlope)
+	}
+	if math.Abs(ols.r2-1) > 1e-9 {
+		t.Fatalf("r2 = %v, want 1 for a perfect fit", ols.r2)
+	}
+
+	// r² must agree with correlation(xs,ys)^2 — the same centred sums under a
+	// second implementation, not a restatement of the first (the same
+	// discipline the twoSidedTCrit/rCritFor round-trip above uses).
+	rXY := correlation(xs, ys)
+	if math.Abs(ols.r2-rXY*rXY) > 1e-9 {
+		t.Fatalf("r2 = %v, want correlation(xs,ys)^2 = %v", ols.r2, rXY*rXY)
+	}
+
+	// With noise: the fit must still recover the slope closely and produce a
+	// positive SE.
+	xsN := []float64{1, 2, 3, 4, 5, 6, 7}
+	noisyY := []float64{5.1, 8.0, 10.9, 14.2, 16.8, 20.1, 22.9} // approximately y = 2 + 3x
+	olsN := defconComputeOLS(xsN, noisyY)
+	if !olsN.haveFit || olsN.seSlope <= 0 {
+		t.Fatalf("olsN = %+v, want a fit with a positive SE", olsN)
+	}
+	if olsN.slope < 2.5 || olsN.slope > 3.5 {
+		t.Fatalf("olsN.slope = %v, want close to 3", olsN.slope)
+	}
+
+	// n < 3: no fit.
+	if got := defconComputeOLS([]float64{1, 2}, []float64{1, 2}); got.haveFit {
+		t.Fatalf("haveFit = true for n=2, want false")
+	}
+
+	// Constant x: the slope is undefined, not zero.
+	if got := defconComputeOLS([]float64{5, 5, 5}, []float64{1, 2, 3}); got.haveFit {
+		t.Fatalf("haveFit = true for constant x, want false (slope is undefined, not 0)")
+	}
+
+	// --- defconPercentile: exact values on 1..10, R's type-7 estimator ---
+	seq := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	if got, want := defconPercentile(seq, 0.10), 1.9; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("p10 = %v, want %v", got, want)
+	}
+	if got, want := defconPercentile(seq, 0.90), 9.1; math.Abs(got-want) > 1e-9 {
+		t.Fatalf("p90 = %v, want %v", got, want)
+	}
+	if got := defconPercentile(seq, 0.5); math.Abs(got-5.5) > 1e-9 {
+		t.Fatalf("median via percentile = %v, want 5.5", got)
+	}
+	// Order-independence: the estimator must not depend on the caller's slice order.
+	shuffled := []float64{10, 3, 7, 1, 9, 2, 8, 4, 6, 5}
+	if got, want := defconPercentile(shuffled, 0.10), defconPercentile(seq, 0.10); math.Abs(got-want) > 1e-9 {
+		t.Fatalf("percentile depends on input order: got %v, want %v", got, want)
+	}
+	// Must not mutate the caller's slice — several real callers elsewhere in
+	// this package pass a slice whose order carries meaning.
+	before := append([]float64(nil), shuffled...)
+	defconPercentile(shuffled, 0.5)
+	for i := range shuffled {
+		if shuffled[i] != before[i] {
+			t.Fatalf("defconPercentile mutated its input at index %d", i)
+		}
+	}
+
+	// --- defconTopByPoints: ties broken by id ascending, capped at population size ---
+	players := []*defconPlayerAgg{
+		{id: 3, starts: 10, minutes: 900, defcon: 30},
+		{id: 1, starts: 10, minutes: 900, defcon: 30},
+		{id: 2, starts: 10, minutes: 900, defcon: 30},
+	}
+	points := map[int]int{1: 100, 2: 100, 3: 50}
+	top2 := defconTopByPoints(players, points, 2)
+	if len(top2) != 2 || top2[0].id != 1 || top2[1].id != 2 {
+		t.Fatalf("top2 ids = [%d %d], want [1 2] (100-point tie broken by id, 50-point player 3 excluded)",
+			top2[0].id, top2[1].id)
+	}
+	top10 := defconTopByPoints(players, points, 10)
+	if len(top10) != 3 {
+		t.Fatalf("top10 returned %d players, want 3 (capped at population size, no padding)", len(top10))
+	}
+	if players[0].id != 3 {
+		t.Fatal("defconTopByPoints mutated its input slice's order")
+	}
+
+	// --- defconComputeSlopeGroup: pointsCutoff is the group's OWN minimum,
+	// and reportCutoff=false suppresses it even when the data would allow one ---
+	g := defconComputeSlopeGroup("top 2", top2, points, true)
+	if !g.havePointsCutoff || g.pointsCutoff != 100 {
+		t.Fatalf("pointsCutoff = %v (have=%v), want 100 (both top-2 players are on 100 points)",
+			g.pointsCutoff, g.havePointsCutoff)
+	}
+	allGroup := defconComputeSlopeGroup("all", players, points, false)
+	if allGroup.havePointsCutoff {
+		t.Fatal("havePointsCutoff = true for the \"all qualifying\" group, want false")
+	}
+
+	// diff must equal slope*(p90-p10) to float tolerance — an algebraic
+	// identity, not a separately-computed figure — on data with an actual
+	// slope (the three-player fixture above is constant-x, no fit at all).
+	slopeData := []*defconPlayerAgg{
+		{id: 1, starts: 10, minutes: 900, defcon: 10},
+		{id: 2, starts: 10, minutes: 800, defcon: 20},
+		{id: 3, starts: 10, minutes: 700, defcon: 30},
+		{id: 4, starts: 10, minutes: 600, defcon: 40},
+	}
+	gs := defconComputeSlopeGroup("all", slopeData, points, false)
+	if !gs.ols.haveFit {
+		t.Fatal("slopeData did not fit — fixture is broken")
+	}
+	if wantDiff := gs.ols.slope * (gs.p90 - gs.p10); math.Abs(gs.diff-wantDiff) > 1e-9 {
+		t.Fatalf("diff = %v, want slope*(p90-p10) = %v", gs.diff, wantDiff)
+	}
+
+	// --- defconMinutesChannel: the three bands, at their own boundaries ---
+	cases := []struct {
+		mins float64
+		want string
+	}{
+		{59.9, "BELOW 60 — appearance/clean-sheet points at risk"},
+		{60.0, "60-75 — within reach of the threshold"},
+		{74.9, "60-75 — within reach of the threshold"},
+		{75.0, ">=75 — nowhere near 60"},
+		{90.0, ">=75 — nowhere near 60"},
+	}
+	for _, c := range cases {
+		if got := defconMinutesChannel(c.mins); got != c.want {
+			t.Fatalf("defconMinutesChannel(%v) = %q, want %q", c.mins, got, c.want)
 		}
 	}
 }
