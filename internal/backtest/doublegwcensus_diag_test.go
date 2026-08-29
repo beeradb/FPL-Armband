@@ -307,23 +307,24 @@ func TestDiagDoubleGameweekCensus(t *testing.T) {
 		fmt.Printf("%-5s %8d %8d %8d %8d\n", defconPosName[pos], n, s0, s1, s2)
 	}
 
-	// --- Q6: of the players with a real double-gameweek row, how many have
-	// >=10 starts across the season (the population defcon_per_90 was measured
-	// on in the sibling diagnostic) ---
+	// --- Q6: of the players with a real double-gameweek row, how many are
+	// established (season Starts >= defconMinStarts, the population
+	// defcon_per_90 was measured on in the sibling diagnostic) — the same
+	// constant, not a second literal that could quietly drift from it. ---
 	playersInvolved := map[int]bool{}
 	for _, r := range real {
 		playersInvolved[r.id] = true
 	}
 	var establishedCount int
 	for id := range playersInvolved {
-		if s.Players[id].Starts >= 10 {
+		if s.Players[id].Starts >= defconMinStarts {
 			establishedCount++
 		}
 	}
-	fmt.Printf("\n=== Q6: established players (season Starts >= 10) among those with a real\n")
-	fmt.Printf("double-gameweek row ===\n")
+	fmt.Printf("\n=== Q6: established players (season Starts >= %d) among those with a\n", defconMinStarts)
+	fmt.Printf("real double-gameweek row ===\n")
 	fmt.Printf("distinct players with a real double-gameweek row: %d\n", len(playersInvolved))
-	fmt.Printf("of which >= 10 season starts:                     %d\n", establishedCount)
+	fmt.Printf("of which established:                              %d\n", establishedCount)
 
 	fmt.Printf("\nThis census authorises nothing and changes no scoring term. Read section\n")
 	fmt.Printf("Q1/Q2 first: if the double-gameweek population itself is a single gameweek or\n")
