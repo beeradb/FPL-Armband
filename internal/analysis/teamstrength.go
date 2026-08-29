@@ -329,3 +329,52 @@ func SavesTermFor(saves90 float64) float64 {
 	}
 	return poissonFloorDiv(savesBlock, saves90)
 }
+
+// TeamRatesFor exposes a club's blended goals for and against per match.
+//
+// The rates themselves are the whole of this file's fitted content, and until
+// now nothing outside it could read them: the two consumers, magnitudeAttack
+// and magnitudeDefence, sit behind FPL_MAGNITUDE and ship off. Reading a rate
+// is not the same as scoring a player with it — this accessor does not turn
+// the magnitude feature on.
+func (e *Engine) TeamRatesFor(teamID int) TeamRates {
+	return e.teamRates(teamID)
+}
+
+// FixtureGoals projects the goals each side scores in one fixture: a club's own
+// rate, scaled by how leaky the opponent actually is.
+//
+// # Why this is a composition and not a new model
+//
+// Both halves already exist and are already fitted. `teamRates` gives a club's
+// goals per match, blended between FPL's pre-season rating and this season's
+// record. `magnitudeAttack` gives the opponent-leakiness multiplier, and it is
+// the DAMPED form for a measured reason: a straight ratio re-rating the worst
+// defences gave attackers +30% where the measured truth is +23%, so the
+// exponent is a square root and the result is clamped to [0.60, 1.60]. Using
+// the raw ratio here would silently discard that finding and re-introduce the
+// overshoot it was fitted to remove.
+//
+// The neutral-opponent identity is what makes the composition honest, and it is
+// pinned: against an opponent conceding exactly the league average the
+// projection IS the club's own scored rate, because the multiplier is 1.
+// TestAFixtureAgainstAnAverageOpponentIsTheClubsOwnRate.
+//
+// ⚠️ **There is no home advantage in this number.** priorFromStrength averages
+// FPL's home and away ratings, and the season half is a plain per-match rate
+// over both, so swapping which club is at home changes nothing. Stating it
+// because the argument order invites the opposite assumption.
+//
+// ⚠️ **These are projected GOALS, not xG.** Nothing here reads
+// `expected_goals`; the season half is goals actually scored and conceded and
+// the prior is FPL's strength rating. A caller labelling the output "xG" would
+// be naming a different quantity — FPL publishes a real per-player xG and this
+// is not built from it.
+//
+// ⚠️ **It is a projection, so it works before there is a season to read.** At
+// GW1 both clubs' rates are their priors, which is the case a backward-looking
+// xG table cannot cover at all.
+func (e *Engine) FixtureGoals(homeID, awayID int) (home, away float64) {
+	return e.teamRates(homeID).Scored * e.magnitudeAttack(awayID),
+		e.teamRates(awayID).Scored * e.magnitudeAttack(homeID)
+}
