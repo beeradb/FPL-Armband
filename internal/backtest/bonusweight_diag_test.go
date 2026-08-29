@@ -2,8 +2,8 @@
 // the player bands?
 //
 //	DIAG=1 EXP=bonusweight FPL_CELLS=/tmp/bonusweight.csv \
-//	  scripts/replay -run TestDiagBonusWeight -v -timeout 2h
-//	DIAG=1 go test ./internal/backtest/ -run TestDiagBonusWeightByBand -v
+//	  scripts/replay -run TestDiagBonusWeight -v -count=1 -timeout 2h
+//	DIAG=1 go test ./internal/backtest/ -run TestDiagBonusWeightByBand -v -count=1
 //
 // # ⚠️ The founding table is a RETIRED REGIME and cannot be compared to today
 //
@@ -122,7 +122,6 @@ func TestDiagBonusWeightByBand(t *testing.T) {
 		prior := loadSeason(t, cfg, pair[0])
 		cur := loadSeason(t, cfg, pair[1])
 		sc := sweepConfig(cfg, 1, false)
-		k := sc.Weights.BlendRateK
 
 		for gw := 2; gw <= 38; gw++ {
 			e, _ := EngineAt(cur, prior, gw-1, sc)
@@ -134,16 +133,11 @@ func TestDiagBonusWeightByBand(t *testing.T) {
 				if el == nil {
 					continue
 				}
-				n90 := float64(el.Minutes) / 90
-				ev := 0.0
-				if k > 0 {
-					ev = n90 / (n90 + k)
-					if ev > 1 {
-						ev = 1
-					}
-				} else {
-					ev = 1
-				}
+				// The SHIPPED schedule, called rather than re-derived: a
+				// test-side copy of this expression would drift from the curve
+				// and still print a plausible table.
+				applied := e.AppliedBonusWeight(el)
+				ev := (applied - lo) / (hi - lo)
 				c := agg[m.RotationRisk]
 				if c == nil {
 					c = &cell{}
@@ -151,7 +145,7 @@ func TestDiagBonusWeightByBand(t *testing.T) {
 				}
 				c.n++
 				c.evidence += ev
-				c.applied += lo + (hi-lo)*ev
+				c.applied += applied
 				c.minutes += float64(el.Minutes)
 				if el.Minutes > 0 {
 					c.bonusPer90 += float64(el.Bonus) / (float64(el.Minutes) / 90)
