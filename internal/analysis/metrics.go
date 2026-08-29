@@ -2260,9 +2260,30 @@ func (e *Engine) minutesReliability(el *fpl.Element) float64 {
 // whether start share belongs in them was measured separately and separately
 // rejected. See appearance.go.
 //
-// The exponent was re-checked at the new mix rather than assumed: 1.25 still
-// wins (8304 against 8281 at 1.0 and 8238 at 1.5), so the two knobs are not
-// trading off against each other.
+// The exponent was re-checked at the new mix rather than assumed, and that
+// check is RETRACTED. It read: "1.25 still wins (8304 against 8281 at 1.0 and
+// 8238 at 1.5), so the two knobs are not trading off against each other."
+//
+// ⚠️ Do not restore it. A Holm-corrected re-sweep found 1.25 the WORST of five
+// tested values, winning 0 of 18 decidable cells, and MinutesWeight now ships at
+// 1.0 (see DefaultWeights and AGENTS.md's constants line). The retracted figures
+// also came from the scoring method later retired for missing the transfer
+// threshold and manufacturing the min_gain result -- transferpolicy_test.go says
+// so at the site of the other result from that method.
+//
+// The surviving claim is weaker and is the only one to rely on: nothing measured
+// separates 1.0 from 1.25 on this harness, so the exponent is shipped at the
+// neutral value rather than at one the instrument cannot defend. The response
+// surface is a step function -- +/-0.05 around 1.25 swings four-season points by
+// ~141 -- so a sweep here does not locate an optimum and a future "1.x wins by N"
+// should be disbelieved on the same grounds.
+//
+// ⚠️ This comment outlived its own retraction by four days. #83 corrected the two
+// retracted-figure entries and the two "(ships 1.25)" labels and stated that no
+// surface still asserted the old value; it missed this one, because the
+// retraction guard registers -0.709/-0.717 and never sees 8304/8281. A prose
+// figure in a doc comment is not reachable by that guard -- which is the reason
+// this paragraph names the retraction instead of simply deleting the number.
 func reliabilityFrom(b blend, exponent float64) float64 {
 	minutesShare := clamp(b.MinutesPerMatch/90.0, 0, 1)
 	startShare := clamp(b.StartShare, 0, 1)
