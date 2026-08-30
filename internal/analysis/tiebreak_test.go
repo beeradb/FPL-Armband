@@ -144,3 +144,47 @@ func TestTiebreakOnPriceOrdersByPrice(t *testing.T) {
 			"£6.0m one at equal Score: %.4f vs %.4f", all[1].Score, all[0].Score)
 	}
 }
+
+// The haul signal ranks on the caller-supplied ceiling table, and is inert
+// without one — a missing table must not quietly make this the baseline while
+// still reporting as an arm.
+func TestTiebreakOnHaulRanksOnTheSuppliedTable(t *testing.T) {
+	all := []PlayerMetrics{
+		pm(1, "MID", 6.00, 50, 9.0), // high owned, dear, LOW ceiling
+		pm(2, "MID", 5.99, 1, 5.0),  // low owned, cheap, HIGH ceiling
+	}
+	tb := Tiebreak{Signal: TiebreakHaul, Band: 0.41, HaulRate: map[int]float64{1: 0.05, 2: 0.40}}
+	applyTiebreak(all, tb)
+	if all[1].Score <= all[0].Score {
+		t.Errorf("the higher-ceiling player did not overturn a 0.01 gap: %.4f vs %.4f",
+			all[1].Score, all[0].Score)
+	}
+}
+
+func TestTiebreakOnHaulIsInertWithoutATable(t *testing.T) {
+	all := []PlayerMetrics{pm(1, "MID", 6.0, 1, 5), pm(2, "MID", 5.9, 50, 9)}
+	before := []float64{all[0].Score, all[1].Score}
+	if n := applyTiebreak(all, Tiebreak{Signal: TiebreakHaul, Band: 0.41}); len(n) != 0 {
+		t.Errorf("a haul tiebreak with no HaulRate table applied %d nudges; it must "+
+			"apply none rather than rank every player at zero", len(n))
+	}
+	for i := range all {
+		if all[i].Score != before[i] {
+			t.Errorf("score moved without a table: %.6f -> %.6f", before[i], all[i].Score)
+		}
+	}
+}
+
+// A missing id is a zero ceiling, not a missing value: no prior-season history is
+// not evidence of one.
+func TestTiebreakOnHaulTreatsAMissingIDAsZero(t *testing.T) {
+	all := []PlayerMetrics{pm(1, "MID", 6.0, 1, 5), pm(2, "MID", 6.0, 1, 5)}
+	n := applyTiebreak(all, Tiebreak{Signal: TiebreakHaul, Band: 0.4,
+		HaulRate: map[int]float64{2: 0.30}}) // 1 absent
+	if n[1] != 0 {
+		t.Errorf("the player absent from the table took a nudge of %v, want 0", n[1])
+	}
+	if n[2] <= 0 {
+		t.Errorf("the player with a 0.30 ceiling took no nudge")
+	}
+}
