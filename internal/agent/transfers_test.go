@@ -38,7 +38,25 @@ func testToolbox(t *testing.T) *Toolbox {
 // seasons — so a candidate list that only reports a positive gain invites the
 // same behaviour from the agent.
 func TestSuggestTransfersPricesAFreeTransfer(t *testing.T) {
+	// ⚠️ This test asserts that candidates fall on BOTH sides of the free-transfer
+	// charge, and that needs enough accumulated evidence for the candidate set to
+	// spread. With one gameweek played it does not: observed 2026-08-30, all 6
+	// candidates came back worth a free transfer and the test failed its own
+	// not-exercising-the-threshold guard — correctly, because it was not
+	// exercising it.
+	//
+	// Two mirrors corroboratingMatches in internal/analysis and the identical
+	// literal in this package's optimize_test.go, which carries the fuller
+	// reasoning: one COMPLETED gameweek does not fix "most players score 0".
+	// ⚠️ The subject here genuinely IS accumulated evidence, so a skip is the
+	// right fallback rather than making it season-independent.
+	const matchesNeeded = 2
 	tb := testToolbox(t)
+	if played := tb.Engine.GameweeksPlayed(); tb.Engine.SeasonHasStarted() && played < matchesNeeded {
+		t.Skipf("live season has played %d gameweek(s); this test needs %d before "+
+			"the candidate set spreads across the free-transfer charge. Not a defect.",
+			played, matchesNeeded)
+	}
 	sq, err := tb.Engine.Optimize(analysis.OptimizeRequest{
 		MinMinutes: 600, MinExpectedMinutes: 55, BenchWeight: 0.02,
 	})

@@ -203,7 +203,19 @@ func TestMinutesReliabilityTracksExpectedMinutes(t *testing.T) {
 
 func TestOptimizeRespectsExpectedMinutesFloor(t *testing.T) {
 	e := testEngine(t)
-	skipDuringLiveGW1Gap(t, e)
+	// ⚠️ Two, not the GW1 gap alone. skipDuringLiveGW1Gap closes only the window
+	// where some clubs have played and some have not; it says nothing about how
+	// much evidence a minutes floor needs to be satisfiable. With ONE gameweek
+	// played the league's expected-minutes estimates are drawn from a single
+	// match, and the optimiser can legitimately find no eleven that all clear 60
+	// — the assertion then fails on a data state rather than on a defect.
+	//
+	// Observed 2026-08-30, one gameweek in and GW2 stuck unfinished for two days:
+	// this passed at 08:17 and failed at 10:05 on unchanged code, which is the
+	// signature of a live-data coupling rather than a regression. Two mirrors
+	// corroboratingMatches, this package's own bar for trustworthy minutes, and
+	// the same literal internal/agent's optimize_test.go already uses.
+	skipUntilLiveEvidence(t, e, 2)
 	sq, err := e.Optimize(OptimizeRequest{MinExpectedMinutes: 60, BenchWeight: 0.02})
 	if err != nil {
 		t.Fatalf("Optimize: %v", err)
