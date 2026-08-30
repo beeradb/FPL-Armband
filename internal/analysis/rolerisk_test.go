@@ -1,26 +1,17 @@
 package analysis
 
 import (
-	"context"
+	"armband/internal/capture"
 	"math"
 	"strings"
 	"testing"
-	"time"
-
-	"armband/internal/fpl"
 )
 
 func roleEngine(t *testing.T, w Weights, rr RoleRisk) *Engine {
 	t.Helper()
-	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
-	ctx := context.Background()
-	boot, err := c.Bootstrap(ctx)
+	boot, fx, err := capture.Replay("../../data/captures/" + capture.LiveCapture)
 	if err != nil {
-		t.Skipf("FPL API unreachable: %v", err)
-	}
-	fx, err := c.Fixtures(ctx)
-	if err != nil {
-		t.Skipf("FPL API unreachable: %v", err)
+		t.Fatalf("capture: %v", err)
 	}
 	// No skipDuringLiveGW1Gap here on purpose — see testEngine's identical note;
 	// datawindow_test.go's own tests call this constructor and then immediately
