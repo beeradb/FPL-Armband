@@ -171,19 +171,31 @@ func cmdAsOf(ctx context.Context, cfg config.Config, args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(squad)
 	}
+	printAsOfSquad(squad, filepath.Base(dir), event, *budget)
+	return nil
+}
 
-	fmt.Printf("as of %s (GW%d, budget £%.1fm)\n\n", filepath.Base(dir), event, float64(*budget)/10)
+// printAsOfSquad draws the fifteen. Separated from cmdAsOf because deciding what
+// a capture may legally be scored on and formatting a table are different jobs,
+// and because the command was one point over the complexity ratchet with both in
+// it — the ratchet asks for a split or a justification, and there is no
+// justification for keeping presentation inside a gate.
+func printAsOfSquad(squad *analysis.Squad, capture string, event, budget int) {
+	line := func(p analysis.PlayerMetrics) {
+		fmt.Printf("  %-18s %-5s %-6s %6.1f  %5.2f\n",
+			p.Name, p.Team, p.Position, p.Price, p.Score)
+	}
+	fmt.Printf("as of %s (GW%d, budget £%.1fm)\n\n", capture, event, float64(budget)/10)
 	fmt.Printf("  %-18s %-5s %-6s %6s  %s\n", "PLAYER", "CLUB", "POS", "PRICE", "xP")
 	for _, p := range squad.StartingXI {
-		fmt.Printf("  %-18s %-5s %-6s %6.1f  %5.2f\n", p.Name, p.Team, p.Position, p.Price, p.Score)
+		line(p)
 	}
 	fmt.Printf("  %s\n", "-- bench --")
 	for _, p := range squad.Bench {
-		fmt.Printf("  %-18s %-5s %-6s %6.1f  %5.2f\n", p.Name, p.Team, p.Position, p.Price, p.Score)
+		line(p)
 	}
 	fmt.Printf("\n  formation %s   captain %s   cost £%.1fm   xP %.2f\n",
 		squad.Formation, squad.Captain.Name, squad.TotalCost, squad.ExpectedPoints)
-	return nil
 }
 
 // captureMoment reads the gameweek a capture is evidence for and when it was
