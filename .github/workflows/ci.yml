@@ -260,7 +260,12 @@ jobs:
       # merge commit, where no author can write one -- and that went unseen for
       # the gate's whole life because the gate only speaks when the figures
       # move, which is rare. It is NOT folded into `go test ./...` with the
-      # other three: this one has to run whether or not the code compiles.
+      # other three because it guards a PULL-REQUEST property -- the trailer must
+      # be findable in a real commit rather than GitHub's synthetic merge commit --
+      # not a property of the tree.
+      # ⚠️ An earlier version of this line said it "has to run whether or not the
+      # code compiles". That is not true of it: it sits after Build and Vet in
+      # this job with no continue-on-error, so a build failure aborts first.
       - name: Prove the figures trailer is findable on a pull request
         run: python3 scripts/figures-moved-check.py --selftest
 
@@ -290,4 +295,16 @@ jobs:
       - name: Test
         env:
           FPL_SNAPSHOTS_EXTERNAL: "1"
-        run: go test ./...
+        # ⚠️ -count=1 is load-bearing, for the reason staleness_test.go already
+        # records and snapshot.yml and pr-model-report.yml already act on: Go's
+        # test-result cache only tracks files the TEST BINARY opens, and the gate
+        # tests in internal/snapshot shell out to python3. A mutation to
+        # stats/claims.yaml or a workflow file is invisible to the cache, so a
+        # second invocation on the same tree returns "ok (cached)" having run
+        # none of them, and exits 0.
+        #
+        # CI is protected from that only INCIDENTALLY today -- -buildvcs embeds
+        # the commit sha, so a new commit is always a new binary and a cache miss
+        # -- but that does not cover a re-run of this job on an unchanged commit,
+        # and relying on a side-effect for a gate is how the gate stops guarding.
+        run: go test -count=1 ./...

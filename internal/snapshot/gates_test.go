@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -86,6 +87,7 @@ func runGateScript(t *testing.T, root, name string, args ...string) {
 // standalone ci.yml step to here. See that script's own doc comment for why the
 // gate is a ratchet on NEW/WORSE complexity rather than a global threshold.
 func TestComplexityRatchetGate(t *testing.T) {
+	declareInputs(t, mustRepoRoot(t), "scripts/complexity-ratchet.py", "internal/*/*.go", "cmd/*/*.go")
 	root, err := repoRoot()
 	if err != nil {
 		t.Fatalf("could not resolve the repository root: %v", err)
@@ -105,6 +107,7 @@ func TestComplexityRatchetGate(t *testing.T) {
 // reports failure with zero jobs and zero logs — nothing else in CI could ever
 // have caught that on its own, which is why this check has to run somewhere.
 func TestWorkflowLintGate(t *testing.T) {
+	declareInputs(t, mustRepoRoot(t), "scripts/workflow-lint.py", ".github/workflows/*.yml")
 	root, err := repoRoot()
 	if err != nil {
 		t.Fatalf("could not resolve the repository root: %v", err)
@@ -121,6 +124,7 @@ func TestWorkflowLintGate(t *testing.T) {
 // rather than trusting a number written down beside it — see that script's own
 // doc comment for why a stored VALUE is the design already proved to rot here.
 func TestClaimsRegistryGate(t *testing.T) {
+	declareInputs(t, mustRepoRoot(t), "scripts/claims.py", "stats/claims.yaml")
 	root, err := repoRoot()
 	if err != nil {
 		t.Fatalf("could not resolve the repository root: %v", err)
@@ -130,4 +134,50 @@ func TestClaimsRegistryGate(t *testing.T) {
 
 	runGateScript(t, root, "claims.py", "--selftest")
 	runGateScript(t, root, "claims.py")
+}
+
+// declareInputs makes Go's test cache aware of files a SUBPROCESS reads.
+//
+// The cache records what the test binary itself opens, via internal/testlog. A
+// script spawned with exec.Command is invisible to it, so without this a
+// mutation to stats/claims.yaml or a workflow file leaves the cached result
+// standing and the gate silently does not run -- verified: mutate a claim,
+// re-run, get "ok (cached)". staleness_test.go records the same failure for the
+// same reason and answers it with -count=1 at the caller.
+//
+// Reading the files here is the other half of that answer and the half a caller
+// cannot forget: it declares the dependency, so an edit to any of them
+// invalidates the cache on its own.
+//
+// ⚠️ It is NOT complete for claims.py, whose inputs are the commands it re-runs
+// and therefore effectively the whole tree. -count=1 in ci.yml covers that;
+// this covers the local edit-and-rerun loop AGENTS.md points a developer at.
+func declareInputs(t *testing.T, root string, globs ...string) {
+	t.Helper()
+	for _, g := range globs {
+		matches, err := filepath.Glob(filepath.Join(root, g))
+		if err != nil {
+			t.Fatalf("globbing %s: %v", g, err)
+		}
+		if len(matches) == 0 {
+			t.Fatalf("%s matched no files; this gate's cache dependency is not "+
+				"being declared and an edit to it would leave a stale green", g)
+		}
+		for _, m := range matches {
+			if _, err := os.ReadFile(m); err != nil {
+				t.Fatalf("reading %s to declare it as a cache input: %v", m, err)
+			}
+		}
+	}
+}
+
+// mustRepoRoot is repoRoot with the error turned into a test failure, so the
+// three gate tests read the same way as their neighbours.
+func mustRepoRoot(t *testing.T) string {
+	t.Helper()
+	r, err := repoRoot()
+	if err != nil {
+		t.Fatalf("locating the repository root: %v", err)
+	}
+	return r
 }

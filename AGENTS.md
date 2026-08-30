@@ -53,8 +53,8 @@ changed package, everything importing it, and anything whose tests *open* a chan
 the module, which is `go help test`'s own boundary — and that reaches cross-package source scans
 an import graph cannot see, which is exactly where the cross-cutting guards in `internal/snapshot`
 live. **This is a practice, not automation**: run the scoped command above while you work, and let
-CI be the full answer. So: touching `config.json`, an `FPL_*` var, or `stats/*.R` also needs
-`go test ./internal/snapshot/...`.
+CI be the full answer. Touching `config.json`, an `FPL_*` var, or `stats/*.R` also needs
+`go test -count=1 ./internal/snapshot/...`.
 
 ⚠️ **A suite that re-runs everything every time is the symptom of a FULL DISK, and so are browser
 tests that fail LOCALLY on a screenshot write.** Go declines to cache a result it cannot write,
