@@ -1,0 +1,7 @@
+# Python dependencies for scripts/workflow-lint.py and scripts/claims.py, the
+# only two scripts under scripts/ that `import yaml`. Before this file existed
+# there was no requirements.txt, no setup-python, no pip install anywhere in
+# CI -- both gates worked only because ubuntu-latest happens to preinstall
+# PyYAML. Pinned so a local run and CI's "Install pinned Python gate
+# dependencies" step resolve the same package. See internal/snapshot/gates_test.go.
+PyYAML==6.0.1
