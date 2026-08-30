@@ -1396,6 +1396,12 @@ type Engine struct {
 	// — nil falls back to flat season-to-date aggregates.
 	Recent RecentForm
 
+	// Tiebreak decides between players the model cannot separate. The zero value
+	// is off, which is what ships; see tiebreak.go. It is a SELECTION policy and
+	// touches no forecast — the nudge it applies is removed from every squad
+	// before that squad reports a score.
+	Tiebreak Tiebreak
+
 	// MinutesOverride replaces the derived minutes estimate for specific
 	// players, keyed by permanent player code. Set by the analysis layer for
 	// the cases the data cannot see; see blendFor.

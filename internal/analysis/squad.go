@@ -548,6 +548,13 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 
 	// Build the candidate pool.
 	all := e.AllMetrics()
+	// Selection inside the model's own noise band, before anything reads a Score.
+	// Applied here rather than at any of the individual sorts so the ordering and
+	// the objective can never disagree: every consumer below — the greedy fill,
+	// the DP seeds, polish, bestXIWith — sees one set of numbers. The nudge comes
+	// back out of the reported squad at the bottom of this function; see
+	// tiebreak.go for why it must.
+	tieNudges := applyTiebreak(all, e.Tiebreak)
 	byID := map[int]PlayerMetrics{}
 	for _, m := range all {
 		byID[m.ID] = m
@@ -848,6 +855,13 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	}
 
 	xi, bench, formation := bestXIWith(current, mustStart)
+	// The tiebreak has chosen the fifteen; from here every number is a forecast
+	// and must not carry it. Order is already fixed — bestXIWith has run — so
+	// removing the nudge cannot reshuffle the eleven, and SquadScore is restated
+	// from the clean scores below for the same reason XIScore is.
+	removeTiebreak(current, tieNudges)
+	removeTiebreak(xi, tieNudges)
+	removeTiebreak(bench, tieNudges)
 	sq := &Squad{
 		Players:    sortForDisplay(current),
 		StartingXI: xi,
@@ -860,6 +874,15 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	}
 	for _, p := range xi {
 		sq.XIScore += p.Score
+	}
+	if len(tieNudges) > 0 {
+		// bestScore is the objective the search maximised, which includes the
+		// nudge. Reporting it beside a clean XIScore would put two conventions in
+		// one struct, so it is restated on the same basis as everything else.
+		sq.SquadScore = 0
+		for _, p := range sq.Players {
+			sq.SquadScore += p.Score
+		}
 	}
 	if len(xi) > 0 {
 		// bestXI returns the eleven sorted by score, so the armband goes to the

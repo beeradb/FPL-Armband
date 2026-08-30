@@ -57,5 +57,8 @@ func EngineAt(cur, prior *Season, through int, cfg SimConfig) (*analysis.Engine,
 	e.Priors = cfg.priors(cur, prior)
 	e.Recent = cfg.recentIndex(cur, through)
 	e.TeamForm = newTeamFormIndex(cur, through)
+	// The arm under test. Off by default, so a replay that does not set it is
+	// byte-identical to one from before this existed.
+	e.Tiebreak = cfg.Tiebreak
 	return e, boot
 }
