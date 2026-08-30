@@ -75,6 +75,12 @@ func PointInTimeWith(cur, prior *Season, through int, o Oracles) (*fpl.Bootstrap
 	// a later registration who could not be bought at this deadline and has no
 	// price that existed — see pool.go, which is the whole argument.
 	reg := registeredBy(cur, through)
+	// Ownership, as a percentage rather than the archive's raw owner count. Until
+	// this landed `git grep SelectedByPercent -- internal/backtest` returned
+	// nothing, so every replayed player read 0% owned and any diagnostic asking
+	// what the crowd held saw an empty league. See ownershipseam.go for why the
+	// count cannot simply be passed through, and for the denominator.
+	own := ownershipAt(cur, through, reg)
 	for _, p := range cur.Players {
 		if !reg.has(p.ID) {
 			continue
@@ -82,6 +88,7 @@ func PointInTimeWith(cur, prior *Season, through int, o Oracles) (*fpl.Bootstrap
 		el := fpl.Element{
 			ID: p.ID, Code: p.Code, WebName: p.WebName, ElementType: p.Type,
 			Team: p.Team, NowCost: reg.price(p, through), Status: statusAt(p, through+1, cutoff, o),
+			SelectedByPercent: fpl.Num(own.pct[p.ID]),
 		}
 		var xg, xa, xgc float64
 		for gw := 1; gw <= through; gw++ {
@@ -1329,7 +1336,11 @@ type SimConfig struct {
 	// stopped claiming after it moved. See openingBenchWeight.
 	BenchWeight float64
 
-	Weights    analysis.Weights
+	Weights analysis.Weights
+	// Tiebreak is the selection policy inside the model's own noise band. The
+	// zero value is off, which is what ships and what every existing replay
+	// therefore keeps producing. Set it to sweep the arms.
+	Tiebreak   analysis.Tiebreak
 	MinGain    float64 // pts/GW below which a free transfer is not worth spending
 	MinGainHit float64 // net points across the horizon needed to justify a -4
 	BankUpTo   int     // free transfers may accumulate to this many
@@ -2122,6 +2133,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 	e.Priors = idx
 	e.Recent = cfg.recentIndex(cur, start-1)
 	e.TeamForm = newTeamFormIndex(cur, start-1)
+	e.Tiebreak = cfg.Tiebreak
 	minExp := cfg.resolvedMinExpectedMinutes()
 	sq, err := e.Optimize(analysis.OptimizeRequest{
 		Budget: cfg.Budget, MinMinutes: 600, MinExpectedMinutes: minExp,
@@ -2209,6 +2221,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 			pe.Priors = idx
 			pe.Recent = cfg.recentIndex(cur, gw-1)
 			pe.TeamForm = newTeamFormIndex(cur, gw-1)
+			pe.Tiebreak = cfg.Tiebreak
 			cfg.anticipate(pe, gw)
 
 			// The repair-cost observer, read off the same pre-deadline engine the
@@ -2452,6 +2465,7 @@ func Simulate(cur, prior *Season, cfg SimConfig) (*SimResult, error) {
 		ve.Priors = idx
 		ve.Recent = cfg.recentIndex(cur, gw-1)
 		ve.TeamForm = newTeamFormIndex(cur, gw-1)
+		ve.Tiebreak = cfg.Tiebreak
 		// The free hit fields a temporary fifteen for this gameweek only and
 		// hands the permanent squad back afterwards, so it is the one chip that
 		// changes *which* squad is scored rather than how. Nothing here touches

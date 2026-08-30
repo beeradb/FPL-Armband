@@ -473,6 +473,11 @@ func (e *Engine) engineAtHorizon(gw, horizon int) *Engine {
 	wk := NewEngineFull(e.Boot, e.Fixtures, w, e.Cong, e.Role)
 	wk.Priors = e.Priors
 	wk.Recent = e.Recent
+	// Carried, or the eleven is fielded under one selection policy and the
+	// transfer decided under another — the split
+	// TestDerivedEnginesCarryEverySource records for TeamForm, and inert in
+	// exactly the same way until somebody switches the flag on.
+	wk.Tiebreak = e.Tiebreak
 	wk.MinutesOverride = e.MinutesOverride
 	wk.MinutesOverrideUntil = e.MinutesOverrideUntil
 	wk.MinutesOverrideConfirmed = e.MinutesOverrideConfirmed
