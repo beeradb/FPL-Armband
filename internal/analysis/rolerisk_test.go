@@ -1,7 +1,6 @@
 package analysis
 
 import (
-	"armband/internal/capture"
 	"math"
 	"strings"
 	"testing"
@@ -9,10 +8,7 @@ import (
 
 func roleEngine(t *testing.T, w Weights, rr RoleRisk) *Engine {
 	t.Helper()
-	boot, fx, err := capture.Replay("../../data/captures/" + capture.LiveCapture)
-	if err != nil {
-		t.Fatalf("capture: %v", err)
-	}
+	boot, fx := captureBootAndFixtures(t)
 	// No skipDuringLiveGW1Gap here on purpose — see testEngine's identical note;
 	// datawindow_test.go's own tests call this constructor and then immediately
 	// override the state with playGameweeks.

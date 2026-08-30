@@ -227,12 +227,20 @@ func TestDataWindowTracksTheSeason(t *testing.T) {
 		// ninety minutes is deliberately not enough to call anyone nailed, and
 		// the band correctly reads "likely starter" there.
 		//
-		// This asserted "nailed" from GW1 until 2026-08-30 and passed, because
-		// playGameweeks was not setting Fixture.FinishedProvisional, so
-		// TeamMatchesFinished returned 0 and the corroboration check never had
-		// any season evidence to be unconvinced by -- it fell through to the
-		// prior, which says ever-present. Fixing the helper made the engine's
-		// real answer visible, and the real answer agrees with the constant.
+		// ⚠️ CORRECTED 2026-08-30 on review. An earlier version of this comment
+		// blamed playGameweeks not setting Fixture.FinishedProvisional. That is
+		// wrong and was checked: e.Priors is never set in this file, so
+		// blendRatesCode returns before it reaches TeamMatchesFinished at all,
+		// and minutesCorroborated -- the function that actually gates "nailed" --
+		// reads el.Minutes/90 against corroboratingMatches directly. Reverting
+		// only the FinishedProvisional line still fails here identically.
+		//
+		// The real history: corroboratingMatches landed in d0fcd865 on
+		// 2026-08-22, after this file was last touched, so the unconditional GW1
+		// assertion had ALREADY been broken by that commit. It survived because
+		// the live data this test ran on did not reach the branch. The gw > 1
+		// guard is the right fix; the mechanism previously written here was not
+		// the one at work.
 		if gw > 1 && m.RotationRisk != "nailed" {
 			t.Errorf("after GW%d an ever-present is banded %q, want nailed",
 				gw, m.RotationRisk)

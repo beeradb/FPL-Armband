@@ -87,5 +87,79 @@ func TestTeamRatesBlendTowardTheSeason(t *testing.T) {
 	if total == 0 {
 		t.Fatal("no teams rated")
 	}
-	t.Logf("%d of %d clubs have finished fixtures to blend from", withPlay, total)
+	t.Logf("pre-season: %d of %d clubs have finished fixtures to blend from", withPlay, total)
+	if withPlay != 0 {
+		t.Fatalf("%d clubs already have finished fixtures on the committed capture, "+
+			"which is pinned before kickoff; the capture pin has moved", withPlay)
+	}
+
+	// ⚠️ THE SECOND HALF, which this test is named for and which went dark.
+	//
+	// The doc comment above promises "with matches played it moves toward what
+	// actually happened". On live data that half ran whenever the real season had
+	// started; on a capture pinned before kickoff it could NEVER run, and the
+	// loop above only LOGGED withPlay rather than asserting on it — so the test
+	// kept its green tick while testing half of what it claims. Found on review
+	// of the hermetic conversion, and it is exactly the failure that conversion
+	// exists to remove, reintroduced by it.
+	//
+	// playGameweeks drives the season forward on the fixed capture, so the blend
+	// is now exercised deterministically rather than whenever the calendar
+	// happened to cooperate.
+	// ⚠️ THE SECOND HALF, which this test is named for and which went dark.
+	//
+	// The doc comment promises "with matches played it moves toward what actually
+	// happened". On live data that ran whenever the real season had started; on a
+	// capture pinned before kickoff it can NEVER run, and the loop above only
+	// LOGGED withPlay rather than asserting on it — so the test kept its green
+	// tick while exercising half of what it claims. Found on review of the
+	// hermetic conversion: exactly the failure that conversion exists to remove,
+	// reintroduced by it.
+	//
+	// ⚠️ Two engines, because teamRates is built under a sync.Once and will not
+	// rebuild after its inputs change. A test-only reset on the production type
+	// would be the other way, and is not worth it for one caller.
+	//
+	// ⚠️ And the played fixtures need SCORES, which playGameweeks cannot supply:
+	// teamRates counts a fixture only when both scores are non-nil, and no
+	// committed capture carries results — the live series is pinned pre-kickoff
+	// and the backfilled per-gameweek captures have no fixtures at all. Supplying
+	// them is a CONTROLLED INPUT to a unit test, the same class of thing
+	// playGameweeks already is, and the assertion is about the blend's mechanics
+	// rather than any real club's form. It makes this stronger than the live
+	// version ever was: the rate now moves toward a KNOWN value instead of toward
+	// whatever the calendar happened to have produced that morning.
+	played := testEngine(t)
+	playGameweeks(t, played, 10)
+	for i := range played.Fixtures {
+		if !played.Fixtures[i].Finished {
+			continue
+		}
+		h, a := 3, 0 // lopsided on purpose, so the blend has somewhere to move
+		played.Fixtures[i].TeamHScore, played.Fixtures[i].TeamAScore = &h, &a
+	}
+
+	var moved int
+	for i := range played.Boot.Teams {
+		id := played.Boot.Teams[i].ID
+		name := played.Boot.Teams[i].ShortName
+		r := played.teamRates(id)
+		if r.Played == 0 {
+			t.Errorf("%s still has no played matches after ten simulated gameweeks "+
+				"with scores set", name)
+			continue
+		}
+		if r.Conceded <= 0 || r.Scored <= 0 {
+			t.Fatalf("%s has a non-positive rate mid-season: %+v", name, r)
+		}
+		if r == e.teamRates(id) {
+			t.Errorf("%s has identical rates before and after ten played gameweeks; "+
+				"the blend is not moving toward what happened", name)
+		}
+		moved++
+	}
+	if moved != total {
+		t.Fatalf("only %d of %d clubs blended from played matches", moved, total)
+	}
+	t.Logf("after ten played gameweeks: all %d clubs blend from what happened", moved)
 }

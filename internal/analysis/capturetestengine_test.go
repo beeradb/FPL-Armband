@@ -1,10 +1,12 @@
 package analysis
 
 import (
+	"compress/gzip"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
-	"armband/internal/capture"
 	"armband/internal/fpl"
 )
 
@@ -48,18 +50,80 @@ import (
 // So a test picks the one its subject needs, and says which.
 const midSeasonCapture = "../../data/captures/2025-26/GW10-2025-11-01T1000Z"
 
+// ⚠️ liveCaptureDir is HARDCODED rather than read from capture.LiveCapture, and
+// that is deliberate.
+//
+// internal/backfill's TestTheScoringPathCannotSeeRecoveredTeamNews forbids
+// internal/analysis and internal/backtest from importing armband/internal/capture
+// at all — the packages that recover historical availability must not be reachable
+// from the scoring path, because every figure in the record was measured with
+// backtest.statusAt as it stands and wiring real availability in reprices all of
+// it. The guard is source-scanning and deliberately blunt: "the failure is a new
+// import in a new file". A test import is exactly how that boundary would erode,
+// so this reads the committed bytes directly instead of importing the reader.
+//
+// The cost is a hardcoded directory name that could drift from capture.LiveCapture.
+// TestTheAnalysisFixtureNamesTheLiveCapture in internal/capture pins the two
+// against each other, which is this repository's standing answer to a
+// cross-package duplicate it cannot delete.
+const liveCaptureDir = "../../data/captures/2026-08-19T1348Z"
+
+// readCapturedBootstrap decodes a committed capture's bootstrap without importing
+// the capture package. Eight lines of gzip and JSON rather than a boundary
+// violation; it duplicates a decode, not a quantity.
+func readCapturedBootstrap(t *testing.T, dir string) *fpl.Bootstrap {
+	t.Helper()
+	f, err := os.Open(filepath.Join(dir, "bootstrap-static.json.gz"))
+	if err != nil {
+		t.Fatalf("opening the committed capture %s: %v\n\nIt is in the repository; "+
+			"an unreadable one is a broken checkout, not a missing dependency, and "+
+			"skipping would turn every assertion below into a silent pass.", dir, err)
+	}
+	defer f.Close()
+	zr, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatalf("decompressing %s: %v", dir, err)
+	}
+	defer zr.Close()
+	var boot fpl.Bootstrap
+	if err := json.NewDecoder(zr).Decode(&boot); err != nil {
+		t.Fatalf("decoding %s: %v", dir, err)
+	}
+	return &boot
+}
+
+func readCapturedFixtures(t *testing.T, dir string) []fpl.Fixture {
+	t.Helper()
+	f, err := os.Open(filepath.Join(dir, "fixtures.json.gz"))
+	if err != nil {
+		t.Fatalf("opening the committed fixtures at %s: %v", dir, err)
+	}
+	defer f.Close()
+	zr, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatalf("decompressing fixtures at %s: %v", dir, err)
+	}
+	defer zr.Close()
+	var fx []fpl.Fixture
+	if err := json.NewDecoder(zr).Decode(&fx); err != nil {
+		t.Fatalf("decoding fixtures at %s: %v", dir, err)
+	}
+	return fx
+}
+
 // captureEngine is the default: complete data — bootstrap and fixtures — from the
 // committed live-series capture, before a ball is kicked.
 func captureEngine(t *testing.T) *Engine {
 	t.Helper()
-	boot, fx, err := capture.Replay("../../data/captures/" + capture.LiveCapture)
-	if err != nil {
-		t.Fatalf("reading the committed capture %s: %v\n\nThis capture is in the "+
-			"repository. Failing to read it is a broken checkout, not a missing "+
-			"dependency, and skipping would turn every assertion below into a "+
-			"silent pass.", capture.LiveCapture, err)
-	}
+	boot, fx := captureBootAndFixtures(t)
 	return NewEngine(boot, fx, DefaultWeights())
+}
+
+// captureBootAndFixtures is the one place this package reads the committed
+// capture, so its engine helpers cannot drift onto different data.
+func captureBootAndFixtures(t *testing.T) (*fpl.Bootstrap, []fpl.Fixture) {
+	t.Helper()
+	return readCapturedBootstrap(t, liveCaptureDir), readCapturedFixtures(t, liveCaptureDir)
 }
 
 // midSeasonEngine carries nine completed gameweeks of real accumulated minutes,
@@ -72,18 +136,15 @@ func captureEngine(t *testing.T) *Engine {
 // rather than reaching for the live API again.
 func midSeasonEngine(t *testing.T) *Engine {
 	t.Helper()
-	raw, err := capture.Read(midSeasonCapture, capture.BootstrapEndpoint)
-	if err != nil {
-		t.Fatalf("reading the committed mid-season capture: %v", err)
-	}
-	var boot fpl.Bootstrap
-	if err := json.Unmarshal(raw, &boot); err != nil {
-		t.Fatalf("decoding the committed mid-season capture: %v", err)
-	}
-	e := NewEngine(&boot, nil, DefaultWeights())
-	if e.GameweeksPlayed() < 2 {
-		t.Fatalf("the mid-season capture reports %d gameweeks played; it is "+
-			"supposed to carry nine, so the pin is wrong", e.GameweeksPlayed())
+	boot := readCapturedBootstrap(t, midSeasonCapture)
+	e := NewEngine(boot, nil, DefaultWeights())
+	// ⚠️ Nine, not "at least two". The doc above promises nine gameweeks of
+	// accumulated evidence and an earlier version of this guard only checked for
+	// two, which would have let the pin drift anywhere in between while the
+	// comment kept claiming nine.
+	if got := e.GameweeksPlayed(); got != 9 {
+		t.Fatalf("the mid-season capture reports %d gameweeks played, want 9; "+
+			"the pin has moved and every caller's premise with it", got)
 	}
 	return e
 }
