@@ -84,12 +84,13 @@ type enablerRow struct {
 	pointsPerTenth float64
 	enablerPoints  float64
 	ownPoints10    int
+	ownPointsRest  int
 }
 
 var enablerCSVHeader = []string{
 	"season", "gw", "player_id", "web_name", "price_tenths",
 	"price_at_g_plus_10", "raw_rise_tenths", "sell_side_tenths",
-	"points_per_tenth_at_g", "enabler_points", "own_points_10",
+	"points_per_tenth_at_g", "enabler_points", "own_points_10", "own_points_rest",
 }
 
 func (r enablerRow) toCSV() []string {
@@ -105,6 +106,7 @@ func (r enablerRow) toCSV() []string {
 		strconv.FormatFloat(r.pointsPerTenth, 'f', 6, 64),
 		strconv.FormatFloat(r.enablerPoints, 'f', 4, 64),
 		strconv.Itoa(r.ownPoints10),
+		strconv.Itoa(r.ownPointsRest),
 	}
 }
 
@@ -272,6 +274,16 @@ func TestDiagEnablerValue(t *testing.T) {
 
 				outPts, _, _, _, _, _ := sumGWRange(p, g+1, g+outHorizon)
 
+				// ⚠️ own_points_rest exists so the season-end ratio has a
+				// MATCHING denominator. Scaling the enabler numerator by the
+				// gameweeks remaining while still dividing by a fixed
+				// ten-gameweek total inflates the ratio by roughly the ratio of
+				// the two windows -- about 2x -- and reads as the effect
+				// widening when it is only the windows disagreeing. That error
+				// shipped in the first analysis of this data and was caught on
+				// review.
+				restPts, _, _, _, _, _ := sumGWRange(p, g+1, 38)
+
 				enablerPoints := float64(sellSide) * pointsPerTenthAtG
 
 				row := enablerRow{
@@ -286,6 +298,7 @@ func TestDiagEnablerValue(t *testing.T) {
 					pointsPerTenth: pointsPerTenthAtG,
 					enablerPoints:  enablerPoints,
 					ownPoints10:    outPts,
+					ownPointsRest:  restPts,
 				}
 				if err := w.Write(row.toCSV()); err != nil {
 					t.Fatalf("writing row: %v", err)
