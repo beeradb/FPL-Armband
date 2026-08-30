@@ -70,6 +70,14 @@ Usage:
                             weekly and ideally shortly before each deadline; every
                             week missed is data that cannot be recovered.
                             Use "capture -list" to audit the series for gaps.
+  armband asof <capture-dir>
+                            Build the optimal fifteen as of a CAPTURED moment, from
+                            bytes on disk and with no network at all, so a decision
+                            can be scored on what was knowable at a deadline. Refuses
+                            a capture taken after its deadline, and one with two or
+                            more gameweeks played — past that the live path wires a
+                            recency index from per-player match history, which a
+                            capture does not carry. Takes -budget and -json.
   armband backfill <season|all>
                             Recover the same point-in-time team news for a FINISHED
                             season from the Internet Archive's crawls of FPL, one
@@ -128,8 +136,8 @@ Examples:
   armband squad -html squad.html    WRONG, and an error rather than a squad
                                      printed with the file never written
 
-  Eight commands parse their own flags, which therefore go AFTER the command:
-  capture, backfill, snapshot, serve, overrides, drift, xpoints and forecast.
+  Nine commands parse their own flags, which therefore go AFTER the command:
+  capture, backfill, snapshot, serve, overrides, drift, xpoints, forecast and asof.
   Their flags still come
   before their own positional arguments, for the same reason — a FlagSet stops
   at the first non-flag argument too, so "backfill 2023-24 -coverage" reads
@@ -139,6 +147,7 @@ Examples:
   armband capture -list             audit the capture series for gaps
   armband backfill -coverage all    report what is on disk without fetching
   armband serve -addr 127.0.0.1:9999
+  armband asof data/captures/2026-08-28T1100Z
 
 The agent reads Anthropic credentials from the environment: ANTHROPIC_API_KEY,
 ANTHROPIC_AUTH_TOKEN, or a profile created with ` + "`ant auth login`" + `.
@@ -291,6 +300,15 @@ func run() error {
 	// already on disk or historical.
 	if cmd == "drift" {
 		return cmdDrift(ctx, cfg, flag.Args()[1:])
+	}
+
+	// As-of joins them for drift's reason exactly: it builds its own engine from a
+	// capture on disk and never talks to FPL, so a live fetch first would be a
+	// round trip in service of a command that reads none of it — and would make an
+	// as-of run fail on a live outage, which is the dependency the capture exists
+	// to remove.
+	if cmd == "asof" {
+		return cmdAsOf(ctx, cfg, flag.Args()[1:])
 	}
 
 	fmt.Fprint(os.Stderr, dim("Loading FPL data... "))
@@ -1683,6 +1701,7 @@ var commandsThatParseTheirOwnFlags = map[string]bool{
 	"overrides": true, // cmdOverrideCheck takes -within
 	"drift":     true, // cmdDrift takes -season, -from, -through and -out
 	"xpoints":   true, // cmdXPoints takes -gw, -pos, -sort, -n and -format
+	"asof":      true, // cmdAsOf takes -budget and -json
 	"forecast":  true, // cmdForecast takes -date, -gameweek and -json
 }
 
