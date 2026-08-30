@@ -548,6 +548,13 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 
 	// Build the candidate pool.
 	all := e.AllMetrics()
+	// Selection inside the model's own noise band, before anything reads a Score.
+	// Applied here rather than at any of the individual sorts so the ordering and
+	// the objective can never disagree: every consumer below — the greedy fill,
+	// the DP seeds, polish, bestXIWith — sees one set of numbers. The nudge comes
+	// back out of the reported squad at the bottom of this function; see
+	// tiebreak.go for why it must.
+	tieNudges := applyTiebreak(all, e.Tiebreak)
 	byID := map[int]PlayerMetrics{}
 	for _, m := range all {
 		byID[m.ID] = m
@@ -848,6 +855,13 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	}
 
 	xi, bench, formation := bestXIWith(current, mustStart)
+	// The tiebreak has chosen the fifteen; from here every number is a forecast
+	// and must not carry it. Order is already fixed — bestXIWith has run — so
+	// removing the nudge cannot reshuffle the eleven, and SquadScore is restated
+	// from the clean scores below for the same reason XIScore is.
+	removeTiebreak(current, tieNudges)
+	removeTiebreak(xi, tieNudges)
+	removeTiebreak(bench, tieNudges)
 	sq := &Squad{
 		Players:    sortForDisplay(current),
 		StartingXI: xi,
@@ -861,6 +875,7 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	for _, p := range xi {
 		sq.XIScore += p.Score
 	}
+	restateSquadScoreExTiebreak(sq, tieNudges)
 	if len(xi) > 0 {
 		// bestXI returns the eleven sorted by score, so the armband goes to the
 		// front of it by construction.
@@ -871,6 +886,28 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	}
 	sq.ExpectedPoints = sq.XIScore + sq.Captain.Score
 	return sq, nil
+}
+
+// restateSquadScoreExTiebreak puts SquadScore on the same basis as every other
+// figure the struct carries.
+//
+// `bestScore` is the objective the search maximised, which includes the tiebreak
+// nudge; XIScore beside it is clean. Reporting both would put two conventions in
+// one struct, and the nudge is a selection device rather than a forecast — see
+// tiebreak.go. With no tiebreak active there is nothing to restate and the
+// objective already IS the clean sum, so the map is empty and this returns.
+//
+// Extracted from Optimize rather than left inline because the repository runs a
+// complexity ratchet that only turns down, and this block was the two points that
+// pushed Optimize from 64 to 66.
+func restateSquadScoreExTiebreak(sq *Squad, nudges map[int]float64) {
+	if len(nudges) == 0 {
+		return
+	}
+	sq.SquadScore = 0
+	for _, p := range sq.Players {
+		sq.SquadScore += p.Score
+	}
 }
 
 // boundInfeasible signals that no legal completion exists — either tier's

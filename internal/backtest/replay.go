@@ -72,6 +72,20 @@ func PreSeasonWith(cur, prior *Season, o Oracles) (*fpl.Bootstrap, []fpl.Fixture
 	// January, so iterating the first without this gate put him in the pre-season
 	// pool priced at what he was worth in May — see pool.go.
 	reg := registeredBy(cur, 0)
+	// Ownership at the GW1 deadline, which is the moment this bootstrap describes.
+	// ⚠️ Gameweek 1, not gameweek 0: `selected` is recorded per gameweek and the
+	// count on GW1's row is what managers had picked BY that deadline — known to
+	// anyone standing at it, and therefore not leakage. There is no earlier row to
+	// read, and PointInTimeWith's convention of "the most recent gameweek at or
+	// before `through`" degenerates to nothing at through=0.
+	//
+	// This was missed when the seam was first wired and the omission was not
+	// visible from the mid-season path: the pre-season pool is where the OPENING
+	// FIFTEEN is chosen, so an unwired PreSeasonWith leaves ownership at zero for
+	// every player in the one selection that matters most, while `through >= 1`
+	// looks correctly populated. A six-season sweep of an ownership policy came
+	// back byte-identical to its baseline for exactly this reason.
+	own := ownershipAt(cur, 1, reg)
 	for _, p := range cur.Players {
 		if !reg.has(p.ID) {
 			continue
@@ -81,6 +95,7 @@ func PreSeasonWith(cur, prior *Season, o Oracles) (*fpl.Bootstrap, []fpl.Fixture
 		el := fpl.Element{
 			ID: p.ID, Code: p.Code, WebName: p.WebName, ElementType: p.Type,
 			Team: p.Team, NowCost: reg.price(p, 1), Status: statusAt(p, 1, gameweekStart(cur, 1), o),
+			SelectedByPercent: fpl.Num(own.pct[p.ID]),
 		}
 		if q := priorByCode[p.Code]; q != nil {
 			el.Minutes, el.Starts = q.Minutes, q.Starts
