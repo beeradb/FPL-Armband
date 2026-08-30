@@ -47,6 +47,22 @@ type Tiebreak struct {
 	// band disables the tiebreak however Signal is set, since a nudge of zero
 	// reorders nothing.
 	Band float64
+
+	// HaulRate is the per-player ceiling the "haul" signal ranks on, keyed by
+	// element id: the share of a prior season's gameweeks in which he returned
+	// nine points or more.
+	//
+	// Supplied by the caller rather than read off PlayerMetrics, because
+	// PlayerMetrics carries season AGGREGATES and not the distribution of returns
+	// that produced them — a player averaging four points a week from steady
+	// fours and one averaging four from a haul and three blanks are identical in
+	// every field the engine holds. That distinction is the entire premise of
+	// this signal, and internal/analysis must not learn about the archive to
+	// discover it.
+	//
+	// ⚠️ A missing id ranks as zero, which is correct: no prior-season history
+	// is not evidence of a ceiling.
+	HaulRate map[int]float64
 }
 
 // TiebreakOff is the shipped policy: no reordering.
@@ -54,12 +70,23 @@ var TiebreakOff = Tiebreak{}
 
 // active reports whether this policy can move anything.
 func (t Tiebreak) active() bool {
-	return t.Band > 0 && (t.Signal == TiebreakOwnership || t.Signal == TiebreakPrice)
+	switch {
+	case t.Band <= 0:
+		return false
+	case t.Signal == TiebreakOwnership, t.Signal == TiebreakPrice:
+		return true
+	case t.Signal == TiebreakHaul:
+		// Without a table there is nothing to rank on, and ranking everyone at
+		// zero would silently make this the baseline while reporting as an arm.
+		return len(t.HaulRate) > 0
+	}
+	return false
 }
 
 const (
 	TiebreakOwnership = "ownership"
 	TiebreakPrice     = "price"
+	TiebreakHaul      = "haul"
 )
 
 // applyTiebreak nudges Score in place and returns the nudge applied to each
@@ -91,8 +118,11 @@ func applyTiebreak(all []PlayerMetrics, t Tiebreak) map[int]float64 {
 		sorted := make([]int, len(idx))
 		copy(sorted, idx)
 		sig := func(i int) float64 {
-			if t.Signal == TiebreakOwnership {
+			switch t.Signal {
+			case TiebreakOwnership:
 				return all[i].Ownership
+			case TiebreakHaul:
+				return t.HaulRate[all[i].ID]
 			}
 			return all[i].Price
 		}
