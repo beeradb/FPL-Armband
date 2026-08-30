@@ -107,9 +107,46 @@ func playGameweeks(t *testing.T, e *Engine, n int) {
 		played := ev != nil && *ev <= n
 		e.Fixtures[i].Started = played
 		e.Fixtures[i].Finished = played
+		// ⚠️ FinishedProvisional too, and it is the one that was missing.
+		//
+		// There are THREE signals here, not the two this comment used to claim.
+		// TeamMatchesFinished -- the denominator the current/prior MINUTES blend
+		// divides by, blend.go's `n := float64(e.TeamMatchesFinished(el.Team))`
+		// -- is gated on FinishedProvisional rather than Finished, deliberately:
+		// Finished lags full time by many hours on live data, and using it would
+		// reintroduce the staleness that gate exists to remove.
+		//
+		// Leaving it unset made every simulated season read as ZERO completed
+		// matches, so `mix` gave the prior full weight and MinutesPerMatch pinned
+		// to priorMinutes/38 no matter what the caller set el.Minutes to. A
+		// player dropped to ten minutes a week still reported 86.84 expected
+		// minutes, which is exactly what TestBlendYieldsToTheSeason complains
+		// about -- and it was this helper's fault, not the engine's.
+		e.Fixtures[i].FinishedProvisional = played
 	}
 	if got := e.GameweeksPlayed(); got != n {
 		t.Fatalf("set up %d finished gameweeks, engine sees %d", n, got)
+	}
+	// ⚠️ Assert the OTHER two signals as well, or this helper cannot detect its
+	// own no-op. The check above reads Boot.Events and would have passed
+	// unchanged through the entire defect described above.
+	if n > 0 {
+		if !e.SeasonHasStarted() {
+			t.Fatalf("set up %d gameweeks but no fixture reads Started, so the "+
+				"engine still believes it is pre-season", n)
+		}
+		var anyFinished bool
+		for _, tm := range e.Boot.Teams {
+			if e.TeamMatchesFinished(tm.ID) > 0 {
+				anyFinished = true
+				break
+			}
+		}
+		if !anyFinished {
+			t.Fatalf("set up %d gameweeks but TeamMatchesFinished is 0 for every "+
+				"club, so the minutes blend will see no evidence and anchor on the "+
+				"prior", n)
+		}
 	}
 }
 
@@ -185,7 +222,26 @@ func TestDataWindowTracksTheSeason(t *testing.T) {
 			t.Errorf("after GW%d an ever-present shows %.1f expected minutes, want ~90",
 				gw, m.ExpectedMinutes)
 		}
-		if m.RotationRisk != "nailed" {
+		// ⚠️ From GW2, not GW1. `corroboratingMatches` is 2 -- this package's own
+		// bar for "this player's minutes are trustworthy" -- so ONE match of
+		// ninety minutes is deliberately not enough to call anyone nailed, and
+		// the band correctly reads "likely starter" there.
+		//
+		// ⚠️ CORRECTED 2026-08-30 on review. An earlier version of this comment
+		// blamed playGameweeks not setting Fixture.FinishedProvisional. That is
+		// wrong and was checked: e.Priors is never set in this file, so
+		// blendRatesCode returns before it reaches TeamMatchesFinished at all,
+		// and minutesCorroborated -- the function that actually gates "nailed" --
+		// reads el.Minutes/90 against corroboratingMatches directly. Reverting
+		// only the FinishedProvisional line still fails here identically.
+		//
+		// The real history: corroboratingMatches landed in d0fcd865 on
+		// 2026-08-22, after this file was last touched, so the unconditional GW1
+		// assertion had ALREADY been broken by that commit. It survived because
+		// the live data this test ran on did not reach the branch. The gw > 1
+		// guard is the right fix; the mechanism previously written here was not
+		// the one at work.
+		if gw > 1 && m.RotationRisk != "nailed" {
 			t.Errorf("after GW%d an ever-present is banded %q, want nailed",
 				gw, m.RotationRisk)
 		}

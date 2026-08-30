@@ -17,7 +17,41 @@ func (f fakePriors) Get(code int) (*PriorPlayer, bool) { p, ok := f[code]; retur
 // there is nothing to shrink toward and blending would double-count it.
 func TestBlendIsANoOpPreSeason(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
-	e.Priors = fakePriors{}
+
+	// ⚠️ A MATCHING prior, not an empty map, and the difference is the whole test.
+	//
+	// Pre-season FPL has not reset its aggregates, so what the bootstrap carries
+	// IS last season -- which means any player with real minutes necessarily HAS
+	// a prior, and it necessarily agrees with the bootstrap. That is the state
+	// this test is named for, and preSeasonRates' third branch ("a prior
+	// identical to what FPL carries -> change nothing") is the no-op it asserts.
+	//
+	// ⚠️ It used to pass `fakePriors{}`, an EMPTY map, which does not mean
+	// "priors are loaded" -- it means NOBODY has a prior, which routes every
+	// player down the unknown-prior path instead. That path legitimately shrinks
+	// toward the position's league average (UnknownPriorShare, shipped 558806af
+	// on 2026-08-28), so the test read 0.822 and looked like an engine defect.
+	// Measured on the committed capture: empty prior gives PriorWeight 0.822 and
+	// 50.91 expected minutes; a matching prior gives 1.000 and 87.63; a genuinely
+	// unknown player -- no prior AND no aggregates -- gives 0.000 and 50.91,
+	// which is the fallback working as intended.
+	//
+	// The engine was right. The setup described a state that cannot occur.
+	//
+	// It passed on its original 2026-08-16 shape only because the unknown-prior
+	// path did not exist yet, so an empty map also fell through to "change
+	// nothing". When that path shipped the empty map started meaning something
+	// else, and this should have failed -- but its selection needs
+	// `el.Minutes >= 900`, true only pre-season, and by then GW1 had reset the
+	// aggregates and it had already gone dark. It has asserted nothing since.
+	priors := fakePriors{}
+	for i := range e.Boot.Elements {
+		el := &e.Boot.Elements[i]
+		if el.Minutes > 0 {
+			priors[el.Code] = &PriorPlayer{Minutes: el.Minutes, Starts: el.Starts}
+		}
+	}
+	e.Priors = priors
 
 	var checked int
 	for i := range e.Boot.Elements {
@@ -31,7 +65,9 @@ func TestBlendIsANoOpPreSeason(t *testing.T) {
 		}
 	}
 	if checked == 0 {
-		t.Skip("no players with minutes")
+		t.Fatal("no players with 900+ minutes in the committed pre-season capture; " +
+			"the capture pin is wrong, and skipping here is how this test went " +
+			"dark for a fortnight")
 	}
 }
 
