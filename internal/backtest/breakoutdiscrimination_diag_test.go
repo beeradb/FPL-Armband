@@ -300,10 +300,11 @@ func TestDiagBreakoutDiscrimination(t *testing.T) {
 		outHorizon = 10
 	)
 
-	outDir := os.Getenv("FPL_BREAKOUT_OUT")
-	if outDir == "" {
-		outDir = "/work/drop/breakout-2026-08-30"
-	}
+	// One path, not an env override. A second way to set an output location is a
+	// fallback, and it would also be an undeclared FPL_* switch --
+	// TestEnvSwitchListIsComplete greps the tree for those and cannot tell an
+	// output path from one that reshapes a measurement.
+	outDir := "/work/drop/breakout-2026-08-30"
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		t.Fatalf("creating %s: %v", outDir, err)
 	}
