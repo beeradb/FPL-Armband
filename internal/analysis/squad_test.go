@@ -1,30 +1,17 @@
 package analysis
 
 import (
-	"context"
 	"testing"
-	"time"
-
-	"armband/internal/fpl"
 )
 
 func testEngine(t *testing.T) *Engine {
 	t.Helper()
-	c := fpl.New(t.TempDir(), 24*time.Hour, 24*time.Hour)
-	ctx := context.Background()
-	boot, err := c.Bootstrap(ctx)
-	if err != nil {
-		t.Skipf("FPL API unreachable: %v", err)
-	}
-	fx, err := c.Fixtures(ctx)
-	if err != nil {
-		t.Skipf("FPL API unreachable: %v", err)
-	}
-	// No skipDuringLiveGW1Gap here on purpose: some callers (datawindow_test.go)
-	// immediately call playGameweeks to fully override the live state, and a
-	// skip here would abort before that override ever ran. Callers that do NOT
-	// override the state call it themselves — see this function's callers.
-	return NewEngine(boot, fx, DefaultWeights())
+	// Built from a COMMITTED CAPTURE, not the live API. See
+	// capturetestengine_test.go for why: the live fetch made this suite
+	// irreproducible, cost a cold 1.6MB round trip per call site, and -- worst --
+	// skipped when FPL was unreachable, so the whole package went green while
+	// testing nothing.
+	return captureEngine(t)
 }
 
 func TestOptimizeProducesLegalSquad(t *testing.T) {
