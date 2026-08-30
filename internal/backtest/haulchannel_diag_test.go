@@ -132,10 +132,11 @@ func TestDiagHaulChannel(t *testing.T) {
 	// Banked outside the repo: 93,990 rows is 6.3MB, which is not testdata. The
 	// path is named in the finding's measured_at, the way
 	// work/landed/attribute-the-override-mode-effect.md names its cells.
-	dir := os.Getenv("FPL_HAUL_OUT")
-	if dir == "" {
-		dir = "/work/drop/haul-channel-2026-08-30"
-	}
+	// One path, not an env override. A second way to set an output location is a
+	// fallback, and it would also be an undeclared FPL_* switch --
+	// TestEnvSwitchListIsComplete greps the tree for those and cannot tell an
+	// output path from one that reshapes a measurement.
+	dir := "/work/drop/haul-channel-2026-08-30"
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
