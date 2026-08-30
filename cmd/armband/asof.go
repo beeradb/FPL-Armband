@@ -120,6 +120,38 @@ func cmdAsOf(ctx context.Context, cfg config.Config, args []string) error {
 			"it is being compared against", cfg.Weights.PriorHalfLife)
 	}
 
+	// ⚠️ The recency index is the live path's SECOND unbuildable input, and it is
+	// refused on the same principle as prior_half_life above rather than a
+	// different one.
+	//
+	// cmd/armband wires engine.Recent from recent.Load — per-player match history,
+	// one element-summary request per player who has played. A capture holds the
+	// bootstrap and the fixtures and nothing else, so an as-of run cannot build
+	// that index, and blend.go's recency branch is then never reached:
+	// MinutesPerMatch stays at the flat season-to-date mean and blankRunFactor
+	// never fires.
+	//
+	// Where the cutoff comes from, measured rather than assumed
+	// (TestRecencyIsANoOpAtOneGameweekPlayed, internal/backtest):
+	//
+	//   0 or 1 gameweeks played — the index is a BIT-EXACT no-op. Across all six
+	//     archived seasons, 0 of 500-690 players differ on ExpectedMinutes. At one
+	//     gameweek the recency-weighted mean over a single gameweek and the flat
+	//     season-to-date mean are arithmetically the same number.
+	//   2 gameweeks played — 194-246 players move, up to 3 of the starting XI
+	//     changes and expected points shift by up to 0.20.
+	//
+	// So this runs where the two paths are provably one model and refuses where
+	// they are not. The live path's own gate is GameweeksPlayed() > 0; ours is > 1,
+	// and the extra gameweek is bought by the measurement above, not by assumption.
+	if engine.GameweeksPlayed() > 1 {
+		return fmt.Errorf("this capture has %d gameweeks played, and from two "+
+			"onward the live path's recency index moves the squad (194-246 players, "+
+			"up to 3 of the XI); a capture carries no per-player match history to "+
+			"build it from, so an as-of run here would score a different model than "+
+			"the engine it is being compared against", engine.GameweeksPlayed())
+	}
+
 	if engine.SeasonHasStarted() {
 		s, err := priors.Load(ctx, cfg.CacheDir, priorSeasonName(engine))
 		if err != nil {

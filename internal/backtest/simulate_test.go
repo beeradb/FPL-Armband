@@ -947,7 +947,19 @@ var unwiredBaseline = map[string]string{
 	// golden a picture of a squad the binary never produces.
 	// TestTheFixtureMatchesWhatProductionBuildsAtGW1 asserts the premise rather than
 	// leaving it as a claim in a comment.
-	"webroutes_test.go":          "OK — GW1 capture, GameweeksPlayed()==0, and the live path wires recency only above 0",
+	"webroutes_test.go": "OK — GW1 capture, GameweeksPlayed()==0, and the live path wires recency only above 0",
+	// `armband asof` scores a CAPTURE, and a capture holds the bootstrap and the
+	// fixtures and nothing else — there is no per-player match history in it to
+	// build an index from, and fetching one would reintroduce the live dependency
+	// the capture exists to remove. Rather than diverge quietly it refuses above
+	// one gameweek played, so the only regime it runs in is the one where the
+	// index provably changes nothing.
+	// TestRecencyIsANoOpAtOneGameweekPlayed and
+	// TestRecencyDoesNotMoveTheSquadAtOneGameweekPlayed assert that premise on all
+	// six archived seasons rather than leaving it as a claim here, and they assert
+	// the divergence AT two as well, so the refusal cannot outlive its reason.
+	"asof.go": "OK — refuses above one gameweek played, and recency is a measured " +
+		"no-op at or below it (see TestRecencyIsANoOpAtOneGameweekPlayed)",
 	"determinism_test.go":        "OK — PointInTime cutoff 0",
 	"determinismfactors_test.go": "OK — PointInTime cutoff 0",
 
