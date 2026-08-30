@@ -617,8 +617,10 @@ by deleting the list, and do not re-derive a verdict from a title alone.
 - **Do not break ties on ownership inside the separable band — measured on six seasons and
   ruled out, and the one effect that resolved went the wrong way.** → **optimiser-and-squad**
 - **Do not build a haul-propensity tiebreak, and do not build a minutes one: neither channel
-  carries anything inside the band that `Score` has not already taken.** →
-  **optimiser-and-squad**
+  carries anything inside the band that `Score` has not already taken.** ⚠️ Two different
+  strengths of evidence: the MEAN channel is measured and flat, the UPSIDE arm is
+  no-evidence-found on six clusters, which is below this file's own twelve-cell floor —
+  read it as "not worth shipping", not as a demonstrated null. → **optimiser-and-squad**
 - **Do not scope the local test run to the packages a change touches.** Built and measured 2026-08-19: the Go test cache already does it, and better — it tracks the cross-package source scans an import graph cannot see, so a hand-derived scope skips exactly the guards this record pins its shipped bugs with. → **work/ruled-out/scope-the-test-run-and-move-the-suite-to-ci**
 - **Do not memoise `blankRate`.** Answer-exact and measured no faster —
   `playsAtAll` is cheaper than the cache lookup that would replace it. →
