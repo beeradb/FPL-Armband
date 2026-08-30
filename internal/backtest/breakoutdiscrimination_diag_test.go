@@ -122,6 +122,18 @@ type breakoutRow struct {
 	teamID         int
 	outPoints10    int
 	outMinutes10   int
+
+	// The candidate's own team, aggregated across every player who wore its
+	// shirt in 1..g and reused across every candidate at this (season, g) —
+	// see teamStatsAt. Added to test the pre-registered "team quality"
+	// discriminator omitted from the first pass: Antony-on-Burnley and
+	// Palmer-on-Chelsea should not look alike on the columns above, and
+	// these are what would tell them apart.
+	teamGoalsPM     float64
+	teamConcededPM  float64
+	teamFPLPtsPM    float64
+	teamMatches     int
+	teamRankGoalsPM int
 }
 
 var breakoutCSVHeader = []string{
@@ -129,6 +141,8 @@ var breakoutCSVHeader = []string{
 	"hot_points", "hot_xgxa_per90", "hot_pts_minus_xgi", "hot_start_share",
 	"hot_minutes", "prev_minutes", "minutes_trend", "engine_score", "team_id",
 	"out_points_10", "out_minutes_10",
+	"team_goals_pm", "team_conceded_pm", "team_fpl_pts_pm", "team_matches",
+	"team_rank_goals_pm",
 }
 
 func (r breakoutRow) toCSV() []string {
@@ -150,7 +164,127 @@ func (r breakoutRow) toCSV() []string {
 		strconv.Itoa(r.teamID),
 		strconv.Itoa(r.outPoints10),
 		strconv.Itoa(r.outMinutes10),
+		strconv.FormatFloat(r.teamGoalsPM, 'f', 4, 64),
+		strconv.FormatFloat(r.teamConcededPM, 'f', 4, 64),
+		strconv.FormatFloat(r.teamFPLPtsPM, 'f', 4, 64),
+		strconv.Itoa(r.teamMatches),
+		strconv.Itoa(r.teamRankGoalsPM),
 	}
+}
+
+// teamAtG is one team's whole-team output through gameweek g, aggregated
+// across every player who has a row for that team in 1..g — not the
+// candidate alone. It is what lets "team quality" be tested as a
+// discriminator distinct from the candidate's own hot window: Antony's hot
+// window and Palmer's hot window can look alike while the shirts they wore
+// did not.
+type teamAtG struct {
+	goalsPM    float64
+	concededPM float64
+	fplPtsPM   float64
+	matches    int
+	// rankGoalsPM is 1-based, 1 = best team_goals_pm, set once every team at
+	// this (season, g) is known — see teamStatsAt.
+	rankGoalsPM int
+}
+
+// teamStatsAt builds the whole (season, g) team table in one pass over
+// cur.Players, so EngineAt's own rule — built once per (season, g), reused
+// for every player at that cutoff, because the answer does not depend on
+// which player is asking — applies here too: a team's rate does not depend on
+// which of its players is the candidate being scored.
+//
+// Every sum here is over gameweeks 1..g only, from the rows p.GWs actually
+// holds — the same point-in-time discipline as sumGWRange and priceAt: a
+// candidate at g must never see a team figure that includes gameweek g+1.
+//
+// # Why GoalsConceded gets a second pass and Goals/Points do not
+//
+// GW.Goals and GW.Points are per-player events: two of a team's players
+// scoring in the same match are two different goals, so summing them across
+// the team's players for a gameweek gives the real team total, and dividing
+// the season sum by matches played gives a real per-match rate.
+//
+// GW.GoalsConceded is not a per-player event — the archive records the SAME
+// number, the team's goals conceded that match, on every one of the team's
+// players who has a row that gameweek. Summing it across players the way
+// Goals is summed would multiply one match's conceded total by however many
+// of the team's players happened to have a row that gameweek — which moves
+// with rotation, blanks and doubles, and is not a constant 11 to divide back
+// out by. The correct denominator is therefore counted PER GAMEWEEK: average
+// GoalsConceded across only the team's players with a row that gameweek
+// (collapsing the duplicate back to the one real per-match figure, since
+// every one of those rows carries the same value), then average that
+// per-gameweek figure across the matches played to g. Dividing the raw sum by
+// matches*11 instead — the naive fix — is wrong on every gameweek where the
+// team did not have exactly 11 rostered players with a row, which is most of
+// them.
+func teamStatsAt(cur *Season, g int) map[int]teamAtG {
+	type gwConceded struct{ sum, rows int }
+	type accum struct {
+		goals, fplPts int
+		gwSeen        map[int]bool
+		concededByGW  map[int]gwConceded
+	}
+
+	teams := map[int]*accum{}
+	for _, p := range cur.Players {
+		for gw := 1; gw <= g; gw++ {
+			row, ok := p.GWs[gw]
+			if !ok {
+				continue
+			}
+			a, ok := teams[p.Team]
+			if !ok {
+				a = &accum{gwSeen: map[int]bool{}, concededByGW: map[int]gwConceded{}}
+				teams[p.Team] = a
+			}
+			a.goals += row.Goals
+			a.fplPts += row.Points
+			a.gwSeen[gw] = true
+			c := a.concededByGW[gw]
+			c.sum += row.GoalsConceded
+			c.rows++
+			a.concededByGW[gw] = c
+		}
+	}
+
+	out := make(map[int]teamAtG, len(teams))
+	for teamID, a := range teams {
+		matches := len(a.gwSeen)
+		if matches == 0 {
+			continue
+		}
+		var concededSum float64
+		for _, c := range a.concededByGW {
+			if c.rows == 0 {
+				continue
+			}
+			concededSum += float64(c.sum) / float64(c.rows)
+		}
+		out[teamID] = teamAtG{
+			goalsPM:    float64(a.goals) / float64(matches),
+			concededPM: concededSum / float64(matches),
+			fplPtsPM:   float64(a.fplPts) / float64(matches),
+			matches:    matches,
+		}
+	}
+
+	// Rank on team_goals_pm among exactly the teams present at this (season,
+	// g) — a team with no player row through g yet (a promoted club before
+	// its first fixture is parsed, in principle) is absent from the map
+	// entirely rather than ranked last on a rate it has no data for.
+	ids := make([]int, 0, len(out))
+	for id := range out {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return out[ids[i]].goalsPM > out[ids[j]].goalsPM })
+	for rank, id := range ids {
+		t := out[id]
+		t.rankGoalsPM = rank + 1
+		out[id] = t
+	}
+	return out
 }
 
 func TestDiagBreakoutDiscrimination(t *testing.T) {
@@ -216,6 +350,10 @@ func TestDiagBreakoutDiscrimination(t *testing.T) {
 			for _, m := range eng.AllMetrics() {
 				score[m.ID] = m.Score
 			}
+			// Built once per (season, g) exactly like eng above, and for the
+			// same reason: a team's rate at g does not depend on which of
+			// its players is the candidate asking for it.
+			teams := teamStatsAt(cur, g)
 
 			for _, p := range cur.Players {
 				// price at g, or the most recent priced row at or before g —
@@ -269,6 +407,12 @@ func TestDiagBreakoutDiscrimination(t *testing.T) {
 					teamID:         p.Team,
 					outPoints10:    outPts,
 					outMinutes10:   outMins,
+
+					teamGoalsPM:     teams[p.Team].goalsPM,
+					teamConcededPM:  teams[p.Team].concededPM,
+					teamFPLPtsPM:    teams[p.Team].fplPtsPM,
+					teamMatches:     teams[p.Team].matches,
+					teamRankGoalsPM: teams[p.Team].rankGoalsPM,
 				}
 				if err := w.Write(row.toCSV()); err != nil {
 					t.Fatalf("writing row: %v", err)

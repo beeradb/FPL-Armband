@@ -9,7 +9,8 @@ cat(sprintf("  outcome out_points_10: mean %.1f  sd %.1f  min %d  max %d\n",
 cat(sprintf("  distinct players: %d\n\n", length(unique(paste(d$season,d$player_id)))))
 
 preds <- c("engine_score","hot_xgxa_per90","hot_start_share","minutes_trend",
-           "hot_points","hot_pts_minus_xgi","price_tenths","hot_minutes")
+           "hot_points","hot_pts_minus_xgi","price_tenths","hot_minutes",
+           "team_goals_pm","team_fpl_pts_pm","team_conceded_pm","team_rank_goals_pm")
 
 cat("=== SPEARMAN of each predictor against out_points_10, season-clustered df 5 ===\n")
 res <- list()
@@ -36,7 +37,7 @@ for (p in setdiff(preds,"engine_score")) {
 
 ps <- sapply(preds, function(p) res[[p]]["p"])
 h <- p.adjust(ps, method="holm")
-cat("\n=== HOLM across the eight predictors ===\n")
+cat("\n=== HOLM across the twelve pre-registered predictors ===\n")
 for (i in seq_along(preds)) cat(sprintf("  %-18s p=%.4f  Holm=%.4f  %s\n", preds[i], ps[i], h[i],
                                         ifelse(h[i]<0.05,"*** survives","does not survive")))
 
