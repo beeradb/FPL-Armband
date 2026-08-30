@@ -88,6 +88,17 @@ func TestNothingWiresPriorHalfLifeIntoTheReplay(t *testing.T) {
 	allowed := map[string]string{
 		"cmd/armband/sweep.go": "the warning's own text names both fields, in a " +
 			"string literal that no comment-strip will remove",
+		// `asof` reads the key to REFUSE on it, not to honour it. The live path
+		// blends several prior seasons through recent.LoadPriors, which needs a
+		// client an as-of run does not have and must not acquire; rather than
+		// silently score a different model, the command errors out when the key is
+		// set. So this is a reader that guarantees the value is never acted on —
+		// the opposite of wiring it — and `armband backtest` is untouched, which is
+		// the clause sweep.go's warning actually makes.
+		// TestAsOfRefusesWhenPriorHalfLifeWouldBlendMultipleSeasons pins the
+		// behaviour this licence is granted for.
+		"cmd/armband/asof.go": "reads the key only to refuse the run; does not " +
+			"reach the replay, and does not honour the blend",
 	}
 	used := map[string]bool{}
 
