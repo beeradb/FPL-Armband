@@ -74,6 +74,7 @@ permissions:
 
 jobs:
   test:
+    name: Build, vet, gates and test
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -228,15 +229,12 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      # ⚠️ THE SELFTEST RUNS FIRST, AND THAT ORDER IS THE POINT.
-      #
-      # The recurring failure this guards is not a wrong number, it is a CHECK
-      # TRUSTED WITHOUT EVIDENCE IT CAN FAIL. Five separate guards in this repo
-      # have run green while unable to act, and each was found by injecting the
-      # thing it claimed to catch — never by watching it pass. So the checker
-      # proves it goes red on a mutated expectation BEFORE its green run is
-      # allowed to mean anything. A green `claims` step whose selftest did not
-      # run is worth exactly nothing.
+      # The complexity ratchet itself, its selftest-runs-first ordering, and the
+      # reasoning behind both now live in internal/snapshot/gates_test.go,
+      # exercised by the "Test" step below. This step only has to put the
+      # binary on PATH before that test runs — see gates_test.go's own doc
+      # comment for why go test ./... fails outright, rather than skipping,
+      # when gocyclo is not on PATH.
       # ⚠️ FORWARD-LOOKING ONLY. 74 functions are already over the threshold and
       # every one is grandfathered. A global threshold would either sit above the
       # worst (65, and therefore unable to ever fire) or block unrelated work
@@ -247,44 +245,44 @@ jobs:
       - name: Install gocyclo
         run: go install github.com/fzipp/gocyclo/cmd/gocyclo@v0.6.0
 
-      - name: Prove the complexity ratchet can fail
-        run: python3 scripts/complexity-ratchet.py --selftest
+      # workflow-lint.py and claims.py both `import yaml`. Nothing else in this
+      # repository can pin a Python package -- go.mod pins the Go module graph
+      # and stops there -- so until this step existed, both gates worked only
+      # because ubuntu-latest happens to preinstall PyYAML. See requirements.txt.
+      - name: Install pinned Python gate dependencies
+        run: python3 -m pip install -r requirements.txt
 
-      - name: Complexity ratchet
-        run: python3 scripts/complexity-ratchet.py
-
-      # ⚠️ Runs HERE rather than in snapshot.yml, beside the ratchet's own
-      # selftest and for the same reason: it must run on every push, not only
-      # when the figures happen to move. The defect it covers made the figures
-      # gate UNSATISFIABLE on a pull request -- it looked for the author's
-      # trailer in GitHub's synthetic merge commit, where no author can write
-      # one -- and that went unseen for the gate's whole life because the gate
-      # only speaks when the figures move, which is rare.
+      # ⚠️ Runs HERE rather than in snapshot.yml, and for the same reason the
+      # three gates below now run through `go test ./...` instead of as their
+      # own steps: it must run on every push, not only when the figures happen
+      # to move. The defect it covers made the figures gate UNSATISFIABLE on a
+      # pull request -- it looked for the author's trailer in GitHub's synthetic
+      # merge commit, where no author can write one -- and that went unseen for
+      # the gate's whole life because the gate only speaks when the figures
+      # move, which is rare. It is NOT folded into `go test ./...` with the
+      # other three because it guards a PULL-REQUEST property -- the trailer must
+      # be findable in a real commit rather than GitHub's synthetic merge commit --
+      # not a property of the tree.
+      # ⚠️ An earlier version of this line said it "has to run whether or not the
+      # code compiles". That is not true of it: it sits after Build and Vet in
+      # this job with no continue-on-error, so a build failure aborts first.
       - name: Prove the figures trailer is findable on a pull request
         run: python3 scripts/figures-moved-check.py --selftest
 
-      # ⚠️ THIS MUST LIVE HERE AND NOT IN snapshot.yml. The defect it catches
-      # DISABLED snapshot.yml outright -- three steps carried two `if:` keys
-      # each, which PyYAML resolves by keeping the last and GitHub rejects
-      # wholesale -- so every run produced zero jobs and a bare `failure` with
-      # no logs. A workflow cannot report that it is the one that will not
-      # parse, so the check has to run somewhere else.
-      - name: Prove the workflow linter can fail
-        run: python3 scripts/workflow-lint.py --selftest
-
-      - name: Lint the workflows
-        run: python3 scripts/workflow-lint.py
-
-      - name: Prove the claims checker can fail
-        run: python3 scripts/claims.py --selftest
-
-      # Re-derives every quantitative claim in stats/claims.yaml rather than
-      # trusting a number written down beside it. ⚠️ A registry of VALUES is the
-      # one design already proved to rot here — `ledger/` drifted in under 24
-      # hours — so entries store the COMMAND and this re-runs it.
-      - name: Check the claims registry
-        run: python3 scripts/claims.py
-
+      # The complexity ratchet, the workflow linter and the claims registry
+      # used to each be two steps here -- "Prove the X can fail" then "X" --
+      # and `go test ./...` never ran any of them: they failed only after a
+      # push, never locally, and a developer following AGENTS.md's own "run go
+      # test" advice got no warning. They are now
+      # internal/snapshot/gates_test.go, exercised by the "Test" step below
+      # like everything else `go test ./...` covers, in BOTH CI and a local
+      # run, from one invocation, so the two cannot drift apart. Each test
+      # still runs its script's own --selftest first, for the same reason this
+      # job used to run it as a separate step: a green check that has never
+      # been shown to go red is not evidence of anything. See that file's own
+      # doc comment for why a missing gocyclo, python3 or PyYAML is fatal
+      # there rather than a skip.
+      #
       # ⚠️ FPL_SNAPSHOTS_EXTERNAL=1 is load-bearing, added 2026-08-22 the same commit the
       # accuracy series stopped being committed. TestSnapshotCoversTheCurrentCode's own doc
       # comment says the flag is for when "the series is expected to come from CI rather
@@ -297,4 +295,16 @@ jobs:
       - name: Test
         env:
           FPL_SNAPSHOTS_EXTERNAL: "1"
-        run: go test ./...
+        # ⚠️ -count=1 is load-bearing, for the reason staleness_test.go already
+        # records and snapshot.yml and pr-model-report.yml already act on: Go's
+        # test-result cache only tracks files the TEST BINARY opens, and the gate
+        # tests in internal/snapshot shell out to python3. A mutation to
+        # stats/claims.yaml or a workflow file is invisible to the cache, so a
+        # second invocation on the same tree returns "ok (cached)" having run
+        # none of them, and exits 0.
+        #
+        # CI is protected from that only INCIDENTALLY today -- -buildvcs embeds
+        # the commit sha, so a new commit is always a new binary and a cache miss
+        # -- but that does not cover a re-run of this job on an unchanged commit,
+        # and relying on a side-effect for a gate is how the gate stops guarding.
+        run: go test -count=1 ./...
