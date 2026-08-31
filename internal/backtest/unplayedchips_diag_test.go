@@ -17,9 +17,14 @@ package backtest
 // in this project's record was measured by a manager who played **zero chips** while
 // every real manager in the same field played theirs. `ChipSetsFor` returns 1 before
 // 2025-26 and 2 from it, and `analysis.ChipPlan` carries four chips, so the handicap is
-// four chips a season through 2024-25 and **eight** in 2025-26 — and 2025-26 is the
-// season the engine's placement collapsed from ≈379k to ≈1.70M. This measures the
-// handicap. It does not, and cannot, attribute the collapse to it.
+// four chips a season through 2024-25 and **eight** in 2025-26. This measures the
+// handicap. It does not, and cannot, attribute any rank outcome to it.
+//
+// ⚠️ An earlier version of this comment named two specific rank placements as the
+// motivation. Those are derived from a manager cohort held outside every
+// repository and cannot be re-derived from a fresh checkout, so they had no business
+// in tracked source — removed 2026-08-31. The doubling of the chip allowance, which
+// IS repo-checkable from ChipSetsFor, is motivation enough.
 //
 // # Arms — identical but for the chip allowance
 //
