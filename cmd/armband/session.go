@@ -264,8 +264,29 @@ func (s session) empty() bool {
 // player he cannot pick and a stated reason, rather than a squad built around a choice he
 // did not make. The reader's OWN locks, from the session, are applied after this and are
 // untouched: they are his.
+// ⚠️ A CHIP PLAN IS A DECISION, so it is stripped here for the same reason a lock is.
+//
+// `chip_plan` is one manager's strategy for one entry. It was never stripped, so every
+// visitor who had never touched a chip inherited it — and `EffectiveHorizon` truncates
+// the optimiser to the gameweeks before the next planned wildcard, so their fifteen was
+// built on a horizon set by a chip they had not planned, could not see, and could not
+// remove. The reader's OWN placements are folded in afterwards by `chipsInto` and are
+// untouched: they are his, exactly as his locks are.
+//
+// ⚠️ **This belongs HERE and not in `chipsInto`**, because `forPlanner` is the one place
+// that answers "what does a READER inherit from the owner's file", and `serve.go` skips
+// it deliberately under `-persist` — where the page is the owner's own and his plan
+// should bind. Stripping inside `chipsInto` would have taken his chips off his own page.
+//
+// ⚠️ The list is a DENY-list, which is the wrong polarity and is why this case was
+// missed for as long as it was: a decision added to `config.Config` is inherited by
+// readers unless somebody remembers to name it here. Inverting it — building the
+// planner's config from an explicit allow-list of things that describe the world — is
+// the standing fix, and it is why `entry_id` and `hypothetical_budget_m` are worth a
+// look next.
 func forPlanner(cfg config.Config) config.Config {
 	cfg.Roster.Lock = nil
+	cfg.Chips = analysis.ChipSchedule{}
 	return cfg
 }
 
