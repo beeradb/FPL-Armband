@@ -549,11 +549,16 @@ func configPath(t *testing.T) string {
 	return p
 }
 
-// teamPath resolves the shipped team file beside the shipped config, on the
-// same rules configPath uses: FPL_TEAM overrides, otherwise the repository
-// root's team.json. FPL_CONFIG and FPL_TEAM are separate switches because the
-// two files are separate inputs — pointing a run at an experimental config
-// should not silently drag in a chip plan written for a different one.
+// teamPath resolves the shipped team file, on the same rules configPath uses:
+// FPL_TEAM overrides, otherwise the repository root's team.json.
+//
+// ⚠️ It is a SEPARATE switch from FPL_CONFIG, and it does not follow it.
+// Setting FPL_CONFIG alone points the run at an experimental config while still
+// reading the repository's own team.json — which is deliberate, because the two
+// files are separate inputs and a sweep over weights has no business also
+// changing the chip plan it replays. But it does mean an experimental config
+// with its own team file needs BOTH set, and `snapshot.CurrentEnv`
+// fingerprints both so a sidecar records which pair actually ran.
 func teamPath(t *testing.T) string {
 	t.Helper()
 	if p := os.Getenv("FPL_TEAM"); p != "" {
