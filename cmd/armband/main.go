@@ -36,10 +36,11 @@ Usage:
                             a per-startup token that gates the page's write
                             actions. Lock and boot update the page in place;
                             rows slide in and out. Flags go AFTER the command:
-                            -addr 127.0.0.1:9999, -persist (write overrides to
-                            config.json — the default keeps them in a
-                            browser-session cookie, so config.json stays a
-                            default)
+                            -addr 127.0.0.1:9999, -persist (write overrides
+                            back to the files — a boot to config.json, a LOCK
+                            to the -team file, which -persist therefore needs;
+                            the default keeps them in a browser-session cookie,
+                            so both files stay untouched)
   armband transfers         Best transfers for the squad you own, as a team sheet
                             (no AI, no API cost)
   armband fixtures          Fixture difficulty table (no AI, no API cost)
@@ -99,6 +100,12 @@ Usage:
 
 Flags:
   -config string   Path to config file (default "config.json")
+  -team string     Path to YOUR team file: chip plan, criteria, squad locks,
+                   hypothetical_budget_m and the scheduled-run lead time.
+                   Separate from -config because config.json is what a public
+                   deployment serves, and those five are one manager's own.
+                   Omit it and each keeps its shipped default. A path that
+                   does not exist is an error, not an empty plan
   -no-report       Don't write a Markdown report
   -model string    Override the model from config
   -effort string   Override effort: low|medium|high|xhigh|max
@@ -132,6 +139,10 @@ Examples:
                                      planned past the horizon is visible
   armband -refresh brief            ignore the cache, then the full briefing
   armband -config alt.json review   the weekly decision, alternate config
+  armband -config c.json -team team.json chips
+                                     the chip windows AND your own plan against
+                                     them; without -team there is no plan to
+                                     validate
 
   armband squad -html squad.html    WRONG, and an error rather than a squad
                                      printed with the file never written
@@ -164,6 +175,7 @@ func main() {
 // capture, backfill and snapshot register on their own FlagSet.
 type globalFlags struct {
 	cfgPath  *string
+	teamPath *string
 	noReport *bool
 	model    *string
 	effort   *string
@@ -188,6 +200,7 @@ type globalFlags struct {
 func registerGlobalFlags(fs *flag.FlagSet) *globalFlags {
 	return &globalFlags{
 		cfgPath:  fs.String("config", "config.json", "path to config file"),
+		teamPath: fs.String("team", "", "path to your team file (chip plan, criteria, locks, budget, lead hours); omit to run without one"),
 		noReport: fs.Bool("no-report", false, "don't write a Markdown report"),
 		model:    fs.String("model", "", "override model"),
 		effort:   fs.String("effort", "", "override effort"),
@@ -218,6 +231,23 @@ func run() error {
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
 		return err
+	}
+	// The owner's own settings, layered over the shared config. Two files
+	// because they have two audiences: config.json is what the public server
+	// mounts, and a chip plan is one manager's strategy for one entry. See
+	// config.TeamConfig for the whole argument, and for why entry_id and the
+	// roster's team news deliberately stay in the shared file.
+	//
+	// Absent flag, absent overlay: everything in it keeps the value it has in
+	// config.Default(), which is exactly what a config.json omitting these keys
+	// used to give. A NAMED file that does not exist is an error, not an empty
+	// overlay — see config.LoadTeam.
+	if *f.teamPath != "" {
+		team, err := config.LoadTeam(*f.teamPath)
+		if err != nil {
+			return err
+		}
+		cfg = team.ApplyTo(cfg)
 	}
 	if *f.cacheDir != "" {
 		cfg.CacheDir = *f.cacheDir
@@ -444,7 +474,7 @@ func run() error {
 	case "squad":
 		return cmdSquad(ctx, cfg, client, engine, *plain, *htmlOut, *weeks)
 	case "serve":
-		return cmdServe(ctx, cfg, *cfgPath, client, engine, *weeks)
+		return cmdServe(ctx, cfg, *cfgPath, *f.teamPath, client, engine, *weeks)
 	case "transfers":
 		return cmdTransfers(ctx, cfg, client, engine, *plain, *htmlOut)
 	case "fixtures":
@@ -488,9 +518,9 @@ func run() error {
 		// together rather than as two near-identical lines because the shared
 		// argument list is long enough that a change to it has already been
 		// applied to one and missed on the other.
-		return runAgentCommand(ctx, cfg, *cfgPath, client, engine, cmd, !*noReport)
+		return runAgentCommand(ctx, cfg, *cfgPath, *f.teamPath, client, engine, cmd, !*noReport)
 	case "due":
-		return cmdDue(ctx, cfg, *cfgPath, client, engine, !*noReport)
+		return cmdDue(ctx, cfg, *cfgPath, *f.teamPath, client, engine, !*noReport)
 	case "schedule":
 		return cmdSchedule(cfg)
 	case "overrides":
@@ -796,13 +826,13 @@ func seasonBefore(season string) string {
 // runAgentCommand dispatches the two commands that hand a prompt to the
 // reasoning layer. `cmd` is "advise" or "review"; nothing else reaches here,
 // because the switch in run() is the only caller and names both.
-func runAgentCommand(ctx context.Context, cfg config.Config, cfgPath string,
+func runAgentCommand(ctx context.Context, cfg config.Config, cfgPath, teamPath string,
 	client *fpl.Client, engine *analysis.Engine, cmd string, report bool) error {
 	prompt, title := advicePrompt(engine), "FPL Advice"
 	if cmd == "review" {
 		prompt, title = reviewPrompt(engine), "Weekly Review"
 	}
-	return cmdAgent(ctx, cfg, cfgPath, client, engine, prompt, title, report)
+	return cmdAgent(ctx, cfg, cfgPath, teamPath, client, engine, prompt, title, report)
 }
 
 func advicePrompt(e *analysis.Engine) string {
@@ -871,7 +901,7 @@ the deadline.`, gw)
 }
 
 // cmdAgent runs one prompt and writes its answer to a report.
-func cmdAgent(ctx context.Context, cfg config.Config, configPath string, client *fpl.Client, engine *analysis.Engine,
+func cmdAgent(ctx context.Context, cfg config.Config, configPath, teamPath string, client *fpl.Client, engine *analysis.Engine,
 	prompt, title string, writeReport bool) error {
 
 	if prompt == "" {
@@ -896,7 +926,7 @@ func cmdAgent(ctx context.Context, cfg config.Config, configPath string, client 
 		fmt.Fprintf(os.Stderr, "  %s %s\n", dim("→"), name)
 	}
 
-	a, err := agent.New(cfg, configPath, client, engine, onCall)
+	a, err := agent.New(cfg, configPath, teamPath, client, engine, onCall)
 	if err != nil {
 		return err
 	}
@@ -1439,7 +1469,13 @@ func cmdChips(ctx context.Context, cfg config.Config, client *fpl.Client, e *ana
 		fmt.Printf("  %-25s GW%d\n", c.Label, c.GW)
 	}
 	if len(entries) == 0 {
-		fmt.Println("  nothing planned — set \"chip_plan\" in config.json")
+		// Names the TEAM file, and names the flag too. The plan moved out of
+		// config.json on 2026-08-31, and a run that simply forgot `-team`
+		// reaches this same line — so "no chips planned" and "you did not load
+		// your plan" would otherwise read identically, which is the confusion
+		// the whole split is about.
+		fmt.Println("  nothing planned — set \"chip_plan\" in your team file " +
+			"and load it with -team")
 	}
 
 	if problems := e.ValidateChipPlan(plan); len(problems) > 0 {

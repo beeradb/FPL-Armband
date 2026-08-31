@@ -25,7 +25,11 @@ type Config struct {
 	// overriding a real budget with a number from a file would be inventing
 	// money. Its purpose is the mid-season projection: asking what £103m would
 	// buy today, for a team that is not yours or does not exist.
-	HypotheticalBudget float64 `json:"hypothetical_budget_m"`
+	//
+	// ⚠️ `json:"-"` — this reads from the TEAM file, not from config.json. See
+	// TeamConfig, and see checkNoTeamKeys for what happens to a config.json
+	// that still carries `hypothetical_budget_m`.
+	HypotheticalBudget float64 `json:"-"`
 
 	// Model is the Claude model to reason with.
 	Model string `json:"model"`
@@ -59,11 +63,15 @@ type Config struct {
 	// count rather than eleven plus fodder.
 	//
 	// Both sets, since FPL grants a second from GW20 in 2025-26 onward. No
-	// backfill is needed in Load: `ChipSchedule.UnmarshalJSON` accepts the flat
-	// single-set object every existing config.json carries and reads it as the
-	// first set, which is the only set the seasons those files were written for
-	// granted.
-	Chips analysis.ChipSchedule `json:"chip_plan"`
+	// backfill is needed on load: `ChipSchedule.UnmarshalJSON` accepts the flat
+	// single-set object every older file carries and reads it as the first set,
+	// which is the only set the seasons those files were written for granted.
+	//
+	// ⚠️ `json:"-"` — this reads from the TEAM file, not from config.json. It is
+	// one manager's strategy for one entry, it was served to every visitor for
+	// as long as it lived in the shared file, and a file the server is never
+	// handed cannot leak it again. See TeamConfig.
+	Chips analysis.ChipSchedule `json:"-"`
 
 	// Review is the standing brief for the weekly decision: the thresholds and
 	// rules the agent must work within when deciding whether to act.
@@ -94,7 +102,11 @@ type Config struct {
 	// main place to encode personal preferences, e.g.
 	//   "Never own more than one Spurs player."
 	//   "Prefer nailed starters over rotation risks, even at a points cost."
-	Criteria []string `json:"criteria"`
+	//
+	// ⚠️ `json:"-"` — this reads from the TEAM file, not from config.json.
+	// "The main place to encode personal preferences" is its own argument for
+	// which file it belongs in. See TeamConfig.
+	Criteria []string `json:"-"`
 
 	// ReportDir is where Markdown reports are written.
 	ReportDir string `json:"report_dir"`
@@ -161,20 +173,34 @@ func Default() Config {
 		RoleRisk:      analysis.DefaultRoleRisk(),
 		Review:        DefaultReviewPolicy(),
 		OptionValue:   DefaultOptionValuePolicy(),
-		Criteria: []string{
-			"Expected points only become real points if the player is on the pitch. Treat expected minutes as a first-class filter, not a tiebreaker: check expected_minutes_per_gw and rotation_risk before recommending anyone.",
-			"Never recommend a starting XI player below roughly 60 expected minutes per gameweek unless you say explicitly why the rotation risk is worth it.",
-			"Weight underlying numbers (xG, xA, xGC) over raw past points — form follows the underlying data, not the other way round.",
-			"Value fixture runs over the next 4-6 gameweeks, not just the next match.",
-			"Set-piece and penalty duty is a major tiebreaker: a penalty taker is worth roughly half a goal per five matches on its own.",
-			"Be sceptical of players heavily overperforming their xG — say so explicitly when recommending or fading them.",
-			"For new signings, last season's stats came from a different club. Say so, and be explicit that their role in the new side is unproven.",
-			"Players returning late from a summer international tournament are routinely eased back in. Prefer rested alternatives for the opening weeks.",
-		},
+		// The shipped criteria, through the same function DefaultTeamConfig()
+		// reads. A run without -team must behave exactly as a config.json that
+		// omitted `criteria` always did, and two copies of one list is how they
+		// come to differ.
+		Criteria:           defaultCriteria(),
 		ReportDir:          "reports",
 		CacheDir:           filepath.Join(".cache", "fpl"),
 		CacheMinutes:       60,
 		PlayerCacheMinutes: 15,
+	}
+}
+
+// defaultCriteria is the shipped personal-criteria list.
+//
+// It lives in a function because it is read from two places — Default(), so a
+// run without -team is unchanged, and DefaultTeamConfig(), so a team.json that
+// says nothing about criteria gets the same list a config.json omitting the key
+// always got. A second literal copy would drift within a release.
+func defaultCriteria() []string {
+	return []string{
+		"Expected points only become real points if the player is on the pitch. Treat expected minutes as a first-class filter, not a tiebreaker: check expected_minutes_per_gw and rotation_risk before recommending anyone.",
+		"Never recommend a starting XI player below roughly 60 expected minutes per gameweek unless you say explicitly why the rotation risk is worth it.",
+		"Weight underlying numbers (xG, xA, xGC) over raw past points — form follows the underlying data, not the other way round.",
+		"Value fixture runs over the next 4-6 gameweeks, not just the next match.",
+		"Set-piece and penalty duty is a major tiebreaker: a penalty taker is worth roughly half a goal per five matches on its own.",
+		"Be sceptical of players heavily overperforming their xG — say so explicitly when recommending or fading them.",
+		"For new signings, last season's stats came from a different club. Say so, and be explicit that their role in the new side is unproven.",
+		"Players returning late from a summer international tournament are routinely eased back in. Prefer rested alternatives for the opening weeks.",
 	}
 }
 
@@ -223,6 +249,14 @@ func Load(path string) (Config, error) {
 		return cfg, nil
 	}
 	if err != nil {
+		return cfg, err
+	}
+
+	// ⚠️ Before anything is parsed: refuse a file that still carries a setting
+	// which has moved to the team file. This package does not use
+	// DisallowUnknownFields, so such a key would parse, be ignored, and the
+	// setting would silently stop applying. See checkNoTeamKeys.
+	if err := checkNoTeamKeys(b, path); err != nil {
 		return cfg, err
 	}
 
@@ -454,9 +488,11 @@ func Load(path string) (Config, error) {
 			*bar.into = bar.from
 		}
 	}
-	if cfg.Review.LeadHours <= 0 {
-		cfg.Review.LeadHours = d.Review.LeadHours
-	}
+	// ⚠️ The backfill for `review_policy.scheduled_run_lead_hours` is NOT here
+	// any more. That field reads from the team file, so backfilling it from
+	// these bytes would answer a question these bytes cannot ask; it moved with
+	// its field, into LoadTeam. `review_policy.rules` did NOT move — it is a
+	// published surface — so its backfill below stays exactly where it was.
 	// BankTransfersLookahead defaulted ON on 2026-08-18, so the migration this
 	// block's own predecessor comment predicted is now in force: a deliberate
 	// `false` and an absent key are different facts. An old file without the
@@ -561,41 +597,23 @@ func backfillOverrideConfidence(raw []byte, cfg *Config) {
 }
 
 func Save(path string, cfg Config) error {
-	if dir := filepath.Dir(path); dir != "." && dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-	}
-	b, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	// Written to a sibling and renamed over the target, rather than truncating
-	// the live file. `os.WriteFile` opens O_TRUNC, so a crash, a SIGINT or a full
-	// disk between the truncate and the write leaves a zero-length or half-written
-	// config.json — taking the roster overrides and the review policy with it, and
-	// those are the parts nothing else can reconstruct. Rename within a directory
-	// is atomic, so a reader sees the old file or the new one and never a partial.
+	// ⚠️ This writes the Config struct, which no longer carries the team
+	// settings at all: `chip_plan`, `hypothetical_budget_m`, `criteria`,
+	// `roster.lock`, `review_policy.rules` and
+	// `review_policy.scheduled_run_lead_hours` are all `json:"-"` and marshal
+	// to nothing here. That is what keeps a save from writing back a key the
+	// next Load would refuse. Owner-side writers that may have touched one of
+	// them must go through SavePair, not through this function.
 	//
-	// The temporary file is a sibling deliberately: /tmp is frequently a different
-	// filesystem, and rename across filesystems fails.
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".config-*.json")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name()) // no-op once the rename succeeds
-	if _, err := tmp.Write(append(b, '\n')); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	// CreateTemp makes the file 0600; the config has always been 0644.
-	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), path)
+	// The write itself is a write-to-a-sibling-and-rename rather than a
+	// truncate. `os.WriteFile` opens O_TRUNC, so a crash, a SIGINT or a full
+	// disk between the truncate and the write leaves a zero-length or
+	// half-written config.json — taking the roster overrides and the review
+	// policy with it, and those are the parts nothing else can reconstruct.
+	// Rename within a directory is atomic, so a reader sees the old file or the
+	// new one and never a partial. See writeJSONAtomically, which SaveTeam
+	// shares so the team file gets the same guarantee.
+	return writeJSONAtomically(path, cfg)
 }
 
 // hasKey reports whether a nested key is present in the raw config JSON.

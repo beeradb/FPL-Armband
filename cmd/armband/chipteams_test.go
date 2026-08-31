@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"armband/internal/config"
 	"armband/internal/viewmodel"
 )
 
@@ -154,7 +155,16 @@ func TestPersistingACorrectionInvalidatesTheChipCache(t *testing.T) {
 	s := fixtureServer(t)
 	s.wildcardEnabled = true // this whole file is /api/wildcard's own contract
 	s.persist = true
-	s.cfgPath = filepath.Join(t.TempDir(), "config.json")
+	dir := t.TempDir()
+	s.cfgPath = filepath.Join(dir, "config.json")
+	// ⚠️ A team path is REQUIRED for a lock, and this test locks.
+	//
+	// `roster.lock` moved to the team file on 2026-08-31 (see
+	// config.TeamConfig), and `config.SavePair` REFUSES a lock with nowhere to
+	// put it rather than writing a key the next Load rejects or dropping it
+	// silently. So a -persist server that may be asked to lock needs -team, and
+	// this test caught that the moment SavePair shipped.
+	s.teamPath = filepath.Join(dir, "team.json")
 
 	// Prime the cache as if a build had already run.
 	s.chips = &chipCache{event: s.engine.Boot.Events[0].ID}
@@ -165,6 +175,16 @@ func TestPersistingACorrectionInvalidatesTheChipCache(t *testing.T) {
 	}
 	if s.chips != nil {
 		t.Error("persistCorrections did not invalidate the chip cache")
+	}
+	// The lock has to have LANDED, not merely not-errored. A save that reported
+	// success and wrote nothing is the button lying, which is the failure
+	// SavePair exists to make impossible.
+	team, err := config.LoadTeam(s.teamPath)
+	if err != nil {
+		t.Fatalf("the lock was reported saved and no team file exists: %v", err)
+	}
+	if len(team.Lock) != 1 || team.Lock[0].Code != s.engine.Boot.Elements[2].Code {
+		t.Errorf("the lock did not reach the team file: %+v", team.Lock)
 	}
 }
 

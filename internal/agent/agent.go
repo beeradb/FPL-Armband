@@ -32,8 +32,12 @@ type Agent struct {
 // New builds an agent. The Anthropic client resolves credentials from the
 // environment (ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, or an `ant auth login`
 // profile), so no key is passed here.
-func New(cfg config.Config, configPath string, client *fpl.Client, engine *analysis.Engine, onCall func(name, summary string)) (*Agent, error) {
-	tb := &Toolbox{Client: client, Engine: engine, Cfg: cfg, ConfigPath: configPath, OnCall: onCall}
+//
+// teamPath is where the owner's own settings live — the chip plan, the locks —
+// and may be empty. It is separate from configPath because a lock the agent
+// writes belongs in that file and nowhere else; see Toolbox.updateConfig.
+func New(cfg config.Config, configPath, teamPath string, client *fpl.Client, engine *analysis.Engine, onCall func(name, summary string)) (*Agent, error) {
+	tb := &Toolbox{Client: client, Engine: engine, Cfg: cfg, ConfigPath: configPath, TeamPath: teamPath, OnCall: onCall}
 	tools, err := tb.Tools()
 	if err != nil {
 		return nil, fmt.Errorf("building tools: %w", err)

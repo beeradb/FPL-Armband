@@ -1,0 +1,20 @@
+{
+  "chip_plan": {
+    "first": {
+      "wildcard_gameweek": 0,
+      "free_hit_gameweek": 0,
+      "bench_boost_gameweek": 0,
+      "triple_captain_gameweek": 0
+    },
+    "second": {
+      "wildcard_gameweek": 0,
+      "free_hit_gameweek": 0,
+      "bench_boost_gameweek": 0,
+      "triple_captain_gameweek": 0
+    }
+  },
+  "hypothetical_budget_m": 0,
+  "criteria": [],
+  "lock": [],
+  "scheduled_run_lead_hours": 6
+}

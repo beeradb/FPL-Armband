@@ -25,6 +25,13 @@ type Toolbox struct {
 	// ConfigPath lets competition-status corrections persist between runs.
 	ConfigPath string
 
+	// TeamPath is the owner's team file, and may be empty. A LOCK is the only
+	// thing this toolbox writes that lives there rather than in ConfigPath —
+	// `set_player_status` modes "lock" and "start" both write `Roster.Lock` —
+	// and config.SavePair refuses such a change when this is empty rather than
+	// dropping it or writing a key config.Load would then refuse.
+	TeamPath string
+
 	// OnCall is invoked before each tool executes, for terminal progress.
 	OnCall func(name, summary string)
 
@@ -55,7 +62,13 @@ func (t *Toolbox) updateConfig(mutate func(cfg *config.Config) error) error {
 		return err
 	}
 	if t.ConfigPath != "" {
-		if err := config.Save(t.ConfigPath, cfg); err != nil {
+		// SavePair, not Save: a mutation may have touched a setting that lives
+		// in the team file (a lock, from set_player_status). Save would drop it
+		// silently, because those fields are `json:"-"` on Config. SavePair
+		// writes it where it belongs, or refuses when there is nowhere to put
+		// it — and refuses before writing anything, so t.Cfg below is not
+		// advanced past a change that did not persist.
+		if err := config.SavePair(t.ConfigPath, t.TeamPath, t.Cfg, cfg); err != nil {
 			return err
 		}
 	}
@@ -1783,7 +1796,18 @@ func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
 			name := el.WebName
 
 			now := time.Now().Format("2006-01-02")
+			// Names the file the override will actually land in. A lock lives
+			// in the TEAM file and everything else in the config, so a single
+			// "saved to <config>" would be false for two of the six modes — and
+			// this string is what the model reports back to the reader.
 			saved := "saved to " + t.ConfigPath
+			if mode == "lock" || mode == "start" {
+				saved = "saved to " + t.TeamPath
+				if t.TeamPath == "" {
+					saved = "NOT saved: a lock lives in the team file and no -team " +
+						"path is set"
+				}
+			}
 			if t.ConfigPath == "" {
 				saved = "not saved (no config path)"
 			}

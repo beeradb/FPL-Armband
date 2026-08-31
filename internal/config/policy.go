@@ -259,6 +259,18 @@ type ReviewPolicy struct {
 	AlwaysActOnInjury bool `json:"always_act_on_ruled_out_starter"`
 
 	// Rules are free-text policies applied verbatim during the review.
+	//
+	// ⚠️ **This STAYS in config.json, and it is not a judgement call.** It reads
+	// as personal — free text in the owner's own words, the same shape as
+	// `criteria` — and the first pass at the team-file split moved it for that
+	// reason. It is a PUBLISHED SURFACE: `page.go`'s `reasoningFor` copies it
+	// into `present.Policy`, `viewmodel.Build` carries it into the JSON state,
+	// and `html.go` renders it under "The rules it is deciding under" — where
+	// `{{if .Policy.Rules}}` gates the whole section, so emptying it deletes the
+	// transfer thresholds shown beside it as well. The deployed config carries
+	// eight and the site shows all eight today. See TeamConfig for what does
+	// move, and why `scheduled_run_lead_hours` — the field directly below —
+	// separates from this one.
 	Rules []string `json:"rules"`
 
 	// LeadHours is how long before a deadline a scheduled run should fire.
@@ -268,7 +280,11 @@ type ReviewPolicy struct {
 	// the run reasons from stale availability; too late and there is no time to
 	// act on it. Six hours is a compromise that clears most Friday pressers
 	// while leaving the evening to decide.
-	LeadHours float64 `json:"scheduled_run_lead_hours"`
+	//
+	// ⚠️ `json:"-"` — this reads from the TEAM file, at the top level and under
+	// the same name. When one manager's cron fires is a fact about that
+	// manager, and it means nothing to a reader of the site. See TeamConfig.
+	LeadHours float64 `json:"-"`
 }
 
 // EarlyFloor is the scheduled gate floor the "react faster early" measurement
@@ -304,7 +320,6 @@ func DefaultReviewPolicy() ReviewPolicy {
 		MinGainForHit:      3.0,
 		FreeTransferValue:  2.0,
 		BankUpTo:           5,
-		LeadHours:          6,
 		MaxHitsPerWeek:     1,
 		HitCeiling:         analysis.DefaultHitCeiling,
 		AlwaysActOnInjury:  true,
@@ -321,6 +336,11 @@ func DefaultReviewPolicy() ReviewPolicy {
 			MinGainForTransfer: 0.2,
 			UntilGameweek:      8,
 		},
+		// LeadHours through a shared constant, for the reason defaultCriteria
+		// gives: it reads from the team file now, and a run without -team must
+		// behave exactly as a config.json omitting the key always did.
+		// DefaultTeamConfig reads the same constant.
+		LeadHours: defaultLeadHours,
 		Rules: []string{
 			"Do nothing is a valid and usually underrated answer. Only recommend a move when the case is affirmative.",
 			"Never take a hit to chase last week's points. A player who blanked is not thereby a sell.",
@@ -330,3 +350,9 @@ func DefaultReviewPolicy() ReviewPolicy {
 		},
 	}
 }
+
+// defaultLeadHours is the shipped scheduled-run lead time, in hours. Six clears
+// most Friday press conferences while leaving the evening to act on them. Read
+// by both DefaultReviewPolicy and DefaultTeamConfig, so a team file silent on
+// the key and a run with no team file at all give the same answer.
+const defaultLeadHours = 6

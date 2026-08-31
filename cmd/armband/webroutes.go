@@ -1134,7 +1134,10 @@ func (s *squadServer) persistCorrections(in session) (session, error) {
 		_ = next.Roster.Remove("minutes", code)
 	}
 
-	if err := config.Save(s.cfgPath, next); err != nil {
+	// SavePair, not Save: `set("lock", ...)` above and the dismissal loop both
+	// move `Roster.Lock`, which lives in the team file rather than in
+	// config.json. See config.SavePair.
+	if err := config.SavePair(s.cfgPath, s.teamPath, *s.cfg, next); err != nil {
 		return in, fmt.Errorf("saving config: %w", err)
 	}
 	s.cfg = &next

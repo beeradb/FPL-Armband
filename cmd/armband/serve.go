@@ -73,13 +73,14 @@ func applyPreviewHorizon(e *analysis.Engine, horizon int) string {
 		"(-horizon). Every projection on the page is over that window.", horizon, was)
 }
 
-func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
+func cmdServe(ctx context.Context, cfg config.Config, cfgPath, teamPath string,
 	client *fpl.Client, e *analysis.Engine, weeks int) error {
 
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := fs.String("addr", "127.0.0.1:8080", "address to serve on (loopback only)")
-	persist := fs.Bool("persist", false, "write lock/boot overrides back to config.json; "+
-		"without it they live in a browser-session cookie")
+	persist := fs.Bool("persist", false, "write lock/boot overrides back to the files "+
+		"(a boot to -config, a lock to -team); without it they live in a "+
+		"browser-session cookie")
 	// A shorter horizon than the terminal commands use.
 	//
 	// The scoring horizon is how many gameweeks a player's Score is averaged over, and it
@@ -144,6 +145,7 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 		token:           token,
 		cfg:             &cfg,
 		cfgPath:         cfgPath,
+		teamPath:        teamPath,
 		client:          client,
 		engine:          e,
 		weeks:           weeks,
@@ -162,10 +164,21 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath string,
 	fmt.Fprintf(os.Stderr, "\n%s\n", dim("Serving the squad page on http://"+*addr+"/?t="+token))
 	fmt.Fprintf(os.Stderr, "%s\n", dim("Open that exact URL — the token gates the page's write actions."))
 	if *persist {
-		fmt.Fprintf(os.Stderr, "%s\n", dim("Overrides write back to "+cfgPath+" (-persist)."))
+		// Both destinations, named. A lock goes to the team file and a boot to
+		// the config, and `config.SavePair` REFUSES a lock when -team is absent
+		// rather than dropping it — so saying only the config path here would
+		// leave the reader to discover the refusal by pressing the button.
+		where := cfgPath
+		if teamPath != "" {
+			where += " (and locks to " + teamPath + ")"
+		} else {
+			where += " — but NOT locks: pass -team to have somewhere to write them"
+		}
+		fmt.Fprintf(os.Stderr, "%s\n", dim("Overrides write back to "+where+" (-persist)."))
 	} else {
 		fmt.Fprintf(os.Stderr, "%s\n", dim("Overrides live in a browser-session cookie — "+
-			"config.json is untouched. Run serve -persist to write them back instead."))
+			"neither config.json nor the team file is touched. Run serve -persist "+
+			"to write them back instead."))
 	}
 	if signups != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", dim("Landing-page signups are recorded to the "+
@@ -199,6 +212,16 @@ type squadServer struct {
 	mu    sync.Mutex
 	token string
 	cfg   *config.Config
+	// teamPath is the owner's team file, and may be empty — the deployed server
+	// is never given one, which is the point: a chip plan and a squad lock are
+	// one manager's decisions and the site has no business holding them.
+	//
+	// It matters only under -persist, where the page writes back. A LOCK lives
+	// in that file now, so the lock button on the owner's own page needs
+	// somewhere to put it; config.SavePair refuses the write rather than
+	// dropping it when this is empty. See its comment.
+	teamPath string
+
 	// cfgPath is where -persist saves changes. It may be empty, which makes a
 	// persisted override unsaveable — and the handler refuses the action
 	// rather than showing an override the next run would not have.
@@ -548,7 +571,10 @@ func (s *squadServer) action(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "no config path — the override was not saved", http.StatusInternalServerError)
 			return
 		}
-		if err := config.Save(s.cfgPath, next); err != nil {
+		// SavePair, not Save: "lock" and "unlock" move `Roster.Lock`, which
+		// lives in the team file. Save would marshal the config without it and
+		// the button would report success having written nothing.
+		if err := config.SavePair(s.cfgPath, s.teamPath, *s.cfg, next); err != nil {
 			http.Error(w, fmt.Sprintf("saving config: %v", err), http.StatusInternalServerError)
 			return
 		}
