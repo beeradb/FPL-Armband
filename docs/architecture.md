@@ -430,7 +430,8 @@ a boundary a user should know about before trusting a number.
   [model.md](model.md) says what each penalty was measured at and why it is off, and
   [AGENTS.md](../AGENTS.md)'s "Season maintenance" section carries the maintenance rule.
 - The agent has web search, so it can read team news — but it cannot see your reasoning or
-  anything you have not told it. `criteria` is how you fix that.
+  anything you have not told it. `criteria` is how you fix that — in `team.json`, loaded with
+  `-team`, since a manager's own preferences are not something a deployed server should serve.
 
 ## `Engine.Recent`: what the live path costs
 

@@ -504,7 +504,7 @@ func chipPlanFromEnv(cfg config.Config, season string) (first, second analysis.C
 	}
 	if spec == "config" {
 		// Split on the reset rather than dropping everything into the first set.
-		// config.json holds one flat plan, so a real 2025-26 plan will have a chip
+		// the team file may hold one flat plan, so a real 2025-26 plan will have a chip
 		// after GW19 — and putting that in the first set makes `config` a hard
 		// error on the one season the second set exists for. On a season with the
 		// reset, a chip at GW20 or later IS a second-set chip; there is nothing

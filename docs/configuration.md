@@ -1,12 +1,65 @@
 # Configuration reference
 
-Everything lives in `config.json`, created with defaults on first run. Delete it and run any
-command to regenerate. A field you omit is backfilled from defaults, so a partial file is valid —
-useful when a new field is added and your existing config predates it.
+Most of what you can configure lives in `config.json`, created with defaults on first run.
+Delete it and run any command to regenerate. A field you omit is backfilled from defaults, so a
+partial file is valid — useful when a new field is added and your existing config predates it.
+
+Five settings live in a second file instead — see **Two files** immediately below for which five
+and why before you go looking for them in `config.json` and find them gone.
 
 That backfilling has consequences worth understanding before you edit anything, because
 "absent", "zero" and "empty" are three different statements and the file does not treat them
 alike. The rules below are the ones that catch people out.
+
+## Two files: `config.json` and `team.json`
+
+`config.json` has two consumers — your own CLI and agent runs, and the public server `armband
+serve` mounts for anyone who visits — and most of the file is meant to be shared between them.
+The roster's minutes and exclusions *are* the published team-news research, `entry_id` is the
+house team `/armband-team` exists to show, and the review thresholds are what the watchlist every
+visitor sees is built from. Serving all of that is the point.
+
+What is **not** meant to be shared is one manager's own strategy. Five settings are decisions or
+questions that belong to a single entry, not facts about the world or a feature anyone else's
+page depends on, and they live in a second file, `team.json`, loaded by the global `-team <path>`
+flag — before the command, exactly like `-config`:
+
+- **`chip_plan`** — was top-level in `config.json`. One manager's chip strategy for one entry;
+  unchanged shape, still accepting both the flat single-set form and the nested
+  `{"first": …, "second": …}` form.
+- **`hypothetical_budget_m`** — was top-level. A question one manager is asking about his own
+  money.
+- **`criteria`** — was top-level. Free-text personal preferences, passed verbatim to the agent.
+- **`lock`** — was `roster.lock`, and is now top level in `team.json` rather than nested, so one
+  `roster` key does not span two files. A lock is a **decision** — it asserts a conclusion the
+  optimiser cannot decline — not a fact about the world, which is why it moves with the chip plan
+  rather than staying with the roster's minutes and exclusions.
+- **`scheduled_run_lead_hours`** — was `review_policy.scheduled_run_lead_hours`, also now top
+  level for the same one-key-two-files reason. It describes one person's cron and means nothing
+  to a reader of the site.
+
+⚠️ **The deployed server is never given `-team`.** That is the whole point of the split: a chip
+plan served to every visitor for as long as it lived in the shared file let `EffectiveHorizon`
+truncate a *stranger's* optimiser to the gameweeks before a wildcard he had never planned and
+could not see. A second file the server is never handed cannot be forgotten the way a strip
+inside the server code can — there is no code path from `team.json` to a reader at all.
+
+Omit `-team` and every one of the five keeps its shipped default — `criteria` keeps the eight
+shipped entries, `scheduled_run_lead_hours` keeps `6`, the rest are empty or zero — so a run
+without a team file behaves exactly as a `config.json` omitting these keys always did. A `-team`
+path that does **not** exist is an error, though, not an empty overlay: naming a file is a
+statement that it exists, and answering a typo'd path with a silently empty chip plan would be
+the same silent failure this split exists to prevent. `team.example.json` is the template, the
+same way `config.example.json` is for the shared file.
+
+⚠️ **A `config.json` that still carries one of the five is a hard error**, naming the key and
+where it now lives. `internal/config` does not use `DisallowUnknownFields`, so a leftover key
+would otherwise parse, be ignored, and the setting would silently stop applying — a chip plan
+that reads as "no chips planned" is indistinguishable from a manager who planned none. Move it
+into a `team.json` beside `config.json`, load it with `-team`, then delete it from `config.json`.
+
+**`review_policy.rules` is deliberately not among the five**, despite reading just as personal as
+`criteria` — see the note under `review_policy` below for why it stays.
 
 ## How the file is read
 
@@ -112,10 +165,14 @@ flowchart TB
 Identity, cost and housekeeping. `entry_id` is the one field worth setting immediately;
 everything else has a workable default.
 
+`entry_id` deliberately stays in `config.json` rather than moving to the team file with the other
+personal-looking fields: it is the whole point of `/armband-team`, which shows what the site's
+own squad is doing, for anyone — a shipped feature rather than a manager's private setting. See
+**Two files** above.
+
 | Field | Default | Meaning |
 |---|---|---|
 | `entry_id` | `0` | Your FPL manager id. Read it from your points page URL: `fantasy.premierleague.com/entry/`**`1234567`**`/event/1`. Zero means the agent cannot see your squad — it can still build one from scratch. |
-| `hypothetical_budget_m` | `0` | The money the squad builder plans with, in millions, **when `entry_id` is 0**. Zero means FPL's £100.0m opening allowance. Ignored entirely once there is a real squad to price. |
 | `model` | `claude-opus-5` | Model to reason with. `claude-sonnet-5` is materially cheaper. |
 | `effort` | `high` | `low` \| `medium` \| `high` \| `xhigh` \| `max`. The largest single cost lever. |
 | `max_iterations` | `25` | Ceiling on tool-calling rounds. A runaway guard, **not** a typical-case setting — the loop ends when the model stops calling tools. |
@@ -123,9 +180,37 @@ everything else has a workable default.
 | `cache_dir` | `.cache/fpl` | FPL API response cache. |
 | `cache_minutes` | `60` | Cache lifetime for `Bootstrap`/`Fixtures`/`Entry`/`Picks`/`History`. Use `-refresh` to force a refetch before a deadline. |
 | `player_cache_minutes` | `15` | Cache lifetime for `ElementSummary` alone (a player's match history) — separate and much shorter, since it is read per request rather than once per process. |
-| `roster` | absent | Standing player locks, exclusions and minutes corrections. **Written by the agent, not by you** — see below. |
+| `roster` | absent | Standing player exclusions and minutes corrections (locks live in `team.json` — see below). **Written by the agent, not by you** — see below. |
 
-## `criteria`
+## The team file — `team.json`
+
+The five settings introduced under **Two files** above, gathered here rather than scattered
+through the fields they used to sit beside. None of these five is read from `config.json` —
+loading a `config.json` that still carries one is a hard error, see above — and none of them
+reaches a reader of the deployed server, because it is never given `-team`.
+
+### `chip_plan`
+
+Zero means unplanned. See [workflow.md](workflow.md#chip-strategy).
+
+| Field | Meaning |
+|---|---|
+| `wildcard_gameweek` | Shortens the optimiser horizon to **the gameweeks between now and it** — the upcoming gameweek through N−1, not GW1 through N−1. There is no value optimising for fixtures the squad will never serve. |
+| `free_hit_gameweek` | **No horizon effect.** The chip fields a separate temporary fifteen and hands the permanent squad back at GW N+1, so the squad still has to serve the full horizon. What the plan does is remove that gameweek from scoring entirely — `ApplyFreeHitToScoring` drops the week, because the permanent squad should not be judged on a week it did not play. Truncating the horizon as well would count the chip twice. |
+| `bench_boost_gameweek` | Raises bench weight when inside the horizon, so the optimiser buys fifteen playable footballers. |
+| `triple_captain_gameweek` | Planning only; no squad-construction effect. |
+
+`armband chips` validates the plan: gameweeks outside a chip's window, a chip planned for the
+wrong half of the season, two chips in one gameweek, a gameweek that has already passed, and
+chips left to expire.
+
+### `hypothetical_budget_m`
+
+| Field | Default | Meaning |
+|---|---|---|
+| `hypothetical_budget_m` | `0` | The money the squad builder plans with, in millions, **when `entry_id` is 0**. Zero means FPL's £100.0m opening allowance. Ignored entirely once there is a real squad to price. |
+
+### `criteria`
 
 Free-text rules passed **verbatim** to the agent. This is the main personalisation surface, and
 eight are shipped by default — covering expected minutes as a filter, underlying numbers over
@@ -142,6 +227,22 @@ keep them.
 ```
 
 The agent is told to follow these and to say so explicitly when the data argues against one.
+
+### `lock`
+
+Top-level in `team.json` — `{"lock": [ … ]}` — rather than nested under `roster` the way
+`exclude` and `minutes` still are, so one `roster` key does not span two files. Same shape and
+same fields as before; see the `roster` section below for what a lock entry looks like and why
+it exists. It moved here because a lock **asserts a conclusion** — build every squad around this
+player — rather than describing a fact about the world, which is exactly the distinction
+`forPlanner` has always drawn: a reader's planner never inherited your locks even when they lived
+in the shared file, and the chip plan's move followed that precedent rather than setting a new one.
+
+### `scheduled_run_lead_hours`
+
+| Field | Default | Meaning |
+|---|---|---|
+| `scheduled_run_lead_hours` | `6` | How long before a deadline a scheduled run fires. The point of running late is team news: press conferences land one to two days out, confirmed line-ups only at the deadline. |
 
 ## `weights` — the scoring model
 
@@ -387,25 +488,13 @@ Spurs and the reporting has De Zerbi committing to Kinsky in goal; Harry Wilson 
 for Leeds' first friendly. Both are deliberate, and both want re-checking once real minutes
 exist — this paragraph is the reminder.
 
-## `chip_plan`
-
-Zero means unplanned. See [workflow.md](workflow.md#chip-strategy).
-
-| Field | Meaning |
-|---|---|
-| `wildcard_gameweek` | Shortens the optimiser horizon to **the gameweeks between now and it** — the upcoming gameweek through N−1, not GW1 through N−1. There is no value optimising for fixtures the squad will never serve. |
-| `free_hit_gameweek` | **No horizon effect.** The chip fields a separate temporary fifteen and hands the permanent squad back at GW N+1, so the squad still has to serve the full horizon. What the plan does is remove that gameweek from scoring entirely — `ApplyFreeHitToScoring` drops the week, because the permanent squad should not be judged on a week it did not play. Truncating the horizon as well would count the chip twice. |
-| `bench_boost_gameweek` | Raises bench weight when inside the horizon, so the optimiser buys fifteen playable footballers. |
-| `triple_captain_gameweek` | Planning only; no squad-construction effect. |
-
-`armband chips` validates the plan: gameweeks outside a chip's window, a chip planned for the
-wrong half of the season, two chips in one gameweek, a gameweek that has already passed, and
-chips left to expire.
-
 ## `review_policy`
 
 The standing brief for `armband review`. You set the thresholds; the agent decides within
-them.
+them. Thirteen of the fourteen fields this block used to hold stay in `config.json` — the
+watchlist every reader sees is built from these, not from a manager's private settings. Only
+`scheduled_run_lead_hours` left, to the team file described above, because it is one person's
+cron rather than a decision-engine threshold.
 
 | Field | Default | Meaning |
 |---|---|---|
@@ -418,10 +507,17 @@ them.
 | `bank_transfers_lookahead` | `false` | Decline this week's move when one more free transfer next week buys a better package, valued over a horizon one gameweek shorter. See below. |
 | `prepare_squad_for_chips` | `false` | Let the transfer search value a bench boost or triple captain planned inside its horizon, so the squad can be assembled for it. Does nothing unless a chip is set in `chip_plan`. |
 | `anticipate_chips` | `false` | Let a REPLAYED transfer decision know a chip is coming: a planned wildcard shortens how long the held squad has to survive rather than being scored as if it were permanent, and a planned free hit's own week is excluded from scoring entirely. Reaches only the horizon and the free-hit exclusion — it cannot carry a bench boost or triple captain; that is `prepare_squad_for_chips`'s job. Backtest-only — see the warning below. Does nothing unless a chip is set in `chip_plan`. |
-| `scheduled_run_lead_hours` | `6` | How long before a deadline a scheduled run fires. The point of running late is team news: press conferences land one to two days out, confirmed line-ups only at the deadline. |
 | `always_act_on_ruled_out_starter` | `true` | Forces a move regardless of thresholds — an unavailable player scores zero. |
 | `rules` | five shipped | Free-text policy, passed to the agent verbatim exactly like `criteria`. The defaults cover churn, hits, chip-adjacent transfers and fixture-chasing. |
 | `early_floor` | `{free_transfer_value: 1.0, min_gain_for_free_transfer: 0.2, until_gameweek: 8}` | A looser gate for the opening gameweeks, when a squad's real problems are still being found. The **key itself** is probed for presence, not just its values — an absent `early_floor` object backfills the whole default above, exactly like `bonus_prior_weight` and `rest_minutes_factor` above. Within an object that IS present, `free_transfer_value` and `min_gain_for_free_transfer` backfill on `<= 0` as usual, but `until_gameweek: 0` is honoured as the real off state — it does not backfill — so that is how to disable the floor without deleting the key. |
+
+⚠️ **`rules` stays here, and does not move to `team.json` with `criteria`, despite being the same
+shape and reading just as personal.** It is a **published surface**: `page.go` copies it into
+`present.Policy`, the viewmodel carries it into the JSON state, and the site renders it under
+"The rules it is deciding under" — a section whose template is gated on the list being
+non-empty, so emptying it would delete the transfer thresholds shown beside it too. Do not
+"tidy" this into the team file later; read the field's own call sites before moving it, not how
+personal it sounds.
 
 ⚠️ **`anticipate_chips` reaches `armband backtest` and the replay only**, the same as the three
 `option_value` chip triggers below and for the same reason. The LIVE weekly decision
@@ -544,22 +640,35 @@ mechanism by which a finding survives the run that made it: when a review establ
 defender is out until November, that fact would otherwise die with the transcript and next
 week's run would either re-derive it or silently not.
 
+⚠️ **`lock` is no longer one of `roster`'s lists on disk.** It lives at the top level of
+`team.json` instead — see **The team file** above — because a lock is a **decision**, not a
+fact about the world. `minutes`, `exclude` and `teams` all describe what is true whether or not
+you agree with it; a lock asserts a conclusion the optimiser cannot decline, which is exactly
+why `forPlanner` has always stripped it from what a reader's own planner inherits. It is
+described here anyway, alongside the three that stayed, because the concept and its solver
+behaviour are unchanged — only the file it is written to is different.
+
 ```jsonc
+// config.json
 "roster": {
   "minutes": [ { "player_code": 118748, "player": "Isak", "reason": "…",
                  "set_on": "2026-08-09", "expected_minutes": 85, "confirmed": true } ],
   "exclude": [ … ],
-  "lock":    [ … ],
   "teams":   [ { "team": "ARS", "xgc_factor": 1.15, "reason": "…", "set_on": "…" } ]
 }
 ```
 
-| List | What it does |
-|---|---|
-| `minutes` | **Prefer this one.** Replaces the model's expected-minutes figure and constrains nothing, so the optimiser can still decline the player — which is information rather than an obstacle. Setting 0 also subsumes most exclusions. `confirmed: true` additionally asserts this as settled fact rather than a prediction — see below. |
-| `exclude` | Must not appear in any squad, and must not be bought by any transfer. |
-| `lock` | Must appear in every squad and must not be sold. `must_start` raises that from "in the fifteen" to "in the eleven". |
-| `teams` | Corrects a **club's** expected goals conceded by a multiplier, for the case a per-player override cannot express: a back line that lost the player it was built around. |
+```jsonc
+// team.json
+"lock": [ … ]
+```
+
+| List | Lives in | What it does |
+|---|---|---|
+| `minutes` | `config.json` | **Prefer this one.** Replaces the model's expected-minutes figure and constrains nothing, so the optimiser can still decline the player — which is information rather than an obstacle. Setting 0 also subsumes most exclusions. `confirmed: true` additionally asserts this as settled fact rather than a prediction — see below. |
+| `exclude` | `config.json` | Must not appear in any squad, and must not be bought by any transfer. |
+| `lock` | `team.json` (top level) | Must appear in every squad and must not be sold. `must_start` raises that from "in the fifteen" to "in the eleven". |
+| `teams` | `config.json` | Corrects a **club's** expected goals conceded by a multiplier, for the case a per-player override cannot express: a back line that lost the player it was built around. |
 
 **`confirmed` is a separate claim from the minutes number itself, and it is the only thing that
 lets an override supply the corroboration the "nailed" rotation-risk label needs.** A player who
@@ -604,7 +713,7 @@ solvers on every later run, and keeps being surfaced until you retire it.
 ```mermaid
 flowchart TB
     est["a review establishes a fact:<br/>a defender is out until November"]
-    write["the agent writes it into roster,<br/>keyed on permanent player_code"]
+    write["the agent writes it in — config.json for<br/>minutes/exclude/teams, team.json for lock —<br/>keyed on permanent player_code"]
     solvers["both solvers obey it —<br/>the squad builder and<br/>the transfer search"]
     rereport["an override with no until_gameweek<br/>is re-reported every run,<br/>last_checked tracked beside set_on"]
     owner["you review it, and retire it<br/>when the situation has passed"]

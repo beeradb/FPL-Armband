@@ -158,18 +158,23 @@ func TestUnplannedChipsDistinguishesAPartialGapFromAnEmptySet(t *testing.T) {
 	}
 }
 
-// The shipped config is the thing that was actually wrong, so it is the thing
-// pinned. Reads config.json rather than restating its values, because a test
+// The shipped plan is the thing that was actually wrong, so it is the thing
+// pinned. Reads team.json rather than restating its values, because a test
 // carrying its own copy of the plan stops tracking the plan.
+//
+// ⚠️ team.json, not config.json. The chip plan moved out of the shared config on
+// 2026-08-31: it is one manager's strategy for one entry, and the public server
+// mounts config.json alone so that it can never be served again. See
+// config.TeamConfig.
 //
 // ⚠️ This does NOT assert the shipped plan is wrong — leaving a second set open
 // is the user's call and may be deliberate. It asserts that whatever the plan
 // is, this function DESCRIBES it rather than staying silent, which is the
 // behaviour that was missing.
 func TestTheShippedChipPlanIsDescribedRatherThanPassedOver(t *testing.T) {
-	b, err := os.ReadFile("../../config.json")
+	b, err := os.ReadFile("../../team.json")
 	if err != nil {
-		t.Skipf("no shipped config to read: %v", err)
+		t.Skipf("no shipped team file to read: %v", err)
 	}
 	var top struct {
 		Chips json.RawMessage `json:"chip_plan"`

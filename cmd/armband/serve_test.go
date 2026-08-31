@@ -88,11 +88,21 @@ func TestServeTokenIsPerStartupAndCheckedExactly(t *testing.T) {
 // miss means a stale form.
 func newActionServer(t *testing.T) (*squadServer, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "config.json")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
 	s := &squadServer{
 		token:   "tok",
 		cfg:     &config.Config{},
 		cfgPath: path,
+		// ⚠️ A team path, because the lock action needs one.
+		//
+		// `roster.lock` moved to the team file on 2026-08-31 (see
+		// config.TeamConfig), and config.SavePair REFUSES a lock with nowhere
+		// to put it rather than writing a key the next Load rejects or dropping
+		// it silently. A -persist server whose page carries a lock button
+		// therefore needs -team, and this test found that the moment SavePair
+		// shipped. `teamFile` below is what the lock assertions read back.
+		teamPath: filepath.Join(dir, "team.json"),
 		// The config-write tests run in persist mode: the default session
 		// store never touches the file, which is exactly what they assert
 		// against.
@@ -176,6 +186,19 @@ func TestTheActionsWriteAndLiftOverridesByPermanentCode(t *testing.T) {
 	}
 	if len(s.cfg.Roster.Exclude) != 0 || len(s.cfg.Roster.Lock) != 1 {
 		t.Fatalf("lock left the player on both lists: %+v", s.cfg.Roster)
+	}
+	// ⚠️ And it has to have reached the right FILE, not just memory. A lock is
+	// the one page action whose store is the team file; a save that reported
+	// success and wrote it nowhere is the button lying, which is what SavePair
+	// exists to make impossible.
+	if team, err := config.LoadTeam(s.teamPath); err != nil {
+		t.Fatalf("the lock was reported saved and no team file exists: %v", err)
+	} else if len(team.Lock) != 1 || team.Lock[0].Code != 456 {
+		t.Errorf("the lock did not reach the team file: %+v", team.Lock)
+	}
+	// The config file must NOT have grown a roster.lock — Load refuses one.
+	if _, err := config.Load(path); err != nil {
+		t.Fatalf("the config the lock action wrote no longer loads: %v", err)
 	}
 
 	// Unlock lifts the lock alone.

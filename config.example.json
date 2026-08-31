@@ -1,19 +1,12 @@
 {
   "entry_id": 2785902,
-
   "model": "claude-opus-5",
   "effort": "medium",
   "max_iterations": 25,
-
-  "hypothetical_budget_m": 0,
-
   "report_dir": "reports",
   "cache_dir": ".cache/fpl",
   "cache_minutes": 60,
-
   "roster": {
     "exclude": []
-  },
-
-  "criteria": []
+  }
 }

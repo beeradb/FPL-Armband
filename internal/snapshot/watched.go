@@ -78,8 +78,16 @@ import (
 // *incidentally*, through a type change in `internal/analysis` that happened to
 // ride along. Had the same semantic change been made in `internal/config` alone —
 // which is where it naturally belongs — it would have shipped with no snapshot.
+// ⚠️ **`team.json` is watched too, and for the same reason `config.json` is.**
+// The chip plan moved there on 2026-08-31 (see config.TeamConfig), and
+// `Simulate` resolves it into the plan a replay plays — so a chip moved from
+// GW6 to GW8 changes every replayed decision downstream of the horizon it
+// truncates. Left unwatched, that is a scoring change with no watched path,
+// which is precisely the hole the paragraph above describes for config.Load's
+// backfills.
 var SnapshotWatchedPaths = []string{
-	"internal/analysis", "internal/backtest", "internal/config", "config.json",
+	"internal/analysis", "internal/backtest", "internal/config",
+	"config.json", "team.json",
 }
 
 // IndexRev asks for the digest of the staged index rather than of a commit.

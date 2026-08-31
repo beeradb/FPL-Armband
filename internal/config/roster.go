@@ -180,7 +180,16 @@ type Roster struct {
 	// Exclude must not appear in any squad or be bought by any transfer.
 	Exclude []RosterOverride `json:"exclude,omitempty"`
 	// Lock must appear in every squad, and must not be sold.
-	Lock []RosterOverride `json:"lock,omitempty"`
+	//
+	// ⚠️ `json:"-"` — this reads from the TEAM file, where it is the top-level
+	// key `lock`, NOT from `roster` in config.json. A lock asserts a conclusion
+	// the optimiser cannot decline, which makes it a DECISION rather than a
+	// fact about the world; `forPlanner` has always stripped it for that
+	// reason, and it is the precedent the chip-plan fix followed. Its three
+	// siblings here — Exclude, Minutes and Teams — are team-news research and
+	// stay shared. See TeamConfig, and SavePair for how a lock written by
+	// `-persist` or by the agent reaches the right file.
+	Lock []RosterOverride `json:"-"`
 	// Minutes corrects the model's expected-minutes figure without constraining
 	// the squad at all. Prefer it: the optimiser can still decline the player,
 	// which is information rather than an obstacle.

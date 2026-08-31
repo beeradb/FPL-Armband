@@ -36,7 +36,11 @@ func writeSweepProvenance(t *testing.T, sweep string, sink *cellSink,
 		return
 	}
 
-	fp, err := snapshot.FingerprintOf(cfg)
+	// FingerprintView, not cfg: `chip_plan` moved to the team file and is
+	// `json:"-"` on Config, so marshalling the config itself would record the
+	// subtree as ABSENT and move constants_digest over an unchanged model. See
+	// config.Config.FingerprintView.
+	fp, err := snapshot.FingerprintOf(cfg.FingerprintView())
 	if err != nil {
 		t.Errorf("cells written without a constants fingerprint: %v", err)
 		return

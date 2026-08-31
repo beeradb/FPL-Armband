@@ -105,6 +105,14 @@ than the full one. The long `config.json` this repository ships is the *model's*
 around forty tunable constants, most of which you should not need to touch and none of which you
 should change without reading what it does first.
 
+Your own chip plan, personal criteria and squad locks are **not** in `config.json` at all — they
+go in a second file, `team.json`, loaded with the global `-team <path>` flag (copy
+`team.example.json` to start one). That split exists because `config.json` is also the file the
+deployed server mounts for anyone who visits, and a chip plan or a lock has no business reaching
+a stranger's page. Omit `-team` entirely and each of the five keeps its shipped default — no
+chips planned, no locks, and the criteria and lead time that ship — see
+[docs/configuration.md](docs/configuration.md) for exactly which five and why.
+
 ## Two things to know up front
 
 **It writes to your config, never to FPL.** There is no authenticated write path at all — FPL's
@@ -117,8 +125,10 @@ the agent establishes something the model cannot see — a player out for six we
 lost his place — it records it with `set_player_status`, which persists to `config.json` and
 binds every later run, the free commands included: an excluded player is not offered again by
 `squad`, `transfers` or `suggest_transfers` until the override is cleared. It refuses to store
-one without a reason, and every standing override is re-reported for review each run. See
-[docs/configuration.md](docs/configuration.md).
+one without a reason, and every standing override is re-reported for review each run. **A lock is
+the one exception**: it persists to `team.json` instead, and if you did not pass `-team` the
+write is refused outright rather than silently dropped or misfiled into `config.json`, where the
+next load would hard-error on it. See [docs/configuration.md](docs/configuration.md).
 
 The loop is worth seeing whole — one paid run writes a fact down, and every free run afterwards
 is bound by it until it is cleared:
@@ -227,7 +237,7 @@ optimiser, the fixture model, the chip validator and the replay are all free.
 |---|---|---|
 | `brief` | The whole deterministic picture as one Markdown document, for pasting into a chat (`-html` for a page) | — |
 | `squad` | Best 15 it can find under the real constraints: £100m, positional quotas, three per club (`-plain`) | — |
-| `serve` | The planner over HTTP, loopback only: the pitch, the market, the overrides and the briefing, drawn from the model over `/api/state`. Pick the eleven, order the bench, give the armband, lock or block a player, clear a correction, place a chip, or replace a man from the market — all of it saved to your browser session and still there after a reload. The opening fifteen is deliberately varied rather than always the same squad; **Optimize** returns the model's best. `-persist` saves corrections to config.json instead of the session, `-horizon` sets how many gameweeks the preview scores over (`-addr`, `-persist`, `-horizon` after the command). **One thing here leaves the machine carrying something you typed**: the landing page's email form posts to fplarmband.com, so a signup made against a local copy joins the same list rather than a local one nobody collects. The planner's own network use is FPL's public API, plus — on a cold cache only — last season's totals from the public dataset `priors` caches | — |
+| `serve` | The planner over HTTP, loopback only: the pitch, the market, the overrides and the briefing, drawn from the model over `/api/state`. Pick the eleven, order the bench, give the armband, lock or block a player, clear a correction, place a chip, or replace a man from the market — all of it saved to your browser session and still there after a reload. The opening fifteen is deliberately varied rather than always the same squad; **Optimize** returns the model's best. `-persist` saves corrections back to config.json — and a lock specifically to `team.json`, if `-team` was given; without it, persisting a lock is refused rather than lost — `-horizon` sets how many gameweeks the preview scores over (`-addr`, `-persist`, `-horizon` after the command). **One thing here leaves the machine carrying something you typed**: the landing page's email form posts to fplarmband.com, so a signup made against a local copy joins the same list rather than a local one nobody collects. The planner's own network use is FPL's public API, plus — on a cold cache only — last season's totals from the public dataset `priors` caches | — |
 | `transfers` | Best transfers for the squad you own, as a team sheet (`-plain`) | — |
 | `fixtures` | Fixture difficulty per club, easiest run first | — |
 | `chips` | Chip windows, plan validation, blanks and doubles | — |
@@ -273,7 +283,9 @@ Markdown document: your criteria and review policy, the numbered review protocol
 status, chip plan, squad and transfers, every flagged player, your standing overrides, research
 targets, the best squad it found, the fixture table, and a "what this model cannot see" section. Paste
 it into any chat assistant you already have a subscription for, and get the review there.
-Roughly 5,000 words pre-season, and longer once you have a squad to describe.
+Roughly 5,000 words pre-season, and longer once you have a squad to describe. Your criteria and
+chip plan come from `team.json` — pass `-team` or the brief describes a manager with none of
+either.
 
 **`armband review` — API billed.** The same protocol, but the agent calls tools
 iteratively: it can notice something odd and go look, rather than reasoning from a single

@@ -249,8 +249,8 @@ func (s session) empty() bool {
 		s.Entry == 0 && !s.ImportSkipped
 }
 
-// forPlanner strips the corrections that belong to the analysis layer rather than to the
-// reader, leaving the ones that describe the WORLD.
+// forPlanner builds the config a READER's planner runs on, from an explicit
+// allow-list of the things that describe the WORLD.
 //
 // The distinction is the whole point. A minutes override is team news — "he is nailed, the
 // record just cannot see it yet" — and the planner wants it, because it is a correction to
@@ -264,7 +264,8 @@ func (s session) empty() bool {
 // player he cannot pick and a stated reason, rather than a squad built around a choice he
 // did not make. The reader's OWN locks, from the session, are applied after this and are
 // untouched: they are his.
-// ⚠️ A CHIP PLAN IS A DECISION, so it is stripped here for the same reason a lock is.
+//
+// ⚠️ A CHIP PLAN IS A DECISION, so it is absent here for the same reason a lock is.
 //
 // `chip_plan` is one manager's strategy for one entry. It was never stripped, so every
 // visitor who had never touched a chip inherited it — and `EffectiveHorizon` truncates
@@ -278,16 +279,98 @@ func (s session) empty() bool {
 // it deliberately under `-persist` — where the page is the owner's own and his plan
 // should bind. Stripping inside `chipsInto` would have taken his chips off his own page.
 //
-// ⚠️ The list is a DENY-list, which is the wrong polarity and is why this case was
-// missed for as long as it was: a decision added to `config.Config` is inherited by
-// readers unless somebody remembers to name it here. Inverting it — building the
-// planner's config from an explicit allow-list of things that describe the world — is
-// the standing fix, and it is why `entry_id` and `hypothetical_budget_m` are worth a
-// look next.
+// # ⚠️ Why this is written as a copy-in rather than a set of deletions
+//
+// It used to be a DENY-list — two assignments clearing the two fields nobody wanted
+// served — and that polarity is why the chip plan went unstripped for as long as it did.
+// A deny-list makes "reaches every reader" the default for anything added to
+// `config.Config`, so a leak is what you get by forgetting, and the forgetting is silent:
+// no test fails, no page changes, the field simply arrives.
+//
+// Inverted, the default is exclusion. A field added to `config.Config` and not named
+// below reaches no reader until somebody classifies it, and the cost of forgetting is a
+// planner that does not see a setting — visible, and the cheap direction to be wrong in.
+// `TestForPlannerClassifiesEveryConfigField` fails on an unclassified field rather than
+// leaving it to be noticed, so the classification is forced rather than hoped for.
+//
+// The team file is the other half of the same argument and closes the same hole at the
+// file level: the six settings in `config.TeamConfig` cannot reach a deployed server at
+// all, because the server is never given a `-team` path. This function is what still has
+// to hold under `-persist`-less local use, where one process loads both.
 func forPlanner(cfg config.Config) config.Config {
-	cfg.Roster.Lock = nil
-	cfg.Chips = analysis.ChipSchedule{}
-	return cfg
+	var out config.Config
+
+	// The scoring model and the season's shape: how players are valued, who is
+	// in Europe, which clubs changed manager. Facts about football.
+	out.Weights = cfg.Weights
+	out.Congestion = cfg.Congestion
+	out.RoleRisk = cfg.RoleRisk
+
+	// The decision engine. `page.go` reads `MinGainForTransfer` into the
+	// watchlist every reader sees, and the gain thresholds, the free-transfer
+	// charge, the hit ceiling and the early floor are model quantities rather
+	// than one manager's preferences — see the classification in
+	// `config.TeamConfig`.
+	//
+	// ⚠️ `Rules` is CARRIED, and that is not an oversight. It reads as personal
+	// — free text in the owner's own words — but the site renders it under "The
+	// rules it is deciding under", and the template gates that whole section on
+	// the list being non-empty, so clearing it here would delete a published
+	// section and the four thresholds printed beside it.
+	//
+	// `LeadHours` is cleared. It is `json:"-"` on ReviewPolicy and reaches a
+	// process only through `-team`, so on a server it is already zero; it is
+	// cleared anyway, because this function must answer "what does a reader
+	// inherit" from the config it is handed rather than from an assumption
+	// about how that config was loaded.
+	out.Review = cfg.Review
+	out.Review.LeadHours = 0
+
+	// What a held option is worth. Every lever in it ships off; none of it
+	// names a player or a week.
+	out.OptionValue = cfg.OptionValue
+
+	// The published team-news research. Minutes and exclusions correct what the
+	// model KNOWS; the club corrections do the same for a defence. Lock is
+	// absent, and that absence is the original reason this function exists.
+	out.Roster.Exclude = cfg.Roster.Exclude
+	out.Roster.Minutes = cfg.Roster.Minutes
+	out.Roster.Teams = cfg.Roster.Teams
+
+	// The deployment's own switches. `entry_id` is deliberately public — it is
+	// the house team `/armband-team` exists to show, "proof-of-use is a
+	// marketing surface" — and `wildcard_enabled` is a per-deployment toggle by
+	// its own comment.
+	out.EntryID = cfg.EntryID
+	out.WildcardEnabled = cfg.WildcardEnabled
+
+	// Where this process reads and writes. Nothing about a manager, and the
+	// page's own fetches need them.
+	out.ReportDir = cfg.ReportDir
+	out.CacheDir = cfg.CacheDir
+	out.CacheMinutes = cfg.CacheMinutes
+	out.PlayerCacheMinutes = cfg.PlayerCacheMinutes
+	out.SnapshotDir = cfg.SnapshotDir
+	out.XGCExternalDir = cfg.XGCExternalDir
+
+	// The reasoning layer's own settings. No reader-facing path in `serve`
+	// calls the agent at all, so these could equally be dropped; they are
+	// carried because they describe the process rather than the manager, and a
+	// planner config that silently differs from the one the binary was started
+	// with is a harder thing to reason about than one that does not.
+	out.Model = cfg.Model
+	out.Effort = cfg.Effort
+	out.MaxIterations = cfg.MaxIterations
+
+	// NOT carried, deliberately, and each named in
+	// TestForPlannerClassifiesEveryConfigField so this list cannot rot:
+	//
+	//   Chips               one manager's chip strategy — the confirmed leak
+	//   HypotheticalBudget  a question one manager is asking about his own money
+	//   Criteria            "the main place to encode personal preferences"
+	//   Roster.Lock         a decision, not a fact (handled above)
+	//   Review.LeadHours    when one manager's cron fires (handled above)
+	return out
 }
 
 // chipsInto folds the reader's chip placements into a plan the engine will act on.

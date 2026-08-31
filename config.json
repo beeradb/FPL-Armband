@@ -1,6 +1,5 @@
 {
   "entry_id": 2785902,
-  "hypothetical_budget_m": 0,
   "model": "claude-opus-5",
   "effort": "medium",
   "max_iterations": 25,
@@ -514,12 +513,6 @@
     "new_coach_penalty": 1,
     "new_coach_gameweeks": 6
   },
-  "chip_plan": {
-    "wildcard_gameweek": 6,
-    "free_hit_gameweek": 16,
-    "bench_boost_gameweek": 8,
-    "triple_captain_gameweek": 9
-  },
   "review_policy": {
     "min_gain_for_free_transfer": 0.4,
     "min_net_gain_for_minus_4": 3,
@@ -537,7 +530,6 @@
       "Bench Boost and Triple Captain are squad-dependent and so are wildcard-enabled; Free Hit builds its own squad and never is. Plan the wildcard and the chips that follow it together.",
       "A projected price rise is a reason to act earlier in the week on a move you had already decided, not a reason to make one you would otherwise decline. Waiting for Friday's team news beats saving 0.1m: if the price case and the news case disagree, the news wins."
     ],
-    "scheduled_run_lead_hours": 6,
     "bank_transfers_lookahead": true,
     "early_floor": {
       "free_transfer_value": 1.0,
@@ -649,18 +641,6 @@
       }
     ]
   },
-  "criteria": [
-    "Expected points only become real points if the player is on the pitch. Treat expected minutes as a first-class filter, not a tiebreaker: check expected_minutes_per_gw and rotation_risk before recommending anyone.",
-    "Never recommend a starting XI player below roughly 60 expected minutes per gameweek unless you say explicitly why the rotation risk is worth it.",
-    "Weight underlying numbers (xG, xA, xGC) over raw past points — form follows the underlying data, not the other way round.",
-    "Value fixture runs over the next 4-6 gameweeks, not just the next match.",
-    "Set-piece and penalty duty is a major tiebreaker: a penalty taker is worth roughly half a goal per five matches on its own.",
-    "Be sceptical of players heavily overperforming their xG — say so explicitly when recommending or fading them.",
-    "For new signings, last season's stats came from a different club. Say so, and be explicit that their role in the new side is unproven.",
-    "Players returning late from a summer international tournament are routinely eased back in. Prefer rested alternatives for the opening weeks.",
-    "A model number has a resolution limit. Mean absolute error is about 0.5 points per 90, so treat gaps under roughly 0.5 as a tie and decide on what the model cannot see (fixtures, team news, concentration); respect gaps above 1.0 as real.",
-    "The captain's score is doubled, so captaincy value accrues only to the single highest-scoring player in the XI. A second premium who never outscores your captain adds nothing to that slot — compare captain candidates on doubled value, not raw points per million."
-  ],
   "report_dir": "reports",
   "cache_dir": ".cache/fpl",
   "cache_minutes": 60,

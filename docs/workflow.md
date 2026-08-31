@@ -14,6 +14,12 @@ status, chip plan, squad and transfers, every flagged player, standing overrides
 targets, the optimal squad, the fixture table, and a "what this model cannot see" section.
 Hand it to a Claude Code session and work the steps there.
 
+⚠️ **Two of those come from your team file, so pass `-team`.** Your criteria and your chip plan
+live in `team.json` rather than `config.json` — see
+[configuration.md](configuration.md#two-files-configjson-and-teamjson) for why — and a brief run
+without the flag describes a manager with the shipped criteria and no chips planned, without
+saying so.
+
 **`armband review`** runs the same protocol through the API, where the agent calls tools
 iteratively and can chase something it notices mid-analysis rather than reasoning from one
 snapshot. This is the path intended to eventually run unattended just before a deadline.
@@ -224,6 +230,12 @@ game was excluded on it.
 Chips expire and only one may be played per gameweek, so four first-half chips need four
 distinct gameweeks inside a fixed window. Deciding week by week reliably ends with chips
 burned in the last fortnight or lost outright.
+
+⚠️ **The plan lives in `team.json`, loaded with `-team`, not in `config.json`.** It is one
+manager's strategy for one entry, and `config.json` is also what a deployed server mounts for
+anyone who visits — a chip plan reaching a stranger truncates *his* optimiser horizon to a
+wildcard he never planned. Without `-team`, `armband chips` reports every chip as unplanned,
+which is indistinguishable from having planned none.
 
 ### Windows
 

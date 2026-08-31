@@ -114,6 +114,11 @@ var envSwitches = []string{
 	// on every weight at once. That is the strongest possible reason to
 	// fingerprint it rather than skip it as a mere path.
 	"FPL_CONFIG",
+	// The same argument for the second file. Since 2026-08-31 the chip plan
+	// lives in team.json rather than config.json, and `Simulate` resolves it
+	// into the plan a replay plays — so two runs disagreeing on this disagree
+	// on the horizon every held squad was scored over. See config.TeamConfig.
+	"FPL_TEAM",
 	"FPL_CS_SCALE",
 	"FPL_CS_XGC_FACTOR",
 	"FPL_DEF_FIXTURE_SCALE",
@@ -219,6 +224,9 @@ var envSwitches = []string{
 	// files are no more comparable than two run at different scoring weights, and
 	// nothing else in a snapshot would say which file was read.
 	"FPL_CONFIG",
+	// Which team.json a diagnostic measures against, for the same reason: it
+	// carries the chip plan the replay plays.
+	"FPL_TEAM",
 	"FPL_ORACLE_AVAILABILITY",
 	"FPL_ORACLE_PRICES",
 	"FPL_POS_MINUTES_SCALE",
@@ -258,6 +266,13 @@ var envSwitches = []string{
 // report directory, the cache window, the model name — cannot move a replayed
 // point, so including it would make the digest change for reasons that are not
 // about the model.
+// ⚠️ `chip_plan` is still named here and MUST stay named. Since 2026-08-31 it
+// lives in team.json rather than config.json and is `json:"-"` on
+// `config.Config`, so a caller handing this function a bare Config gets
+// "ABSENT FROM CONFIG" for it — a changed digest over a byte-identical model,
+// plus a value the replay genuinely reads going unfingerprinted. Callers pass
+// `config.Config.FingerprintView()`, which puts the subtree back in the same
+// shape it had before the split, so banked cells stay comparable across it.
 var modelSubtrees = []string{"weights", "congestion", "role_risk", "review_policy", "chip_plan"}
 
 // Fingerprint flattens a config into the constants in force and digests them.
@@ -291,6 +306,7 @@ var modelSubtrees = []string{"weights", "congestion", "role_risk", "review_polic
 var envPathValued = map[string]bool{
 	"FPL_XGC_EXTERNAL_DIR": true,
 	"FPL_CONFIG":           true,
+	"FPL_TEAM":             true,
 }
 
 // pathFingerprint renders a path-valued switch as a short digest of WHAT IS AT

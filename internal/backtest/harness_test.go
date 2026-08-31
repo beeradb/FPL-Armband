@@ -481,6 +481,25 @@ func loadConfig(t *testing.T) config.Config {
 			"Every figure below would otherwise come from config.Default() rather "+
 			"than the shipped config, with nothing to say so.", path, err)
 	}
+	// The team file, layered on exactly as `armband -team` layers it.
+	//
+	// ⚠️ Not optional, and not silently skipped when absent. `chip_plan` moved
+	// out of config.json on 2026-08-31 (see config.TeamConfig) and `Simulate`
+	// resolves `cfg.Chips` into the plan a replay plays — so a diagnostic that
+	// loaded the config alone would measure a CHIPLESS season while reporting
+	// the shipped one, which is the same silence the fatal above exists for.
+	teamFile := teamPath(t)
+	if _, err := os.Stat(teamFile); err != nil {
+		t.Fatalf("team file not readable at %s: %v\n"+
+			"Every figure below would otherwise be measured with no chip plan at "+
+			"all, with nothing to say so. Set FPL_TEAM to point elsewhere.",
+			teamFile, err)
+	}
+	team, err := config.LoadTeam(teamFile)
+	if err != nil {
+		t.Fatalf("loading %s: %v", teamFile, err)
+	}
+	cfg = team.ApplyTo(cfg)
 	// CacheDir ships relative and would otherwise resolve against this package's
 	// directory, re-downloading the whole archive into internal/backtest/.cache
 	// rather than reusing the repository's.
@@ -526,6 +545,28 @@ func configPath(t *testing.T) string {
 	p, err := filepath.Abs(filepath.Join("..", "..", "config.json"))
 	if err != nil {
 		t.Fatalf("resolving the repo config path: %v", err)
+	}
+	return p
+}
+
+// teamPath resolves the shipped team file, on the same rules configPath uses:
+// FPL_TEAM overrides, otherwise the repository root's team.json.
+//
+// ⚠️ It is a SEPARATE switch from FPL_CONFIG, and it does not follow it.
+// Setting FPL_CONFIG alone points the run at an experimental config while still
+// reading the repository's own team.json — which is deliberate, because the two
+// files are separate inputs and a sweep over weights has no business also
+// changing the chip plan it replays. But it does mean an experimental config
+// with its own team file needs BOTH set, and `snapshot.CurrentEnv`
+// fingerprints both so a sidecar records which pair actually ran.
+func teamPath(t *testing.T) string {
+	t.Helper()
+	if p := os.Getenv("FPL_TEAM"); p != "" {
+		return p
+	}
+	p, err := filepath.Abs(filepath.Join("..", "..", "team.json"))
+	if err != nil {
+		t.Fatalf("resolving the repo team path: %v", err)
 	}
 	return p
 }

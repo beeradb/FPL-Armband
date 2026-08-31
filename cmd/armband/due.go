@@ -106,7 +106,7 @@ func checkDue(next *fpl.Event, leadHours float64, now time.Time) dueVerdict {
 
 // cmdDue runs the review, but only when a deadline is close and that gameweek
 // has not been handled. Safe to call on a schedule as often as you like.
-func cmdDue(ctx context.Context, cfg config.Config, cfgPath string,
+func cmdDue(ctx context.Context, cfg config.Config, cfgPath, teamPath string,
 	client *fpl.Client, engine *analysis.Engine, writeReport bool) error {
 
 	v := checkDue(engine.Boot.NextEvent(), cfg.Review.LeadHours, time.Now())
@@ -124,7 +124,7 @@ func cmdDue(ctx context.Context, cfg config.Config, cfgPath string,
 	}
 
 	fmt.Printf("Due: %s. Running the review.\n", v.Reason)
-	return cmdAgent(ctx, cfg, cfgPath, client, engine,
+	return cmdAgent(ctx, cfg, cfgPath, teamPath, client, engine,
 		advicePrompt(engine), fmt.Sprintf("FPL Review — GW%d", v.Gameweek),
 		writeReport)
 }
