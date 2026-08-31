@@ -212,6 +212,38 @@ func registerGlobalFlags(fs *flag.FlagSet) *globalFlags {
 	}
 }
 
+// loadConfigPair reads the shared config and layers the owner's own settings
+// over it, returning the merged view the rest of the program reads.
+//
+// Two files because they have two audiences: config.json is what the public
+// server mounts, and a chip plan is one manager's strategy for one entry. See
+// config.TeamConfig for the whole argument, and for why entry_id and the
+// roster's team news deliberately stay in the shared file.
+//
+// An empty teamPath is not an error and not an overlay: every team setting
+// keeps the value config.Default() gave it, which is exactly what a config.json
+// omitting these keys used to give. A NAMED file that does not exist IS an
+// error — see config.LoadTeam for why a typo must not read as an empty plan.
+//
+// The two loads are one function, and one error path, deliberately. run() is
+// the widest function in this package, the complexity ratchet only turns down,
+// and "which files did this process read its constants from" is one question
+// rather than two.
+func loadConfigPair(cfgPath, teamPath string) (config.Config, error) {
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return cfg, err
+	}
+	if teamPath == "" {
+		return cfg, nil
+	}
+	team, err := config.LoadTeam(teamPath)
+	if err != nil {
+		return cfg, err
+	}
+	return team.ApplyTo(cfg), nil
+}
+
 func run() error {
 	f := registerGlobalFlags(flag.CommandLine)
 	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
@@ -228,26 +260,9 @@ func run() error {
 		return err
 	}
 
-	cfg, err := config.Load(*cfgPath)
+	cfg, err := loadConfigPair(*cfgPath, *f.teamPath)
 	if err != nil {
 		return err
-	}
-	// The owner's own settings, layered over the shared config. Two files
-	// because they have two audiences: config.json is what the public server
-	// mounts, and a chip plan is one manager's strategy for one entry. See
-	// config.TeamConfig for the whole argument, and for why entry_id and the
-	// roster's team news deliberately stay in the shared file.
-	//
-	// Absent flag, absent overlay: everything in it keeps the value it has in
-	// config.Default(), which is exactly what a config.json omitting these keys
-	// used to give. A NAMED file that does not exist is an error, not an empty
-	// overlay — see config.LoadTeam.
-	if *f.teamPath != "" {
-		team, err := config.LoadTeam(*f.teamPath)
-		if err != nil {
-			return err
-		}
-		cfg = team.ApplyTo(cfg)
 	}
 	if *f.cacheDir != "" {
 		cfg.CacheDir = *f.cacheDir

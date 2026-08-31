@@ -1756,6 +1756,28 @@ type setPlayerStatusInput struct {
 	Confirmed *bool `json:"confirmed,omitempty" jsonschema:"description=With mode 'minutes' ONLY: pass true when you are asserting this as SETTLED FACT rather than a hedge - e.g. a confirmed starting role, a nailed-on new signing, an announced long-term injury with no return in doubt. Pass false for anything you would describe as provisional, a prediction, a first start, or a 'rather than a nailed X' judgement call - false reads as an honest 'not yet established' and is the safer default. OMIT this field entirely for a routine expected_minutes correction that says nothing new about confidence - omitting PRESERVES whatever confirmed state the player already has on file, rather than resetting it to false. This is the ONLY thing that lets the rotation_risk label read 'nailed'; the expected_minutes value alone no longer decides it, because a high number and genuine confidence are different claims."`
 }
 
+// savedTo names the file an override of this mode will actually land in.
+//
+// A LOCK lives in the team file and everything else in the config, so a single
+// "saved to <config path>" would be false for two of the six modes — and this
+// string is what the model reports back to the reader, so a wrong one is a
+// wrong answer rather than a cosmetic slip.
+//
+// Its own method rather than a block inside the handler: that handler is
+// already over the complexity threshold and the ratchet only turns down.
+func (t *Toolbox) savedTo(mode string) string {
+	if t.ConfigPath == "" {
+		return "not saved (no config path)"
+	}
+	if mode != "lock" && mode != "start" {
+		return "saved to " + t.ConfigPath
+	}
+	if t.TeamPath == "" {
+		return "NOT saved: a lock lives in the team file and no -team path is set"
+	}
+	return "saved to " + t.TeamPath
+}
+
 func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
 	return toolrunner.NewBetaToolFromJSONSchema(
 		"set_player_status",
@@ -1796,21 +1818,7 @@ func (t *Toolbox) setPlayerStatus() (anthropic.BetaTool, error) {
 			name := el.WebName
 
 			now := time.Now().Format("2006-01-02")
-			// Names the file the override will actually land in. A lock lives
-			// in the TEAM file and everything else in the config, so a single
-			// "saved to <config>" would be false for two of the six modes — and
-			// this string is what the model reports back to the reader.
-			saved := "saved to " + t.ConfigPath
-			if mode == "lock" || mode == "start" {
-				saved = "saved to " + t.TeamPath
-				if t.TeamPath == "" {
-					saved = "NOT saved: a lock lives in the team file and no -team " +
-						"path is set"
-				}
-			}
-			if t.ConfigPath == "" {
-				saved = "not saved (no config path)"
-			}
+			saved := t.savedTo(mode)
 			if mode == "minutes" && in.Minutes == nil {
 				return errResult("mode 'minutes' needs expected_minutes — what he actually " +
 					"plays per gameweek")

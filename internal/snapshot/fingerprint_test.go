@@ -401,12 +401,23 @@ func TestSliceFingerprintIgnoresOrderButNotContent(t *testing.T) {
 // `ChipSchedule.MarshalJSON` keeps the flat form when there is no second set,
 // which is what holds the paths still. This pins that, because the property is
 // a consequence of the marshaller rather than of anything local. Found by review.
+//
+// ⚠️ **It fingerprints `cfg.FingerprintView()`, not `cfg`, and that is now part
+// of what is being pinned.** The chip plan moved to a separate team file on
+// 2026-08-31 and `config.Config.Chips` is `json:"-"`, so marshalling a bare
+// Config emits no `chip_plan` at all — `FingerprintOf` then records the whole
+// subtree as one `ABSENT FROM CONFIG` row and the four paths collapse to one.
+// That is the same comparability failure this test was written for, arriving
+// through a different door: a changed stamp over a model that did not move.
+// `FingerprintView` re-attaches the field in the shape it had.
+// TestABareConfigIsLoudlyMissingItsChipPlan pins the other half, so the
+// footgun is documented rather than merely avoided here.
 func TestASingleSetChipPlanDoesNotMoveTheFingerprintPaths(t *testing.T) {
 	cfg := config.Default()
 	cfg.Chips.First.Wildcard = 6
 	cfg.Chips.First.BenchBoost = 8
 
-	fp, err := FingerprintOf(cfg)
+	fp, err := FingerprintOf(cfg.FingerprintView())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,6 +440,47 @@ func TestASingleSetChipPlanDoesNotMoveTheFingerprintPaths(t *testing.T) {
 		t.Errorf("chip_plan fingerprint paths are now\n  %v\nwant\n  %v\n\n"+
 			"Changed paths make every digest recorded before this commit "+
 			"non-comparable to one after, on a change that moves no cell.", chip, want)
+	}
+}
+
+// TestABareConfigIsLoudlyMissingItsChipPlan pins the failure mode of forgetting
+// `FingerprintView`, so that it stays LOUD rather than becoming a quiet wrong
+// answer.
+//
+// Since the team-file split, `config.Config` marshals no `chip_plan`. A caller
+// that hands `FingerprintOf` a bare Config therefore fingerprints a config whose
+// chip plan is invisible — and the replay reads that plan, so the stamp would
+// claim to cover something it does not. `FingerprintOf` already answers this
+// correctly, recording the subtree as ABSENT rather than silently walking the
+// rest; this asserts it, because "absent" only helps if somebody can see it in
+// the sidecar.
+//
+// The assertion is the exact string a reader would grep the sidecar for. If this
+// ever needs changing, the sidecars already banked carrying it need thinking
+// about first.
+func TestABareConfigIsLoudlyMissingItsChipPlan(t *testing.T) {
+	cfg := config.Default()
+	cfg.Chips.First.Wildcard = 6
+
+	fp, err := FingerprintOf(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []Constant
+	for _, c := range fp.Constants {
+		if strings.HasPrefix(c.Path, "chip_plan") {
+			got = append(got, c)
+		}
+	}
+	if len(got) != 1 || got[0].Path != "chip_plan" {
+		t.Fatalf("a bare config fingerprinted chip_plan as %v; the point of this "+
+			"test is that it CANNOT, because Config no longer carries the field",
+			got)
+	}
+	if got[0].Value != "ABSENT FROM CONFIG" {
+		t.Errorf("chip_plan reads %q for a bare config, want %q — a missing "+
+			"subtree that does not say so is a digest covering less than it claims",
+			got[0].Value, "ABSENT FROM CONFIG")
 	}
 }
 
