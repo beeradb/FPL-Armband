@@ -358,7 +358,19 @@ func (s session) applyTo(cfg config.Config, e *analysis.Engine, today string) co
 	// the cross, and nothing happened. Worse, a blocked market player is dropped from the
 	// market list, so there was no row left anywhere to open his sheet from and toggle him
 	// back — the only recovery was deleting the cookie.
-	cfg.Chips = s.chipsInto(cfg.Chips, e.Boot)
+	// ⚠️ The reader's chips start from NOTHING, not from the file's plan.
+	//
+	// `config.json` is one file with two consumers: the owner's own CLI and agent runs,
+	// and this server. Most of it is meant to be shared — the roster overrides ARE the
+	// published team-news research. `chip_plan` is not: it is one manager's strategy for
+	// one entry, and folding it in here served it to every visitor who had never set a
+	// chip. Their squad was built against the owner's wildcard week, so `EffectiveHorizon`
+	// truncated the optimiser to the gameweeks before a chip the reader had not planned
+	// and could not see.
+	//
+	// The site therefore has no chip plan of its own. A reader gets exactly the chips he
+	// places, and a reader who places none gets none.
+	cfg.Chips = s.chipsInto(analysis.ChipSchedule{}, e.Boot)
 	set("lock", s.Lock, "locked from the planner — browser session")
 	set("exclude", s.Exclude, "blocked from the planner — browser session")
 	return cfg
