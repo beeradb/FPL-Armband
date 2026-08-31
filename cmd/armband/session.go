@@ -264,8 +264,29 @@ func (s session) empty() bool {
 // player he cannot pick and a stated reason, rather than a squad built around a choice he
 // did not make. The reader's OWN locks, from the session, are applied after this and are
 // untouched: they are his.
+// ⚠️ A CHIP PLAN IS A DECISION, so it is stripped here for the same reason a lock is.
+//
+// `chip_plan` is one manager's strategy for one entry. It was never stripped, so every
+// visitor who had never touched a chip inherited it — and `EffectiveHorizon` truncates
+// the optimiser to the gameweeks before the next planned wildcard, so their fifteen was
+// built on a horizon set by a chip they had not planned, could not see, and could not
+// remove. The reader's OWN placements are folded in afterwards by `chipsInto` and are
+// untouched: they are his, exactly as his locks are.
+//
+// ⚠️ **This belongs HERE and not in `chipsInto`**, because `forPlanner` is the one place
+// that answers "what does a READER inherit from the owner's file", and `serve.go` skips
+// it deliberately under `-persist` — where the page is the owner's own and his plan
+// should bind. Stripping inside `chipsInto` would have taken his chips off his own page.
+//
+// ⚠️ The list is a DENY-list, which is the wrong polarity and is why this case was
+// missed for as long as it was: a decision added to `config.Config` is inherited by
+// readers unless somebody remembers to name it here. Inverting it — building the
+// planner's config from an explicit allow-list of things that describe the world — is
+// the standing fix, and it is why `entry_id` and `hypothetical_budget_m` are worth a
+// look next.
 func forPlanner(cfg config.Config) config.Config {
 	cfg.Roster.Lock = nil
+	cfg.Chips = analysis.ChipSchedule{}
 	return cfg
 }
 
@@ -358,19 +379,7 @@ func (s session) applyTo(cfg config.Config, e *analysis.Engine, today string) co
 	// the cross, and nothing happened. Worse, a blocked market player is dropped from the
 	// market list, so there was no row left anywhere to open his sheet from and toggle him
 	// back — the only recovery was deleting the cookie.
-	// ⚠️ The reader's chips start from NOTHING, not from the file's plan.
-	//
-	// `config.json` is one file with two consumers: the owner's own CLI and agent runs,
-	// and this server. Most of it is meant to be shared — the roster overrides ARE the
-	// published team-news research. `chip_plan` is not: it is one manager's strategy for
-	// one entry, and folding it in here served it to every visitor who had never set a
-	// chip. Their squad was built against the owner's wildcard week, so `EffectiveHorizon`
-	// truncated the optimiser to the gameweeks before a chip the reader had not planned
-	// and could not see.
-	//
-	// The site therefore has no chip plan of its own. A reader gets exactly the chips he
-	// places, and a reader who places none gets none.
-	cfg.Chips = s.chipsInto(analysis.ChipSchedule{}, e.Boot)
+	cfg.Chips = s.chipsInto(cfg.Chips, e.Boot)
 	set("lock", s.Lock, "locked from the planner — browser session")
 	set("exclude", s.Exclude, "blocked from the planner — browser session")
 	return cfg

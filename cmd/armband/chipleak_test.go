@@ -35,7 +35,7 @@ func TestTheSiteServesNoChipPlanOfItsOwn(t *testing.T) {
 	}
 
 	today := s.now().Format("2006-01-02")
-	got := session{Version: sessionVersion}.applyTo(owner, s.engine, today)
+	got := session{Version: sessionVersion}.applyTo(forPlanner(owner), s.engine, today)
 
 	if got.Chips != (analysis.ChipSchedule{}) {
 		t.Fatalf("a reader with no chips of his own was served the owner's plan: %+v", got.Chips)
@@ -56,12 +56,37 @@ func TestAReadersOwnChipStillReachesThePlanner(t *testing.T) {
 
 	today := s.now().Format("2006-01-02")
 	sess := session{Version: sessionVersion, Chips: map[string]string{"12": "bboost"}}
-	got := sess.applyTo(owner, s.engine, today)
+	got := sess.applyTo(forPlanner(owner), s.engine, today)
 
 	if got.Chips.First.BenchBoost != 12 {
 		t.Fatalf("the reader placed a bench boost at GW12 and the planner got %+v", got.Chips)
 	}
 	if got.Chips.First.Wildcard != 0 {
 		t.Fatalf("the owner's GW6 wildcard leaked alongside the reader's chip: %+v", got.Chips)
+	}
+}
+
+// TestPersistKeepsTheOwnersOwnChipPlan is the other side of the strip, and it is the
+// regression an over-eager fix introduces.
+//
+// `serve.go` deliberately skips `forPlanner` under `-persist`: there the page IS the
+// owner's, he writes to `config.json` from it, and his own settings must bind. A first
+// version of this fix stripped the plan inside `chipsInto` instead, which runs on every
+// path — so it would have taken the owner's chips off his own page, silently, with the
+// leak test still green.
+func TestPersistKeepsTheOwnersOwnChipPlan(t *testing.T) {
+	s := fixtureServer(t)
+
+	owner := *s.cfg
+	owner.Chips = analysis.ChipSchedule{
+		First: analysis.ChipPlan{Wildcard: 6, BenchBoost: 8},
+	}
+
+	today := s.now().Format("2006-01-02")
+	// -persist passes the config through UNSTRIPPED, exactly as serve.go does.
+	got := session{Version: sessionVersion}.applyTo(owner, s.engine, today)
+
+	if got.Chips.First.Wildcard != 6 || got.Chips.First.BenchBoost != 8 {
+		t.Fatalf("under -persist the owner lost his own chip plan: %+v", got.Chips)
 	}
 }
