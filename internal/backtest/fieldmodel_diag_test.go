@@ -105,6 +105,27 @@ import (
 // fails, that is itself the finding, and it is reported as one: which band
 // missed, by how much, and in which direction the simplifications above
 // would be expected to push it.
+//
+// RESULT: it FAILED, on all three bands. Measured on the 2025-26 synthetic
+// field against the same 3,612-manager reference above: mean 1369.7 vs 1922
+// (-28.7%, band ±10%), sd 162.2 vs 307 (-47.2%, band ±25%), p50 1369 vs 1989
+// (-31.2%, band ±5%), p95 1630 vs 2258 (-27.8%, band ±5%).
+//
+// SD is the disqualifying miss, not mean. Sampled managers overlap on the
+// ownership-weighted template core by construction and never differentiate
+// through hits, chips or punts, so the population is 47% too tight — and
+// rank is a question about spread. A field this narrow makes every rank
+// probability this diagnostic could report wrong in the optimistic
+// direction: real managers spread further in both tails than this one does.
+//
+// The shortfall is a FLAT LEVEL GAP, not decay. The synthetic field scores
+// about 36 points a gameweek where real managers score about 50 (1922/38),
+// first week to last — a squad drawn once and never transferred, autosubbed
+// or re-captained is not a good squad going stale, it is a worse squad every
+// week. An earlier draft of this work claimed mean score "decays 41.3 to
+// 30.4" across a season; that figure is withdrawn — it was an endpoint
+// artefact quoted with no stated method, and over the season's two halves
+// the field actually goes slightly UP, 35.8 to 36.3.
 const (
 	fieldN           = 5000 // synthetic managers per season
 	fieldSeed        = 7    // fixed, not time-derived — see DETERMINISM below

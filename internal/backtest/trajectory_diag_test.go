@@ -32,6 +32,32 @@ import (
 // N-2 relative to the season being predicted. `sweepPairNames` was built for a
 // two-season instrument (prior blend, current replay) and hands back exactly
 // one prior per pair; this diagnostic loads a second one itself.
+//
+// RESULT (four seasons 2022-23..2025-26, 83,994 pairs, df 3, t_crit 3.182).
+// Nothing separates inside the band except the engine itself: Score +0.184
+// (n=80,999, SE 0.018, thr 0.057) RESOLVES and survives Holm (p=0.0020, Holm
+// 0.0260) across a THIRTEEN-comparison family -- the five main effects below
+// plus four price bands x two stratified predictors (minutes trend, pts/90
+// trend). None of the other four main effects separates: minutes trend -0.038
+// (thr 0.069), minutes LEVEL -0.059 (thr 0.192, the ungated control), pts/90
+// trend -0.030 (thr 0.230), xGI/90 trend -0.046 (thr 0.128). None of the eight
+// price-band comparisons clears its own uncorrected threshold either.
+//
+// ⚠️ Do NOT repeat the squash commit that merged this file (#156, "Measure
+// whether trajectory separates decisions inside the band") saying "the gate
+// earned it". The 900-minute rate gate is ILLUSTRATED by one case -- Palmer
+// 2023-24, rate_gate_ok=0, ungated Man City xGI/90 FELL 0.46 to 0.20 while only
+// his minutes rose, the season before a 244-point campaign -- and that case
+// shows what the gate is FOR. It cannot show what the gate DOES to the
+// estimate, because this test never banks the comparison that would show it.
+// rate_gate_ok is 0 on 55,669 of the 83,994 pairs (verified against the CSV
+// this test writes), and the writer emits "NA" into both d_pts90_trend and
+// d_xgi90_trend on every one of those 55,669 rows, no exceptions. So there is
+// no ungated rate-trend column anywhere in this output to compare the gated
+// -0.030 / -0.046 against -- "does the gate move the estimate, or only shrink
+// the sample it's computed on" cannot be answered from what this test
+// currently writes. Answering it needs the ungated pair emitted alongside the
+// gated one, which this test does not do.
 func TestDiagTrajectoryChannel(t *testing.T) {
 	requireDiag(t)
 	cfg := loadConfig(t)
