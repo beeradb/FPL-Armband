@@ -870,7 +870,25 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 		TotalCost:  float64(spend) / 10,
 		Remaining:  float64(budget-spend) / 10,
 		SquadScore: bestScore,
-		ClubCounts: clubCount,
+		// Tallied from the fifteen being returned, never carried forward from
+		// the greedy fill's `clubCount`. That map is the SEARCH's bookkeeping:
+		// `add` is its only writer, so it stops being updated the moment the
+		// fill loop ends, and both stages after it — polish's steepest-ascent
+		// swaps and the DP seeds — keep their own club counts and replace
+		// players without touching it. Reporting it described a squad that had
+		// usually stopped existing: one real call returned ARS×3, MUN×2, CHE×2
+		// while the map said ARS 0, MUN 0, CHE 1 and named four clubs (LEE,
+		// SUN, BOU, NEW) the squad did not hold at all. It still summed to
+		// fifteen and still obeyed the three-per-club cap, which is why the
+		// tests asserting only `n <= MaxPerClub` never saw it.
+		//
+		// This is a REPORTING field, and only ever was: the cap is enforced
+		// during the search by canAdd/clubHeadroom/squadIsLegal, each of which
+		// reads counts local to the stage doing the work. Two readers take
+		// this map as the truth about club exposure — the agent tool JSON,
+		// which is replayed into every later API call, and the web planner's
+		// pitch.
+		ClubCounts: clubCountsOf(current),
 	}
 	for _, p := range xi {
 		sq.XIScore += p.Score
@@ -1399,6 +1417,29 @@ func clubCountAfter(counts map[string]int, leaving, joining string) int {
 		return c
 	}
 	return c + 1
+}
+
+// clubCountsOf tallies a settled squad by club, for reporting.
+//
+// The distinction against every other club-count map in this file is the tense:
+// clubHeadroom, clubCountAfter and clubsLegalAfterPair all read a
+// squad-IN-PROGRESS count that the stage doing the search maintains as it
+// works, and they answer "may this move be made". This one is handed a finished
+// list of players and answers "what did we end up with". Do not route the
+// search through it — recounting fifteen players per candidate move is the cost
+// the incremental maps exist to avoid — and do not report an incremental map,
+// which is the bug at Optimize's return that this function replaced.
+//
+// The two other places that put ClubCounts on a struct — the web planner's
+// hand-built fifteen in cmd/armband/squadchoice.go and buildChipTeam in
+// internal/viewmodel — already tally the FINAL list in a pass they need for the
+// cost sum anyway, and are correct for that reason.
+func clubCountsOf(players []PlayerMetrics) map[string]int {
+	counts := make(map[string]int, len(players))
+	for _, p := range players {
+		counts[p.Team]++
+	}
+	return counts
 }
 
 // clubHeadroom reports whether club has a free slot under the MaxPerClub
