@@ -29,19 +29,23 @@ import (
 
 // teamFormIndex answers analysis.TeamFormSource from the archive.
 type teamFormIndex struct {
-	recent map[int]float64
-	season map[int]float64
+	recent        map[int]float64
+	season        map[int]float64
+	recentMatches map[int]int
+	seasonMatches map[int]int
 }
 
 // TeamForm is the club's expected goals per match over the trailing window and over
-// the season to date.
-func (t teamFormIndex) TeamForm(teamID int) (recent, season float64, ok bool) {
+// the season to date, along with the match counts in each window.
+func (t teamFormIndex) TeamForm(teamID int) (recent, season float64, recentMatches, seasonMatches int, ok bool) {
 	r, okR := t.recent[teamID]
 	s, okS := t.season[teamID]
-	if !okR || !okS || r <= 0 || s <= 0 {
-		return 0, 0, false
+	rm, okRM := t.recentMatches[teamID]
+	sm, okSM := t.seasonMatches[teamID]
+	if !okR || !okS || !okRM || !okSM || r <= 0 || s <= 0 {
+		return 0, 0, 0, 0, false
 	}
-	return r, s, true
+	return r, s, rm, sm, true
 }
 
 // teamFormWindow is how many gameweeks the trailing window covers.
@@ -177,15 +181,22 @@ func newTeamFormIndex(s *Season, through int) analysis.TeamFormSource {
 		return sum[team] / n[team]
 	}
 
-	idx := teamFormIndex{recent: map[int]float64{}, season: map[int]float64{}}
+	idx := teamFormIndex{
+		recent:        map[int]float64{},
+		season:        map[int]float64{},
+		recentMatches: map[int]int{},
+		seasonMatches: map[int]int{},
+	}
 	for team, m := range sm {
 		if m >= minTeamFormMatches {
 			idx.season[team] = sx[team] / m / ease(se, sn, team)
+			idx.seasonMatches[team] = int(m)
 		}
 	}
 	for team, m := range rm {
 		if m >= minTeamFormMatches {
 			idx.recent[team] = rx[team] / m / ease(re, rn, team)
+			idx.recentMatches[team] = int(m)
 		}
 	}
 	return idx
