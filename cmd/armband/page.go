@@ -340,9 +340,11 @@ func elementCodes(e *analysis.Engine) map[int]int {
 func pageOverrides(cfg config.Config, e *analysis.Engine, squad []analysis.PlayerMetrics,
 	now time.Time) (map[int]present.Override, []present.Override, []present.Override) {
 
+	// ⚠️ OverrideGameweek, not NextEvent: the served badge must agree with the
+	// correction the optimiser applied, and NextEvent expires it a gameweek early.
 	gw := 1
-	if next := e.Boot.NextEvent(); next != nil {
-		gw = next.ID
+	if ev := e.Boot.OverrideGameweek(); ev != nil {
+		gw = ev.ID
 	}
 
 	byCode := map[int]int{}
