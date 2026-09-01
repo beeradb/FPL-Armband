@@ -91,9 +91,9 @@ func TestSeasonsAgoCountsCalendarIndexNotSurvivingRows(t *testing.T) {
 	// A history with a zero-minute season in the middle.
 	// Oldest first, as FPL returns it.
 	past := []fpl.PastSeason{
-		{SeasonName: "2023/24", Minutes: 1900, Starts: 20, ExpectedGoals: fpl.Num(10.0)},    // 3 years ago
-		{SeasonName: "2024/25", Minutes: 0, Starts: 0},                                      // 2 years ago, skipped
-		{SeasonName: "2025/26", Minutes: 800, Starts: 10, ExpectedGoals: fpl.Num(2.5)},     // 1 year ago (thin)
+		{SeasonName: "2023/24", Minutes: 1900, Starts: 20, ExpectedGoals: fpl.Num(10.0)}, // 3 years ago
+		{SeasonName: "2024/25", Minutes: 0, Starts: 0},                                   // 2 years ago, skipped
+		{SeasonName: "2025/26", Minutes: 800, Starts: 10, ExpectedGoals: fpl.Num(2.5)},   // 1 year ago (thin)
 	}
 
 	// With blending on, this should gate on the thin season.

@@ -200,7 +200,7 @@ func LoadBlended(ctx context.Context, cacheDir string, seasons []string, halfLif
 				// SeasonsAgo is the calendar index (0 for most recent, 1 for one year
 				// ago, etc.), used for exponential weighting by chronological distance.
 				// Zero-minute seasons skipped in the loop do not affect this count.
-				SeasonsAgo:  i,
+				SeasonsAgo: i,
 				// Measured from what this mirror actually published for the season,
 				// not from its name — the same rule the archive path follows, and
 				// necessary here for a different reason: this source's coverage is
