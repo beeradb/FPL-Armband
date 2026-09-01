@@ -825,22 +825,32 @@ const bandEpsilon = 1e-9
 // exists.
 const transferMinSeasonMinutes = 600
 
-// equivalentTo returns the leading run of plans this model cannot tell apart from the
-// best one: every plan whose gain is within band of plans[0]'s.
+// equivalentTo returns the plans this model cannot tell apart from the best one:
+// every plan whose gain is within band of the highest gain present.
 //
-// plans must already be ranked by gain, which BuildPlans guarantees, so the run is a
-// prefix and the scan can stop at the first plan that falls outside it.
+// ⚠️ It no longer assumes the caller ordered by gain. It used to, on the strength of
+// BuildPlans guaranteeing it, and scanned for a prefix — but the recommendation is
+// now ranked on NET value (rankPlansByNetValue), so a plan taking a -4 can sit above
+// a higher-GAIN free one. Under the old prefix scan that stopped the run early and
+// silently dropped genuine equivalents. Indistinguishability is a question about
+// gain, so this reads the maximum gain rather than trusting position.
 func equivalentTo(plans []analysis.Plan, band float64) []analysis.Plan {
 	if len(plans) == 0 || band <= 0 {
 		return plans
 	}
 	top := plans[0].GainPerGW
-	for i, p := range plans {
-		if top-p.GainPerGW > band+bandEpsilon {
-			return plans[:i]
+	for _, p := range plans {
+		if p.GainPerGW > top {
+			top = p.GainPerGW
 		}
 	}
-	return plans
+	out := make([]analysis.Plan, 0, len(plans))
+	for _, p := range plans {
+		if top-p.GainPerGW <= band+bandEpsilon {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // printSeparableBand shows the moves that are the same answer as the recommended one,

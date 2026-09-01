@@ -85,11 +85,28 @@ func TestTheCandidatePoolExceedsWhatIsPrinted(t *testing.T) {
 func TestAClearingHitIsStillCharged(t *testing.T) {
 	cfg := config.Default()
 	cfg.Review.MinGainForHit = 0
-	big := analysis.Plan{Transfers: 2, GainPerGW: 1.30} // 6.50 - 4 - 1 = 1.50
+	big := analysis.Plan{Transfers: 2, GainPerGW: 1.30}  // 6.50 - 4 - 1 = 1.50
 	solo := analysis.Plan{Transfers: 1, GainPerGW: 0.60} // 3.00 - 1     = 2.00
 	got := rankPlansByNetValue(cfg, []analysis.Plan{big, solo}, 1, 3, 5)
 	if got[0].Transfers != 1 {
 		t.Fatalf("the hit outranked a free move worth more once the -4 was paid: "+
 			"%.2f vs %.2f net", math.Round(1.50*100)/100, 2.00)
+	}
+}
+
+// equivalentTo used to assume its input was gain-ordered, which BuildPlans
+// guaranteed. rankPlansByNetValue breaks that: a plan taking a -4 can sit above a
+// higher-gain free one. Under the old prefix scan the run stopped at the first
+// plan outside the band and silently dropped the equivalents behind it.
+func TestEquivalentToDoesNotAssumeGainOrder(t *testing.T) {
+	plans := []analysis.Plan{
+		{Transfers: 1, GainPerGW: 0.60}, // ranked first on NET value
+		{Transfers: 2, GainPerGW: 0.90}, // higher gain, sits behind it
+		{Transfers: 2, GainPerGW: 0.88}, // within band of the 0.90
+	}
+	got := equivalentTo(plans, 0.05)
+	if len(got) != 2 {
+		t.Fatalf("kept %d plans; the two within 0.05 of the highest gain (0.90) are "+
+			"equivalent regardless of where net-value ranking placed them", len(got))
 	}
 }
