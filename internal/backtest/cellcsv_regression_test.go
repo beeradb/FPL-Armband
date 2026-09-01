@@ -394,7 +394,18 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 	// down again. Because it sits after the dose block, removing it does not move
 	// where the dose block starts — which is why the next line can keep using an
 	// offset into the full header on an already-shortened one.
-	noFloor := headerWithout(cellHeader, floorBlockAt(), floorCols)
+	// ⚠️ The second-play chip columns are newer still — bench_boost_gw2/pts2 and
+	// triple_captain_gw2/pts2, recording a two-set season's second play of each
+	// chip rather than silently overwriting the first — and they widen the chip
+	// block itself rather than adding a neighbouring one, sitting one pair after
+	// each chip's first-play pair. So they head the whole chain and come off
+	// with TWO headerWithout calls rather than one: the triple-captain pair
+	// first, since removing it does not shift the bench-boost pair's offset and
+	// the reverse order would.
+	chipWeekBlockAt := floorBlockAt() + floorCols
+	noTripleSecondPlay := headerWithout(cellHeader, chipWeekBlockAt+6, 2)
+	noSecondPlay := headerWithout(noTripleSecondPlay, chipWeekBlockAt+2, 2)
+	noFloor := headerWithout(noSecondPlay, floorBlockAt(), floorCols)
 	// ⚠️ The dose block and the option-value block are newer still, and both sit
 	// AFTER the fixture-run block, so they come off first and in that order —
 	// dose outermost. Because both sit after the fixture-run block, removing them
@@ -407,7 +418,14 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 	noChipOracle := headerWithout(noBanking, chipOracleBlockAtIn(noBanking), chipOracleCols)
 	noXPoints := headerWithout(noChipOracle, xPointsBlockAtIn(noChipOracle), xPointsCols)
 	noArm := headerWithout(noXPoints, len(noXPoints)-oracleCols-armCols, armCols)
-	noChipWeek := headerWithout(noArm, len(noArm)-oracleCols-chipWeekCols, chipWeekCols)
+	// historicalChipWeekCols is the chip block's width BEFORE this build's
+	// second-play columns — 4, not the current chipWeekCols (8) — because by
+	// this point in the chain the second-play columns are already gone
+	// (stripped by noSecondPlay, above), so this step has to remove exactly the
+	// block that remains here, not the block's current width.
+	const historicalChipWeekCols = 4
+	noChipWeek := headerWithout(noArm,
+		len(noArm)-oracleCols-historicalChipWeekCols, historicalChipWeekCols)
 	noOracle := noChipWeek[:len(noChipWeek)-oracleCols]
 
 	// Two plausible older schemas, both synthesised by stripping the trailing
@@ -459,17 +477,23 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 		// dose block and the chip block. It heads the chain and every entry below
 		// it shifted down one name again; the widths did not move, because they
 		// are facts about commits.
-		"predecessor (no floor-flip columns)":            noFloor,
-		"two builds back (no dose columns)":              noDose,
-		"three builds back (no option funnels either)":   noOption,
-		"four builds back (no fixture-run either)":       noFixtureRuns,
-		"five builds back (no banking either)":           noBanking,
-		"six builds back (no chip-oracle either)":        noChipOracle,
-		"seven builds back (no xpoints either)":          noXPoints,
-		"eight builds back (no arm columns either)":      noArm,
-		"nine builds back (no chip columns either)":      noChipWeek,
-		"ten builds back (no oracle pair either)":        noOracle,
-		"eleven builds back (no captaincy rungs either)": noOracle[:len(noOracle)-captainRungCols],
+		// ⚠️ The second-play chip columns are newer still — they widen the chip
+		// block itself rather than adding a neighbouring one, so they head the
+		// chain and every entry below it shifted down one name and one "builds
+		// back" level again; the widths did not move, because they are facts
+		// about commits.
+		"predecessor (no second-play chip columns)":      noSecondPlay,
+		"two builds back (no floor-flip columns either)": noFloor,
+		"three builds back (no dose columns either)":     noDose,
+		"four builds back (no option funnels either)":    noOption,
+		"five builds back (no fixture-run either)":       noFixtureRuns,
+		"six builds back (no banking either)":            noBanking,
+		"seven builds back (no chip-oracle either)":      noChipOracle,
+		"eight builds back (no xpoints either)":          noXPoints,
+		"nine builds back (no arm columns either)":       noArm,
+		"ten builds back (no chip columns either)":       noChipWeek,
+		"eleven builds back (no oracle pair either)":     noOracle,
+		"twelve builds back (no captaincy rungs either)": noOracle[:len(noOracle)-captainRungCols],
 	}
 	// The property these entries have now failed three times to have: a
 	// synthesised header must be the one the build it names really wrote.
@@ -488,17 +512,18 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 		cols int
 		last string
 	}{
-		{"predecessor (no floor-flip columns)", 92, "oracle_kind"},
-		{"two builds back (no dose columns)", 88, "oracle_kind"},
-		{"three builds back (no option funnels either)", 60, "oracle_kind"},
-		{"four builds back (no fixture-run either)", 55, "oracle_kind"},
-		{"five builds back (no banking either)", 50, "oracle_kind"},
-		{"six builds back (no chip-oracle either)", 40, "oracle_kind"},
-		{"seven builds back (no xpoints either)", 36, "oracle_kind"},
-		{"eight builds back (no arm columns either)", 33, "oracle_kind"},
-		{"nine builds back (no chip columns either)", 29, "oracle_kind"},
-		{"ten builds back (no oracle pair either)", 27, "hold_nocap_per_gw"},
-		{"eleven builds back (no captaincy rungs either)", 23, "weekly_per_gw"},
+		{"predecessor (no second-play chip columns)", 94, "oracle_kind"},
+		{"two builds back (no floor-flip columns either)", 92, "oracle_kind"},
+		{"three builds back (no dose columns either)", 88, "oracle_kind"},
+		{"four builds back (no option funnels either)", 60, "oracle_kind"},
+		{"five builds back (no fixture-run either)", 55, "oracle_kind"},
+		{"six builds back (no banking either)", 50, "oracle_kind"},
+		{"seven builds back (no chip-oracle either)", 40, "oracle_kind"},
+		{"eight builds back (no xpoints either)", 36, "oracle_kind"},
+		{"nine builds back (no arm columns either)", 33, "oracle_kind"},
+		{"ten builds back (no chip columns either)", 29, "oracle_kind"},
+		{"eleven builds back (no oracle pair either)", 27, "hold_nocap_per_gw"},
+		{"twelve builds back (no captaincy rungs either)", 23, "weekly_per_gw"},
 	} {
 		got, ok := stale[w.name]
 		if !ok {
@@ -1961,7 +1986,7 @@ func TestTheChipOracleBlockIsBeforeTheXPointsBlockAndCounted(t *testing.T) {
 	// It sits immediately after the chip block, which is what makes "the chip
 	// columns" one readable region of the file rather than two separated by an
 	// unrelated instrument.
-	if before := cellHeader[at-1]; before != "triple_captain_pts" {
+	if before := cellHeader[at-1]; before != "triple_captain_pts2" {
 		t.Fatalf("the column before the chip-oracle block is %q, want the chip "+
 			"block's last column", before)
 	}
@@ -2265,4 +2290,193 @@ func TestTheSquadHashIsSetIdentity(t *testing.T) {
 	if squadHash(nil) != "" {
 		t.Error("no squad must hash to a gap, not to a value")
 	}
+}
+
+// TestTheChipWritersRecordBothPlaysOfATwoSetCell is the regression test for the
+// bug fixed alongside it: a two-set season (2025-26 onward, and any ChipSets:2
+// sweep arm) plays bench boost and triple captain twice, once per set, and the
+// writer used to track a single value OVERWRITTEN on every play — so a cell's
+// bench_boost_gw/pts and triple_captain_gw/pts recorded only the LAST play and
+// silently dropped the first set's points. Confirmed damage exists in
+// stats/cells/2026-08-25-tworegime/{legacy,measured-xgc}.csv, which are left as
+// historical artifacts under the old schema — see their own README caveat
+// rather than this test, which exists to stop it happening again.
+//
+// It exercises the actual writer code path (populateChipWeekColumns, called
+// from runPolicySweep's own row-building loop) rather than a hand-rolled copy
+// of the collection logic, and it writes through the real cellSink so the CSV
+// round trip — including the four new columns' position in cellHeader — is
+// covered too.
+func TestTheChipWritersRecordBothPlaysOfATwoSetCell(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cells.csv")
+	sink, err := openCellSink(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sweep := sink.sweepLabel("T")
+
+	// A two-set cell: bench boost at GW3 and GW30, triple captain at GW5 and
+	// GW32. GWs and gains all differ from each other so a mixed-up column
+	// or a mixed-up chip reads back wrong rather than agreeing by accident.
+	twoSet := sampleRow(sweep, sink.run(), "two-set", 0, "2025-26", 1)
+	twoSet.HasChipWeeks = true
+	populateChipWeekColumns(t, "two-set@1", []Week{
+		{GW: 3, BenchBoost: true, BenchBoostGain: 11},
+		{GW: 5, TripleCaptain: true, TripleCaptainGain: 22},
+		{GW: 30, BenchBoost: true, BenchBoostGain: 33},
+		{GW: 32, TripleCaptain: true, TripleCaptainGain: 44},
+	}, &twoSet)
+	sink.cell(twoSet)
+
+	// A one-play cell: only the first set's bench boost fires and the triple
+	// captain never plays at all.
+	oneSet := sampleRow(sweep, sink.run(), "one-set", 1, "2025-26", 1)
+	oneSet.HasChipWeeks = true
+	populateChipWeekColumns(t, "one-set@1", []Week{
+		{GW: 7, BenchBoost: true, BenchBoostGain: 55},
+	}, &oneSet)
+	sink.cell(oneSet)
+	sink.close()
+
+	_, rows := readCells(t, path)
+	if len(rows) != 2 {
+		t.Fatalf("want 2 rows, got %d", len(rows))
+	}
+	byVariant := map[string]map[string]string{}
+	for _, r := range rows {
+		byVariant[r["variant"]] = r
+	}
+
+	// (a) Both plays are recoverable, with the FIRST chronological play in the
+	// _gw/_pts columns and the second in _gw2/_pts2.
+	two := byVariant["two-set"]
+	want := map[string]string{
+		"bench_boost_gw": "3", "bench_boost_pts": "11",
+		"bench_boost_gw2": "30", "bench_boost_pts2": "33",
+		"triple_captain_gw": "5", "triple_captain_pts": "22",
+		"triple_captain_gw2": "32", "triple_captain_pts2": "44",
+	}
+	for col, w := range want {
+		if got := two[col]; got != w {
+			t.Errorf("two-set cell column %q = %q, want %q", col, got, w)
+		}
+	}
+
+	// (b) A one-play cell leaves _gw2/_pts2 at zero.
+	one := byVariant["one-set"]
+	wantOne := map[string]string{
+		"bench_boost_gw": "7", "bench_boost_pts": "55",
+		"bench_boost_gw2": "0", "bench_boost_pts2": "0",
+		"triple_captain_gw": "0", "triple_captain_pts": "0",
+		"triple_captain_gw2": "0", "triple_captain_pts2": "0",
+	}
+	for col, w := range wantOne {
+		if got := one[col]; got != w {
+			t.Errorf("one-set cell column %q = %q, want %q", col, got, w)
+		}
+	}
+}
+
+// TestAThirdChipPlayFatals is (c): a three-play cell must fatal rather than
+// silently drop a play, which is what a schema recording only two plays would
+// otherwise do — the same silent-drop failure mode this whole fix exists to
+// close, one play further along. It targets the collection logic directly
+// (populateChipWeekColumns) rather than the full sweep, since no rule this
+// codebase ships can construct a three-play SimResult and the point is to pin
+// what the writer does if one ever existed — a bug in a future chip-set rule,
+// say — rather than to reproduce one under today's rules.
+func TestAThirdChipPlayFatals(t *testing.T) {
+	t.Run("bench boost", func(t *testing.T) {
+		ct := &collectingT{}
+		row := cellRow{}
+		populateChipWeekColumns(ct, "three-play@1", []Week{
+			{GW: 3, BenchBoost: true, BenchBoostGain: 1},
+			{GW: 10, BenchBoost: true, BenchBoostGain: 2},
+			{GW: 20, BenchBoost: true, BenchBoostGain: 3},
+		}, &row)
+		if !ct.fataled {
+			t.Fatal("a third bench-boost play must fatal, and did not")
+		}
+	})
+	t.Run("triple captain", func(t *testing.T) {
+		ct := &collectingT{}
+		row := cellRow{}
+		populateChipWeekColumns(ct, "three-play@1", []Week{
+			{GW: 3, TripleCaptain: true, TripleCaptainGain: 1},
+			{GW: 10, TripleCaptain: true, TripleCaptainGain: 2},
+			{GW: 20, TripleCaptain: true, TripleCaptainGain: 3},
+		}, &row)
+		if !ct.fataled {
+			t.Fatal("a third triple-captain play must fatal, and did not")
+		}
+	})
+}
+
+// TestBenchBoostGWAgreesWithTheTriggerMediator is (d): bench_boost_gw must
+// equal bb_trig_gw where both fire, pinning the chip block's "first play"
+// convention against ChipTriggerMediator.FiredGW's own "first firing"
+// convention — see that field's doc comment for why "first" is load-bearing
+// once chips come in two sets. A cell's bench-boost trigger mediator and its
+// chip-week block are populated from the same res.Weeks by two different
+// pieces of code (runPolicySweep's row-building loop and Simulate's trigger
+// bookkeeping), so the two columns agreeing is not guaranteed by the type
+// system — only by both having adopted "first" rather than "last".
+func TestBenchBoostGWAgreesWithTheTriggerMediator(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cells.csv")
+	sink, err := openCellSink(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sweep := sink.sweepLabel("T")
+
+	row := sampleRow(sweep, sink.run(), "two-set", 0, "2025-26", 1)
+	row.HasChipWeeks = true
+	weeks := []Week{
+		{GW: 3, BenchBoost: true, BenchBoostGain: 11},
+		{GW: 30, BenchBoost: true, BenchBoostGain: 33},
+	}
+	populateChipWeekColumns(t, "two-set@1", weeks, &row)
+
+	// The trigger mediator, built the same way ChipTriggerMediator's own doc
+	// comment describes: FiredGW set on the FIRST firing only, later firings
+	// appended to FiredGWs but not overwriting the scalar field.
+	row.HasBanking = true
+	row.BenchBoostTrig = ChipTriggerMediator{
+		FiredGW: weeks[0].GW, FiredGWs: []int{weeks[0].GW, weeks[1].GW},
+	}
+	sink.cell(row)
+	sink.close()
+
+	_, rows := readCells(t, path)
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row, got %d", len(rows))
+	}
+	got := rows[0]
+	if got["bench_boost_gw"] != got["bb_trig_gw"] {
+		t.Fatalf("bench_boost_gw %q disagrees with bb_trig_gw %q — the chip "+
+			"block and the trigger mediator no longer share the same "+
+			"first-play convention", got["bench_boost_gw"], got["bb_trig_gw"])
+	}
+	if got["bench_boost_gw"] != "3" {
+		t.Fatalf("bench_boost_gw is %q, want the FIRST play's gameweek (3)",
+			got["bench_boost_gw"])
+	}
+}
+
+// collectingT satisfies fataler by RECORDING a Fatalf call rather than
+// aborting the goroutine the way a real *testing.T does — the point of
+// TestAThirdChipPlayFatals is to observe that the guard fired, which a real
+// Fatalf's runtime.Goexit would make impossible to inspect afterwards.
+// populateChipWeekColumns keeps running its own code after the recorded
+// call — a real Fatalf never would — so the two calls in
+// TestAThirdChipPlayFatals only read `fataled`, never a field the function
+// might still overwrite past the third-play check.
+type collectingT struct {
+	fataled bool
+}
+
+func (c *collectingT) Helper() {}
+
+func (c *collectingT) Fatalf(format string, args ...any) {
+	c.fataled = true
 }

@@ -358,14 +358,8 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 				row.ActDoubles, row.ActBlanks = d.ActDoubles, d.ActBlanks
 				row.LateDoubles, row.LateBlanks = d.LateDoubles, d.LateBlanks
 				row.HasChipWeeks = true
-				for _, w := range res.Weeks {
-					if w.BenchBoost {
-						row.BenchBoostGW, row.BenchBoostPts = w.GW, w.BenchBoostGain
-					}
-					if w.TripleCaptain {
-						row.TripleCapGW, row.TripleCapPts = w.GW, w.TripleCaptainGain
-					}
-				}
+				populateChipWeekColumns(t, fmt.Sprintf("%s@%d", pair.Name, start),
+					res.Weeks, &row)
 				// And the chip-week oracle's three readings of each chip, when the
 				// cell was granted one. A no-op otherwise — res.ChipOracle is nil
 				// unless AxisChipWeek is on — so this is unconditional for the same

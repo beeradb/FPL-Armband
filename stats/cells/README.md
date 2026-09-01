@@ -72,6 +72,19 @@ renumber them to match a new history**, which would assert a provenance that was
 rule applies to `reviews/`'s 79 SHA-keyed directories — see `reviews/README.md` for the dated note
 recording why.
 
+## A known column defect in files written before 2026-09-01
+
+The per-cell chip-week writer used to track a single value for
+`bench_boost_gw`/`_pts` and `triple_captain_gw`/`_pts`, overwritten on every
+play, so a two-set cell (2025-26 natively, or any `ChipSets: 2` sweep arm)
+recorded only the LAST play and silently dropped the first set's chip and its
+points. Fixed 2026-09-01: a fresh run now also writes
+`bench_boost_gw2`/`_pts2` and `triple_captain_gw2`/`_pts2`, and the original
+pair is redefined to the FIRST play. **Files here predating the fix keep the
+old (last-play) reading in those four columns** — see
+`2026-08-25-tworegime/README.md` for the one directory where this actually
+changes which arms carry a two-set cell. No other column is affected.
+
 ## Adding to this directory
 
 **A new file must earn its place one of three ways, and every test stays a `grep`.**
