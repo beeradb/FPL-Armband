@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
+	"sort"
 
 	"armband/internal/analysis"
 	"armband/internal/config"
@@ -456,10 +458,18 @@ func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Clie
 			"allowance is unknown and the banking rule was not run: "+err.Error())
 	}
 
+	// Priced before `build` so the closure can charge over it. The banking
+	// comparison re-prices its later arm over `horizon-1` itself.
+	horizon := liveHorizon(cfg, e, gw)
+
 	// One plan builder, shared by the banking comparison and the recommendation,
 	// so the rule cannot weigh a package space the command does not offer.
+	//
+	// ⚠️ Asks for `planCandidatePool`, not the five printed, because BuildPlans
+	// truncates on GROSS gain. See rankPlansByNetValue.
 	build := func(st analysis.SquadState, limit int) []analysis.Plan {
-		return analysis.BuildPlans(st, pool, e.WeekEngine(), bank, limit, 5)
+		plans := analysis.BuildPlans(st, pool, e.WeekEngine(), bank, limit, planCandidatePool)
+		return rankPlansByNetValue(cfg, plans, free, gw, horizon)
 	}
 
 	// A lever this command cannot honour says so rather than going quiet. See
@@ -473,7 +483,6 @@ func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Clie
 		Bank: bank, GW: gw, Free: free,
 		Value: picks.EntryHistory.Value, Notes: append(notes, notes2...),
 	}
-	horizon := liveHorizon(cfg, e, gw)
 	b.Advice, b.Consulted = adviseBanking(cfg, e, state, build, free, gw, horizon)
 
 	// The plans themselves carry the chip credit too, so a recommendation made
@@ -617,6 +626,76 @@ func adviseBanking(cfg config.Config, e *analysis.Engine, state analysis.SquadSt
 	now := value(liveMoveLimit(cfg, free), gw, horizon)
 	later := value(liveMoveLimit(cfg, free+1), gw+1, horizon-1)
 	return analysis.AdviseBank(free, liveBankCeiling(cfg), horizon, now, later), true
+}
+
+// planCandidatePool is how many plans BuildPlans is asked for before they are
+// re-ranked on net value, and it must exceed the five printed.
+//
+// BuildPlans sorts on GainPerGW and then truncates (`plan.go`), so asking it for
+// five returns the five highest-GROSS plans. At a two-move limit on 2026-09-01
+// all five were two-move packages gaining +0.76/gw, and the one-move package
+// gaining +0.67 — worth MORE once its own transfer was paid for, because it took
+// no hit — was evicted before anything priced it. Both the printed advice and the
+// banking rule's `now` arm read the worse package as the best available.
+const planCandidatePool = 25
+
+// rankPlansByNetValue orders plans on what they are worth after paying for the
+// transfers they spend, and drops any that take a hit without clearing
+// `min_net_gain_for_minus_4`.
+//
+// # Why this is not analysis.PackageValue
+//
+// `analysis.TransferPackage` is `{Gain, Moves}` — it has no hits field, so
+// `PackageValue` charges every move the same `free_transfer_value` and CANNOT
+// price a -4. `fpl.HitCost` appears nowhere in `internal/analysis`. The replay
+// prices hits in its own gate (`transferProposal.value`), unexported and in
+// another package, so the live command had no hit-aware valuation at all: it
+// ranked on gross gain and printed the top of that list.
+//
+// ⚠️ The replay already records the phenomenon this fixes, as a property rather
+// than a defect: "a wider limit can substitute a higher-gain, costlier package
+// that is worth less once charged". True, and harmless where it is counted by a
+// diagnostic. Not harmless where it becomes the recommendation.
+//
+// ⚠️ `min_net_gain_for_minus_4` was inert before this. It is written into the
+// config, printed to the reader in `brief` as "Min net gain across the horizon to
+// justify a -4", and passed to the agent prompt, the page and the backtest — and
+// read by neither this command nor internal/analysis. A gate that is displayed and
+// not applied is worse than one that is absent.
+//
+// Pre-deadline (`UnlimitedTransfers`) no hit can exist, so the order is left alone.
+func rankPlansByNetValue(cfg config.Config, plans []analysis.Plan,
+	free, gw int, horizon float64) []analysis.Plan {
+
+	if free == fpl.UnlimitedTransfers || len(plans) == 0 {
+		return plans
+	}
+	charge, _ := cfg.Review.EffectiveFloor(gw)
+	net := func(p analysis.Plan) float64 {
+		hits := p.Transfers - free
+		if hits < 0 {
+			hits = 0
+		}
+		gross := p.GainPerGW * horizon
+		// The gate is on what the hit itself has to clear, so it is measured
+		// after the -4 and before the per-move charge — the quantity the config
+		// key names and the brief prints.
+		if hits > 0 && gross-float64(fpl.HitCost*hits) < cfg.Review.MinGainForHit {
+			return math.Inf(-1)
+		}
+		return gross - float64(fpl.HitCost*hits) - charge*float64(p.Transfers-hits)
+	}
+	kept := make([]analysis.Plan, 0, len(plans))
+	for _, p := range plans {
+		if !math.IsInf(net(p), -1) {
+			kept = append(kept, p)
+		}
+	}
+	sort.SliceStable(kept, func(i, j int) bool { return net(kept[i]) > net(kept[j]) })
+	if len(kept) > 5 {
+		kept = kept[:5]
+	}
+	return kept
 }
 
 // liveMoveLimit is how many transfers are actually available, and is what BOTH
