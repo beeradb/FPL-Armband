@@ -19,6 +19,27 @@ are no blanks and doubles so you mostly just wildcard if your team is bad."*
 granted one set. Authorised by the user — the points, minutes and fixtures are
 real and only the allowance is counterfactual.
 
+## ⚠️ A known column defect in these files, fixed 2026-09-01 after they were written
+
+`bench_boost_gw`/`bench_boost_pts` and `triple_captain_gw`/`triple_captain_pts`
+in `legacy.csv` and `measured-xgc.csv` only recorded each chip's **LAST** play
+in a two-set cell — the writer tracked a single value it overwrote on every
+play, rather than collecting all of them. That affects the **"both sets, fixed
+offsets (control, 2 sets)"** and **"two-regime: early wildcard + second-half
+bundle (2 sets)"** arms, both of which schedule a first-set AND a second-set
+play of bench boost and triple captain, so the first set's chip and its points
+are silently missing from these two chip columns for those two arms. The
+**"second set only, bundled (2 sets, FIRST SET WASTED)"** arm plays each chip
+only once and is unaffected.
+
+**Nothing else in these files is affected.** `policy_points`, `hold_points`,
+every mediator column, and every result quoted in this README are unaffected —
+none of them are derived from `bench_boost_gw`/`pts` or
+`triple_captain_gw`/`pts`. These files are left as historical artifacts under
+the old schema rather than regenerated; a fresh run now writes
+`bench_boost_gw2`/`pts2` and `triple_captain_gw2`/`pts2` alongside the
+first-play columns, recording both plays of a two-set cell.
+
 ## Result — it resolves, and on BOTH sources
 
 | arm | legacy | measured xGC |

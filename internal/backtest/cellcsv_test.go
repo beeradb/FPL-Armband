@@ -248,16 +248,31 @@ type cellRow struct {
 	LateDoubles int
 	LateBlanks  int
 
-	// What each chip actually returned in the week it was played, and which week
-	// that was. Zero week means the arm did not play that chip in this cell.
+	// What each chip actually returned in the week(s) it was played, and which
+	// week(s) those were. Zero week means the arm did not play that chip at all
+	// in this cell.
+	//
+	// # Two plays, because a chip season can grant two
+	//
+	// A season under the two-set rule (2025-26 onward, and any ChipSets:2 sweep
+	// arm) grants each of these chips twice, once per set. GW/Pts is the FIRST
+	// play chronologically and GW2/Pts2 the second, zero when there was no
+	// second play. They used to be a single field OVERWRITTEN on every play, so
+	// a two-set cell recorded only the last play and silently dropped the
+	// first-set chip's points — see the writer in transferpolicy_test.go, which
+	// walks res.Weeks in ascending gameweek order and fatals if it ever finds a
+	// third play, which the two-set rule does not predict.
+	//
+	// "First" matches ChipTriggerMediator.FiredGW, which carries the same
+	// convention for the same reason — see its own doc comment.
 	//
 	// # These are event points and must never be divided by weeks
 	//
 	// Every other metric here is a season total that R normalises per gameweek,
-	// and this pair is the exception: a chip pays once, so `gain` is a single
-	// gameweek's points and the per-gw columns are deliberately absent rather
-	// than blank. Dividing a one-off by weeks played is the inflation this
-	// record already paid for once, on the anchored-chips arms.
+	// and this block is the exception: a chip pays once per play, so `Pts`/`Pts2`
+	// are single gameweeks' points and the per-gw columns are deliberately
+	// absent rather than blank. Dividing a one-off by weeks played is the
+	// inflation this record already paid for once, on the anchored-chips arms.
 	//
 	// They exist because the mechanism was the sharpest reading in the chip
 	// preparation work and was thrown away: the diagnostic accumulated an
@@ -270,11 +285,15 @@ type cellRow struct {
 	// where the placement rule found no week is a cell the intervention could not
 	// run in, and pooling it as a zero is the error the triple-captain null made
 	// when it was quoted over 36 cells rather than 23.
-	HasChipWeeks  bool
-	BenchBoostGW  int
-	BenchBoostPts int
-	TripleCapGW   int
-	TripleCapPts  int
+	HasChipWeeks   bool
+	BenchBoostGW   int
+	BenchBoostPts  int
+	BenchBoostGW2  int
+	BenchBoostPts2 int
+	TripleCapGW    int
+	TripleCapPts   int
+	TripleCapGW2   int
+	TripleCapPts2  int
 
 	// The chip-week oracle's three readings of each scoring chip, per cell: the
 	// best week in hindsight, the median week, and the first week clearing a
@@ -516,10 +535,81 @@ func (r cellRow) asInfeasible() cellRow {
 	// Clearing it would report a cell with no doubles in a season that had them.
 	r.HasChipWeeks = false
 	r.BenchBoostGW, r.BenchBoostPts, r.TripleCapGW, r.TripleCapPts = 0, 0, 0, 0
+	r.BenchBoostGW2, r.BenchBoostPts2, r.TripleCapGW2, r.TripleCapPts2 = 0, 0, 0, 0
 	r.HasChipOracle, r.chipReadings = false, chipReadings{}
 	r.HasXPoints, r.PolicyXPoints, r.HoldXPoints = false, 0, 0
 	r.SquadHash = ""
 	return r
+}
+
+// fataler is the slice of *testing.T that populateChipWeekColumns needs. A
+// real *testing.T satisfies it directly; TestAThirdChipPlayFatals substitutes
+// a double that records the call instead of aborting the goroutine, which a
+// real Fatalf would do before the test could inspect that it fired.
+type fataler interface {
+	Helper()
+	Fatalf(format string, args ...any)
+}
+
+// populateChipWeekColumns fills a cellRow's chip-week block — HasChipWeeks must
+// already be set by the caller — from a cell's weeks, collecting every play of
+// the bench boost and the triple captain rather than tracking (and overwriting)
+// a single value.
+//
+// weeks is walked in ascending GW order, exactly as SimResult.Weeks is built, so
+// the first play collected is chronologically first — the same "first firing"
+// convention ChipTriggerMediator.FiredGW carries, and for the same reason: a
+// two-set season (2025-26 onward, and any ChipSets:2 sweep arm) plays each of
+// these chips twice, and a field merely overwritten on the second play silently
+// drops the first set's points. That was the bug: the writer used to keep only
+// the LAST play, so a two-set cell's bench_boost_gw/pts and
+// triple_captain_gw/pts recorded the second set's chip and dropped the first
+// set's points entirely.
+//
+// It fatals if either chip was played more than twice in one cell, since no
+// rule this codebase has shipped has ever granted a chip a third play in a
+// season, and a third play silently dropped would be exactly this bug again.
+//
+// Takes fataler rather than *testing.T so a regression test can substitute a
+// double that observes the Fatalf call instead of aborting the test that
+// makes it — see TestAThirdChipPlayFatals.
+func populateChipWeekColumns(t fataler, cellLabel string, weeks []Week, row *cellRow) {
+	t.Helper()
+	var benchBoostPlays, tripleCapPlays []Week
+	for _, w := range weeks {
+		if w.BenchBoost {
+			benchBoostPlays = append(benchBoostPlays, w)
+		}
+		if w.TripleCaptain {
+			tripleCapPlays = append(tripleCapPlays, w)
+		}
+	}
+	if len(benchBoostPlays) > 2 {
+		t.Fatalf("cell %s played bench boost %d times in one season; the writer "+
+			"only records two plays because no rule has ever granted a third — "+
+			"this needs revisiting", cellLabel, len(benchBoostPlays))
+	}
+	if len(tripleCapPlays) > 2 {
+		t.Fatalf("cell %s played triple captain %d times in one season; the "+
+			"writer only records two plays because no rule has ever granted a "+
+			"third — this needs revisiting", cellLabel, len(tripleCapPlays))
+	}
+	if len(benchBoostPlays) > 0 {
+		row.BenchBoostGW, row.BenchBoostPts =
+			benchBoostPlays[0].GW, benchBoostPlays[0].BenchBoostGain
+	}
+	if len(benchBoostPlays) > 1 {
+		row.BenchBoostGW2, row.BenchBoostPts2 =
+			benchBoostPlays[1].GW, benchBoostPlays[1].BenchBoostGain
+	}
+	if len(tripleCapPlays) > 0 {
+		row.TripleCapGW, row.TripleCapPts =
+			tripleCapPlays[0].GW, tripleCapPlays[0].TripleCaptainGain
+	}
+	if len(tripleCapPlays) > 1 {
+		row.TripleCapGW2, row.TripleCapPts2 =
+			tripleCapPlays[1].GW, tripleCapPlays[1].TripleCaptainGain
+	}
 }
 
 // squadHash renders an opening fifteen as a short stable digest.
@@ -572,7 +662,8 @@ var cellHeader = []string{
 	"dose_act_doubles", "dose_act_blanks",
 	"dose_late_doubles", "dose_late_blanks",
 	"floor_flips_le28", "floor_flips_gt28",
-	"bench_boost_gw", "bench_boost_pts", "triple_captain_gw", "triple_captain_pts",
+	"bench_boost_gw", "bench_boost_pts", "bench_boost_gw2", "bench_boost_pts2",
+	"triple_captain_gw", "triple_captain_pts", "triple_captain_gw2", "triple_captain_pts2",
 	"bench_boost_oracle_gw", "bench_boost_oracle_pts",
 	"bench_boost_median_pts", "bench_boost_threshold_pts", "bench_boost_bar_pts",
 	"triple_captain_oracle_gw", "triple_captain_oracle_pts",
@@ -749,10 +840,11 @@ const (
 	// counts the arm's own decisions — where the dose is a property of the
 	// calendar alone.
 	floorCols = 2
-	// chipWeekCols is the chip block: two gameweeks and two one-off point
-	// totals. Four rather than eight because there are no per-gw columns here —
-	// see cellRow.HasChipWeeks for why a chip must not be normalised by weeks.
-	chipWeekCols = 4
+	// chipWeekCols is the chip block: per chip, two plays' worth of gameweek and
+	// one-off point total. Eight rather than sixteen because there are no per-gw
+	// columns here — see cellRow.HasChipWeeks for why a chip must not be
+	// normalised by weeks, and for why two plays rather than one.
+	chipWeekCols = 8
 	// chipOracleCols is the chip-week oracle's block: per chip, the hindsight
 	// week and its gain, the median week's gain, the threshold rule's, and the
 	// bar that rule was run against. Ten rather than the six readings the table
@@ -1190,9 +1282,11 @@ func (s *cellSink) cell(r cellRow) {
 	if r.HasChipWeeks {
 		rec = append(rec,
 			strconv.Itoa(r.BenchBoostGW), strconv.Itoa(r.BenchBoostPts),
-			strconv.Itoa(r.TripleCapGW), strconv.Itoa(r.TripleCapPts))
+			strconv.Itoa(r.BenchBoostGW2), strconv.Itoa(r.BenchBoostPts2),
+			strconv.Itoa(r.TripleCapGW), strconv.Itoa(r.TripleCapPts),
+			strconv.Itoa(r.TripleCapGW2), strconv.Itoa(r.TripleCapPts2))
 	} else {
-		rec = append(rec, "", "", "", "")
+		rec = append(rec, "", "", "", "", "", "", "", "")
 	}
 	// The chip-week oracle's readings, blank under the same rule again. A zero is
 	// especially believable here: a bench boost worth nothing in its best week is
