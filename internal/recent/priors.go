@@ -92,8 +92,10 @@ func LoadPriors(ctx context.Context, c *fpl.Client, boot *fpl.Bootstrap,
 
 // blendPast collapses a player's past seasons into one prior.
 //
-// FPL returns history_past oldest first, so the list is walked backwards to make
-// SeasonsAgo count from the most recent.
+// FPL returns history_past oldest first, so the list is walked backwards. SeasonsAgo
+// is the calendar index counting backward from the most recent season (0 for most
+// recent, 1 for one year ago, etc.), regardless of whether any zero-minute seasons
+// are skipped, so it represents the chronological distance for exponential weighting.
 func blendPast(past []fpl.PastSeason, halfLife float64) (analysis.PriorPlayer, bool) {
 	if len(past) == 0 {
 		return analysis.PriorPlayer{}, false
@@ -133,7 +135,7 @@ func blendPast(past []fpl.PastSeason, halfLife float64) (analysis.PriorPlayer, b
 				Bonus:  s.Bonus, Saves: s.Saves,
 				Yellow: s.YellowCards, Red: s.RedCards,
 			},
-			SeasonsAgo: len(hist),
+			SeasonsAgo: len(past) - 1 - i,
 			// The values above are copied whatever the season, because the
 			// flags are what tell the blend which of them were measured. Before
 			// 2022/23 FPL returns "0.00" for all three expected statistics

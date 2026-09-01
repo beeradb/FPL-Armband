@@ -79,6 +79,46 @@ func TestBlendPastDegradesToOneSeason(t *testing.T) {
 	}
 }
 
+// TestSeasonsAgoCountsCalendarIndexNotSurvivingRows verifies that SeasonsAgo is
+// the chronological distance from the most recent season, not the count of
+// surviving (non-zero-minute) rows. This is load-bearing for exponential
+// weighting: 0.5^(SeasonsAgo/halfLife) must decay with calendar time.
+//
+// The bug was that internal/recent counted surviving rows while internal/priors
+// counted calendar positions, causing the same player's season to be weighted
+// differently on the two paths.
+func TestSeasonsAgoCountsCalendarIndexNotSurvivingRows(t *testing.T) {
+	// A history with a zero-minute season in the middle.
+	// Oldest first, as FPL returns it.
+	past := []fpl.PastSeason{
+		{SeasonName: "2023/24", Minutes: 1900, Starts: 20, ExpectedGoals: fpl.Num(10.0)}, // 3 years ago
+		{SeasonName: "2024/25", Minutes: 0, Starts: 0},                                   // 2 years ago, skipped
+		{SeasonName: "2025/26", Minutes: 800, Starts: 10, ExpectedGoals: fpl.Num(2.5)},   // 1 year ago (thin)
+	}
+
+	// With blending on, this should gate on the thin season.
+	got, ok := blendPast(past, 2.0)
+	if !ok {
+		t.Fatal("thin season with history should blend")
+	}
+
+	// The blended result must weight the 3-year-old season at 0.5^(2/2.0) = 0.5,
+	// not at 0.5^(1/2.0) ≈ 0.707 (which would be wrong if it counted surviving rows).
+	// Expected xG/minute rate:
+	//   (10.0 * 0.5 + 2.5 * 1.0) / (1900 * 0.5 + 800 * 1.0)
+	//   = (5.0 + 2.5) / (950 + 800)
+	//   = 7.5 / 1750
+	//   ≈ 0.00429
+	rate := got.XG / float64(got.Minutes)
+	expectedRate := 7.5 / 1750.0
+	const tolerance = 0.0001
+	if math.Abs(rate-expectedRate) > tolerance {
+		t.Errorf("blended xG rate %.6f, want %.6f (%.2f%% off); "+
+			"SeasonsAgo is likely counting surviving rows, not calendar distance",
+			rate, expectedRate, math.Abs(rate-expectedRate)/expectedRate*100)
+	}
+}
+
 // TestTheLivePriorPathFlagsSeasonsFPLDidNotMeasure is the other half of the
 // regression, and it is the half that would actually rot.
 //
