@@ -87,7 +87,17 @@ func TestDefConIsNotALinearRamp(t *testing.T) {
 // probability — the metricsIgnoring call site stores *m.DefConChance at the
 // same probability perGW is built from, so a client reading the field back
 // must recover exactly what the score used, and must see nil precisely where
-// the term was not priced (no minutes, or no defensive-contribution rate).
+// the term was not priced at all (thresholdSplit disabled, or the unpriced-
+// position door).
+//
+// ⚠️ It is deliberately NOT nil merely because el.Minutes is 0. DefCon90 is
+// real, blended evidence at zero current-season minutes — prior-season or
+// league-average rates the blend supplies on purpose — and gating this term
+// on minutes discarded it, producing a score that snapped at a player's
+// first recorded minute. defconChance's own internal gates (DefCon90 <= 0,
+// ExpectedMinutes <= 0) still decide when the CHANCE itself is zero; they no
+// longer decide when the field is priced at all. See the comment where this
+// term is computed in metricsIgnoring, and baseXP90's matching change.
 func TestTheDefconChanceIsTheOneTheScoreUsed(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
 	cases := []struct {
@@ -124,25 +134,32 @@ func TestTheDefconChanceIsTheOneTheScoreUsed(t *testing.T) {
 	}
 
 	// The field the JSON view carries must agree with the exposure the score
-	// actually used, and be nil exactly where the term isn't priced — a nil
-	// pointer reads as "not priced", a zero value would read as "priced at
-	// zero chance", which is a different claim.
+	// actually used, and be non-nil for every PRICED player once thresholdSplit
+	// is on — including one with no minutes on the board this season, since
+	// the term is now priced off the blended rate rather than off el.Minutes.
+	// A nil pointer reads as "not priced": the only population that still
+	// earns one is the unpriced-position door (metricsIgnoring's early return
+	// for a position with no points table), which returns before this term is
+	// ever computed.
+	var checked int
 	for i := range e.Boot.Elements {
 		el := &e.Boot.Elements[i]
-		m := e.Metrics(el)
-		if el.Minutes <= 0 {
-			if m.DefConChance != nil {
-				t.Fatalf("%s: DefConChance set with zero minutes", el.WebName)
-			}
+		if !e.rules.Prices(el.ElementType) {
 			continue
 		}
+		checked++
+		m := e.Metrics(el)
 		if m.DefConChance == nil {
-			t.Fatalf("%s: DefConChance nil despite minutes > 0", el.WebName)
+			t.Fatalf("%s: DefConChance nil — every priced player should be priced "+
+				"once thresholdSplit is on, regardless of el.Minutes", el.WebName)
 		}
 		want := e.defconChance(el.ElementType, m)
 		if got := *m.DefConChance; math.Abs(got-want) > 1e-9 {
 			t.Errorf("%s: DefConChance = %v, want %v (what the score used)", el.WebName, got, want)
 		}
+	}
+	if checked == 0 {
+		t.Fatal("no priced players in the pool")
 	}
 }
 
