@@ -4,6 +4,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // TestMinutesOverridesSurviveConcurrentWritesAndReads is the regression test for
@@ -197,5 +198,179 @@ func TestMinutesOverrideConfirmedIsReadWithItsValue(t *testing.T) {
 	if tornReads > 0 {
 		t.Errorf("%d torn reads: minutes and confirmed came from two different writes — "+
 			"they must be read under one lock acquisition, not two", tornReads)
+	}
+}
+
+// TestEngineAtHorizonReadsOverridesTogether pins the same "read together"
+// requirement one level up: not the accessor SetMinutesOverride's own package
+// uses internally, but the two call sites that copy all three override maps
+// onto a DERIVED engine — WeekEngine (plan.go) and engineAtHorizon
+// (weekview.go), the ones `set_player_status`'s writes actually have to cross
+// to reach a transfer plan or a week view.
+//
+// Before the fix, each site did three unguarded field reads —
+// `wk.MinutesOverride = e.MinutesOverride`, then `Until`, then `Confirmed` —
+// with no lock and no ordering guarantee against SetMinutesOverride's own
+// three-map swap under overrideMu. A derived engine could carry one write's
+// minutes value paired with a DIFFERENT write's expiry or confirmed flag: the
+// exact hazard minutesOverrideFor's doc comment describes, one level further
+// out. This test forces that interleaving deterministically, the same way
+// TestMinutesOverrideConfirmedIsReadWithItsValue does for the in-package
+// accessor: the writer alternates between two states that are only ever
+// internally consistent with EACH OTHER (75/12/true, or 80/30/false), so any
+// combination straddling the two writes is detectable without needing -race
+// to catch it.
+func TestEngineAtHorizonReadsOverridesTogether(t *testing.T) {
+	e := testEngine(t)
+	if e.Boot == nil || len(e.Boot.Elements) == 0 {
+		t.Skip("need a bootstrap with players")
+	}
+	var code int
+	for i := range e.Boot.Elements {
+		if c := e.Boot.Elements[i].Code; c != 0 {
+			code = c
+			break
+		}
+	}
+	if code == 0 {
+		t.Skip("no player with a code")
+	}
+
+	e.SetMinutesOverride(code, 75, 12, true)
+
+	// A fixed iteration count races to finish before the readers — each of
+	// which pays for a full NewEngineFull build — ever get scheduled, so
+	// nothing overlaps and nothing is caught. Run the writer on a time budget
+	// instead, so it is still hammering for the whole window the readers are
+	// sampling in, independent of how many iterations that turns out to be.
+	stopWriter := make(chan struct{})
+	var writerWG sync.WaitGroup
+	writerWG.Add(1)
+	go func() {
+		defer writerWG.Done()
+		for {
+			select {
+			case <-stopWriter:
+				return
+			default:
+			}
+			// Writer: the concurrent set_player_status calls a live turn
+			// produces, flipping between two internally-consistent states.
+			e.SetMinutesOverride(code, 75, 12, true)
+			e.SetMinutesOverride(code, 80, 30, false)
+		}
+	}()
+
+	// Readers: exactly the derived-engine construction WeekEngine and
+	// engineAtHorizon perform, run through the unexported horizon helper both
+	// eventually call.
+	stopReaders := make(chan struct{})
+	var readerWG sync.WaitGroup
+	var tornReads, reads int32
+	for i := 0; i < 8; i++ {
+		readerWG.Add(1)
+		go func() {
+			defer readerWG.Done()
+			for {
+				select {
+				case <-stopReaders:
+					return
+				default:
+				}
+				wk := e.engineAtHorizon(1, 1)
+				atomic.AddInt32(&reads, 1)
+				mins, ok := wk.MinutesOverride[code]
+				if !ok {
+					continue
+				}
+				until := wk.MinutesOverrideUntil[code]
+				confirmed := wk.MinutesOverrideConfirmed[code]
+				stateA := mins == 75 && until == 12 && confirmed
+				stateB := mins == 80 && until == 30 && !confirmed
+				if !stateA && !stateB {
+					atomic.AddInt32(&tornReads, 1)
+				}
+			}
+		}()
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	close(stopReaders)
+	readerWG.Wait()
+	close(stopWriter)
+	writerWG.Wait()
+
+	if reads == 0 {
+		t.Fatal("no reads happened during the race window — test is not exercising anything")
+	}
+	if tornReads > 0 {
+		t.Errorf("%d of %d reads out of a derived engine were torn: minutes, expiry and "+
+			"confirmed came from different SetMinutesOverride writes — WeekEngine/"+
+			"engineAtHorizon must copy all three maps under one overrideMu acquisition, "+
+			"not three separate field reads", tornReads, reads)
+	}
+}
+
+// TestWeekEngineCopiesOverridesUnderTheRaceDetector is the -race regression
+// for the same bug: run with `go test -race`, it fails on the unfixed
+// three-field-read copy in WeekEngine, because a plain field read racing
+// SetMinutesOverride's overrideMu-guarded write is exactly what the detector
+// is built to catch, independent of whether this run happened to observe a
+// torn VALUE.
+//
+// WeekEngine caches its result on e.weekEngine behind sync.Once, so only the
+// FIRST call per Engine instance ever touches the copy — later calls return
+// the cached engine without going near e.MinutesOverride again. To keep the
+// race window open, each trial gets its own fresh Engine (built from the same
+// captured boot/fixtures/weights so this stays fast), with a writer hammering
+// SetMinutesOverride throughout the single WeekEngine build that trial makes.
+func TestWeekEngineCopiesOverridesUnderTheRaceDetector(t *testing.T) {
+	base := testEngine(t)
+	if base.Boot == nil || len(base.Boot.Elements) == 0 {
+		t.Skip("need a bootstrap with players")
+	}
+	var code int
+	for i := range base.Boot.Elements {
+		if c := base.Boot.Elements[i].Code; c != 0 {
+			code = c
+			break
+		}
+	}
+	if code == 0 {
+		t.Skip("no player with a code")
+	}
+
+	// Each trial gets its own fresh Engine, because WeekEngine caches its
+	// result on e.weekEngine behind sync.Once: only the FIRST call per
+	// instance ever touches the override fields, so a shared engine across
+	// trials would let only trial 0 exercise anything. The writer is kept
+	// running for the ENTIRE WeekEngine() call, not a fixed iteration count —
+	// racing a writer that finishes before the reader is even scheduled
+	// proves nothing, which is exactly what a fixed count did here first.
+	const trials = 15
+	for trial := 0; trial < trials; trial++ {
+		e := NewEngineFull(base.Boot, base.Fixtures, base.Weights, base.Cong, base.Role)
+		e.Priors = base.Priors
+		e.Recent = base.Recent
+
+		stop := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func(e *Engine) {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				e.SetMinutesOverride(code, 75, 12, true)
+				e.SetMinutesOverride(code, 80, 30, false)
+			}
+		}(e)
+
+		_ = e.WeekEngine()
+		close(stop)
+		wg.Wait()
 	}
 }
