@@ -697,6 +697,33 @@ func (b *Bootstrap) PositionShort(elementType int) string {
 }
 
 // NextEvent returns the upcoming gameweek, or the current one if none is flagged next.
+// OverrideGameweek is the gameweek a standing override should be judged against:
+// the one being PLAYED, or the next one if none is in progress.
+//
+// ⚠️ NOT NextEvent, and the difference is a live defect this exists to close.
+// NextEvent prefers FPL's `is_next`, which advances the moment a deadline passes —
+// not when that gameweek's fixtures finish. So an override written `until_gameweek:
+// N`, to protect gameweek N's own fixtures, reads as expired from N's deadline
+// onward while N is still being played. Every time, as a matter of course.
+//
+// Confirmed live on 2026-08-23 when a Watkins minutes correction lapsed mid-gameweek
+// and had to be extended by hand, and again on 2026-09-01 with six overrides due to
+// lapse at Friday's deadline over fixtures running to Sunday. `pageOverrides` renders
+// the same fact on the served site, so the badge went stale with the correction.
+//
+// The rule is the first gameweek whose fixtures have not all finished, which is
+// NextEvent's own third fallback — it simply never reaches it. `Finished` rather
+// than `DataChecked` deliberately: the question is whether the football has been
+// played, not whether FPL has finished auditing it.
+func (b *Bootstrap) OverrideGameweek() *Event {
+	for i := range b.Events {
+		if !b.Events[i].Finished {
+			return &b.Events[i]
+		}
+	}
+	return b.NextEvent()
+}
+
 func (b *Bootstrap) NextEvent() *Event {
 	for i := range b.Events {
 		if b.Events[i].IsNext {

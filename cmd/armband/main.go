@@ -625,9 +625,11 @@ func priceSquad(ctx context.Context, client *fpl.Client, engine *analysis.Engine
 // and then an optimal squad containing the very players they exclude, which is
 // worse than not showing them at all.
 func applyRoster(cfg config.Config, e *analysis.Engine, req *analysis.OptimizeRequest) []string {
+	// ⚠️ OverrideGameweek, not NextEvent — see its comment. An override protecting
+	// gameweek N's fixtures must not lapse at N's deadline while N is being played.
 	gw := 1
-	if next := e.Boot.NextEvent(); next != nil {
-		gw = next.ID
+	if ev := e.Boot.OverrideGameweek(); ev != nil {
+		gw = ev.ID
 	}
 	applyMinutesOverrides(cfg, e, gw)
 	lock, exclude, _ := cfg.Roster.Active(gw)
