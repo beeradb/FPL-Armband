@@ -48,9 +48,9 @@ func TestTeamFormFactorRespectsMatchCountGate(t *testing.T) {
 	// - Club 3: insufficient matches in both windows -> should be excluded
 	e.TeamForm = mockTeamFormSource{
 		data: map[int][5]interface{}{
-			1: {1.1, 0.95, 5, 5, true},   // recent=1.1, season=0.95, recentMatches=5, seasonMatches=5, ok=true
-			2: {1.2, 1.0, 3, 6, true},    // recentMatches=3 (below threshold), seasonMatches=6
-			3: {1.0, 1.0, 2, 2, true},    // both below threshold
+			1: {1.1, 0.95, 5, 5, true}, // recent=1.1, season=0.95, recentMatches=5, seasonMatches=5, ok=true
+			2: {1.2, 1.0, 3, 6, true},  // recentMatches=3 (below threshold), seasonMatches=6
+			3: {1.0, 1.0, 2, 2, true},  // both below threshold
 		},
 	}
 
@@ -108,7 +108,7 @@ func TestTeamFormFactorIsInertWhenSourceIsNil(t *testing.T) {
 	SetTeamFormWeight(0.5)
 
 	e := &Engine{
-		Boot: &fpl.Bootstrap{Teams: []fpl.Team{{ID: 1}}},
+		Boot:     &fpl.Bootstrap{Teams: []fpl.Team{{ID: 1}}},
 		TeamForm: nil, // No source available
 		teamForm: teamFormFactors{},
 	}
