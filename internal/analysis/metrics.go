@@ -2065,12 +2065,21 @@ func (e *Engine) metricsIgnoring(el *fpl.Element, ignoreCode int) PlayerMetrics 
 		// minutes, so it is not scaled at all — it is recomputed at the
 		// exposure the player gets. Subtract what the per-90 estimate already
 		// counted and add the corrected figure, which is per gameweek.
-		if el.Minutes > 0 {
-			rate -= defconPer90(el.ElementType, m.DefCon90)
-			chance := e.defconChance(el.ElementType, m)
-			m.DefConChance = &chance
-			perGW = chance * defConPoints
-		}
+		//
+		// This used to be gated on `el.Minutes > 0`, matching baseXP90's own
+		// gate on the same term — that gate is gone there for the same
+		// reason it is gone here: DefCon90 is real, blended evidence at zero
+		// current-season minutes, not an absence of it. Running this
+		// unconditionally is safe because defconChance already returns 0
+		// when DefCon90 <= 0 or ExpectedMinutes <= 0 (see its own comment),
+		// so a player genuinely priced at nothing still nets to nothing here.
+		// One deliberate, accepted side effect: m.DefConChance is now a
+		// non-nil pointer to 0.0 rather than nil for a zero-minute player,
+		// wherever this term is priced at all — see TestTheDefconChanceIsTheOneTheScoreUsed.
+		rate -= defconPer90(el.ElementType, m.DefCon90)
+		chance := e.defconChance(el.ElementType, m)
+		m.DefConChance = &chance
+		perGW = chance * defConPoints
 		if thresholdPart > rate {
 			// A negative rate part is not a thing. Scale BOTH halves by the same
 			// factor rather than clamping the total: they are now multiplied by
@@ -2767,62 +2776,77 @@ func (e *Engine) baseXP90(el *fpl.Element, m PlayerMetrics) float64 {
 		xp -= poissonFloorDiv(blk, m.XGC90)
 	}
 
-	if el.Minutes > 0 {
-		// Goalkeeper saves: 1 point per 3 saves, awarded per match and rounded
-		// down, so the remainder does not carry into the next game. Dividing a
-		// season total by three credits every one of those discarded remainders.
-		if pos == 1 {
-			xp += poissonFloorDiv(savesBlock, m.Saves90)
-		}
+	// Saves, defensive contribution, bonus and cards used to be gated on
+	// `el.Minutes > 0` here, on the reasoning that a player with no minutes on
+	// the board this season has nothing to price them from. That stopped being
+	// true once the blend started supplying prior-season and league-average
+	// rates for exactly that population (blend.go, shrinkToLeague and the
+	// established-prior mix in blendRatesCode) — m.Saves90, m.DefCon90,
+	// m.Bonus90, m.Yellow90 and m.Red90 are real evidence at el.Minutes == 0,
+	// not a zero standing in for "unknown". Gating on minutes discarded that
+	// evidence and produced a discontinuity: a player's score snapped from
+	// missing this whole block to carrying it in full at his first recorded
+	// minute, though the underlying blended rates barely moved. These terms
+	// are now gated by RATE instead — each is already zero when there is
+	// nothing to price it from (poissonFloorDiv and defconPer90 both return 0
+	// at a non-positive rate; a zero Bonus90/Yellow90/Red90 contributes
+	// nothing on its own) — so the gate this comment used to describe is gone
+	// rather than moved.
 
-		// Defensive contribution: 2 points for clearing 10 CBIT in a match as a
-		// defender, or 12 CBIRT as anyone else. The award is per match and
-		// all-or-nothing — nine actions score nothing — so what is wanted is the
-		// probability of clearing the bar, P(X >= threshold), exactly as the
-		// clean-sheet term above takes P(0 goals) from expected goals conceded.
-		//
-		// This used to be a linear ramp, clamp(dc/threshold, 0, 1), which reads
-		// "averaging 70% of the bar earns 70% of the bonus". It does not: it
-		// earns however often you actually clear the bar, which at 70% of the
-		// bar is about 17%. Because the line rises at a fixed rate while the
-		// true probability is still near zero, the error is a hump peaking at
-		// roughly 0.7x the bar:
-		//
-		//	dc/90     2     5     7    10    12    16
-		//	ramp   0.40  1.00  1.40  2.00  2.00  2.00
-		//	true   0.00  0.06  0.34  1.08  1.52  1.91
-		//
-		// That is not a rounding error, and it was not evenly spread. FPL set
-		// the thresholds near what a busy outfielder actually achieves, so 86%
-		// of defenders and 82% of midfielders sat in the 0.5-1.1x band where the
-		// approximation is worst — a mean overstatement of +0.95 and +1.00
-		// points per 90 respectively, against +0.73 for forwards and zero for
-		// keepers, who record no CBIT and are scored on saves instead.
-		//
-		// The ramp also compressed the spread within a position, because it
-		// capped at the bar while the real probability keeps climbing past it.
-		// Senesi averages 11.5 and clears the bar 71% of matches; Truffert
-		// averages 8.0 and clears it 28%. True gap 0.85 points; the ramp showed
-		// 0.40, under half of it, so elite defensive defenders were rated too
-		// close to mediocre ones.
-		//
-		// Poisson is the one-parameter choice available: a season average per 90
-		// is the only input the API gives. Real CBIT is overdispersed relative to
-		// Poisson — a defender against a possession side racks up 20, against a
-		// weak one 4 — and fatter tails pull P(X >= k) toward 0.5, so this
-		// slightly understates players below the bar. Fixing that needs
-		// per-match counts to fit a dispersion parameter on, and the API does
-		// not retain them across a season boundary. Do not guess one.
-		xp += defconPer90(pos, m.DefCon90)
-
-		// Bonus points, from historical rate, scheduled by how much of that rate
-		// is current-season evidence rather than last season's. See bonusWeightFor.
-		xp += m.Bonus90 * e.bonusWeightFor(el)
-
-		// Card deductions.
-		xp -= m.Yellow90 * yellowCardPoints
-		xp -= m.Red90 * redCardPoints
+	// Goalkeeper saves: 1 point per 3 saves, awarded per match and rounded
+	// down, so the remainder does not carry into the next game. Dividing a
+	// season total by three credits every one of those discarded remainders.
+	if pos == 1 {
+		xp += poissonFloorDiv(savesBlock, m.Saves90)
 	}
+
+	// Defensive contribution: 2 points for clearing 10 CBIT in a match as a
+	// defender, or 12 CBIRT as anyone else. The award is per match and
+	// all-or-nothing — nine actions score nothing — so what is wanted is the
+	// probability of clearing the bar, P(X >= threshold), exactly as the
+	// clean-sheet term above takes P(0 goals) from expected goals conceded.
+	//
+	// This used to be a linear ramp, clamp(dc/threshold, 0, 1), which reads
+	// "averaging 70% of the bar earns 70% of the bonus". It does not: it
+	// earns however often you actually clear the bar, which at 70% of the
+	// bar is about 17%. Because the line rises at a fixed rate while the
+	// true probability is still near zero, the error is a hump peaking at
+	// roughly 0.7x the bar:
+	//
+	//	dc/90     2     5     7    10    12    16
+	//	ramp   0.40  1.00  1.40  2.00  2.00  2.00
+	//	true   0.00  0.06  0.34  1.08  1.52  1.91
+	//
+	// That is not a rounding error, and it was not evenly spread. FPL set
+	// the thresholds near what a busy outfielder actually achieves, so 86%
+	// of defenders and 82% of midfielders sat in the 0.5-1.1x band where the
+	// approximation is worst — a mean overstatement of +0.95 and +1.00
+	// points per 90 respectively, against +0.73 for forwards and zero for
+	// keepers, who record no CBIT and are scored on saves instead.
+	//
+	// The ramp also compressed the spread within a position, because it
+	// capped at the bar while the real probability keeps climbing past it.
+	// Senesi averages 11.5 and clears the bar 71% of matches; Truffert
+	// averages 8.0 and clears it 28%. True gap 0.85 points; the ramp showed
+	// 0.40, under half of it, so elite defensive defenders were rated too
+	// close to mediocre ones.
+	//
+	// Poisson is the one-parameter choice available: a season average per 90
+	// is the only input the API gives. Real CBIT is overdispersed relative to
+	// Poisson — a defender against a possession side racks up 20, against a
+	// weak one 4 — and fatter tails pull P(X >= k) toward 0.5, so this
+	// slightly understates players below the bar. Fixing that needs
+	// per-match counts to fit a dispersion parameter on, and the API does
+	// not retain them across a season boundary. Do not guess one.
+	xp += defconPer90(pos, m.DefCon90)
+
+	// Bonus points, from historical rate, scheduled by how much of that rate
+	// is current-season evidence rather than last season's. See bonusWeightFor.
+	xp += m.Bonus90 * e.bonusWeightFor(el)
+
+	// Card deductions.
+	xp -= m.Yellow90 * yellowCardPoints
+	xp -= m.Red90 * redCardPoints
 
 	return math.Max(xp, 0)
 }
