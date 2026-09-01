@@ -205,9 +205,16 @@ func (e *Engine) WeekEngine() *Engine {
 		// TestDerivedEnginesCarryEverySource records for TeamForm, and inert in
 		// exactly the same way until somebody switches the flag on.
 		wk.Tiebreak = e.Tiebreak
+		// Read together under overrideMu, the same rule minutesOverrideFor's
+		// doc comment states: three unguarded field reads here could each
+		// observe a different SetMinutesOverride write (set_player_status runs
+		// concurrently with other tool calls in the same turn), pairing one
+		// write's minutes with another's expiry or confirmed flag.
+		e.overrideMu.RLock()
 		wk.MinutesOverride = e.MinutesOverride
 		wk.MinutesOverrideUntil = e.MinutesOverrideUntil
 		wk.MinutesOverrideConfirmed = e.MinutesOverrideConfirmed
+		e.overrideMu.RUnlock()
 		wk.TeamXGCFactor = e.TeamXGCFactor
 		wk.TeamForm = e.TeamForm
 		wk.SellPrices = e.SellPrices
