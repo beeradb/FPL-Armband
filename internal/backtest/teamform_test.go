@@ -98,12 +98,12 @@ func TestTeamFormIsPointInTime(t *testing.T) {
 		t.Fatal("index is nil with the weight set")
 	}
 	for _, tm := range full.Teams {
-		ra, sa, oka := a.TeamForm(tm.ID)
-		rb, sb, okb := b.TeamForm(tm.ID)
-		if oka != okb || ra != rb || sa != sb {
-			t.Errorf("%s: with the full season %v/%.6f/%.6f, truncated at GW%d "+
-				"%v/%.6f/%.6f. The trailing window is reading past the cutoff.",
-				tm.ShortName, oka, ra, sa, cutoff, okb, rb, sb)
+		ra, sa, rma, sma, oka := a.TeamForm(tm.ID)
+		rb, sb, rmb, smb, okb := b.TeamForm(tm.ID)
+		if oka != okb || ra != rb || sa != sb || rma != rmb || sma != smb {
+			t.Errorf("%s: with the full season %v/%.6f/%.6f/%d/%d, truncated at GW%d "+
+				"%v/%.6f/%.6f/%d/%d. The trailing window is reading past the cutoff.",
+				tm.ShortName, oka, ra, sa, rma, sma, cutoff, okb, rb, sb, rmb, smb)
 		}
 	}
 }

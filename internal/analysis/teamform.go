@@ -84,12 +84,14 @@ import (
 // for a live feed of a correction that has not been shown to earn points.
 type TeamFormSource interface {
 	// TeamForm returns expected goals per match over the trailing window and over
-	// the season so far. ok is false when the club has too little history for the
-	// ratio to mean anything, and the caller must then apply no correction at all
-	// rather than a neutral one — those are the same number here, but they are not
-	// the same statement, and a later reader should not have to guess which was
-	// intended.
-	TeamForm(teamID int) (recent, season float64, ok bool)
+	// the season so far, along with the match counts in each window. ok is false
+	// when the club has too little history for the ratio to mean anything, and the
+	// caller must then apply no correction at all rather than a neutral one — those
+	// are the same number here, but they are not the same statement, and a later
+	// reader should not have to guess which was intended. The match counts are
+	// provided so the caller can enforce the minimum-match threshold without
+	// relying on the implementation to gate them.
+	TeamForm(teamID int) (recent, season float64, recentMatches, seasonMatches int, ok bool)
 }
 
 // teamFormWeight is w in (recent/season)^w. Zero ships and is the whole feature
@@ -152,8 +154,9 @@ func (e *Engine) teamFormFactor(teamID int) float64 {
 		by := map[int]float64{}
 		for i := range e.Boot.Teams {
 			id := e.Boot.Teams[i].ID
-			recent, season, ok := e.TeamForm.TeamForm(id)
-			if !ok || recent <= 0 || season <= 0 {
+			recent, season, recentMatches, seasonMatches, ok := e.TeamForm.TeamForm(id)
+			if !ok || recent <= 0 || season <= 0 ||
+				recentMatches < teamFormMinMatches || seasonMatches < teamFormMinMatches {
 				continue
 			}
 			by[id] = clamp(math.Pow(recent/season, teamFormWeight),
