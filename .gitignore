@@ -60,3 +60,16 @@ stats/snapshots/*/snapshot.md
 stats/snapshots/*/figures.csv
 stats/snapshots/*/constants.csv
 stats/snapshots/*/key.csv
+
+# The Playwright suite's installed dependencies and generated artefacts. node_modules is
+# ~400 MB of third-party code with a committed lockfile beside it, so the tree carries the
+# PIN and not the payload — the same trade requirements.txt makes for the Python gates.
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
+
+# The scratch the e2e harness primes from data/captures/ before starting the server, and the
+# per-process write token it lifts off the server's own stderr. Both are rebuilt on every run
+# and neither is evidence of anything.
+e2e/.armband-cache/
+e2e/.token

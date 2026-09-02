@@ -97,6 +97,10 @@ Tests hit the live FPL API and skip when it is unreachable. They assert invarian
 values — the underlying data changes weekly, so a test pinned to a specific player or score rots
 within days.
 
+**A Playwright suite drives a real `armband serve` in a real browser** — `cd e2e && npm test`,
+opt-in and never part of `go test ./...`. See [docs/architecture.md](docs/architecture.md)'s `e2e/`
+section for what it asserts and why it takes no pixel comparisons.
+
 **Changes land through a pull request against `main`, checked by CI.** This retired, 2026-08-20,
 the twelve-condition `merge-gate` skill, its review-record counterpart `review-gate`, the
 `armband reviewkey` command and `TestReviewCoversTheCurrentCode` — `armband` is a product an end

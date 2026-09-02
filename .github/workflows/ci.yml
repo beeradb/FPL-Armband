@@ -308,3 +308,77 @@ jobs:
         # -- but that does not cover a re-run of this job on an unchanged commit,
         # and relying on a side-effect for a gate is how the gate stops guarding.
         run: go test -count=1 ./...
+
+  # The Playwright end-to-end suite (e2e/), driving a real `armband serve` in a real browser.
+  #
+  # A SEPARATE job, not a step folded into `test` above -- that job's own header comment says
+  # it must stay whole, and this suite needs a browser download and a running server, neither
+  # of which belongs ahead of the Go gate. It also means a browser-only failure here never
+  # blocks or delays the Go suite's own verdict, and vice versa.
+  #
+  # docs/architecture.md's e2e/ section is the reference for what this suite asserts and
+  # deliberately does not (no pixel comparison -- see internal/webui/visual_test.go's own
+  # ruling, which this suite inherits rather than re-litigates) and e2e/README.md covers
+  # running it locally.
+  e2e:
+    name: Playwright end-to-end (drives armband serve)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Default (shallow) depth is fine here, unlike the `test` job above: nothing in this
+      # suite reads git history or a commit-keyed snapshot digest.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # A Go build failure must read as a Go failure, not a mysterious e2e timeout further
+      # down the job -- the same reasoning `webServer` in playwright.config.js gives for
+      # running the exact command a developer runs, applied one layer out.
+      - name: Build the armband binary
+        run: go build -o ./armband ./cmd/armband
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: e2e/.nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: npm ci
+
+      # Installs the exact browser revision e2e/package-lock.json's pinned @playwright/test
+      # names -- the same build on every run and every runner, which is the whole reason
+      # ARMBAND_E2E_CHROMIUM exists locally instead of pointing every environment at one
+      # browser (see playwright.config.js's own comment). --with-deps also installs this
+      # runner's missing shared libraries; this VM cannot do that without root, which is why
+      # local runs use the snap chromium instead -- see e2e/README.md.
+      - name: Install the pinned Playwright browser
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      # No ARMBAND_E2E_CHROMIUM here: unset means Playwright's own pinned browser, which is
+      # the one just installed above and the one this run's verdict should be judged on.
+      - name: Run the e2e suite
+        working-directory: e2e
+        run: npm test
+
+      # Screenshots, traces and the HTML report -- failure artefacts only (playwright.config.js's
+      # own comment on trace/screenshot/video), so a red run can be READ without re-running it
+      # locally blind. Never uploaded on a green run: nothing there is evidence of anything.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-failure-artifacts
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+          retention-days: 7
