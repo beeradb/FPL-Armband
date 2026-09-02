@@ -59,12 +59,6 @@ export async function primeCache(captureDir, cacheDir) {
   return written;
 }
 
-/** Reads the manifest at captureDir without priming anything — globalSetup's own need. */
-export async function readManifest(captureDir) {
-  const raw = await readFile(path.join(captureDir, 'manifest.json'), 'utf8');
-  return JSON.parse(raw);
-}
-
 // Allows `node prime-cache.mjs <captureDir> <cacheDir>` for a manual check.
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [, , captureDir, cacheDir] = process.argv;

@@ -63,9 +63,9 @@ const midSeasonCapture = "../../data/captures/2025-26/GW10-2025-11-01T1000Z"
 // so this reads the committed bytes directly instead of importing the reader.
 //
 // The cost is a hardcoded directory name that could drift from capture.LiveCapture.
-// TestTheAnalysisFixtureNamesTheLiveCapture in internal/capture pins the two
-// against each other, which is this repository's standing answer to a
-// cross-package duplicate it cannot delete.
+// TestEveryFixtureNamesTheLiveCapture in internal/capture pins every hardcoded
+// copy against it, which is this repository's standing answer to a
+// cross-package (and cross-language) duplicate it cannot delete.
 const liveCaptureDir = "../../data/captures/2026-08-19T1348Z"
 
 // readCapturedBootstrap decodes a committed capture's bootstrap without importing

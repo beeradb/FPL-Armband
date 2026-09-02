@@ -28,7 +28,6 @@ const LAUNCH_ARGS = EXECUTABLE ? ['--no-sandbox', '--disable-dev-shm-usage'] : [
 
 module.exports = defineConfig({
   testDir: './tests',
-  globalSetup: require.resolve('./globalSetup.js'),
 
   // Artefacts land where the NODE process writes them, under the repo, gitignored.
   //
