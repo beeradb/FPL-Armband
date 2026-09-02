@@ -113,14 +113,30 @@ func (c *Client) SquadPrices(ctx context.Context, entryID, through int) (*SquadP
 				paid = v
 			}
 		}
-		sell := market
-		if market > paid {
-			sell = paid + (market-paid)/2 // FPL keeps half the rise, rounded down
-		}
+		sell := SellPrice(paid, market)
 		out.Sell[id] = sell
 		out.Reconstructed += sell
 	}
 	return out, nil
+}
+
+// SellPrice is FPL's selling rule: what you paid plus half of any rise since,
+// rounded down to the nearest £0.1m. A fall is taken in full. Both paid and
+// market are tenths of a million, matching FPL's own units.
+//
+// This is the one implementation of the rounding rule -- internal/backtest's
+// wallet is the other caller that holds both a purchase price and a market
+// price and needs exactly this arithmetic. internal/analysis's transfer
+// search never computes the rule at all: it only looks an already-priced
+// selling value up (SquadState.Sell, SellPriceTenths), keyed by whoever built
+// that map -- this function or the wallet. A second statement of "average of
+// paid and market, rounded down" is exactly the class of copy this codebase
+// has paid for drifting before.
+func SellPrice(paid, market int) int {
+	if market <= paid {
+		return market // untracked, or fallen: no profit to share
+	}
+	return paid + (market-paid)/2 // FPL keeps half the rise, rounded down
 }
 
 // priceAtGW is a player's price in a given gameweek, from his own history.

@@ -134,6 +134,13 @@ const CHIPKEY={
 function player(p){
   return {
     id:p.id, code:p.code, n:p.name, club:p.club, pos:p.pos, pr:p.price,
+    /* sp is Player.SellPrice -- what FPL actually pays for a sale today, already
+       priced server-side (paid plus half of any rise, rounded down, or a fall in
+       full). Equal to pr is the common case, not a sign the field was omitted --
+       see that field's own doc comment. Replaces the old sellPriceOf(p)=>p.pr,
+       which was never anything but the listed price under a name that implied
+       otherwise. */
+    sp:p.sell_price,
     /* mn is Player.Minutes -- the numeric expected-minutes figure every arithmetic
        consumer (sort keys, Math.round in the sheet, renderNews's effect line) needs.
        It used to read modelled_minutes, Player.ModelledMinutes's PRE-FORMATTED STRING
@@ -3530,15 +3537,21 @@ boot();
 let R={mode:'sell', out:null,pos:null,within:true,sel:null};
 
 /* The money. The sale funds the purchase, so the budget is what he raises plus the bank.
- *
- * ⚠️ The sale price is his LISTED price. FPL sells at the purchase price plus half of any
- * rise since, which the contract does not carry -- so for a squad the reader has just built
- * these agree exactly, and for a squad carried through price changes this is optimistic by
- * up to half the rise. Stated rather than hidden: the header says "sells for" and it is the
- * one number here the model has not checked. */
-const sellPriceOf=p=>p.pr;
-const pickerBudget=()=>{const o=byId(R.out);return o?sellPriceOf(o)+bankOf():bankOf();};
+ * The sale price is p.sp -- Player.SellPrice, already priced server-side against FPL's own
+ * half-of-any-rise rule (see the player() builder). This used to be sellPriceOf(p)=>p.pr,
+ * the listed price under a name that implied it was the real sale price; the rounding rule
+ * has exactly one implementation now, in internal/fpl.SellPrice, and this file carries none
+ * of its own. */
+const pickerBudget=()=>{const o=byId(R.out);return o?o.sp+bankOf():bankOf();};
 const affordGap=c=>+(pickerBudget()-c.pr).toFixed(1);
+
+/* Squad.SellPriceWarning verbatim -- analysis.BudgetTrust.Warning(), server-decided, never
+   re-derived here. Empty once a reader's own purchase prices have been reconstructed
+   (Squad.SellPrices "reconstructed") or there was genuinely nothing to reconstruct
+   ("market", pre-season); non-empty for "market" with real purchase history unknown and for
+   "estimated", where the figures are close but unproven. Read beside every "sells for"
+   figure so the caveat travels with the number it qualifies. */
+const sellPriceWarning=()=>(STATE&&STATE.squad&&STATE.squad.sell_price_warning)||'';
 
 /* The club rule: never a fourth from one club. Counted from the fifteen with the outgoing
    man removed, because he is the one leaving. */
@@ -3669,17 +3682,18 @@ function renderSellPicker(){
   document.getElementById('sheet').innerHTML=`
    <header>
      <div class="who"><b>Replace ${esc(o.n)}</b>
-       <span class="dim">${esc(o.pos)} · ${esc(o.club)} · ${o.xp.toFixed(2)} pts a week · sells for £${sellPriceOf(o).toFixed(1)}m</span>
+       <span class="dim">${esc(o.pos)} · ${esc(o.club)} · ${o.xp.toFixed(2)} pts a week · sells for £${o.sp.toFixed(1)}m</span>
      </div>
      <button class="btn icon ghost" id="pkclose" aria-label="Close">✕</button>
    </header>
    <div class="body">
      <div class="repmath">
-       sells <b>£${sellPriceOf(o).toFixed(1)}m</b> <span class="op">+</span> bank <b>£${bankOf().toFixed(1)}m</b>
+       sells <b>£${o.sp.toFixed(1)}m</b> <span class="op">+</span> bank <b>£${bankOf().toFixed(1)}m</b>
        <span class="op">=</span> <b>£${B.toFixed(1)}m</b> to spend
        <span class="sep">·</span> gate +${gateOf().toFixed(2)} pts a week
        <span class="sep">·</span> Gain vs ${esc(o.n)}, per gameweek
      </div>
+     ${sellPriceWarning()?`<div class="marketnote rule" style="margin:10px 13px 0">${esc(sellPriceWarning())}</div>`:''}
      <div class="toolbar" style="margin:10px 0 8px">
        <div class="seg" id="pkpos">
          ${['GKP','DEF','MID','FWD'].map(p=>`<button aria-pressed="${R.pos===p}" data-pos="${esc(p)}">${esc(p)}</button>`).join('')}
@@ -3706,7 +3720,7 @@ function renderBuyPicker(){
   const list=pickerCandidates().slice().sort((a,b)=>b.xp-a.xp);
   const hidden=buyHiddenCount(R.pos);
   const beats=list.filter(p=>clearsGate(t.xp-p.xp)).length;
-  const overBudget=list.filter(p=>sellPriceOf(p)+bankOf()<t.pr).length;
+  const overBudget=list.filter(p=>p.sp+bankOf()<t.pr).length;
 
   const note=`<div class="marketnote"><span class="gate pass"></span>
     <b>${beats}</b> of your ${list.length} ${POS_PLURAL[R.pos]||R.pos} he beats by the +${gateOf().toFixed(2)} gate
@@ -3725,12 +3739,13 @@ function renderBuyPicker(){
    </header>
    <div class="body">
      <div class="repmath">
-       ${out?`bank <b>£${bankOf().toFixed(1)}m</b> <span class="op">+</span> ${esc(out.n)} sells <b>£${sellPriceOf(out).toFixed(1)}m</b>
+       ${out?`bank <b>£${bankOf().toFixed(1)}m</b> <span class="op">+</span> ${esc(out.n)} sells <b>£${out.sp.toFixed(1)}m</b>
        <span class="op">=</span> <b>£${pickerBudget().toFixed(1)}m</b> to spend
        <span class="sep">·</span> `:''}${esc(t.n)} costs <b>£${t.pr.toFixed(1)}m</b>
        <span class="sep">·</span> gate +${gateOf().toFixed(2)} pts a week
        <span class="sep">·</span> Gain vs the man you pick, per gameweek
      </div>
+     ${out&&sellPriceWarning()?`<div class="marketnote rule" style="margin:10px 13px 0">${esc(sellPriceWarning())}</div>`:''}
      ${note}
      ${rows}
      <div class="moreline" style="border-top:0;padding:8px">All ${list.length} shown</div>
@@ -3744,7 +3759,7 @@ function renderBuyPicker(){
    is what THIS row would set if clicked, not what it is priced against). */
 function pickerRowBuy(p,t){
   const d=+(t.xp-p.xp).toFixed(2), clears=clearsGate(d);
-  const gap=+(sellPriceOf(p)+bankOf()-t.pr).toFixed(1);
+  const gap=+(p.sp+bankOf()-t.pr).toFixed(1);
   const av=(p.availability===undefined?1:p.availability);
   /* "in your XI" vs "on your bench" is a fact about the squad, not a channel colour --
      both wear .pill.xi's plain ink. Bench players are listed and offerable here too, just
@@ -3758,7 +3773,7 @@ function pickerRowBuy(p,t){
       ${av===0?`<span class="pill bad">ruled out</span>`
         :av<1&&av>0.5?`<span class="pill doubt">${Math.round(av*100)}% fit</span>`
         :av<1?`<span class="pill warn">${Math.round(av*100)}% fit</span>`:''}</span>
-    <span class="m">sells £${sellPriceOf(p).toFixed(1)}m ${roleChip(p.role,true)}
+    <span class="m">sells £${p.sp.toFixed(1)}m ${roleChip(p.role,true)}
       ${gap<0?`<span class="short">needs +£${Math.abs(gap).toFixed(1)}m</span>`:''}</span>
     <span class="x"><b class="xp">${p.xp.toFixed(2)}</b>
       <span class="dd ${clears?'dpos':'dneg'}">${d>0?'+':''}${d.toFixed(2)}</span></span>
@@ -3789,7 +3804,7 @@ function pickerEmpty(o){
   const gap=cheapest?Math.abs(affordGap(cheapest)).toFixed(1):null;
   return `<div class="empty">
     <div class="big">Nothing at £${pickerBudget().toFixed(1)}m</div>
-    <p>Selling ${esc(o.n)} raises £${sellPriceOf(o).toFixed(1)}m and the bank adds £${bankOf().toFixed(1)}m.
+    <p>Selling ${esc(o.n)} raises £${o.sp.toFixed(1)}m and the bank adds £${bankOf().toFixed(1)}m.
     ${cheapest?`The cheapest ${esc(R.pos)} on the market is £${cheapest.pr.toFixed(1)}m — £${gap}m short.`:''}</p>
     <button class="btn sm" id="pkwiden">Show the ones you can’t afford</button>
   </div>`;
@@ -3807,7 +3822,7 @@ function pickerStage(c,o){
   if(!c) return '';
   const d=+(c.xp-o.xp).toFixed(2), clears=clearsGate(d), gap=affordGap(c);
   return `<div class="stagebar">
-    <div class="move"><span class="out">${esc(o.n)} £${sellPriceOf(o).toFixed(1)}m</span> <span class="op">→</span>
+    <div class="move"><span class="out">${esc(o.n)} £${o.sp.toFixed(1)}m</span> <span class="op">→</span>
       <span class="in"><b>${esc(c.n)}</b> £${c.pr.toFixed(1)}m</span>
       <span class="sep">·</span> ${gap>=0?`leaves <b>£${gap.toFixed(1)}m</b> in the bank`
         :`<span class="short" style="display:inline;margin:0">needs +£${Math.abs(gap).toFixed(1)}m — you will be £${Math.abs(gap).toFixed(1)}m over budget until you sell elsewhere</span>`}</div>

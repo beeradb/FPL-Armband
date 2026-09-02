@@ -1,5 +1,7 @@
 package backtest
 
+import "armband/internal/fpl"
+
 // A manager's money, which is not the same as his squad's market value.
 //
 // FPL shares price rises: sell a player and you get what you paid plus half of
@@ -70,11 +72,14 @@ func (w *wallet) sellAt(id, got int) int {
 // sellPrice is what a player raises without moving any money.
 func (w *wallet) sellPrice(id, market int) int {
 	paid, ok := w.bought[id]
-	if !ok || market <= paid {
-		return market // untracked, or fallen: no profit to share
+	if !ok {
+		return market // untracked: no profit to share
 	}
-	// Integer division rounds toward zero, which is FPL's round-down.
-	return paid + (market-paid)/2
+	// fpl.SellPrice is the one implementation of FPL's rounding rule -- see its own
+	// doc comment. This used to restate "average of paid and market, rounded down"
+	// here as well as in internal/fpl, which is exactly the kind of copy this
+	// project's own standing rule warns drifts silently.
+	return fpl.SellPrice(paid, market)
 }
 
 // sellPrices is the map SquadState wants, for the players held right now.

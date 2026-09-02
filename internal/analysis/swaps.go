@@ -285,7 +285,23 @@ func (s SquadState) value(squad []PlayerMetrics) float64 {
 
 // sellPrice is what leaving player p raises. Falls back to his market price.
 func (s SquadState) sellPrice(p PlayerMetrics) int {
-	if v, ok := s.Sell[p.ID]; ok {
+	return SellPriceTenths(s.Sell, p)
+}
+
+// SellPriceTenths is what player p raises when sold, in tenths: a lookup into
+// sell (keyed by element id), falling back to his market price when sell has
+// no entry for him.
+//
+// This is NOT FPL's rounding rule -- that arithmetic (paid plus half of any
+// rise, rounded down) lives in exactly one place, internal/fpl.SellPrice,
+// and sell's values are already priced by whatever built the map (the
+// backtest wallet, or internal/fpl.SquadPrices). This function only answers
+// "what does this SEARCH believe a player raises", which is the lookup a
+// caller outside this package needs too -- viewmodel.buildPlayer, so the
+// squad page can show a reader's real selling price rather than his market
+// one.
+func SellPriceTenths(sell map[int]int, p PlayerMetrics) int {
+	if v, ok := sell[p.ID]; ok {
 		return v
 	}
 	return tenths(p.Price)

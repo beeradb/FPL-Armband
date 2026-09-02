@@ -756,6 +756,19 @@ type Squad struct {
 	Bank float64 `json:"bank"`
 	// ClubCounts is players held per club, for the max-three rule the pitch enforces.
 	ClubCounts map[string]int `json:"club_counts"`
+
+	// SellPrices says where every Player.SellPrice in this document came from --
+	// "reconstructed" (proved exact against FPL's own team value), "estimated" (a
+	// reconstruction that came close but not exact), or "market" (no purchase-price
+	// data at all, so SellPrice equals Price throughout). A SQUAD-level flag, not a
+	// per-player one: the provenance is a property of the whole fifteen -- either this
+	// reader's real prices were reconstructed or they were not -- never a mix within
+	// one document. See analysis.BudgetTrust.SellPriceSource.
+	SellPrices string `json:"sell_prices"`
+	// SellPriceWarning is analysis.BudgetTrust.Warning() verbatim -- empty when
+	// SellPrices needs no caveat, a plain sentence explaining why the figures are an
+	// assumption or an estimate otherwise.
+	SellPriceWarning string `json:"sell_price_warning,omitempty"`
 }
 
 // Player is one footballer as every surface draws him: the pitch card, the bench strip,
@@ -772,6 +785,14 @@ type Player struct {
 	Club  string  `json:"club"`
 	Pos   string  `json:"pos"`
 	Price float64 `json:"price"`
+
+	// SellPrice is what FPL actually pays for this player TODAY, in millions: what was
+	// paid plus half of any rise since, rounded down, or the fall in full. Equal to Price
+	// is the COMMON case -- a planner-built squad nobody has ever owned, or a player who
+	// has not risen -- not an omission: this field is always populated, never a
+	// conditional extra only a risen player carries. See analysis.SellPriceTenths and
+	// Squad.SellPrices for where the number came from and how much to trust it.
+	SellPrice float64 `json:"sell_price"`
 
 	// XP is the headline: expected points per gameweek over the horizon, after
 	// fixtures, minutes risk and availability. Per90 is the same before the minutes

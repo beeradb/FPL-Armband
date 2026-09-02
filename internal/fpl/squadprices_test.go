@@ -40,3 +40,23 @@ func TestSquadPricesRefusesBeforeAnyGameweek(t *testing.T) {
 		t.Error("reconstructing prices without an entry id succeeded")
 	}
 }
+
+// FPL's selling rule, pinned at the one place it is implemented. A fall is taken
+// in full, a flat price changes nothing, and a rise is halved and rounded DOWN
+// -- not to the nearest tenth, which is the easy way to get this wrong.
+func TestSellPrice(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		paid, market, want int
+	}{
+		{"a fall is taken in full", 60, 55, 55},
+		{"a flat price changes nothing", 60, 60, 60},
+		{"an odd-tenths rise rounds down, not to nearest", 50, 55, 52},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := SellPrice(tc.paid, tc.market); got != tc.want {
+				t.Errorf("SellPrice(%d, %d) = %d, want %d", tc.paid, tc.market, got, tc.want)
+			}
+		})
+	}
+}
