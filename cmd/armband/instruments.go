@@ -45,6 +45,13 @@ type instruments struct {
 	// mutex wait, no JSON marshal, no week-view re-optimisation.
 	optimizeDuration prometheus.Histogram
 
+	// allMetricsDuration times one Engine.AllMetrics call, wired through
+	// analysis.ObserveAllMetrics by cmdServe. Exists to measure a candidate
+	// dedup — buildSquadPage can call AllMetrics up to four times — against
+	// a real cost rather than a guessed one; see the doc on
+	// analysis.ObserveAllMetrics.
+	allMetricsDuration prometheus.Histogram
+
 	// pageBuildSeconds is buildSquadPage's own stage breakdown (optimize,
 	// weekviews, transfer plan, overrides, page assemble) — see page.go's
 	// mark closure. Distinct from optimizeDuration: this is unconditional and
@@ -62,6 +69,13 @@ var httpBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5,
 // timeout — but starts a decade finer, since an uncontended lock() should
 // read in the sub-millisecond bucket, not share a floor with network latency.
 var mutexWaitBuckets = []float64{0.001, 0.01, 0.1, 0.5, 1, 2, 5, 10, 30, 60, 90}
+
+// allMetricsBuckets covers one Engine.AllMetrics call, expected in the low
+// milliseconds given the whole page build's non-Optimize stages measured
+// around 82ms total (see analysis.ObserveAllMetrics's doc) — a decade finer
+// at both ends than pipelineBuckets, which was sized for a multi-second
+// search, not a single field pass over the player pool.
+var allMetricsBuckets = []float64{0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1}
 
 // pipelineBuckets covers Optimize and the page-build stages, which run
 // seconds not milliseconds and never approach the HTTP layer's 90s ceiling —
@@ -101,6 +115,11 @@ func newInstruments() *instruments {
 			Help:    "Wall-clock time of one Engine.Optimize call — the search alone.",
 			Buckets: pipelineBuckets,
 		}),
+		allMetricsDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "armband_all_metrics_duration_seconds",
+			Help:    "Wall-clock time of one Engine.AllMetrics call.",
+			Buckets: allMetricsBuckets,
+		}),
 		pageBuildSeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "armband_page_build_seconds",
 			Help:    "buildSquadPage's own stage breakdown, by stage.",
@@ -112,6 +131,7 @@ func newInstruments() *instruments {
 		in.httpRequestDuration,
 		in.renderMutexWait,
 		in.optimizeDuration,
+		in.allMetricsDuration,
 		in.pageBuildSeconds,
 	)
 	return in

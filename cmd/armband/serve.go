@@ -140,6 +140,11 @@ func cmdServe(ctx context.Context, cfg config.Config, cfgPath, teamPath string,
 	analysis.ObserveOptimize = func(d time.Duration) {
 		appMetrics.optimizeDuration.Observe(d.Seconds())
 	}
+	// Same rationale, for the call this session is sizing before deciding
+	// whether to dedup it — see analysis.ObserveAllMetrics's doc.
+	analysis.ObserveAllMetrics = func(d time.Duration) {
+		appMetrics.allMetricsDuration.Observe(d.Seconds())
+	}
 
 	s := &squadServer{
 		token:           token,

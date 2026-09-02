@@ -3283,8 +3283,23 @@ func averageDifficulty(fx []FixtureBrief) float64 {
 	return float64(sum) / float64(len(fx))
 }
 
+// ObserveAllMetrics, if set, is handed one AllMetrics call's wall-clock
+// duration when it returns. Nil by default and left that way by every caller
+// except cmd/armband's serve — same rationale as ObserveOptimize in squad.go
+// (search evidence, not assertion, before building a dedup: a page build
+// calls AllMetrics up to four times, and this is what measures whether that
+// costs anything worth removing). A package-level var for the same reason
+// ObserveOptimize is one: internal/analysis stays free of a metrics
+// dependency, and weekview.go's engineAtHorizon hand-copies fields onto fresh
+// Engines, so a per-Engine hook field would not reach them.
+var ObserveAllMetrics func(time.Duration)
+
 // AllMetrics computes metrics for every player in the game.
 func (e *Engine) AllMetrics() []PlayerMetrics {
+	if ObserveAllMetrics != nil {
+		start := time.Now()
+		defer func() { ObserveAllMetrics(time.Since(start)) }()
+	}
 	out := make([]PlayerMetrics, 0, len(e.Boot.Elements))
 	for i := range e.Boot.Elements {
 		out = append(out, e.Metrics(&e.Boot.Elements[i]))
