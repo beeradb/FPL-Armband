@@ -3,6 +3,9 @@ package backtest
 import (
 	"context"
 	"testing"
+
+	"armband/internal/analysis"
+	"armband/internal/fpl"
 )
 
 // TestBandStrengthArrivesOnTheScoredPath is the arrival check that has to run
@@ -128,20 +131,26 @@ func TestBandStrengthArrivesOnTheScoredPath(t *testing.T) {
 // and it is the one place a fixture-reading feature can silently train on the
 // future — the archive holds every score for the whole season.
 //
-// ⚠️ **What protects this cutoff is `teamBands`' own `Finished` check, NOT
-// `playedFixtures`, and the difference is a live defect in a sibling function.**
-// `PreSeasonWith` returns `cur.Fixtures` unfiltered — `playedFixtures` is never
-// called when `through <= 0` — and every archived season carries `finished: false`
-// on all 380 fixtures *and* a scoreline on all 380. `teamBands` is safe because it
-// tests `f.Finished`. `buildTeamRates` in teamstrength.go tests only that the
-// scores are non-nil, under a comment asserting `playedFixtures` has already
-// stripped them, so at cutoff 0 it holds the whole season's results. That reaches
-// scoring only through `magnitudeAttack`/`magnitudeDefence` behind `FPL_MAGNITUDE`,
-// so it is opt-in rather than shipped — but any `FPL_MAGNITUDE` figure including
-// GW1 entry cells is contaminated. Recorded here rather than fixed, because this
-// branch is a measurement; `TestPointInTimeHidesFutureResults` sweeps
-// `through` over {1, 5, 12, 20, 38} and has never tested 0, which is why the hole
-// survived. **Do not read this test as covering it.**
+// `teamBands` is protected by its own `Finished` check, and that guard is
+// unchanged by this fix — moving it would move band membership and therefore
+// `Score`, which needs its own measurement (see the doc comment on teamBands).
+//
+// `buildTeamRates` used to have no such protection: it tested only that the
+// scores were non-nil, under a comment asserting `playedFixtures` had already
+// stripped them. `PreSeasonWith` returns `cur.Fixtures` unfiltered — `playedFixtures`
+// is never called when `through <= 0` — and every archived season carries
+// `finished: false` *and* `finished_provisional: false` on all 380 fixtures, all of
+// them scored, so at cutoff 0 `buildTeamRates` held the whole season's results.
+// That reached scoring only through `magnitudeAttack`/`magnitudeDefence` behind
+// `FPL_MAGNITUDE`, so it was opt-in rather than shipped — but any `FPL_MAGNITUDE`
+// figure including a GW1 entry cell was contaminated by it.
+//
+// Fixed by gating `buildTeamRates` on `FinishedProvisional`, the same flag
+// `TeamMatchesFinished` and `blend.go` already use for "this match's own numbers
+// are locked in" — see the doc comment on `fpl.Fixture`. `TestPointInTimeHidesFutureResults`
+// sweeps `through` over {1, 5, 12, 20, 38} and never tests 0, which is why this hole
+// was invisible to it; `TestPreSeasonTeamRatesCannotSeeTheSeasonsResults` below is
+// the direct pin, on the pre-season path where the bug lived.
 func TestBandStrengthCannotActBeforeAnyFixtureIsPlayed(t *testing.T) {
 	cfg := loadConfig(t)
 	cur, err := Load(context.Background(), cfg.CacheDir, "2024-25")
@@ -181,6 +190,60 @@ func TestBandStrengthCannotActBeforeAnyFixtureIsPlayed(t *testing.T) {
 			"rating clubs on matches that had not happened — check that playedFixtures "+
 			"is still stripping Finished and the scoreline past the cutoff.",
 			moved, len(off))
+	}
+}
+
+// TestPreSeasonTeamRatesCannotSeeTheSeasonsResults is the direct pin for the bug
+// recorded above: at a pre-season cutoff, `buildTeamRates` must read only the
+// prior, never the archived season's actual scorelines.
+//
+// `PreSeasonWith` — reached through `EngineAt(cur, prior, 0, cfg)`, exactly as a
+// StartGW=1 replay cell builds its opening squad — returns the archive's fixtures
+// unfiltered: all 380 of them carry a final scoreline and all 380 read
+// `finished_provisional: false`, because the archive build never touches either
+// flag (season.go). Before the fix, `buildTeamRates` counted a fixture the moment
+// both scores were non-nil, so a GW1 engine accumulated the whole season it had
+// not seen yet. This asserts every club reads `Played == 0` at that cutoff, and
+// that its rate matches a fixture-less engine's — the pure prior.
+func TestPreSeasonTeamRatesCannotSeeTheSeasonsResults(t *testing.T) {
+	cfg := loadConfig(t)
+	cur, err := Load(context.Background(), cfg.CacheDir, "2024-25")
+	if err != nil {
+		t.Skipf("archive unavailable: %v", err)
+	}
+	prior, err := Load(context.Background(), cfg.CacheDir, "2023-24")
+	if err != nil {
+		t.Skipf("archive unavailable: %v", err)
+	}
+
+	sc := sweepConfig(cfg, 1, false)
+	e, boot := EngineAt(cur, prior, 0, sc)
+
+	// A plain struct literal, not analysis.NewEngineFull — this engine never
+	// scores a player (only TeamRatesFor, below, which reads Boot.Teams and
+	// Fixtures alone), so it correctly carries no recency index and must stay
+	// invisible to TestEveryScoringEngineGetsRecency rather than added to its
+	// exemption list under a false justification.
+	fixtureless := &analysis.Engine{
+		Boot:    &fpl.Bootstrap{Season: boot.Season, Teams: boot.Teams},
+		Weights: sc.Weights,
+	}
+
+	if len(boot.Teams) == 0 {
+		t.Fatal("no teams on the pre-season bootstrap — cannot check anything")
+	}
+	for _, team := range boot.Teams {
+		got := e.TeamRatesFor(team.ID)
+		if got.Played != 0 {
+			t.Errorf("%s: Played = %d at a pre-season cutoff, want 0 — buildTeamRates "+
+				"is reading finished-looking scorelines from an archive that has not "+
+				"revealed this season yet", team.ShortName, got.Played)
+		}
+		want := fixtureless.TeamRatesFor(team.ID)
+		if got != want {
+			t.Errorf("%s: rate %+v at pre-season differs from the pure prior %+v — "+
+				"the archive's unrevealed scorelines are still moving it", team.ShortName, got, want)
+		}
 	}
 }
 
