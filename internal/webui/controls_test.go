@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"armband/internal/browsertest"
 	"armband/internal/webui"
@@ -670,6 +671,319 @@ const probeMarketRowClicks = `(function(){
       // Then click leave out.
       setTimeout(function(){ blockBtn.click(); report('ok clicked lock and block'); }, 300);
     }, 300);
+  }
+  window.addEventListener('load', go);
+})();`
+
+// TestAPressedControlSaysSoBeforeTheAnswerArrives pins the optimistic-feedback layer added
+// 2026-09-02: a control the reader presses must say it heard the click SYNCHRONOUSLY, in
+// the same task as the click handler, not once a promise settles.
+//
+// # The defect this guards against
+//
+// body.saving already dimmed every control the instant a save started, uniformly -- so the
+// one control the reader actually pressed looked exactly as "unavailable" as every other
+// button on the page, and nothing distinguished "I am doing this" from "something else is
+// happening and you cannot touch anything right now". markWorking/clearWorking (app.js)
+// exist to say the first, on the pressed control alone, before any network round trip.
+//
+// A test that only waited for .working to eventually appear would pass on a broken
+// implementation that set the class inside the fetch's .then instead of before it -- the
+// class would still show up eventually, just too late to be an acknowledgement. This test
+// reads the control's state SYNCHRONOUSLY, in the same browser task as the click, which a
+// deferred implementation cannot fake: JavaScript cannot run a .then callback until the
+// current synchronous execution (the click handler itself) has returned control to the
+// event loop, so a state read immediately after btn.click() is provably before any fetch
+// this click triggered could have resolved, regardless of how fast the server answers.
+//
+// # Why /api/session blocks on a channel
+//
+// Not required for the synchronous read above -- that is already guaranteed by the
+// single-threaded ordering JavaScript itself provides. It exists for the SECOND half: this
+// test also asserts the working state clears and the label restores once the answer
+// lands, and blocking gives that a wide, deterministic window rather than a race against
+// however fast httptest and the local network happen to be on this machine.
+func TestAPressedControlSaysSoBeforeTheAnswerArrives(t *testing.T) {
+	browser := browsertest.Find(t)
+
+	body, err := os.ReadFile(filepath.Join("testdata", "state", "gameweek-one.json"))
+	if err != nil {
+		t.Fatalf("reading the state fixture: %v", err)
+	}
+
+	release := make(chan struct{})
+	var mu sync.Mutex
+	var puts int
+
+	mux := http.NewServeMux()
+	mux.Handle("/assets/", webui.StaticHandler("/assets/"))
+	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(body)
+	})
+	mux.HandleFunc("/api/session", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		puts++
+		mu.Unlock()
+		// Held open until the test releases it below, so the answer genuinely has not
+		// arrived yet for as long as this test needs the working state to persist.
+		<-release
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(body)
+	})
+	mux.HandleFunc("/probe.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		_, _ = w.Write([]byte(probeOptimiseWorking))
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		page, err := webui.Page("app")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		page = append(page, []byte(`<script src="/probe.js"></script>`)...)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(page)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// Runs concurrently with the browser invocation below (a single blocking subprocess
+	// call), well after the probe's synchronous phase-1 read and well before its poll for
+	// the cleared state gives up.
+	go func() {
+		time.Sleep(400 * time.Millisecond)
+		close(release)
+	}()
+
+	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app")
+	report := between(dom, "PROBE:", ":END")
+	if report == "" {
+		t.Fatalf("the probe never reported, so nothing was clicked and this test asserts "+
+			"nothing. DOM was %d bytes", len(dom))
+	}
+	if !strings.HasPrefix(report, "ok ") {
+		t.Fatalf("the probe could not run: %s", report)
+	}
+
+	// Phase 1: read synchronously, in the same task as the click, before the server (held
+	// open by `release`) could possibly have answered.
+	if !strings.Contains(report, "working1=true") {
+		t.Errorf(".working was not present synchronously right after the click -- it must "+
+			"be added in the click handler itself, not inside the fetch's .then. Probe: %s", report)
+	}
+	if !strings.Contains(report, "busy1=true") {
+		t.Errorf("aria-busy was not set synchronously right after the click. Probe: %s", report)
+	}
+	if !strings.Contains(report, "label1=Optimising…") {
+		t.Errorf("the label was not swapped to the verb-in-progress form synchronously "+
+			"right after the click. Probe: %s", report)
+	}
+
+	// Phase 2: once the (held-open, then released) request actually answers, both must
+	// clear and the button's own resting label must come back.
+	if !strings.Contains(report, "working2=false") {
+		t.Errorf(".working never cleared once the server answered. Probe: %s", report)
+	}
+	if !strings.Contains(report, "busy2=null") {
+		t.Errorf("aria-busy was not removed once the server answered. Probe: %s", report)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(report), "label2=Optimise") {
+		t.Errorf("the button's label was not restored once the server answered. Probe: %s", report)
+	}
+
+	mu.Lock()
+	gotPuts := puts
+	mu.Unlock()
+	if gotPuts == 0 {
+		t.Fatalf("clicking #optimise never reached the server, so this test's held-open " +
+			"channel was never exercised and nothing above was actually proven")
+	}
+}
+
+// probeOptimiseWorking clicks #optimise and reports its working/aria-busy/label state
+// twice: once synchronously in the same task as the click (before the held-open
+// /api/session response can possibly have arrived), and once after polling for .working to
+// clear (once the test's goroutine releases that response).
+const probeOptimiseWorking = `(function(){
+  function report(msg){
+    var el=document.createElement('div');
+    el.id='probe';
+    el.textContent='PROBE:'+msg+':END';
+    document.body.appendChild(el);
+  }
+  var tries=0;
+  function go(){
+    var btn=document.getElementById('optimise');
+    if(!btn){
+      if(++tries>100){ report('no optimise button after '+tries+' tries'); return; }
+      setTimeout(go,50); return;
+    }
+    btn.click();
+    // Read NOW, synchronously, in the same task as the click above -- this line runs
+    // before the browser has had any chance to process the fetch this click started.
+    var working1=btn.classList.contains('working');
+    var busy1=btn.getAttribute('aria-busy');
+    var label1=btn.textContent;
+    var tries2=0;
+    function waitCleared(){
+      if(btn.classList.contains('working')){
+        if(++tries2>200){
+          report('working never cleared after '+tries2+' tries: working1='+working1+
+            ' busy1='+busy1+' label1='+label1);
+          return;
+        }
+        setTimeout(waitCleared,50); return;
+      }
+      var busy2=btn.getAttribute('aria-busy');
+      var label2=btn.textContent;
+      report('ok working1='+working1+' busy1='+busy1+' label1='+label1+
+        ' working2=false busy2='+busy2+' label2='+label2);
+    }
+    setTimeout(waitCleared,50);
+  }
+  window.addEventListener('load', go);
+})();`
+
+// TestClearWorkingRespectsWhichRoundTripAMarkBelongsTo pins the cross-flow bug found in code
+// review while building the optimistic-feedback layer, 2026-09-02, and fixed by tagging
+// markWorking/clearWorking with WHICH round trip they belong to ('session' for
+// save()/sendSave, 'transfers' for suggestTransfers, 'import' for importTeam).
+//
+// # The defect
+//
+// clearWorking() originally swept the WHOLE document for any .working element, with no
+// notion of which network round trip a given mark belonged to. #optimise (a save(), via PUT
+// /api/session) and #suggestBtn (a GET /api/transfers) can be genuinely concurrent -- nothing
+// stops a reader pressing "Suggest transfers" and then "Optimise" before the GET returns. If
+// the save answered first, sendSave's own clearWorking() call -- meant only to clean up ITS
+// OWN control -- also found and cleared #suggestBtn, which was still genuinely waiting on the
+// server: silently removing its pointer-events:none guard and reverting its label while the
+// GET was still in flight, so a reader could click it again and fire a second, unguarded
+// request.
+//
+// # Why this drives markWorking/clearWorking directly rather than clicking two controls
+//
+// An earlier version of this test drove #suggestBtn and #optimise through real clicks, with
+// the mock /api/transfers handler holding its response open on a channel to create a genuine
+// window where one round trip had answered and the other had not. It reproducibly failed even
+// against the FIXED code: headless Chromium's --virtual-time-budget (see browsertest.go's own
+// package comment) freezes the page's JS timers while ANY real network request is genuinely
+// outstanding, and only resumes them once network activity settles. So every setTimeout-based
+// poll -- including the one meant to catch the "save answered, GET still pending" window --
+// was itself deferred until AFTER the held-open GET finally resolved, by which point
+// suggestTransfers's own .then had already cleared #suggestBtn on its own: the test observed
+// the CORRECT eventual state and mistook it for evidence the bug was still present. A real
+// pending fetch cannot be used to hold a browser-timer-based probe in an intermediate state in
+// this harness.
+//
+// Calling markWorking/clearWorking directly sidesteps that entirely: no fetch, no timer, no
+// virtual-time interaction -- just the same functions app.js's own call sites use, called in
+// the same synchronous order sendSave's and suggestTransfers's completion handlers use them,
+// against real DOM elements from the real rendered page.
+func TestClearWorkingRespectsWhichRoundTripAMarkBelongsTo(t *testing.T) {
+	browser := browsertest.Find(t)
+
+	// #suggestBtn only renders once an entry is imported AND the server has attached
+	// Transfers for it (renderSquadSourceBanner's own comment) -- gameweek-one.json, most
+	// other tests' fixture, has neither, so #suggestBtn would never exist to be marked.
+	body, err := os.ReadFile(filepath.Join("testdata", "state", "import-transfers-two.json"))
+	if err != nil {
+		t.Fatalf("reading the state fixture: %v", err)
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/assets/", webui.StaticHandler("/assets/"))
+	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(body)
+	})
+	mux.HandleFunc("/probe.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		_, _ = w.Write([]byte(probeClearWorkingScope))
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		page, err := webui.Page("app")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		page = append(page, []byte(`<script src="/probe.js"></script>`)...)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(page)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app")
+	report := between(dom, "PROBE:", ":END")
+	if report == "" {
+		t.Fatalf("the probe never reported, so nothing ran and this test asserts nothing. "+
+			"DOM was %d bytes", len(dom))
+	}
+	if !strings.HasPrefix(report, "ok ") {
+		t.Fatalf("the probe could not run: %s", report)
+	}
+
+	if !strings.Contains(report, "bothMarkedBefore=true") {
+		t.Fatalf("markWorking did not mark both controls to begin with -- the rest of this "+
+			"test cannot mean anything. Probe: %s", report)
+	}
+	if !strings.Contains(report, "aClearedBySessionSweep=true") {
+		t.Errorf("clearWorking('session') did not clear the control it was tagged for. "+
+			"Probe: %s", report)
+	}
+	if !strings.Contains(report, "bStillWorkingAfterSessionSweep=true") {
+		t.Errorf("clearWorking('session') cleared a control tagged 'transfers' -- this is "+
+			"the bug: a completing save() must not silently end an unrelated, still-pending "+
+			"GET /api/transfers's busy indicator. Probe: %s", report)
+	}
+	if !strings.Contains(report, "bBusyAfterSessionSweep=true") {
+		t.Errorf("clearWorking('session') removed aria-busy from a control it does not own. "+
+			"Probe: %s", report)
+	}
+	if !strings.Contains(report, "bClearedByTransfersSweep=true") {
+		t.Errorf("clearWorking('transfers') never cleared the control actually tagged "+
+			"'transfers' -- the fix must not leave it stuck working forever either. "+
+			"Probe: %s", report)
+	}
+}
+
+// probeClearWorkingScope marks #optimise 'session' and #suggestBtn 'transfers' directly
+// (no click, no fetch), then calls clearWorking('session') and checks that #suggestBtn is
+// UNAFFECTED, before calling clearWorking('transfers') and checking that it clears too.
+const probeClearWorkingScope = `(function(){
+  function report(msg){
+    var el=document.createElement('div');
+    el.id='probe';
+    el.textContent='PROBE:'+msg+':END';
+    document.body.appendChild(el);
+  }
+  var tries=0;
+  function go(){
+    var a=document.getElementById('optimise');
+    var b=document.getElementById('suggestBtn');
+    if(!a||!b){
+      if(++tries>100){ report('controls not found after '+tries+' tries'); return; }
+      setTimeout(go,50); return;
+    }
+    markWorking(a, 'A working…', 'session');
+    markWorking(b, 'B working…', 'transfers');
+    var bothMarkedBefore = a.classList.contains('working') && b.classList.contains('working');
+
+    clearWorking('session');
+    var aClearedBySessionSweep = !a.classList.contains('working');
+    var bStillWorkingAfterSessionSweep = b.classList.contains('working');
+    var bBusyAfterSessionSweep = b.getAttribute('aria-busy')==='true';
+
+    clearWorking('transfers');
+    var bClearedByTransfersSweep = !b.classList.contains('working');
+
+    report('ok bothMarkedBefore='+bothMarkedBefore+
+      ' aClearedBySessionSweep='+aClearedBySessionSweep+
+      ' bStillWorkingAfterSessionSweep='+bStillWorkingAfterSessionSweep+
+      ' bBusyAfterSessionSweep='+bBusyAfterSessionSweep+
+      ' bClearedByTransfersSweep='+bClearedByTransfersSweep);
   }
   window.addEventListener('load', go);
 })();`

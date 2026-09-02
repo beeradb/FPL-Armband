@@ -544,7 +544,16 @@ let saving=false;
  * The previous version returned early while a save was in flight, which discarded the
  * mutation too: change the captain during a bench drag and nothing happened, silently. */
 let CHAIN=Promise.resolve();
+/* INFLIGHT counts saves that have been asked for and have not yet been answered -- queued
+   or actually running, CHAIN does not distinguish the two. Several can be queued through
+   CHAIN at once (a captain change during a bench drag is the case the comment above names),
+   and clearing body.saving/.slow or sweeping .working on the FIRST one's .finally would
+   turn the page interactive again while a later queued save -- whose own markWorking call
+   has not even run yet -- is still in flight. Incremented here, at QUEUE time, rather than
+   in sendSave at RUN time, so a save that is merely waiting its turn is still counted. */
+let INFLIGHT=0;
 function save(mutate){
+  INFLIGHT++;
   /* The .catch is what keeps the chain alive. A synchronous throw inside a mutate -- and
      saveArrangement calls syncArrangement() in there -- rejects CHAIN, and every later
      save on the page is then skipped for the lifetime of the document: silently, with
@@ -561,6 +570,11 @@ function sendSave(mutate){
   mutate(PENDING);
   saving=true;
   document.body.classList.add('saving');
+  /* Layer B, delayed: a save that round trips inside 250ms never dims #scorebug/#vsmodel
+     at all, so a 90ms lock toggle does not flash the figures the reader is mid-decision
+     over. Cleared below whether or not it ever fired -- clearTimeout on an already-fired
+     timer is a no-op, so this needs no separate "did it fire" bookkeeping. */
+  const slowTimer=setTimeout(()=>{document.body.classList.add('slow');},250);
   return fetch('/api/session',{
     method:'PUT',
     credentials:'same-origin',
@@ -578,7 +592,15 @@ function sendSave(mutate){
       notify('That did not save: '+err.message);
       console.error(err);
     })
-    .finally(()=>{ saving=false; document.body.classList.remove('saving'); });
+    .finally(()=>{
+      clearTimeout(slowTimer);
+      INFLIGHT--;
+      if(INFLIGHT===0){
+        saving=false;
+        document.body.classList.remove('saving','slow');
+        clearWorking('session');
+      }
+    });
 }
 
 /* PENDING is the session as the server stores it: permanent player CODES, never element
@@ -595,6 +617,64 @@ function notify(text){
   notify.t=setTimeout(()=>{el.hidden=true;},6000);
 }
 
+/* markWorking/clearWorking are the acknowledgement layer: a control says it heard the
+ * click before anything comes back, synchronously, in the same task as the click handler
+ * -- see save()'s own comment on why that timing is the whole point.
+ *
+ * markWorking adds .working and aria-busy, and -- only where a verb-in-progress label is
+ * given -- stashes the control's current text in el.dataset.restLabel and swaps the label
+ * in. No-op on a null element, so a caller that looked up a control that might not be on
+ * the page (a chip row, an icon inside a market row) never needs its own guard.
+ *
+ * ⚠️ Also a no-op if the element is ALREADY marked. .working sets pointer-events:none,
+ * which stops a second MOUSE click, but not a second Enter/Space on a still-focused
+ * button -- keyboard activation ignores pointer-events entirely. Without this guard, a
+ * second markWorking call before the first clearWorking would stash the already-swapped
+ * in-progress label ("Optimising…") as the "resting" one, and the button would come back
+ * from clearWorking still reading "Optimising…" forever.
+ *
+ * `kind` tags WHICH round trip is responsible for clearing this control --
+ * 'session' for anything that goes through save()/sendSave (the PUT /api/session chain
+ * INFLIGHT already serialises), 'transfers' for suggestTransfers's GET, 'import' for
+ * importTeam's PUT. These three can be genuinely concurrent -- nothing stops a reader
+ * pressing "Suggest transfers" and then toggling a lock before the GET returns -- and
+ * clearWorking used to sweep the WHOLE document regardless of which flow was asking.
+ * Found 2026-09-02: the lock's save() resolving first cleared #suggestBtn's still-loading
+ * mark too, silently dropping its pointer-events:none guard and letting a second click fire
+ * a second, unguarded /api/transfers GET while the first was still in flight. Tagging keeps
+ * each flow's clearWorking() call scoped to only the marks IT is answering for.
+ *
+ * clearWorking is a SWEEP, not a stashed element reference, and that is deliberate: renderAll()
+ * replaces the innerHTML of #squadsource, #transferpanel, #pitch, #ptable and the instruction
+ * panels wholesale, so a reference captured at click time is frequently pointing at a node no
+ * longer in the document by the time the answer lands. Querying the live tree instead means it
+ * finds whatever the render actually produced. Restoring from the dataset rather than a closed-
+ * over variable is the same reasoning one level down. Safe to call with nothing marked, and
+ * safe to call twice -- a second sweep over an already-cleared tree finds nothing and does
+ * nothing, which is what lets several call sites each clear defensively without coordinating. */
+function markWorking(el, label, kind){
+  if(!el || el.classList.contains('working')) return;
+  el.classList.add('working');
+  el.setAttribute('aria-busy','true');
+  if(kind!==undefined) el.dataset.workKind=kind;
+  if(label!==undefined){
+    el.dataset.restLabel=el.textContent;
+    el.textContent=label;
+  }
+}
+function clearWorking(kind, root){
+  (root||document).querySelectorAll('.working').forEach(el=>{
+    if(kind!==undefined && el.dataset.workKind!==kind) return;
+    el.classList.remove('working');
+    el.removeAttribute('aria-busy');
+    delete el.dataset.workKind;
+    if(el.dataset.restLabel!==undefined){
+      el.textContent=el.dataset.restLabel;
+      delete el.dataset.restLabel;
+    }
+  });
+}
+
 /* Toggle a standing correction on one player, and let the server decide what it means.
  *
  * Lock and block are mutually exclusive — config.Roster.Set has the same rule — so setting
@@ -606,8 +686,8 @@ function notify(text){
  *
  * Nothing is applied locally. A block changes which fifteen the optimiser returns, and
  * guessing at that on the client would draw a squad the model has not agreed to. */
-function toggleCorrection(id, kind){
-  return toggleCorrectionByCode(codeOf(id), kind);
+function toggleCorrection(id, kind, btn){
+  return toggleCorrectionByCode(codeOf(id), kind, btn);
 }
 
 /* toggleCorrectionByCode is the code-keyed core toggleCorrection wraps. A caller that
@@ -616,9 +696,18 @@ function toggleCorrection(id, kind){
    than routing through codeOf(codeToId(code)). That round trip depends on the player still
    being findable in P or POOL, and a session-excluded market player is in neither: the
    market row strips him out (see cmd/armband/page.go's watchlistFor) the moment the
-   exclusion takes effect, which is exactly when Undo needs to reach him. */
-function toggleCorrectionByCode(code, kind){
+   exclusion takes effect, which is exactly when Undo needs to reach him.
+ *
+ * `btn`, if given, is marked .working -- but only AFTER the `code` guard below, not by the
+ * caller before calling in. Found 2026-09-02: three callers (the pitch card's icon, and the
+ * market row's Leave-out and Rebuild-around buttons) marked their button BEFORE this call,
+ * so a code of 0 -- rare, but real: see the paragraph above on a session-excluded player --
+ * hit the early return with save() never called and nothing left to clear the mark. Now
+ * every caller can hand its button in and this guard protects all of them at once, rather
+ * than each call site needing to know to check first. */
+function toggleCorrectionByCode(code, kind, btn){
   if(!code){ notify('That player has no code, so we can’t save that.'); return; }
+  markWorking(btn, undefined, 'session');
   return save(pending=>{
     const had=((kind==='lock'?pending.lock:pending.excl)||[]).includes(code);
     pending.lock=(pending.lock||[]).filter(c=>c!==code);
@@ -909,6 +998,14 @@ function selectPlanningGameweek(gw){
    immutable, so the ceiling on this object's size is small and fixed. */
 const RESULTS_CACHE={};
 
+/* clearResultsTabBusy sweeps whichever .gw tab renderPastResults marked, the same
+   sweep-not-a-reference shape clearWorking uses and for the same reason: by the time a
+   fetch resolves, renderRail() may have redrawn the whole rail (a chip placed, an entry
+   imported) and replaced the tab node a captured reference would still be pointing at. */
+function clearResultsTabBusy(){
+  document.querySelectorAll('.gw[aria-busy="true"]').forEach(t=>t.removeAttribute('aria-busy'));
+}
+
 function paintPastResults(doc){
   const err=document.getElementById('resultsError');
   if(err){ err.style.display='none'; err.textContent=''; }
@@ -919,6 +1016,7 @@ function paintPastResults(doc){
   if(pitchEl) pitchEl.innerHTML = r
     ? ArmbandResults.pitch(r)
     : '<div class="panel" style="padding:24px"><b>No result for this gameweek.</b></div>';
+  clearResultsTabBusy();
 }
 
 function paintPastResultsError(message){
@@ -928,16 +1026,31 @@ function paintPastResultsError(message){
   if(pitchEl) pitchEl.innerHTML='';
   const err=document.getElementById('resultsError');
   if(err){ err.textContent=message; err.style.display='block'; }
+  clearResultsTabBusy();
 }
 
 /* renderPastResults fetches (or reuses RESULTS_CACHE for) one closed gameweek's result and
    paints it into #resultsview. Guarded against a stale response: if the reader has since
    selected a different tab (or gone back to planning) by the time this resolves,
    S.resultsGw no longer matches `gw` and the response is dropped -- the same shape
-   save()'s own comment argues for a mutation applied mid-flight. */
+   save()'s own comment argues for a mutation applied mid-flight.
+ *
+ * ⚠️ This used to paint nothing before the fetch, which made the page LIE rather than
+ * merely lack feedback: the tab highlights as selected synchronously (renderRail(), called
+ * just before this in selectPastGameweek) but the panel did not repaint until the response
+ * landed, so a first click showed a blank panel under a "selected" tab, and a second click
+ * on a DIFFERENT week left the previous week's result on screen under the new week's
+ * highlighted tab -- confidently wrong, not just slow. Painting a loading line and marking
+ * the tab aria-busy before the fetch fires is a correctness fix, not a spinner. */
 function renderPastResults(gw){
   const cached=RESULTS_CACHE[gw];
   if(cached){ paintPastResults(cached); return; }
+  const scoreEl=document.getElementById('resultsScoreboard');
+  const pitchEl=document.getElementById('resultsPitch');
+  if(scoreEl) scoreEl.innerHTML='';
+  if(pitchEl) pitchEl.innerHTML=`<div class="panel" style="padding:24px">Loading GW${gw}’s result…</div>`;
+  const tab=document.querySelector(`.gw[data-gw="${gw}"]`);
+  if(tab) tab.setAttribute('aria-busy','true');
   fetch(`/api/results?gw=${gw}`, {credentials:'same-origin'})
     .then(r=>{ if(!r.ok) throw new Error(`the server answered ${r.status}`); return r.json(); })
     .then(doc=>{
@@ -1064,6 +1177,9 @@ function wireChips(el,week){
     }
     if(r.disabled) return;
     const chip = r.getAttribute('aria-pressed')==='true' ? null : r.dataset.chip;
+    // Class-only: marked here, not on the .placed/[data-keep] branches above, which only
+    // open or close a confirm strip and never reach save() at all.
+    markWorking(r, undefined, 'session');
     save(pending=>{
       pending.chips=Object.assign({},pending.chips||{});
       if(chip) pending.chips[String(S.gw)]=chip; else delete pending.chips[String(S.gw)];
@@ -1077,6 +1193,8 @@ function wireChips(el,week){
     const chip=b.dataset.moveok;
     const from=(GWS.find(g=>g.chip===chip)||{}).gw;
     S.moveConfirm=null;
+    // Class-only, same reasoning as the .cmrow mark above.
+    markWorking(b, undefined, 'session');
     /* One write, not two: the plan leaves the week it was in and lands in the current
        one. */
     save(pending=>{
@@ -1326,7 +1444,9 @@ function wirePitch(){
       const b=e.target.closest('.iconbtn');
       if(b){
         e.stopPropagation();
-        toggleCorrection(id, b.dataset.act); return;
+        // Icon only, no text to swap. Marked inside toggleCorrection/-ByCode itself, after
+        // its code guard -- see that function's own comment for why.
+        toggleCorrection(id, b.dataset.act, b); return;
       }
       if(S.swapFrom!==null){ doSwap(S.swapFrom,id); S.swapFrom=null; setSwapbar(); return; }
       openSheet(id);
@@ -1398,7 +1518,9 @@ function renderInstructions(){
     const code=+b.dataset.code;
     if(!code){ notify('That player has no code, so we can’t save that.'); return; }
     const o=mine.find(x=>x.code===code);
-    if(o) toggleCorrectionByCode(code, o.kind==='exclude'?'block':'lock');
+    if(!o) return;
+    // "Undo" has no verb-in-progress swap; class only, marked inside toggleCorrectionByCode.
+    toggleCorrectionByCode(code, o.kind==='exclude'?'block':'lock', b);
   });
 }
 
@@ -1431,7 +1553,8 @@ function renderLeftOut(){
   el.querySelectorAll('[data-excl]').forEach(b=>b.onclick=()=>{
     const code=+b.dataset.code;
     if(!code){ notify('That player has no code, so we can’t save that.'); return; }
-    toggleCorrectionByCode(code, 'block');
+    // Class only, same reasoning as the instructions panel's Undo above.
+    toggleCorrectionByCode(code, 'block', b);
   });
 }
 
@@ -1517,6 +1640,10 @@ function wireTransferReset(t){
       `This puts back the fifteen you imported from FPL team ${entry} and discards the `+
       `${n} change${n===1?'':'s'} on this pitch. Your locks, leave-outs and chip plans `+
       `are kept. Continue?`)) return;
+    // Marked after the guard clears, same rule as #resetBtn: a cancelled confirm() must
+    // never leave this reading "Re-importing…" with nothing in flight. 'import' because
+    // this proceeds via importTeam(), not save() -- cleared by importTeam()'s own sweep.
+    markWorking(btn,'Re-importing…','import');
     openImportCard();
     importTeam();
   };
@@ -1627,7 +1754,15 @@ function wireSuggestionControls(){
   const arm=document.getElementById('suggestArm');
   if(arm) arm.onclick=()=>{ S.suggestArmed=0; renderTransferPanel(); };
   const confirmBtn=document.getElementById('suggestConfirm');
-  if(confirmBtn) confirmBtn.onclick=()=>applySuggestion(S.suggestPick||0);
+  if(confirmBtn) confirmBtn.onclick=()=>{
+    // Mark the button only -- the suggestion panel stays exactly as it is until the
+    // server answers. save()'s own header comment is the reason: the client must not show
+    // a squad the model has not agreed to, and applySuggestion's write can legitimately
+    // come back rearranged (violatesRoster, page.go). 'session' because applySuggestion
+    // goes through save().
+    markWorking(confirmBtn,'Applying…','session');
+    applySuggestion(S.suggestPick||0);
+  };
   const cancel=document.getElementById('suggestCancel');
   if(cancel) cancel.onclick=()=>{ S.suggest=null; S.suggestArmed=null; S.suggestPick=0; renderTransferPanel(); };
   /* Choosing a different equivalent move DISARMS. The arm-then-confirm pair exists so a
@@ -1644,6 +1779,18 @@ function wireSuggestionControls(){
  * comment for why a shared field would let a pitch click silently cancel this arm and vice
  * versa. */
 function suggestTransfers(){
+  /* GET /api/transfers never touches body.saving -- that class means "a mutation is in
+     flight", and this is a read -- so #suggestBtn needs its own mark/clear rather than
+     riding save()'s INFLIGHT bookkeeping. #suggestBtn lives on #squadsource, which the
+     renderTransferPanel() call two lines down does not touch, so the reference stays good
+     for both the label swap here and clearWorking()'s sweep below.
+
+     Tagged 'transfers', not left untagged: an untagged clearWorking() sweeps EVERY marked
+     control, and this GET can genuinely overlap a session save() or an importTeam() PUT
+     (nothing blocks a reader pressing Suggest transfers and then toggling a lock before
+     this resolves) -- an untagged sweep here would silently clear whichever of those was
+     also mid-flight the moment this one happened to answer first. Found 2026-09-02. */
+  markWorking(document.getElementById('suggestBtn'),'Looking…','transfers');
   S.suggest={loading:true};
   S.suggestArmed=null;
   renderTransferPanel();
@@ -1652,8 +1799,8 @@ function suggestTransfers(){
       if(!r.ok) return r.text().then(t=>{throw new Error(t||('the server answered '+r.status));});
       return r.json();
     })
-    .then(doc=>{ S.suggest=doc; S.suggestPick=0; renderTransferPanel(); })
-    .catch(err=>{ S.suggest={error:err.message}; renderTransferPanel(); });
+    .then(doc=>{ S.suggest=doc; S.suggestPick=0; renderTransferPanel(); clearWorking('transfers'); })
+    .catch(err=>{ S.suggest={error:err.message}; renderTransferPanel(); clearWorking('transfers'); });
 }
 
 /* applySuggestion mutates: it replaces the outgoing codes with the incoming ones in
@@ -2253,12 +2400,16 @@ function wireMarketRows(){
       if(S.armLock===id) return; // already armed -- the strip below is what confirms it
       S.armLock=id; renderPlayers(); return;
     }
-    if(act==='block'){ S.armLock=null; toggleCorrection(id,'block'); return; }
+    if(act==='block'){ S.armLock=null; toggleCorrection(id,'block',b); return; }
     if(act==='buy'){ S.armLock=null; openBuyPicker(id); return; }
   });
   document.querySelectorAll('[data-armgo]').forEach(b=>b.onclick=e=>{
     e.stopPropagation();
-    const id=+b.dataset.armgo; S.armLock=null; toggleCorrection(id,'lock');
+    const id=+b.dataset.armgo; S.armLock=null;
+    // Unlike the sheet's own armgo (openSheet's data-sact handler), this button stays on
+    // screen -- nothing here closes an overlay first -- so it needs its own mark, done
+    // inside toggleCorrection/-ByCode itself.
+    toggleCorrection(id,'lock',b);
   });
   document.querySelectorAll('[data-armcancel]').forEach(b=>b.onclick=e=>{
     e.stopPropagation(); S.armLock=null; renderPlayers();
@@ -3267,14 +3418,17 @@ function boot(){
  * It CLEARS the squad rather than sending one: the server is what knows what best means,
  * and a client that sent its own answer would be a second optimiser. */
 const optimiseBtn=document.getElementById('optimise');
-if(optimiseBtn) optimiseBtn.onclick=()=>save(pending=>{
-  pending.opt=true;
-  pending.squad=undefined;
-  pending.xi=undefined;
-  pending.bench=undefined;
-  pending.cap=undefined;
-  pending.vc=undefined;
-});
+if(optimiseBtn) optimiseBtn.onclick=()=>{
+  markWorking(optimiseBtn,'Optimising…','session');
+  save(pending=>{
+    pending.opt=true;
+    pending.squad=undefined;
+    pending.xi=undefined;
+    pending.bench=undefined;
+    pending.cap=undefined;
+    pending.vc=undefined;
+  });
+};
 
 /* Reset is Optimize's destructive sibling: the model's honest best with NONE of your
  * locks or blocks in force, and it DISCARDS them rather than merely ignoring them for one
@@ -3296,6 +3450,11 @@ const resetBtn=document.getElementById('resetBtn');
 if(resetBtn) resetBtn.onclick=()=>{
   if(PENDING.entry){
     if(!confirm('Reset will discard any local changes and put your actual FPL fifteen back. Continue?')) return;
+    // Marked AFTER confirm() returns true, never before -- marking on click and then
+    // having the reader cancel the dialog would leave the button reading "Rebuilding…"
+    // forever, with nothing in flight to ever clear it. 'import': this branch proceeds
+    // via importTeam(), not save().
+    markWorking(resetBtn,'Rebuilding…','import');
     openImportCard();
     importTeam();
     return;
@@ -3303,6 +3462,7 @@ if(resetBtn) resetBtn.onclick=()=>{
   const n=(PENDING.lock||[]).length+(PENDING.excl||[]).length;
   if(n && !confirm(`Reset asks the model for its honest best and forgets what you told it: `+
     `${n} instruction${n===1?'':'s'} will be discarded. Optimise keeps them; Reset does not. Continue?`)) return;
+  markWorking(resetBtn,'Rebuilding…','session');
   save(pending=>{
     pending.opt=true;
     pending.squad=undefined;
@@ -3426,8 +3586,7 @@ function importTeam(){
   }
 
   importSubmitBtn.disabled=true;
-  const originalLabel=importSubmitBtn.textContent;
-  importSubmitBtn.textContent='Reading your team…';
+  markWorking(importSubmitBtn,'Reading your team…','import');
 
   fetch('/api/import',{
     method:'PUT',
@@ -3468,9 +3627,18 @@ function importTeam(){
       /* Runs on both paths, unlike the old success/failure split: on failure the reader
          needs the button back to retry, and on success renderImportCard() will overwrite
          this label the next time the panel opens anyway, so there is nothing to protect by
-         treating the two paths differently. */
+         treating the two paths differently.
+
+         clearWorking('import') sweeps every 'import'-tagged control rather than
+         importSubmitBtn alone -- on purpose, since #resetBtn and #transferResetBtn both
+         call this same function and mark THEMSELVES 'import' before doing so (see their
+         own comments). One sweep restores whichever of the three is actually marked; a
+         sweep with nothing marked does nothing, which is what lets it run unconditionally
+         here. Tagged rather than a bare clearWorking() so this can never clear a session
+         save or a suggestTransfers GET that happens to be concurrently in flight -- see
+         markWorking's own comment for why that matters. */
       importSubmitBtn.disabled=false;
-      importSubmitBtn.textContent=originalLabel;
+      clearWorking('import');
     });
 }
 
@@ -3494,6 +3662,10 @@ function skipImport(){
      the reader closing it -- pinned by
      TestNotNowClosesThePanelEvenAfterTheReaderReopenedIt. */
   importPanelOpenedByReader=false;
+  // Class-only: "Not now" is short enough that a longer in-progress label would reflow
+  // the row, so this marks the button busy without touching its text. 'session' because
+  // this goes through save(), not importTeam().
+  markWorking(document.getElementById('importSkip'), undefined, 'session');
   save(p=>{ p.noimp=true; });
 }
 
