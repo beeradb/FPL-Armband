@@ -781,11 +781,25 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	// wrong starting point when only a couple of players may move: it is a
 	// different fifteen, so almost every step back toward yours is spent on the
 	// budget rather than on improving anything.
+	//
+	// Every failure below is an ERROR rather than a fall back to the greedy
+	// build, and that is the whole point of this block. The greedy fifteen is
+	// unbounded — it ignores MaxChanges entirely — so falling back to it answers
+	// "revise my squad by at most k" with "here is a different squad", scored and
+	// returned as though it were a k-change revision. That is a fallback in the
+	// expensive direction: the caller acts on a plan it cannot afford in
+	// transfers. A wrong length and an id the engine cannot price were both
+	// swallowed by one silent `if` here.
 	seedSquad := squadSlice(selected)
 	if !changes.unlimited() {
-		if owned := ownedSquad(req.CurrentSquad, byID); len(owned) == SquadSize {
-			seedSquad = owned
+		if len(req.CurrentSquad) != SquadSize {
+			return nil, fmt.Errorf("current squad has %d players, want %d", len(req.CurrentSquad), SquadSize)
 		}
+		owned, err := ownedSquad(req.CurrentSquad, byID)
+		if err != nil {
+			return nil, err
+		}
+		seedSquad = owned
 	}
 
 	// The inner half of the stage timings buildSquadPage prints: that one says
@@ -2357,18 +2371,23 @@ func XIPoints(e *Engine, squad []int) float64 {
 }
 
 // ownedSquad resolves the caller's squad ids against the scored pool, in a
-// stable order. It returns nil if any player is missing, since a partial squad
-// is not a legal starting point.
-func ownedSquad(ids []int, byID map[int]PlayerMetrics) []PlayerMetrics {
+// stable order. A single unresolvable id is an error, not a shorter squad: a
+// partial squad is not a legal starting point, and the caller's only sensible
+// response is to say which id it could not price.
+//
+// It names the FIRST miss in `ids` order rather than collecting them, so the
+// message is deterministic — ranging a map here would name a different id on
+// different runs of the same request.
+func ownedSquad(ids []int, byID map[int]PlayerMetrics) ([]PlayerMetrics, error) {
 	out := make([]PlayerMetrics, 0, len(ids))
 	for _, id := range ids {
 		m, ok := byID[id]
 		if !ok || m.ID == 0 {
-			return nil
+			return nil, fmt.Errorf("current squad player id %d not found", id)
 		}
 		out = append(out, m)
 	}
-	return out
+	return out, nil
 }
 
 // clearsMinutesFloor reports whether a candidate has enough recorded football

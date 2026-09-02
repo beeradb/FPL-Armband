@@ -488,3 +488,158 @@ func TestTheSeatingCheckAgreesWithTheFormationSearch(t *testing.T) {
 		}
 	}
 }
+
+// boundedRevisionBase builds a legal fifteen and returns its element ids, for
+// the bounded-revision guards below to hand back as CurrentSquad.
+//
+// Taken from Optimize itself rather than assembled by hand so the seed is a
+// squad this engine actually believes in: legal, inside the budget, and every
+// member in the pool the same request builds. A bounded call on it therefore
+// reaches the seed check with nothing else able to turn it back, which is what
+// makes the liveness case below mean anything.
+func boundedRevisionBase(t *testing.T, e *Engine) []int {
+	t.Helper()
+	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500})
+	if err != nil {
+		t.Fatalf("Optimize: %v", err)
+	}
+	if len(sq.Players) != SquadSize {
+		t.Fatalf("base squad size = %d, want %d", len(sq.Players), SquadSize)
+	}
+	ids := make([]int, 0, SquadSize)
+	for _, p := range sq.Players {
+		ids = append(ids, p.ID)
+	}
+	return ids
+}
+
+// heldDistance counts how many of `ids` the returned squad no longer holds —
+// the number of transfers the answer actually costs, which is the quantity
+// MaxChanges bounds.
+func heldDistance(ids []int, players []PlayerMetrics) int {
+	have := map[int]bool{}
+	for _, p := range players {
+		have[p.ID] = true
+	}
+	gone := 0
+	for _, id := range ids {
+		if !have[id] {
+			gone++
+		}
+	}
+	return gone
+}
+
+// TestABoundedRevisionRefusesAnUnresolvableHeldPlayer pins the first half of the
+// silent bounded-path fallback.
+//
+// A bounded request is "improve the squad I own by at most k moves". Resolving
+// CurrentSquad against the scored pool is what makes that squad the search's
+// seed, and one id the engine cannot price used to abandon the whole idea: the
+// seed silently reverted to the GREEDY build, which is a different fifteen
+// chosen with no regard for MaxChanges at all. So the caller was answered with
+// an unbounded rebuild, scored and returned as though it were a k-change
+// revision — a fallback in the expensive direction, since acting on it costs
+// transfers the caller was told it would not.
+//
+// ON THE PRE-FIX CODE THIS REQUEST RETURNS err == nil, which is why the failure
+// message reports the returned squad's distance from CurrentSquad against the
+// bound it was given: a regression then reads as the bound being ignored rather
+// than as a missing error.
+func TestABoundedRevisionRefusesAnUnresolvableHeldPlayer(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)
+	// An id no bootstrap issues. Kept well clear of the real range rather than
+	// "one past the largest", which a fresh capture could turn into a real
+	// player and quietly make this test pass for the wrong reason.
+	const ghost = 999999
+	for _, m := range e.AllMetrics() {
+		if m.ID == ghost {
+			t.Skipf("id %d names a real player in this capture", ghost)
+		}
+	}
+	ids[len(ids)-1] = ghost
+
+	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500, CurrentSquad: ids, MaxChanges: 2})
+	if err == nil {
+		if sq == nil {
+			t.Fatal("an unpriceable held player was accepted, returning no squad and no error")
+		}
+		t.Fatalf("an unpriceable held player was accepted: the answer is %d changes from the squad handed in, against a bound of 2",
+			heldDistance(ids, sq.Players))
+	}
+	if !strings.Contains(err.Error(), "999999") {
+		t.Errorf("error does not name the id it could not resolve: %v", err)
+	}
+	if sq != nil {
+		t.Errorf("an error came back with a squad attached: %+v", sq)
+	}
+}
+
+// TestABoundedRevisionRefusesASquadOfTheWrongSize is the arity half of the same
+// fallback. Fourteen ids is not a squad to revise, and it used to be answered
+// with the unbounded greedy rebuild for the same reason an unpriceable id was:
+// one `if` stood between three distinct malformed requests and a silent change
+// of question.
+func TestABoundedRevisionRefusesASquadOfTheWrongSize(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)[:SquadSize-1]
+
+	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500, CurrentSquad: ids, MaxChanges: 2})
+	if err == nil {
+		if sq == nil {
+			t.Fatal("a short current squad was accepted, returning no squad and no error")
+		}
+		t.Fatalf("a %d-player current squad was accepted as a bounded revision, %d changes from what was handed in",
+			len(ids), heldDistance(ids, sq.Players))
+	}
+	if !strings.Contains(err.Error(), "want 15") {
+		t.Errorf("error does not state the size it wanted: %v", err)
+	}
+	if sq != nil {
+		t.Errorf("an error came back with a squad attached: %+v", sq)
+	}
+}
+
+// TestABoundedRevisionStillHoldsALockItAlreadyOwns is the liveness half, and it
+// is the whole reason the refusals above can be trusted: a guard that rejected
+// every bounded request would satisfy every one of them.
+//
+// So this asserts the passing direction end to end — the call succeeds, the
+// answer is a legal fifteen, it still holds the lock, and it stays inside
+// MaxChanges. That last clause is what says the seed really was CurrentSquad
+// rather than the greedy build the old code fell back to, so it checks the fix
+// as well as the guard.
+func TestABoundedRevisionStillHoldsALockItAlreadyOwns(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)
+	lockID := ids[0]
+
+	sq, err := e.Optimize(OptimizeRequest{
+		MinMinutes: 500, CurrentSquad: ids, MaxChanges: 1, LockIDs: []int{lockID},
+	})
+	if err != nil {
+		t.Fatalf("a bounded revision holding its own lock was rejected: %v", err)
+	}
+	if len(sq.Players) != SquadSize {
+		t.Fatalf("squad size = %d, want %d", len(sq.Players), SquadSize)
+	}
+	held := false
+	for _, p := range sq.Players {
+		if p.ID == lockID {
+			held = true
+		}
+	}
+	if !held {
+		t.Errorf("locked player %d is missing from the revised squad", lockID)
+	}
+	if d := heldDistance(ids, sq.Players); d > 1 {
+		t.Errorf("the revision made %d changes, against a bound of 1", d)
+	}
+}
