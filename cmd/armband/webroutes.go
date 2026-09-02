@@ -605,9 +605,11 @@ func (s *squadServer) hasSignedUp(r *http.Request) bool {
 // think", and not a store.
 func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 	sess := s.readValidSession(r)
-	// The free-transfer allowance needs one FPL round trip, resolved BEFORE the render
-	// lock — see freeTransfersFor's own comment for why that ordering may not move.
+	// The free-transfer allowance and this reader's own selling prices each need FPL
+	// round trips, resolved BEFORE the render lock — see freeTransfersFor's and
+	// sellPricesFor's own comments for why that ordering may not move.
 	free, hist, freeErr := s.freeTransfersFor(r.Context(), sess)
+	sell, trust := s.sellPricesFor(r.Context(), sess)
 
 	defer s.lockRender("state")()
 
@@ -617,13 +619,13 @@ func (s *squadServer) state(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(os.Stderr, "serve: storing the session seed: %v\n", err)
 		}
 	}
-	s.answerState(w, r, sess, free, hist, freeErr)
+	s.answerState(w, r, sess, free, hist, freeErr, sell, trust)
 }
 
 // answerState builds and writes the document for a session. Shared by the read and the
 // write route so the two cannot disagree about what the state IS.
-func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess session, free int, hist *fpl.EntryHistory, freeErr error) {
-	body, err := s.buildState(r, sess, free, hist, freeErr)
+func (s *squadServer) answerState(w http.ResponseWriter, r *http.Request, sess session, free int, hist *fpl.EntryHistory, freeErr error, sell map[int]int, trust analysis.BudgetTrust) {
+	body, err := s.buildState(r, sess, free, hist, freeErr, sell, trust)
 	if err != nil {
 		// The full error is for whoever is running the server -- a viewmodel marshal
 		// failure like "State.Squad.Players[3].XP is NaN, which encoding/json cannot
@@ -676,12 +678,64 @@ func (s *squadServer) freeTransfersFor(ctx context.Context, sess session) (int, 
 	return fpl.FreeTransfers(h), h, nil
 }
 
+// sellPricesFor resolves this reader's OWN selling prices from FPL's public data -- the
+// same "before the render lock" seam freeTransfersFor establishes above, for the same
+// reason: this is one more outbound FPL call, and s.mu may never be held across one. Every
+// buildState caller (state, saveSession, importTeam) invokes it exactly where it already
+// invokes freeTransfersFor.
+//
+// # Why session.Entry, not a fresh visitor id
+//
+// Client.EntryUncached's own doc comment draws the trust boundary this reaches across
+// safely: session.Entry can only be an id that already passed EntryUncached's own
+// existence check at import time (see entryCached/picksCached, GET /api/results' own
+// comment on exactly this point), so the ordinary disk-cached path -- which SquadPrices
+// uses via Client.Picks -- is the same one already trusted with this id elsewhere.
+//
+// # Why this is a materially bigger cost than freeTransfersFor's one call
+//
+// SquadPrices makes up to `through` Picks() calls plus one ElementSummary() per held
+// player whose price has moved -- unlike History's single round trip. Picks for a
+// completed gameweek are permanently cacheable AS DATA (see SquadPrices' own doc
+// comment) -- but Client.Picks itself only holds that cache for cacheTTL
+// (config.cache_minutes, an hour by default), not indefinitely. So the real cost curve
+// is: cheap within one cache window for a returning reader, and back to the full
+// `through`-many round trips once it expires -- not "cheap after the first load", which
+// overstates it. apiTransfers.go's own buildTransferBoard documents rejecting exactly
+// this call, on exactly this cost, for GET /api/transfers -- a lower-traffic route than
+// /api/state. That tension is real and unresolved by this function: nothing here adds a
+// longer-lived cache keyed on (entry, through) the way the cost profile would want. See
+// this change's own PR description for the tradeoff as shipped.
+func (s *squadServer) sellPricesFor(ctx context.Context, sess session) (map[int]int, analysis.BudgetTrust) {
+	if sess.Entry == 0 || s.client == nil {
+		return nil, analysis.AssumedBudget("No imported team, so sales are priced at market.")
+	}
+	// Gated on SeasonHasStarted, not GameweeksPlayed()==0 -- the same DataWindow-gap
+	// distinction AssemblyBudget and main.go's own engine.SellPrices setup already draw,
+	// and for the same reason: GameweeksPlayed() reads 0 for days after a season's first
+	// ball is kicked, during which a squad may already be locked in and priceable.
+	if !s.engine.SeasonHasStarted() {
+		return nil, analysis.VerifiedBudget() // pre-season: nothing bought, market IS honest
+	}
+	through := squadPriceGameweek(s.engine.GameweeksPlayed(), s.engine.Boot.CurrentEvent())
+	sp, err := s.client.SquadPrices(ctx, sess.Entry, through)
+	if err != nil {
+		return nil, analysis.AssumedBudget("Could not read this team's price history.")
+	}
+	if sp.Exact() {
+		return sp.Sell, analysis.VerifiedBudget()
+	}
+	// Close but unproven -- still far better than market prices, said plainly.
+	return sp.Sell, analysis.DriftingBudget(sp.Drift())
+}
+
 // buildState produces the document for a session, or an error naming what went wrong.
 //
 // free/hist/freeErr are the free-transfer allowance and the history it was read from,
 // resolved by the caller via freeTransfersFor BEFORE the render lock — see that method's
-// own comment.
-func (s *squadServer) buildState(r *http.Request, sess session, free int, hist *fpl.EntryHistory, freeErr error) ([]byte, error) {
+// own comment. sell/trust are this reader's own selling prices and where they came from,
+// resolved by the caller via sellPricesFor for the same reason.
+func (s *squadServer) buildState(r *http.Request, sess session, free int, hist *fpl.EntryHistory, freeErr error, sell map[int]int, trust analysis.BudgetTrust) ([]byte, error) {
 	cfg := s.effectiveCfgFrom(sess)
 	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, pageOpts{
 		Weeks:     s.weeks,
@@ -723,6 +777,8 @@ func (s *squadServer) buildState(r *http.Request, sess session, free int, hist *
 		// merged them), so the rail's chip window agrees with the week views built
 		// from the same schedule.
 		Chips:           cfg.Chips,
+		SellPrices:      sell,
+		SellTrust:       trust,
 		NewsChecked:     newsChecked(s.client, now),
 		NewsReadChecked: newsReadChecked(cfg, now),
 		OverrideEffects: b.OverrideEffects,
@@ -1016,11 +1072,13 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The free-transfer allowance, resolved BEFORE the render lock — decoding and
-	// validating the body above need neither the lock nor the network, so this is the
-	// earliest point `in.Entry` is known. See freeTransfersFor's own comment for why the
-	// FPL call may not happen under s.mu.
+	// The free-transfer allowance and this reader's own selling prices, resolved BEFORE
+	// the render lock — decoding and validating the body above need neither the lock nor
+	// the network, so this is the earliest point `in.Entry` is known. See
+	// freeTransfersFor's and sellPricesFor's own comments for why the FPL calls may not
+	// happen under s.mu.
 	free, hist, freeErr := s.freeTransfersFor(r.Context(), in)
+	sell, trust := s.sellPricesFor(r.Context(), in)
 
 	defer s.lockRender("session")()
 
@@ -1052,7 +1110,7 @@ func (s *squadServer) saveSession(w http.ResponseWriter, r *http.Request) {
 	// every later request rebuilds from it and fails the same way, and the reader has to
 	// open devtools to recover. /action already gets this right and says so: the change is
 	// saved before it is adopted, and a failure leaves everything as it was.
-	body, err := s.buildState(r, in, free, hist, freeErr)
+	body, err := s.buildState(r, in, free, hist, freeErr, sell, trust)
 	if err != nil {
 		// Same reasoning as answerState: log the Go error, tell the reader only that
 		// the save did not land.

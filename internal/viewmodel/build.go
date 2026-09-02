@@ -143,6 +143,20 @@ type Input struct {
 	// handler (chipteams.go). Nil for every other caller, which is how Build knows
 	// there is no such document to build. See ChipTeamsInput.
 	ChipTeams *ChipTeamsInput
+
+	// SellPrices is this reader's own selling prices, in tenths, keyed by element id --
+	// the same shape analysis.SquadState.Sell and fpl.SquadPrices.Sell already carry.
+	// Nil means "sell at market", which is right pre-season and for any caller with no
+	// real purchase history to price against (see fpl.SquadPrices' own doc comment).
+	// The caller resolves it, exactly like Entry/History above -- this package computes
+	// no model quantity itself.
+	SellPrices map[int]int
+	// SellTrust says whether SellPrices is real or assumed -- analysis.BudgetTrust,
+	// copied onto Squad.SellPrices/SellPriceWarning via SellPriceSource/Warning(). The
+	// zero value (unverified, no reason given) is what every caller that leaves
+	// SellPrices nil should also leave this at, which SellPriceSource already reads as
+	// "market".
+	SellTrust analysis.BudgetTrust
 }
 
 // ChipTeamsInput is what buildChipTeams needs to answer GET /api/wildcard. Every
@@ -212,7 +226,7 @@ func Build(in Input) (*State, error) {
 		s.Session.Store = "config"
 	}
 
-	s.Squad = buildSquad(p)
+	s.Squad = buildSquad(p, in.SellPrices, in.SellTrust)
 	s.Gameweeks = buildGameweeks(p, in.Boot, in.Chips, in.Now, in.Import.Entry != 0, in.EarliestResultEvent)
 	s.Results = buildResults(s.Squad, in.Entry, in.History, in.Boot,
 		in.Live, in.MatchStatus, in.Opponent, in.Multiplier,
@@ -240,19 +254,21 @@ func Build(in Input) (*State, error) {
 	return s, nil
 }
 
-func buildSquad(p present.Page) Squad {
+func buildSquad(p present.Page, sell map[int]int, trust analysis.BudgetTrust) Squad {
 	sq := Squad{
-		Formation:  p.Squad.Formation,
-		Captain:    p.Squad.Captain.ID,
-		Vice:       p.Squad.ViceCaptain.ID,
-		XIScore:    p.Squad.XIScore,
-		Expected:   p.Squad.ExpectedPoints,
-		Cost:       p.Squad.TotalCost,
-		Bank:       p.Squad.Remaining,
-		ClubCounts: p.Squad.ClubCounts,
+		Formation:        p.Squad.Formation,
+		Captain:          p.Squad.Captain.ID,
+		Vice:             p.Squad.ViceCaptain.ID,
+		XIScore:          p.Squad.XIScore,
+		Expected:         p.Squad.ExpectedPoints,
+		Cost:             p.Squad.TotalCost,
+		Bank:             p.Squad.Remaining,
+		ClubCounts:       p.Squad.ClubCounts,
+		SellPrices:       trust.SellPriceSource(len(sell) > 0),
+		SellPriceWarning: trust.Warning(),
 	}
 	for _, m := range p.Squad.Players {
-		sq.Players = append(sq.Players, buildPlayer(m, p.Codes, p.Overrides))
+		sq.Players = append(sq.Players, buildPlayer(m, p.Codes, p.Overrides, sell))
 	}
 	for _, m := range p.Squad.StartingXI {
 		sq.XI = append(sq.XI, m.ID)
@@ -276,7 +292,14 @@ func buildSquad(p present.Page) Squad {
 // buildChipTeams has PlayerMetrics for a rebuilt fifteen with no Page of its
 // own behind it — only the bootstrap's code map and the page's override set,
 // both of which it already has from the caller that built the house squad.
-func buildPlayer(m analysis.PlayerMetrics, codes map[int]int, overrides map[int]present.Override) Player {
+//
+// sell is analysis.SquadState.Sell's own shape -- element id to selling price in
+// tenths -- and is nil for every caller but buildSquad's own owned fifteen: a
+// market candidate (buildMarket) and a hypothetical chip rebuild
+// (buildChipTeam's weekPlayer) are not owned by anyone, so there is no real
+// purchase price to look up and SellPriceTenths' market fallback is the
+// correct answer for both.
+func buildPlayer(m analysis.PlayerMetrics, codes map[int]int, overrides map[int]present.Override, sell map[int]int) Player {
 	pl := Player{
 		ID:            m.ID,
 		Code:          codes[m.ID],
@@ -284,6 +307,7 @@ func buildPlayer(m analysis.PlayerMetrics, codes map[int]int, overrides map[int]
 		Club:          m.Team,
 		Pos:           m.Position,
 		Price:         m.Price,
+		SellPrice:     float64(analysis.SellPriceTenths(sell, m)) / 10,
 		XP:            m.Score,
 		Per90:         m.FixtureAdjXP90,
 		Minutes:       m.ExpectedMinutes,
@@ -705,7 +729,7 @@ func buildChipTeam(wv analysis.WeekView, budget float64, codes map[int]int,
 	// has. Empty for a blanking club -- no fallback -- and the card renders a
 	// dash.
 	weekPlayer := func(m analysis.PlayerMetrics) Player {
-		pl := buildPlayer(m, codes, overrides)
+		pl := buildPlayer(m, codes, overrides, nil)
 		pl.Fixtures = nil
 		for _, f := range wv.Opponents[m.ID] {
 			pl.Fixtures = append(pl.Fixtures, Fixture{
@@ -751,7 +775,7 @@ func buildMarket(p present.Page) Market {
 	m.Gate = p.Watch.Gate
 	for _, r := range p.Watch.Rows {
 		m.Rows = append(m.Rows, MarketRow{
-			Player:     buildPlayer(r.Player, p.Codes, p.Overrides),
+			Player:     buildPlayer(r.Player, p.Codes, p.Overrides, nil),
 			Delta:      r.Delta,
 			ClearsGate: r.ClearsGate,
 		})

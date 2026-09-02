@@ -74,6 +74,32 @@ func (b BudgetTrust) Label() string {
 	return "ASSUMED — sales priced at market, budget overstated"
 }
 
+// SellPriceSource names which selling-price regime produced a squad's per-player
+// figures, in the vocabulary cmd/armband/apitransfers.go's own "market" already
+// established: "reconstructed" when a public reconstruction summed exactly to
+// FPL's own team value, "estimated" when it came close but not exactly
+// (DriftingBudget), and "market" when there is no purchase-price data at all --
+// either no entry to reconstruct from, or a genuine pre-season squad with
+// nothing bought yet, where market price already IS the honest selling price.
+//
+// hasSell distinguishes the two cases this type alone cannot tell apart: both
+// are Verified, but only one of them carries a real reconstruction. Both are
+// equally trustworthy, so Warning() is empty for both; only the label differs,
+// for a reader asking where the number came from rather than whether to trust
+// it.
+func (b BudgetTrust) SellPriceSource(hasSell bool) string {
+	switch {
+	case b.Verified && hasSell:
+		return "reconstructed"
+	case b.Verified:
+		return "market"
+	case b.Assumed > 0:
+		return "estimated"
+	default:
+		return "market"
+	}
+}
+
 // AssemblyBudget is the money a fifteen can be assembled with today, in tenths,
 // and a short statement of where the figure came from.
 //

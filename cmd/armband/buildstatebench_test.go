@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http/httptest"
 	"testing"
+
+	"armband/internal/analysis"
 )
 
 // BenchmarkBuildState times the real /api/state pipeline over the committed GW1
@@ -39,7 +41,7 @@ func BenchmarkBuildState(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			if _, err := s.buildState(req, sess, 0, nil, nil); err != nil {
+			if _, err := s.buildState(req, sess, 0, nil, nil, nil, analysis.BudgetTrust{}); err != nil {
 				b.Fatal(err)
 			}
 		}

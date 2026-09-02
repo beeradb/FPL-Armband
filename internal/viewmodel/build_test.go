@@ -215,6 +215,62 @@ func TestTheBenchScoreIsThePlainSum(t *testing.T) {
 	}
 }
 
+// TestSellPriceDefaultsToMarketWhenNoSaleHistoryIsKnown pins the common case: a
+// planner-built squad -- nobody has ever bought any of these players -- sells every one at
+// his market price, and the squad says so rather than implying a real reconstruction.
+func TestSellPriceDefaultsToMarketWhenNoSaleHistoryIsKnown(t *testing.T) {
+	s := build(t, samplePage())
+	for _, p := range s.Squad.Players {
+		if p.SellPrice != p.Price {
+			t.Errorf("%s: sell price %v, want it to equal the market price %v with no "+
+				"purchase history known", p.Name, p.SellPrice, p.Price)
+		}
+	}
+	if s.Squad.SellPrices != "market" {
+		t.Errorf("Squad.SellPrices is %q, want \"market\" with no purchase history", s.Squad.SellPrices)
+	}
+}
+
+// TestSellPriceReflectsARisenPlayersReconstruction pins the case the whole feature exists
+// for: a player who has risen since he was bought sells for less than his listed price, and
+// the squad says the figures were reconstructed rather than assumed.
+func TestSellPriceReflectsARisenPlayersReconstruction(t *testing.T) {
+	p := samplePage()
+	p.Squad.Players[1].Price = 5.5 // the DEF, id 2 -- bought at 5.0, now listed at 5.5
+
+	s, err := Build(Input{
+		Page: p,
+		Boot: &fpl.Bootstrap{},
+		Now:  pinned,
+		// paid 5.0, market 5.5: FPL keeps half the 0.5 rise, rounded down -- 5.2.
+		SellPrices: map[int]int{2: 52},
+		SellTrust:  analysis.VerifiedBudget(),
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	var got *Player
+	for i := range s.Squad.Players {
+		if s.Squad.Players[i].ID == 2 {
+			got = &s.Squad.Players[i]
+		}
+	}
+	if got == nil {
+		t.Fatal("player 2 is missing from the built squad")
+	}
+	if got.Price != 5.5 {
+		t.Fatalf("test setup: Price is %v, want 5.5", got.Price)
+	}
+	if math.Abs(got.SellPrice-5.2) > 1e-9 {
+		t.Errorf("SellPrice is %v, want 5.2 -- paid 5.0, market 5.5, half the rise "+
+			"rounded down, not the listed price", got.SellPrice)
+	}
+	if s.Squad.SellPrices != "reconstructed" {
+		t.Errorf("Squad.SellPrices is %q, want \"reconstructed\"", s.Squad.SellPrices)
+	}
+}
+
 // TestTheGameweekRailIsNotCapped pins the design note that the planning window slides.
 //
 // HANDOFF.md is explicit that the count must not be hard-coded — the prototype froze it
