@@ -965,6 +965,73 @@ func TestTheXPointsColumnsAreEmptyNotZeroAndDivideByWeeks(t *testing.T) {
 	}
 }
 
+// TestTheGateFloorColumnsAreBlankNotZeroWhenTheDecisionLoopNeverRan pins the
+// gate-floor block to the same gate as the funnels beside it: `HasBanking &&
+// DecisionWeeks > 0`. The block's own doc comment already says a zero on both
+// halves means "the shipped gate would have answered every proposal
+// identically" — a claim only a cell whose decision loop actually ran can make.
+// Writing it unconditionally made an infeasible cell, or any hand-built row that
+// never populates DecisionWeeks, emit that exact measured-zero rather than the
+// blank a reader would need to tell "the floor never bit" from "this cell never
+// decided anything".
+func TestTheGateFloorColumnsAreBlankNotZeroWhenTheDecisionLoopNeverRan(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cells.csv")
+	sink, err := openCellSink(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sweep := sink.sweepLabel("T")
+
+	measured := sampleRow(sweep, sink.run(), "shipped", 0, "2025-26", 1)
+	measured.HasBanking = true
+	measured.BankingMediator.DecisionWeeks = 12
+	measured.GateFloor = GateFloorMediator{Le28: 5, Gt28: 2}
+	sink.cell(measured)
+
+	// A cell whose decision loop never ran at all: HasBanking is false and
+	// DecisionWeeks is zero, matching what asInfeasible leaves behind, but
+	// GateFloor itself still carries nonzero counts — exactly the state a
+	// hand-built cellRow{} literal (variance_test.go) or a pre-fix write would
+	// leak into the CSV as "0".
+	neverRan := sampleRow(sweep, sink.run(), "never ran", 1, "2025-26", 1)
+	neverRan.GateFloor = GateFloorMediator{Le28: 9, Gt28: 4}
+	sink.cell(neverRan)
+	sink.close()
+
+	_, rows := readCells(t, path)
+	if len(rows) != 2 {
+		t.Fatalf("want 2 rows, got %d", len(rows))
+	}
+	for _, r := range rows {
+		le28, gt28 := r["floor_flips_le28"], r["floor_flips_gt28"]
+		if r["variant"] == "never ran" {
+			if le28 != "" || gt28 != "" {
+				t.Errorf("floor_flips_le28/gt28 must be blank when the decision "+
+					"loop never ran, got %q/%q — a 0 here asserts the shipped gate "+
+					"answered every proposal identically, which is a claim only a "+
+					"played cell can make", le28, gt28)
+			}
+			continue
+		}
+		if le28 != "5" || gt28 != "2" {
+			t.Errorf("floor_flips_le28/gt28 on a measured cell is %q/%q, want 5/2",
+				le28, gt28)
+		}
+	}
+
+	// asInfeasible must leave the same gate closed: it zeroes both HasBanking
+	// and GateFloor together, so the CSV write's own gate on HasBanking &&
+	// DecisionWeeks > 0 blanks the columns rather than printing the zero
+	// asInfeasible left behind.
+	inf := measured.asInfeasible()
+	if inf.HasBanking || inf.DecisionWeeks != 0 {
+		t.Fatal("asInfeasible must clear HasBanking and DecisionWeeks")
+	}
+	if inf.GateFloor.Le28 != 0 || inf.GateFloor.Gt28 != 0 {
+		t.Fatal("asInfeasible must clear GateFloor")
+	}
+}
+
 // TestCellSinkIsConcurrencySafe follows the standing rule in this package rather
 // than the current call pattern.
 //

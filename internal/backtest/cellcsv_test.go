@@ -1273,9 +1273,16 @@ func (s *cellSink) cell(r cellRow) {
 	}
 	// The gate-floor counterfactual, on the same gate as the funnels: a floor
 	// arm's flips are where the floor changed an answer, split at the quiet
-	// boundary.
-	rec = append(rec,
-		strconv.Itoa(r.GateFloor.Le28), strconv.Itoa(r.GateFloor.Gt28))
+	// boundary. Blank when the decision loop never ran, for the identical reason
+	// as every funnel beside it — a 0 here would assert "the shipped gate would
+	// have answered every proposal identically," which is a claim only a played
+	// cell can make.
+	if r.HasBanking && r.DecisionWeeks > 0 {
+		rec = append(rec,
+			strconv.Itoa(r.GateFloor.Le28), strconv.Itoa(r.GateFloor.Gt28))
+	} else {
+		rec = append(rec, "", "")
+	}
 	// Same rule again for the chips, and for the same reason: a blank says the
 	// sweep did not record them, where a zero would say the chip returned
 	// nothing in a week it was never played.
