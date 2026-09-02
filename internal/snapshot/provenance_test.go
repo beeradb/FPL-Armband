@@ -1,9 +1,12 @@
 package snapshot
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -262,6 +265,190 @@ func TestProvenanceCarriesTheWatchedDigest(t *testing.T) {
 	}
 	if len(op.WatchedPaths) != 0 {
 		t.Errorf("a sidecar with no watched_path rows produced %d, want 0", len(op.WatchedPaths))
+	}
+}
+
+// fullSizeProvenance builds a Provenance whose rendered block is comfortably
+// bigger than bufio's 4096-byte default buffer — real banked blocks measure
+// 16,265-24,789 bytes across every stats/cells/**/*.provenance.csv, so 400
+// constants (roughly matching that population) is the realistic case, not a
+// stress fixture.
+func fullSizeProvenance(sweep, runID string) Provenance {
+	p := Provenance{
+		Sweep: sweep, RunID: runID, Commit: "abc123def456789", Digest: "deadbeef1234",
+		Seasons: []string{"2024-25<-2023-24"}, StartGWs: []int{1, 11},
+		BankUpTo: 5,
+	}
+	for i := 0; i < 20; i++ {
+		p.DeclaredArms = append(p.DeclaredArms, fmt.Sprintf("arm-%d", i))
+	}
+	for i := 0; i < 400; i++ {
+		p.Constants = append(p.Constants, Constant{
+			Path:  fmt.Sprintf("internal.analysis.SomeLongConstantPathName%d", i),
+			Value: fmt.Sprintf("value-%d", i),
+		})
+	}
+	return p
+}
+
+// countingWriter counts how many times Write is called on it, so a test can
+// assert a caller issued exactly one syscall-shaped write rather than several.
+type countingWriter struct {
+	io.Writer
+	calls int
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	c.calls++
+	return c.Writer.Write(p)
+}
+
+// TestAProvenanceBlockExceedingTheBufferStaysOneWrite.
+//
+// A csv.Writer built directly over an *os.File goes through bufio's default
+// 4096-byte buffer and flushes across several independent write(2) calls once a
+// block exceeds it — which every real provenance block does (16-25 KB measured).
+// Under the replay wrapper's parallel-sweep queueing (see AGENTS.md) that is a
+// torn row waiting to happen. The fix builds
+// the whole block in memory first and hands it to the underlying writer once;
+// this pins that "once" against a block realistically sized, not against a
+// fixture too small to have caught the original bug.
+func TestAProvenanceBlockExceedingTheBufferStaysOneWrite(t *testing.T) {
+	p := fullSizeProvenance("SWEEP#1", "r1")
+	blk := provenanceBlock(p, true)
+	if len(blk) <= 4096 {
+		t.Fatalf("fixture block is %d bytes, want > 4096 to actually exercise the "+
+			"bufio default this test is about", len(blk))
+	}
+
+	var buf strings.Builder
+	cw := &countingWriter{Writer: &buf}
+	if err := writeProvenanceTo(cw, p, true); err != nil {
+		t.Fatal(err)
+	}
+	if cw.calls != 1 {
+		t.Errorf("writeProvenanceTo issued %d Write calls for a %d-byte block, want "+
+			"exactly 1 — a concurrent writer sharing the same file can interleave "+
+			"between multiple calls but not within one", cw.calls, len(blk))
+	}
+}
+
+// TestConcurrentSweepsNeverTearARow.
+//
+// On Linux, write(2) to a regular file holds the inode's rwsem for its duration
+// and O_APPEND makes the offset-bump-and-write atomic against other O_APPEND
+// writers on the same file, so one write(2) per sweep cannot interleave with
+// another. Before the fix, WriteProvenance issued several independent writes per
+// call (bufio flushing a >4KB block), so two sweeps racing on one sidecar could
+// tear a row in half. This fails before the fix and passes after; run with
+// `-race -count=10` to lean on it.
+func TestConcurrentSweepsNeverTearARow(t *testing.T) {
+	dir := t.TempDir()
+	path := ProvenancePath(filepath.Join(dir, "cells.csv"))
+
+	const goroutines = 8
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			p := fullSizeProvenance("SWEEP#1", fmt.Sprintf("r%d", g))
+			if err := WriteProvenance(path, p); err != nil {
+				t.Errorf("goroutine %d: WriteProvenance: %v", g, err)
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	got, err := ReadProvenance(path)
+	if err != nil {
+		t.Fatalf("ReadProvenance failed on a concurrently-written sidecar: %v", err)
+	}
+	if len(got) != goroutines {
+		t.Fatalf("expected %d distinct run records, got %d — a torn row merged or "+
+			"dropped one", goroutines, len(got))
+	}
+	want := fullSizeProvenance("", "")
+	for g := 0; g < goroutines; g++ {
+		key := fmt.Sprintf("SWEEP#1\x00r%d", g)
+		p, ok := got[key]
+		if !ok {
+			t.Errorf("run r%d is missing entirely", g)
+			continue
+		}
+		if len(p.DeclaredArms) != len(want.DeclaredArms) {
+			t.Errorf("run r%d: got %d declared arms, want %d — a torn row", g,
+				len(p.DeclaredArms), len(want.DeclaredArms))
+		}
+		if len(p.Constants) != len(want.Constants) {
+			t.Errorf("run r%d: got %d constants, want %d — a torn row", g,
+				len(p.Constants), len(want.Constants))
+		}
+		if p.Commit != want.Commit {
+			t.Errorf("run r%d: commit %q, want %q — a torn row", g, p.Commit, want.Commit)
+		}
+	}
+}
+
+// TestProvenanceIsNotWrittenThroughABufferedFileWriter is a tripwire in this
+// repo's own idiom (source scan, e.g. chipGameweekLiteral in
+// internal/analysis): the next refactor of this file must not reintroduce a
+// csv.Writer built directly over the *os.File, which is what made torn rows
+// possible in the first place.
+func TestProvenanceIsNotWrittenThroughABufferedFileWriter(t *testing.T) {
+	b, err := os.ReadFile("provenance.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "csv.NewWriter(f)") {
+		t.Fatal("provenance.go builds a csv.Writer directly over the *os.File again. " +
+			"A real provenance block is 16-25 KB, 4-7x bufio's 4096-byte default " +
+			"buffer, so this flushes across several independent write(2) calls and " +
+			"a concurrent sweep can tear a row. Build the block with provenanceBlock " +
+			"(a bytes.Buffer csv.Writer) and hand the whole thing to the file in one " +
+			"Write call instead — see writeProvenanceTo.")
+	}
+}
+
+// TestADuplicateHeaderRowDoesNotCreateAPhantomEntry.
+//
+// Two sweeps can both open a fresh sidecar, both see Size()==0, and both emit the
+// header row. The duplicate parses as sweep="sweep", run_id="run_id", key="key",
+// value="value" — matching no case in the switch below — but without an explicit
+// skip it still creates a phantom out["sweep\x00run_id"] entry with every field
+// zero, which is exactly the shape ReadProvenance's other callers use for "this
+// file has no provenance".
+func TestADuplicateHeaderRowDoesNotCreateAPhantomEntry(t *testing.T) {
+	dir := t.TempDir()
+	path := ProvenancePath(filepath.Join(dir, "cells.csv"))
+
+	// The real header, plus a second one appended by hand — reproducing what two
+	// racing writers each seeing Size()==0 would produce, without depending on
+	// goroutine scheduling to land the race.
+	raw := "sweep,run_id,key,value\n" +
+		"SWEEP#1,r1,commit,abc123\n" +
+		"sweep,run_id,key,value\n" +
+		"SWEEP#1,r1,constants_digest,deadbeef\n"
+	if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ReadProvenance(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, phantom := got["sweep\x00run_id"]; phantom {
+		t.Error("a duplicate header row created a phantom sweep=\"sweep\" entry")
+	}
+	p, ok := got["SWEEP#1\x00r1"]
+	if !ok {
+		t.Fatal("the real record went missing alongside the duplicate header")
+	}
+	if p.Commit != "abc123" || p.Digest != "deadbeef" {
+		t.Errorf("real record corrupted: got Commit=%q Digest=%q", p.Commit, p.Digest)
+	}
+	if len(got) != 1 {
+		t.Errorf("expected exactly 1 record, got %d", len(got))
 	}
 }
 
