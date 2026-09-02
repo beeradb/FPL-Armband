@@ -778,8 +778,17 @@ func watchlistFor(e *analysis.Engine, sq analysis.Squad, excluded []present.Over
 	}
 
 	all := e.AllMetrics()
-	sort.SliceStable(all, func(i, j int) bool { return all[i].Score > all[j].Score })
 
+	// Filter to the rows this page actually shows, THEN sort — not the other
+	// way around. Sorting `all` in place before filtering mutated the caller's
+	// slice: AllMetrics() returns a fresh []PlayerMetrics per call today, so
+	// nothing currently aliases it, but that made this function unsafe to hand
+	// a shared pool in future without a silent reordering hazard for whichever
+	// other reader (e.g. ResearchTargets) also walks it. Filtering first over
+	// the smaller w.Rows is also just less to sort. sort.SliceStable over the
+	// filtered rows agrees byte-for-byte with the old sort-then-filter: filtering
+	// is order-preserving, so within any tie on Score the relative order is the
+	// same either way.
 	w := &present.Watchlist{Excluded: excluded, Gate: gate}
 	for _, m := range all {
 		if owned[m.ID] || skip[m.ID] {
@@ -794,6 +803,7 @@ func watchlistFor(e *analysis.Engine, sq analysis.Squad, excluded []present.Over
 			Player: m, Delta: d, ClearsGate: present.ClearsGate(d, gate),
 		})
 	}
+	sort.SliceStable(w.Rows, func(i, j int) bool { return w.Rows[i].Player.Score > w.Rows[j].Player.Score })
 	for _, r := range w.Rows {
 		if r.ClearsGate {
 			w.Clearing++
