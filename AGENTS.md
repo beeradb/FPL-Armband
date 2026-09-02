@@ -433,9 +433,12 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
 - **The doubles guard must key on `(element, fixture)`, never `(element, gameweek)`.**
   `season.go` accumulates, never assigns; the phantom/duplicate counts are pinned at load.
 - **Anything reading fixture results must be gated by gameweek.** →
-  **archive-and-data**. Pinned by `TestPointInTimeHidesFutureResults`. ⚠️ **The PRE-SEASON
-  path is unguarded** (`PreSeasonWith` unfiltered; behind `FPL_MAGNITUDE`, latent not live).
-  **Unfixed.**
+  **archive-and-data**. Pinned by `TestPointInTimeHidesFutureResults`. `PreSeasonWith` itself
+  is still unfiltered — `teamBands` stays safe on its own `Finished` check, and
+  `buildTeamRates` is now gated on `FinishedProvisional`, so the pre-season leak that fed
+  `magnitudeAttack`/`magnitudeDefence` behind `FPL_MAGNITUDE` is fixed. Pinned by
+  `TestTeamRatesIgnoreAMatchStillBeingPlayed` (`internal/analysis`) and
+  `TestPreSeasonTeamRatesCannotSeeTheSeasonsResults` (`internal/backtest`).
 - **FPL's aggregates reset at GW1, so the denominator must follow.** Use `Engine.DataWindow()`,
   never the constant 38. `TestDataWindowTracksTheSeason`. ⚠️ **`DataWindow` alone is not enough
   during the live GW1 gap** — `SeasonHasStarted()` true, `GameweeksPlayed()` still 0, a span of

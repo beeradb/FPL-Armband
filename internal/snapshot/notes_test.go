@@ -1175,7 +1175,21 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	//
 	// Every one of those is a qualifier carrying the uncertainty, which is the class
 	// this comment says must never be cut to fit. Raised rather than compressed.
-	const budget = 66 * 1024
+
+	// # 67 KB, 2026-09-01 — the pre-season fixture leak in buildTeamRates was fixed,
+	// and the "Unfixed" bullet had to say so without losing what made it findable
+	//
+	// The fixture-gate bullet under "Things that have already bitten" recorded
+	// `buildTeamRates` as unguarded against `PreSeasonWith`'s unfiltered archive
+	// fixtures — every one of the 380 carrying a scoreline and reading
+	// `finished_provisional: false`. That is now gated on `FinishedProvisional`, the
+	// same flag `TeamMatchesFinished` and `blend.go` already use, and the entry has
+	// to name the two pinning tests or a reader has no way to check the claim
+	// without re-deriving it. It also has to keep naming `teamBands`' own, separate,
+	// still-live `Finished` staleness, or the correction reads as broader than it
+	// is. Compressing either clause is the qualifier-dropping this comment already
+	// forbids. About 700 bytes free.
+	const budget = 67 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

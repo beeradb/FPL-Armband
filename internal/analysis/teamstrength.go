@@ -104,12 +104,18 @@ func (e *Engine) LeagueGoals() (conceded, scored float64) {
 func (e *Engine) buildTeamRates() {
 	e.teamStrength = map[int]TeamRates{}
 
-	// This season so far, from finished fixtures only. In a replay those are
-	// already stripped of anything after the cutoff by playedFixtures; live they
-	// carry scores only once played.
+	// This season so far, from finished fixtures only. Gate on
+	// FinishedProvisional rather than Finished: goals for/against are the
+	// match's own numbers, locked in at the whistle, and Finished can lag full
+	// time by 16+ hours on live data (see the doc comment on fpl.Fixture). In a
+	// replay, playedFixtures mirrors Finished into FinishedProvisional for
+	// revealed weeks and nils both plus the scores past the cutoff — but the
+	// pre-season path (PreSeasonWith) returns the archive's fixtures
+	// unfiltered, all 380 of them scored and both flags false, so without this
+	// gate a GW1 engine would accumulate the whole season it has not seen yet.
 	gf, ga, n := map[int]float64{}, map[int]float64{}, map[int]float64{}
 	for _, f := range e.Fixtures {
-		if f.TeamHScore == nil || f.TeamAScore == nil {
+		if !f.FinishedProvisional || f.TeamHScore == nil || f.TeamAScore == nil {
 			continue
 		}
 		gf[f.TeamH] += float64(*f.TeamHScore)

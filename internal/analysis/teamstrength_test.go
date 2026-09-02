@@ -163,3 +163,52 @@ func TestTeamRatesBlendTowardTheSeason(t *testing.T) {
 	}
 	t.Logf("after ten played gameweeks: all %d clubs blend from what happened", moved)
 }
+
+// TestTeamRatesIgnoreAMatchStillBeingPlayed — buildTeamRates must not count a
+// fixture's scoreline until FinishedProvisional flips, not merely until both
+// scores are non-nil. Live data carries scores for a match that has kicked off
+// but not finished, and the pre-season replay path (PreSeasonWith) hands the
+// whole archive's fixtures to the engine unfiltered — 380 of them, all scored,
+// none finished. Without this gate a GW1 engine would accumulate a season it
+// has not seen yet, and a live engine would treat a match still being played as
+// completed evidence.
+func TestTeamRatesIgnoreAMatchStillBeingPlayed(t *testing.T) {
+	const club, other = 11, 12
+	boot := &fpl.Bootstrap{
+		Teams: []fpl.Team{
+			{ID: club, StrengthDefenceHome: 1200, StrengthDefenceAway: 1200, StrengthAttackHome: 1200, StrengthAttackAway: 1200},
+			{ID: other, StrengthDefenceHome: 1200, StrengthDefenceAway: 1200, StrengthAttackHome: 1200, StrengthAttackAway: 1200},
+		},
+	}
+	h, a := 3, 0
+
+	live := &Engine{Boot: boot, Fixtures: []fpl.Fixture{
+		{TeamH: club, TeamA: other, TeamHScore: &h, TeamAScore: &a,
+			Started: true, FinishedProvisional: false},
+	}}
+	prior := &Engine{Boot: boot} // no fixtures at all — the pure prior
+	priorRates := prior.teamRates(club)
+
+	got := live.teamRates(club)
+	if got.Played != 0 {
+		t.Errorf("Played = %d, want 0 — a still-being-played match must not count", got.Played)
+	}
+	if got != priorRates {
+		t.Errorf("teamRates moved off the prior (%+v) while a match was still live (%+v)", priorRates, got)
+	}
+
+	// Paired liveness arm: the same fixture, flipped to FinishedProvisional,
+	// must move the rate. Confinement alone (the block above) confirms
+	// nothing — a gate that always excludes everything would pass it too.
+	finished := &Engine{Boot: boot, Fixtures: []fpl.Fixture{
+		{TeamH: club, TeamA: other, TeamHScore: &h, TeamAScore: &a,
+			Started: true, FinishedProvisional: true},
+	}}
+	gotFinished := finished.teamRates(club)
+	if gotFinished.Played != 1 {
+		t.Errorf("Played = %d, want 1 once FinishedProvisional is true", gotFinished.Played)
+	}
+	if gotFinished == priorRates {
+		t.Error("teamRates did not move once the match was FinishedProvisional")
+	}
+}
