@@ -171,7 +171,7 @@ func writeProvenanceTo(w io.Writer, p Provenance, withHeader bool) error {
 // writing its header leaves the file empty, and the very next writer heals
 // it. See ReadProvenance's duplicate-header skip for the reader-side defense
 // this used to depend on for sidecars written before this fix.
-func WriteProvenance(path string, p Provenance) error {
+func WriteProvenance(path string, p Provenance) (err error) {
 	if path == "" {
 		return nil
 	}
@@ -179,7 +179,16 @@ func WriteProvenance(path string, p Provenance) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	// A writable file's Close can itself fail — the OS surfaces a delayed
+	// write error there on some filesystems — and silently discarding that
+	// would report success on a provenance block that never actually landed.
+	// Only reported when nothing else already failed, so a real write error
+	// is not masked by a close error that is just its symptom.
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
 		return err
 	}
