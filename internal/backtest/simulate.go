@@ -1964,6 +1964,16 @@ type SimConfig struct {
 	// otherwise-identical arms apart.
 	ChipSets int
 
+	// ChipLapse declares that this config's plan deliberately does not spend
+	// one of the granted chip sets — "the first set is wasted on purpose",
+	// which several diagnostics in this package measure directly. It is read
+	// by ValidateChipSpendWith, never by Simulate itself: unlike ChipSets and
+	// the chip plan, an unspent set is not a rule violation, so nothing here
+	// refuses a cell over it — the declaration only tells a guard sitting
+	// outside Simulate that a plan's own arm has already accounted for the
+	// gap. Zero — every ordinary arm — declares nothing.
+	ChipLapse ChipSetLapse
+
 	// ChipPlannerXP is ChipPlanner for a rule that needs the model's own
 	// per-gameweek projections rather than only the fixture calendar — "play the
 	// triple captain where the best available player has the best fixture",

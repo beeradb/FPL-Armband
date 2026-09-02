@@ -216,6 +216,106 @@ func TestASecondSetChipActuallyPlays(t *testing.T) {
 	}
 }
 
+// twoSetFullPlan is a legal, fully-spent 2025-26 plan — both sets, all eight
+// chips, matching TestAValidTwoSetPlanIsAccepted's weeks so a test that wants
+// "everything spent" does not have to re-derive a legal calendar of its own.
+func twoSetFullPlan() (first, second analysis.ChipPlan) {
+	return analysis.ChipPlan{Wildcard: 6, BenchBoost: 8, TripleCaptain: 9, FreeHit: 16},
+		analysis.ChipPlan{Wildcard: 28, BenchBoost: 33, TripleCaptain: 35, FreeHit: 31}
+}
+
+// A plan that spends everything in the first half and nothing in the second
+// is LEGAL under ValidateChipSets — no chip sits in a week its set cannot
+// reach — and that is exactly the shape ValidateChipSpend exists to catch:
+// a season's whole second set of four chips going quietly unspent.
+func TestValidateChipSpendFiresWhenAWholeSetIsConcentratedAway(t *testing.T) {
+	first, _ := twoSetFullPlan()
+	err := ValidateChipSpend("2025-26", 1, first, analysis.ChipPlan{})
+	if err == nil {
+		t.Fatal("a plan spending nothing in a granted, reachable second set was accepted")
+	}
+	if !strings.Contains(err.Error(), "second") {
+		t.Errorf("the error does not name the unspent set: %v", err)
+	}
+}
+
+// Declaring the lapse — "this arm wastes the set on purpose" — is the escape
+// hatch, and it has to work in both directions: a plan can concentrate
+// everything in either half.
+func TestADeclaredLapseAcceptsTheConcentratedPlan(t *testing.T) {
+	first, second := twoSetFullPlan()
+	if err := ValidateChipSpendWith("2025-26", 0, 1, LapseSecondSet,
+		first, analysis.ChipPlan{}); err != nil {
+		t.Errorf("a declared second-set lapse still refused the concentrated plan: %v", err)
+	}
+	if err := ValidateChipSpendWith("2025-26", 0, 1, LapseFirstSet,
+		analysis.ChipPlan{}, second); err != nil {
+		t.Errorf("a declared first-set lapse still refused the concentrated plan: %v", err)
+	}
+}
+
+// ChipSetsForced replays a one-set season under today's two-set rules. The
+// guard must follow whichever count it is actually told to check under —
+// never the season's own historical grant — which is the same rule
+// ValidateChipSetsWith already enforces for legality.
+func TestValidateChipSpendFollowsTheDeclaredSetCountNotTheSeason(t *testing.T) {
+	// At the historical grant (sets=0, asks the season: one set for
+	// 2022-23) an empty second plan owes nothing and passes.
+	first := analysis.ChipPlan{Wildcard: 6, BenchBoost: 8, TripleCaptain: 9, FreeHit: 16}
+	if err := ValidateChipSpendWith("2022-23", 0, 1, 0, first, analysis.ChipPlan{}); err != nil {
+		t.Errorf("a one-set season refused an empty second plan it never granted: %v", err)
+	}
+	// Forced to two sets — ChipSetsForced's counterfactual — the same empty
+	// second plan now owes a full set and must be refused.
+	if err := ValidateChipSpendWith("2022-23", ChipSetsForced, 1, 0, first, analysis.ChipPlan{}); err == nil {
+		t.Fatal("a plan forced onto two sets was accepted with the second entirely unspent")
+	}
+}
+
+// A late entrant is never granted a set whose window has already closed by
+// the time the season is entered — the first set's window is [start+1,19],
+// which is empty for a GW21 entry — and the guard must read that as nothing
+// owed, not as a violation. This is the sharpest false-positive risk in the
+// whole design: an entry-point check that got the window wrong would refuse
+// every late-entry cell in this package's grid.
+func TestALateEntrantOwesNoUnreachableSet(t *testing.T) {
+	// Second set only, matching a real GW21 entry: the first set's window
+	// [22,19] is empty, so nothing is owed there even though `first` carries
+	// no chips at all.
+	second := analysis.ChipPlan{Wildcard: 25, BenchBoost: 30, TripleCaptain: 32, FreeHit: 27}
+	if err := ValidateChipSpend("2025-26", 21, analysis.ChipPlan{}, second); err != nil {
+		t.Errorf("a GW21 entry was refused for an empty first set it was never granted: %v", err)
+	}
+}
+
+// A set declared lapsed that turns out to be fully spent anyway is a stale
+// declaration — the arm claims "this set is wasted on purpose" and it is
+// not — and matches the pattern validateOracleArms already uses: a label
+// that stops describing what actually ran is refused rather than trusted.
+func TestADeclaredLapseThatIsFullySpentIsRefused(t *testing.T) {
+	first, second := twoSetFullPlan()
+	err := ValidateChipSpendWith("2025-26", 0, 1, LapseFirstSet, first, second)
+	if err == nil {
+		t.Fatal("a first set declared lapsed but fully (4/4) spent was accepted")
+	}
+	if !strings.Contains(err.Error(), "stale") {
+		t.Errorf("the error does not name it a stale declaration: %v", err)
+	}
+}
+
+// The blanket exemption: an arm running no chip plan at all is the no-chip
+// control every banked sweep cell historically used, not a manager who
+// forgot his chips, and must not be asked to justify a set it never touched.
+func TestValidateChipSpendExemptsAnArmWithNoChipPlanAtAll(t *testing.T) {
+	if err := ValidateChipSpend("2025-26", 1, analysis.ChipPlan{}, analysis.ChipPlan{}); err != nil {
+		t.Errorf("a fully empty plan (the no-chip control) was refused: %v", err)
+	}
+	// True on a one-set season too, and at a mid-season entry.
+	if err := ValidateChipSpend("2022-23", 16, analysis.ChipPlan{}, analysis.ChipPlan{}); err != nil {
+		t.Errorf("a fully empty plan was refused on a one-set season: %v", err)
+	}
+}
+
 // A one-set config must behave exactly as it did before Chips2 existed.
 //
 // Everything recorded from this harness was measured with one set, so the empty

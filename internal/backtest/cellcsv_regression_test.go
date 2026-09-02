@@ -394,16 +394,27 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 	// down again. Because it sits after the dose block, removing it does not move
 	// where the dose block starts — which is why the next line can keep using an
 	// offset into the full header on an already-shortened one.
-	// ⚠️ The second-play chip columns are newer still — bench_boost_gw2/pts2 and
+	// ⚠️ The free-hit/wildcard gw columns are the newest of all — four columns,
+	// two plays each of the two chips the bench-boost/triple-captain block never
+	// carried, with no `_pts` pair because neither chip has a week-local gain —
+	// and they too widen the chip block rather than adding a neighbouring one,
+	// appended at the block's END so the bench_boost_gw position pin
+	// (TestTheFloorBlockSitsBetweenTheDoseAndTheChips) stays true. So they head
+	// the whole chain and come off first, in ONE headerWithout call: they sit
+	// after every existing chip column, so removing them cannot disturb any
+	// offset used below.
+	// ⚠️ The second-play chip columns are next-newest — bench_boost_gw2/pts2 and
 	// triple_captain_gw2/pts2, recording a two-set season's second play of each
-	// chip rather than silently overwriting the first — and they widen the chip
-	// block itself rather than adding a neighbouring one, sitting one pair after
-	// each chip's first-play pair. So they head the whole chain and come off
-	// with TWO headerWithout calls rather than one: the triple-captain pair
-	// first, since removing it does not shift the bench-boost pair's offset and
-	// the reverse order would.
+	// chip rather than silently overwriting the first — and they too widen the
+	// chip block rather than adding a neighbouring one, sitting one pair after
+	// each chip's first-play pair. So they come off with TWO headerWithout calls
+	// rather than one: the triple-captain pair first, since removing it does not
+	// shift the bench-boost pair's offset and the reverse order would. Neither
+	// offset is disturbed by the free-hit/wildcard strip above, since that strip
+	// removes columns after both pairs.
 	chipWeekBlockAt := floorBlockAt() + floorCols
-	noTripleSecondPlay := headerWithout(cellHeader, chipWeekBlockAt+6, 2)
+	noFreeHitWildcard := headerWithout(cellHeader, chipWeekBlockAt+8, 4)
+	noTripleSecondPlay := headerWithout(noFreeHitWildcard, chipWeekBlockAt+6, 2)
 	noSecondPlay := headerWithout(noTripleSecondPlay, chipWeekBlockAt+2, 2)
 	noFloor := headerWithout(noSecondPlay, floorBlockAt(), floorCols)
 	// ⚠️ The dose block and the option-value block are newer still, and both sit
@@ -482,18 +493,24 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 		// chain and every entry below it shifted down one name and one "builds
 		// back" level again; the widths did not move, because they are facts
 		// about commits.
-		"predecessor (no second-play chip columns)":      noSecondPlay,
-		"two builds back (no floor-flip columns either)": noFloor,
-		"three builds back (no dose columns either)":     noDose,
-		"four builds back (no option funnels either)":    noOption,
-		"five builds back (no fixture-run either)":       noFixtureRuns,
-		"six builds back (no banking either)":            noBanking,
-		"seven builds back (no chip-oracle either)":      noChipOracle,
-		"eight builds back (no xpoints either)":          noXPoints,
-		"nine builds back (no arm columns either)":       noArm,
-		"ten builds back (no chip columns either)":       noChipWeek,
-		"eleven builds back (no oracle pair either)":     noOracle,
-		"twelve builds back (no captaincy rungs either)": noOracle[:len(noOracle)-captainRungCols],
+		// ⚠️ The free-hit/wildcard gw columns are the newest mid-chip-block
+		// addition of all, appended after the second-play columns rather than
+		// beside them. It heads the chain and every entry below it shifted down
+		// one name and one "builds back" level again; the widths did not move,
+		// because they are facts about commits.
+		"predecessor (no free-hit/wildcard gw columns)":     noFreeHitWildcard,
+		"two builds back (no second-play chip columns too)": noSecondPlay,
+		"three builds back (no floor-flip columns either)":  noFloor,
+		"four builds back (no dose columns either)":         noDose,
+		"five builds back (no option funnels either)":       noOption,
+		"six builds back (no fixture-run either)":           noFixtureRuns,
+		"seven builds back (no banking either)":             noBanking,
+		"eight builds back (no chip-oracle either)":         noChipOracle,
+		"nine builds back (no xpoints either)":              noXPoints,
+		"ten builds back (no arm columns either)":           noArm,
+		"eleven builds back (no chip columns either)":       noChipWeek,
+		"twelve builds back (no oracle pair either)":        noOracle,
+		"thirteen builds back (no captaincy rungs either)":  noOracle[:len(noOracle)-captainRungCols],
 	}
 	// The property these entries have now failed three times to have: a
 	// synthesised header must be the one the build it names really wrote.
@@ -512,18 +529,19 @@ func TestAppendingUnderAWrongSchemaIsRefused(t *testing.T) {
 		cols int
 		last string
 	}{
-		{"predecessor (no second-play chip columns)", 94, "oracle_kind"},
-		{"two builds back (no floor-flip columns either)", 92, "oracle_kind"},
-		{"three builds back (no dose columns either)", 88, "oracle_kind"},
-		{"four builds back (no option funnels either)", 60, "oracle_kind"},
-		{"five builds back (no fixture-run either)", 55, "oracle_kind"},
-		{"six builds back (no banking either)", 50, "oracle_kind"},
-		{"seven builds back (no chip-oracle either)", 40, "oracle_kind"},
-		{"eight builds back (no xpoints either)", 36, "oracle_kind"},
-		{"nine builds back (no arm columns either)", 33, "oracle_kind"},
-		{"ten builds back (no chip columns either)", 29, "oracle_kind"},
-		{"eleven builds back (no oracle pair either)", 27, "hold_nocap_per_gw"},
-		{"twelve builds back (no captaincy rungs either)", 23, "weekly_per_gw"},
+		{"predecessor (no free-hit/wildcard gw columns)", 98, "oracle_kind"},
+		{"two builds back (no second-play chip columns too)", 94, "oracle_kind"},
+		{"three builds back (no floor-flip columns either)", 92, "oracle_kind"},
+		{"four builds back (no dose columns either)", 88, "oracle_kind"},
+		{"five builds back (no option funnels either)", 60, "oracle_kind"},
+		{"six builds back (no fixture-run either)", 55, "oracle_kind"},
+		{"seven builds back (no banking either)", 50, "oracle_kind"},
+		{"eight builds back (no chip-oracle either)", 40, "oracle_kind"},
+		{"nine builds back (no xpoints either)", 36, "oracle_kind"},
+		{"ten builds back (no arm columns either)", 33, "oracle_kind"},
+		{"eleven builds back (no chip columns either)", 29, "oracle_kind"},
+		{"twelve builds back (no oracle pair either)", 27, "hold_nocap_per_gw"},
+		{"thirteen builds back (no captaincy rungs either)", 23, "weekly_per_gw"},
 	} {
 		got, ok := stale[w.name]
 		if !ok {
@@ -2052,8 +2070,9 @@ func TestTheChipOracleBlockIsBeforeTheXPointsBlockAndCounted(t *testing.T) {
 	}
 	// It sits immediately after the chip block, which is what makes "the chip
 	// columns" one readable region of the file rather than two separated by an
-	// unrelated instrument.
-	if before := cellHeader[at-1]; before != "triple_captain_pts2" {
+	// unrelated instrument. "wildcard_gw2" rather than "triple_captain_pts2"
+	// since the free-hit/wildcard gw pair was appended at the chip block's end.
+	if before := cellHeader[at-1]; before != "wildcard_gw2" {
 		t.Fatalf("the column before the chip-oracle block is %q, want the chip "+
 			"block's last column", before)
 	}
@@ -2477,6 +2496,141 @@ func TestAThirdChipPlayFatals(t *testing.T) {
 			t.Fatal("a third triple-captain play must fatal, and did not")
 		}
 	})
+	// The free hit and the wildcard carry no gain field — neither has a
+	// week-local return, see cellRow's FreeHitGW/WildcardGW doc comment — but
+	// they collect through the identical two-plays-and-fatal machinery as
+	// bench boost and triple captain, and a third play must fatal here too.
+	t.Run("free hit", func(t *testing.T) {
+		ct := &collectingT{}
+		row := cellRow{}
+		populateChipWeekColumns(ct, "three-play@1", []Week{
+			{GW: 3, FreeHit: true},
+			{GW: 10, FreeHit: true},
+			{GW: 20, FreeHit: true},
+		}, &row)
+		if !ct.fataled {
+			t.Fatal("a third free-hit play must fatal, and did not")
+		}
+	})
+	t.Run("wildcard", func(t *testing.T) {
+		ct := &collectingT{}
+		row := cellRow{}
+		populateChipWeekColumns(ct, "three-play@1", []Week{
+			{GW: 3, Wildcard: true},
+			{GW: 10, Wildcard: true},
+			{GW: 20, Wildcard: true},
+		}, &row)
+		if !ct.fataled {
+			t.Fatal("a third wildcard play must fatal, and did not")
+		}
+	})
+}
+
+// TestTheChipWritersRecordBothPlaysOfFreeHitAndWildcard is
+// TestTheChipWritersRecordBothPlaysOfATwoSetCell's counterpart for the two
+// chips that block never covered. Same shape, same reason: a two-set season
+// plays the free hit and the wildcard twice too, and the free-hit/wildcard gw
+// columns need their own first/second-play and one-play-leaves-the-second-
+// slot-at-zero coverage — a round trip through the real cellSink, so the new
+// columns' position in cellHeader (appended after triple_captain_pts2) is
+// exercised as well as their values.
+func TestTheChipWritersRecordBothPlaysOfFreeHitAndWildcard(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cells.csv")
+	sink, err := openCellSink(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sweep := sink.sweepLabel("T")
+
+	// A two-set cell: wildcard at GW6 and GW28, free hit at GW16 and GW31 —
+	// all four weeks distinct so a mixed-up column reads back wrong rather
+	// than agreeing by accident.
+	twoSet := sampleRow(sweep, sink.run(), "two-set", 0, "2025-26", 1)
+	twoSet.HasChipWeeks = true
+	populateChipWeekColumns(t, "two-set@1", []Week{
+		{GW: 6, Wildcard: true},
+		{GW: 16, FreeHit: true},
+		{GW: 28, Wildcard: true},
+		{GW: 31, FreeHit: true},
+	}, &twoSet)
+	sink.cell(twoSet)
+
+	// A one-play cell: only the first set's wildcard fires and the free hit
+	// never plays at all.
+	oneSet := sampleRow(sweep, sink.run(), "one-set", 1, "2025-26", 1)
+	oneSet.HasChipWeeks = true
+	populateChipWeekColumns(t, "one-set@1", []Week{
+		{GW: 4, Wildcard: true},
+	}, &oneSet)
+	sink.cell(oneSet)
+	sink.close()
+
+	_, rows := readCells(t, path)
+	if len(rows) != 2 {
+		t.Fatalf("want 2 rows, got %d", len(rows))
+	}
+	byVariant := map[string]map[string]string{}
+	for _, r := range rows {
+		byVariant[r["variant"]] = r
+	}
+
+	// (a) Both plays are recoverable, with the FIRST chronological play in
+	// the _gw column and the second in _gw2 — no _pts pair, because neither
+	// chip has one.
+	two := byVariant["two-set"]
+	want := map[string]string{
+		"wildcard_gw": "6", "wildcard_gw2": "28",
+		"free_hit_gw": "16", "free_hit_gw2": "31",
+	}
+	for col, w := range want {
+		if got := two[col]; got != w {
+			t.Errorf("two-set cell column %q = %q, want %q", col, got, w)
+		}
+	}
+	// And neither chip picked up a `_pts` column that does not exist in the
+	// header at all — a stray key here would mean the writer and the header
+	// have drifted about how wide the block is.
+	for _, missing := range []string{"wildcard_pts", "wildcard_pts2", "free_hit_pts", "free_hit_pts2"} {
+		if _, ok := two[missing]; ok {
+			t.Errorf("column %q exists; the free hit and the wildcard have no "+
+				"week-local gain and must carry no _pts pair", missing)
+		}
+	}
+
+	// (b) A one-play cell leaves _gw2 at zero, and the chip that never played
+	// at all leaves both columns at zero.
+	one := byVariant["one-set"]
+	wantOne := map[string]string{
+		"wildcard_gw": "4", "wildcard_gw2": "0",
+		"free_hit_gw": "0", "free_hit_gw2": "0",
+	}
+	for col, w := range wantOne {
+		if got := one[col]; got != w {
+			t.Errorf("one-set cell column %q = %q, want %q", col, got, w)
+		}
+	}
+}
+
+// TestTheFreeHitAndWildcardColumnsSitAfterTheChipBlockAndBeforeTheOracleBlock
+// pins the position PR #171's bench_boost_gw/triple_captain columns already
+// have a test for (floorBlockAt()+floorCols == "bench_boost_gw", in
+// optionvalue_test.go): the new columns must land at the END of the chip
+// block, immediately before bench_boost_oracle_gw, so appending them never
+// moves bench_boost_gw's own position.
+func TestTheFreeHitAndWildcardColumnsSitAfterTheChipBlockAndBeforeTheOracleBlock(t *testing.T) {
+	want := []string{"free_hit_gw", "free_hit_gw2", "wildcard_gw", "wildcard_gw2"}
+	at := floorBlockAt() + floorCols + 8 // the chip block's first 8 columns, unmoved
+	if got := cellHeader[at : at+4]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("the 4 columns after the original chip block are %v, want %v", got, want)
+	}
+	if after := cellHeader[at+4]; after != "bench_boost_oracle_gw" {
+		t.Fatalf("the column after the free-hit/wildcard pair is %q, want the "+
+			"chip-oracle block's first column", after)
+	}
+	if before := cellHeader[at-1]; before != "triple_captain_pts2" {
+		t.Fatalf("the column before the free-hit/wildcard pair is %q, want "+
+			"triple_captain_pts2", before)
+	}
 }
 
 // TestBenchBoostGWAgreesWithTheTriggerMediator is (d): bench_boost_gw must
