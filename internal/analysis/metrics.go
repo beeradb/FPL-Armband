@@ -2703,6 +2703,30 @@ func (e *Engine) matchesAvailable(el *fpl.Element) int {
 			window = started
 		}
 	}
+	// ⚠️ DataWindow counts finished GAMEWEEKS, league-wide, and clubs do not play in
+	// step. A club whose fixture has finished while its gameweek's `finished` flag has
+	// not yet flipped puts its minutes in the NUMERATOR and nothing in this
+	// denominator, so a player who has played twice is divided by one.
+	//
+	// Measured 2026-09-01, two gameweeks in: every element carried
+	// matches_available 1 while ten clubs had two finished fixtures. A keeper on two
+	// full games read 180 minutes per match. Averaged into the positional league rate
+	// that produced a GOALKEEPER BASELINE OF 135 minutes a match, and
+	// `shrinkToLeague` then handed 135 x (1 - 1/6) = 112.5 to every keeper with no
+	// prior — 49 players projected above the 90 a gameweek contains, and 32 projected
+	// a full game having played none.
+	//
+	// `minutesEvidence` already solved this, for the same reason and with the same
+	// function: a rate needs the matches the player's own CLUB has actually played.
+	// This is the fifth instance of the DataWindow-gap family (PR #44's audit named
+	// three classes; matchesAvailable is Class A and was fixed for the live-gameweek
+	// gap only, not for the flag lag that outlives it).
+	//
+	// FinishedProvisional, via TeamMatchesFinished — the football being played is what
+	// makes a match part of the denominator, not FPL having finished auditing it.
+	if played := e.TeamMatchesFinished(el.Team); played > window {
+		window = played
+	}
 	n := window - e.tournamentAbsence(el).Matches
 	if n < 1 {
 		n = 1
