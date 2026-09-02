@@ -528,6 +528,12 @@ func TestEveryCellRowIsStamped(t *testing.T) {
 		// to its own file rather than this list growing an argument it cannot
 		// carry.
 		"optionvalue_test.go": true,
+		// chipPlansFromRow's own regression test builds cellRow literals purely
+		// as schema fixtures — inputs to a pure function that reads four GW
+		// columns back off the struct, never handed to a sink or read as a
+		// simulated cell's provenance. The same category optionvalue_test.go
+		// is exempt for, in its own file for the identical reason.
+		"chipspendguard_test.go": true,
 	}
 	for _, f := range files {
 		if exempt[filepath.Base(f)] {

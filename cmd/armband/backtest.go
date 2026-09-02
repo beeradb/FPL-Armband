@@ -228,6 +228,7 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 	if chips != (analysis.ChipPlan{}) || chips2 != (analysis.ChipPlan{}) {
 		fmt.Printf("%s\n", dim(fmt.Sprintf("chip plan: %s", describeChipSets(chips, chips2))))
 	}
+	printChipSpendAdvisory(season, base.StartGW, chips, chips2)
 	fmt.Printf("\n%-30s%12s%10s%8s%10s\n", "playing the season out", "points", "transfers", "hits", "value")
 	var sim *backtest.SimResult
 	for _, pol := range policies {
@@ -329,6 +330,19 @@ func cmdBacktest(ctx context.Context, cfg config.Config, season string, payoffGW
 				"This is the gap the judgement layer exists to fill.", never)))
 	}
 	return nil
+}
+
+// printChipSpendAdvisory is advisory only, and deliberately not a hard error the
+// way ValidateChipSets is: a live run's plan may legitimately spend fewer than
+// every chip a season granted — a manager choosing to hold one back is not a bug
+// — and this command is not a sweep whose whole row the guard must refuse. It
+// exists so a plan that concentrates entirely in one half, exactly the way
+// `anchoredPlan`'s first version once did, is at least printed rather than
+// silently played. See backtest.ValidateChipSpend.
+func printChipSpendAdvisory(season string, startGW int, chips, chips2 analysis.ChipPlan) {
+	if err := backtest.ValidateChipSpend(season, startGW, chips, chips2); err != nil {
+		fmt.Printf("%s\n", dim(fmt.Sprintf("note: %v", err)))
+	}
 }
 
 // byPosition orders a squad GK, DEF, MID, FWD and by score within each, which is

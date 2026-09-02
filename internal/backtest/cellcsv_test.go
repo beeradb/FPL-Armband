@@ -295,6 +295,19 @@ type cellRow struct {
 	TripleCapPts   int
 	TripleCapGW2   int
 	TripleCapPts2  int
+	// FreeHitGW/GW2 and WildcardGW/GW2 are the same first/second-play pair,
+	// for the two chips the bench-boost/triple-captain block above does not
+	// cover. **GW only, no `_pts` columns** — unlike the bench boost and the
+	// triple captain, `Week` carries no gain field for either chip: neither
+	// has an effect confined to its own week (a wildcard's value is the squad
+	// it leaves behind, a free hit's is the fifteen it borrows), so there is
+	// no single-gameweek figure to record. Inventing one would be a new,
+	// undesigned measurement rather than an emission of something Simulate
+	// already computes.
+	FreeHitGW   int
+	FreeHitGW2  int
+	WildcardGW  int
+	WildcardGW2 int
 
 	// The chip-week oracle's three readings of each scoring chip, per cell: the
 	// best week in hindsight, the median week, and the first week clearing a
@@ -537,6 +550,7 @@ func (r cellRow) asInfeasible() cellRow {
 	r.HasChipWeeks = false
 	r.BenchBoostGW, r.BenchBoostPts, r.TripleCapGW, r.TripleCapPts = 0, 0, 0, 0
 	r.BenchBoostGW2, r.BenchBoostPts2, r.TripleCapGW2, r.TripleCapPts2 = 0, 0, 0, 0
+	r.FreeHitGW, r.FreeHitGW2, r.WildcardGW, r.WildcardGW2 = 0, 0, 0, 0
 	r.HasChipOracle, r.chipReadings = false, chipReadings{}
 	r.HasXPoints, r.PolicyXPoints, r.HoldXPoints = false, 0, 0
 	r.SquadHash = ""
@@ -554,8 +568,7 @@ type fataler interface {
 
 // populateChipWeekColumns fills a cellRow's chip-week block — HasChipWeeks must
 // already be set by the caller — from a cell's weeks, collecting every play of
-// the bench boost and the triple captain rather than tracking (and overwriting)
-// a single value.
+// each of the four chips rather than tracking (and overwriting) a single value.
 //
 // weeks is walked in ascending GW order, exactly as SimResult.Weeks is built, so
 // the first play collected is chronologically first — the same "first firing"
@@ -567,22 +580,28 @@ type fataler interface {
 // triple_captain_gw/pts recorded the second set's chip and dropped the first
 // set's points entirely.
 //
-// It fatals if either chip was played more than twice in one cell, since no
-// rule this codebase has shipped has ever granted a chip a third play in a
-// season, and a third play silently dropped would be exactly this bug again.
+// It fatals if any chip was played more than twice in one cell, since no rule
+// this codebase has shipped has ever granted a chip a third play in a season,
+// and a third play silently dropped would be exactly this bug again.
 //
 // Takes fataler rather than *testing.T so a regression test can substitute a
 // double that observes the Fatalf call instead of aborting the test that
 // makes it — see TestAThirdChipPlayFatals.
 func populateChipWeekColumns(t fataler, cellLabel string, weeks []Week, row *cellRow) {
 	t.Helper()
-	var benchBoostPlays, tripleCapPlays []Week
+	var benchBoostPlays, tripleCapPlays, freeHitPlays, wildcardPlays []Week
 	for _, w := range weeks {
 		if w.BenchBoost {
 			benchBoostPlays = append(benchBoostPlays, w)
 		}
 		if w.TripleCaptain {
 			tripleCapPlays = append(tripleCapPlays, w)
+		}
+		if w.FreeHit {
+			freeHitPlays = append(freeHitPlays, w)
+		}
+		if w.Wildcard {
+			wildcardPlays = append(wildcardPlays, w)
 		}
 	}
 	if len(benchBoostPlays) > 2 {
@@ -594,6 +613,16 @@ func populateChipWeekColumns(t fataler, cellLabel string, weeks []Week, row *cel
 		t.Fatalf("cell %s played triple captain %d times in one season; the "+
 			"writer only records two plays because no rule has ever granted a "+
 			"third — this needs revisiting", cellLabel, len(tripleCapPlays))
+	}
+	if len(freeHitPlays) > 2 {
+		t.Fatalf("cell %s played free hit %d times in one season; the writer "+
+			"only records two plays because no rule has ever granted a third — "+
+			"this needs revisiting", cellLabel, len(freeHitPlays))
+	}
+	if len(wildcardPlays) > 2 {
+		t.Fatalf("cell %s played wildcard %d times in one season; the writer "+
+			"only records two plays because no rule has ever granted a third — "+
+			"this needs revisiting", cellLabel, len(wildcardPlays))
 	}
 	if len(benchBoostPlays) > 0 {
 		row.BenchBoostGW, row.BenchBoostPts =
@@ -610,6 +639,18 @@ func populateChipWeekColumns(t fataler, cellLabel string, weeks []Week, row *cel
 	if len(tripleCapPlays) > 1 {
 		row.TripleCapGW2, row.TripleCapPts2 =
 			tripleCapPlays[1].GW, tripleCapPlays[1].TripleCaptainGain
+	}
+	if len(freeHitPlays) > 0 {
+		row.FreeHitGW = freeHitPlays[0].GW
+	}
+	if len(freeHitPlays) > 1 {
+		row.FreeHitGW2 = freeHitPlays[1].GW
+	}
+	if len(wildcardPlays) > 0 {
+		row.WildcardGW = wildcardPlays[0].GW
+	}
+	if len(wildcardPlays) > 1 {
+		row.WildcardGW2 = wildcardPlays[1].GW
 	}
 }
 
@@ -665,6 +706,7 @@ var cellHeader = []string{
 	"floor_flips_le28", "floor_flips_gt28",
 	"bench_boost_gw", "bench_boost_pts", "bench_boost_gw2", "bench_boost_pts2",
 	"triple_captain_gw", "triple_captain_pts", "triple_captain_gw2", "triple_captain_pts2",
+	"free_hit_gw", "free_hit_gw2", "wildcard_gw", "wildcard_gw2",
 	"bench_boost_oracle_gw", "bench_boost_oracle_pts",
 	"bench_boost_median_pts", "bench_boost_threshold_pts", "bench_boost_bar_pts",
 	"triple_captain_oracle_gw", "triple_captain_oracle_pts",
@@ -841,11 +883,17 @@ const (
 	// counts the arm's own decisions — where the dose is a property of the
 	// calendar alone.
 	floorCols = 2
-	// chipWeekCols is the chip block: per chip, two plays' worth of gameweek and
-	// one-off point total. Eight rather than sixteen because there are no per-gw
-	// columns here — see cellRow.HasChipWeeks for why a chip must not be
-	// normalised by weeks, and for why two plays rather than one.
-	chipWeekCols = 8
+	// chipWeekCols is the chip block: per chip, two plays' worth of gameweek,
+	// plus a one-off point total for the two chips that have one. Twelve
+	// rather than sixteen because there are no per-gw columns here — see
+	// cellRow.HasChipWeeks for why a chip must not be normalised by weeks,
+	// and for why two plays rather than one — and the free hit and the
+	// wildcard contribute only their two GW columns each, with no `_pts`
+	// pair: neither chip has a gain confined to its own week, so there is
+	// nothing for those columns to carry. Bench boost and triple captain
+	// are eight columns (four each, gw+pts x2); free hit and wildcard are
+	// four more (two each, gw x2).
+	chipWeekCols = 12
 	// chipOracleCols is the chip-week oracle's block: per chip, the hindsight
 	// week and its gain, the median week's gain, the threshold rule's, and the
 	// bar that rule was run against. Ten rather than the six readings the table
@@ -1338,9 +1386,11 @@ func (s *cellSink) cell(r cellRow) {
 			strconv.Itoa(r.BenchBoostGW), strconv.Itoa(r.BenchBoostPts),
 			strconv.Itoa(r.BenchBoostGW2), strconv.Itoa(r.BenchBoostPts2),
 			strconv.Itoa(r.TripleCapGW), strconv.Itoa(r.TripleCapPts),
-			strconv.Itoa(r.TripleCapGW2), strconv.Itoa(r.TripleCapPts2))
+			strconv.Itoa(r.TripleCapGW2), strconv.Itoa(r.TripleCapPts2),
+			strconv.Itoa(r.FreeHitGW), strconv.Itoa(r.FreeHitGW2),
+			strconv.Itoa(r.WildcardGW), strconv.Itoa(r.WildcardGW2))
 	} else {
-		rec = append(rec, "", "", "", "", "", "", "", "")
+		rec = append(rec, "", "", "", "", "", "", "", "", "", "", "", "")
 	}
 	// The chip-week oracle's readings, blank under the same rule again. A zero is
 	// especially believable here: a bench boost worth nothing in its best week is

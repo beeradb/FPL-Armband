@@ -2,6 +2,7 @@ package backtest
 
 import (
 	"fmt"
+	"strings"
 
 	"armband/internal/analysis"
 )
@@ -210,6 +211,156 @@ func ValidateChipSetsWith(season string, sets int, first, second analysis.ChipPl
 		sets = ChipSetsFor(season)
 	}
 	return validateChipSets(season, sets, first, second)
+}
+
+// ChipSetLapse declares that an arm's plan deliberately does not spend one of
+// the season's granted chip sets — a bitmask because a two-set season can
+// waste either half independently.
+//
+// It exists so `ValidateChipSpend` can tell "this arm has a bug" from "this
+// arm is measuring what happens when a set goes unspent", which several
+// diagnostics in this package already do on purpose — the two-regime sweep's
+// own arm labels say "FIRST SET WASTED" in so many words. Without a way to
+// declare that, the guard below would either miss the real bug class or
+// refuse every deliberate one alongside it.
+type ChipSetLapse uint8
+
+const (
+	LapseFirstSet ChipSetLapse = 1 << iota
+	LapseSecondSet
+)
+
+// chipSetWindow is the reachable window for the numbered set (1 or 2) of a
+// season granting `sets` sets, entered at `start` — the same construction
+// `FullAnchoredPlan` uses to decide where each chip may land, factored out
+// here so the planner and this guard cannot drift into two implementations
+// of one boundary.
+//
+// ok is false when the season does not grant that set at all (`set > sets`)
+// or the entry point leaves no week in it (a late entrant reaching a set
+// after it has already expired) — either way nothing is owed for that set,
+// and the caller must skip it rather than read lo/hi.
+func chipSetWindow(sets, set, start int) (lo, hi int, ok bool) {
+	if set < 1 || set > sets {
+		return 0, 0, false
+	}
+	lo, hi = start+1, 38
+	if sets == 2 && set == 1 {
+		hi = ChipResetGW - 1
+	} else if sets == 2 {
+		lo = ChipResetGW
+		if start+1 > lo {
+			lo = start + 1
+		}
+	}
+	if lo < 1 {
+		lo = 1
+	}
+	if lo > hi {
+		return 0, 0, false
+	}
+	return lo, hi, true
+}
+
+// ValidateChipSpend checks that every chip set a season actually granted, and
+// that the entry point can still reach, was fully spent — all four chips
+// placed somewhere in that set's window — unless the caller has declared the
+// set a deliberate lapse.
+//
+// # Why this exists beside ValidateChipSets
+//
+// `ValidateChipSets` refuses a plan that breaks FPL's rules — a chip in a
+// week its set cannot reach, two chips in one gameweek. It says nothing about
+// a plan that is perfectly LEGAL and simply never touches half the calendar:
+// every chip lands inside its own set's window, so nothing is illegal, and
+// the second set's four chips are quietly worth zero. That is not a rule
+// violation, it is a manager who forgot he had a wildcard left — and it has
+// happened to this codebase once already, silently, in a diagnostic that
+// concentrated its whole plan in one half of the season and cost the
+// measurement roughly a season's worth of chips before anyone noticed.
+//
+// sets<=0 asks the season via ChipSetsFor — the same resolution
+// ValidateChipSets itself uses, never a sweep's own declared constant, so
+// this cannot be fooled by an arm that only THINKS it is replaying under
+// today's rules.
+func ValidateChipSpend(season string, start int, first, second analysis.ChipPlan) error {
+	return validateChipSpend(season, ChipSetsFor(season), start, 0, first, second)
+}
+
+// ValidateChipSpendWith is ValidateChipSpend under an explicit set count and a
+// declared lapse. `sets` of 0 asks the season, exactly as ValidateChipSetsWith
+// does.
+func ValidateChipSpendWith(season string, sets, start int, lapse ChipSetLapse, first, second analysis.ChipPlan) error {
+	if sets <= 0 {
+		sets = ChipSetsFor(season)
+	}
+	return validateChipSpend(season, sets, start, lapse, first, second)
+}
+
+// chipSlotNames pairs PlacedChips' four fields with the names validateChipSets
+// already prints, so a "which slot is missing" error says a chip's name
+// rather than making a reader cross-reference a struct field.
+var chipSlotNames = []struct {
+	name string
+	gw   func(analysis.ChipPlan) int
+}{
+	{"wildcard", func(p analysis.ChipPlan) int { return p.Wildcard }},
+	{"bench boost", func(p analysis.ChipPlan) int { return p.BenchBoost }},
+	{"free hit", func(p analysis.ChipPlan) int { return p.FreeHit }},
+	{"triple captain", func(p analysis.ChipPlan) int { return p.TripleCaptain }},
+}
+
+// missingChipNames lists which of a plan's four chips have no week, for an
+// error a reader can act on without cross-referencing ChipPlan's fields.
+func missingChipNames(p analysis.ChipPlan) []string {
+	var out []string
+	for _, n := range chipSlotNames {
+		if n.gw(p) <= 0 {
+			out = append(out, n.name)
+		}
+	}
+	return out
+}
+
+func validateChipSpend(season string, sets, start int, lapse ChipSetLapse, first, second analysis.ChipPlan) error {
+	// The blanket exemption: an arm running no chip plan at all is the
+	// no-chip control every banked sweep cell historically used, not a
+	// manager who forgot his chips. Only the total absence of a plan is
+	// exempt — a partial one still owes an explanation, via the lapse bit.
+	if !anyChips(first) && !anyChips(second) {
+		return nil
+	}
+	plans := []struct {
+		set   int
+		bit   ChipSetLapse
+		plan  analysis.ChipPlan
+		label string
+	}{
+		{1, LapseFirstSet, first, "first"},
+		{2, LapseSecondSet, second, "second"},
+	}
+	for _, p := range plans {
+		lo, hi, ok := chipSetWindow(sets, p.set, start)
+		if !ok {
+			// Not granted, or granted but already out of reach from this
+			// entry point — either way nothing is owed and there is
+			// nothing to declare a lapse against.
+			continue
+		}
+		placed := PlacedChips(p.plan)
+		declared := lapse&p.bit != 0
+		switch {
+		case declared && placed == 4:
+			return fmt.Errorf("%s: the %s set (GW%d-%d) is declared a deliberate "+
+				"lapse but is fully spent (4/4) — a stale declaration, or the plan "+
+				"changed underneath it", season, p.label, lo, hi)
+		case !declared && placed != 4:
+			return fmt.Errorf("%s: the %s set (GW%d-%d, entered GW%d) is only "+
+				"%d/4 chips spent and not declared a lapse — missing %s",
+				season, p.label, lo, hi, start, placed, strings.Join(missingChipNames(p.plan), ", "))
+		}
+	}
+	return nil
 }
 
 func validateChipSets(season string, sets int, first, second analysis.ChipPlan) error {

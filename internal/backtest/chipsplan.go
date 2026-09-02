@@ -132,23 +132,19 @@ func FullAnchoredPlan(cur *Season, start int) analysis.ChipSchedule {
 		// The window is entry-aware: chips are only worth planning in weeks
 		// the replay will actually play, so a late entry gets the weeks it
 		// has left rather than a plan it can never reach.
-		lo, hi := start+1, 38
-		if sets == 2 && set == 1 {
-			hi = ChipResetGW - 1
-		} else if sets == 2 {
-			lo = ChipResetGW
-			if start+1 > lo {
-				lo = start + 1
-			}
-		}
-		if lo < 1 {
-			lo = 1
-		}
-		if lo > hi {
+		//
+		// Shared with ValidateChipSpend's reachability check, in chipsets.go
+		// — the two must never drift into disagreeing about which weeks a
+		// set can reach, or the guard would refuse plans this planner itself
+		// produces.
+		lo, hi, ok := chipSetWindow(sets, set, start)
+		if !ok {
 			continue
 		}
 		taken := map[int]bool{}
-		ok := true
+		// ok is already true here — chipSetWindow's own check above continued
+		// past any window it refused — and is reused as claim's running
+		// success flag for the rest of this set's picks.
 		bb := anchor(lo, hi, isDouble, taken)
 		if bb == 0 {
 			bb = hi

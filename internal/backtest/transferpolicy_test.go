@@ -73,6 +73,13 @@ type policyVariant struct {
 	// one. Zero — no hindsight — for every ordinary arm.
 	oracles Oracles
 
+	// lapse is which of this arm's chip sets it declares a deliberate waste,
+	// read the same way oracles is: not from this field directly, but probed
+	// off what apply actually installs on SimConfig.ChipLapse — see lapseOf.
+	// Zero for every ordinary arm, which is every arm that spends what it is
+	// granted.
+	lapse ChipSetLapse
+
 	// setting reads this arm's swept value back out of the config apply
 	// installed, and is written to the CSV's `setting` column.
 	//
@@ -152,13 +159,26 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 	// What hindsight each arm installs, read off a probe config rather than off
 	// the arm's own field — see oraclesOf. Done before the first cell, because
 	// every check it feeds is a reason not to run the sweep at all.
+	//
+	// lapse is probed the same way, immediately after: an arm's declared chip
+	// lapse is read from what apply actually installs, never from its own
+	// literal field, for the identical reason oracles is.
 	for vi := range variants {
 		variants[vi].oracles = oraclesOf(cfg, starts[0], variants[vi])
+		variants[vi].lapse = lapseOf(cfg, starts[0], variants[vi])
 	}
 	if err := validateOracleArms(variants); err != nil {
 		t.Fatal(err)
 	}
 	printOracleBanner(variants)
+	// Every `.plan`-carrying arm's chip schedule, resolved across the whole
+	// grid before the first cell runs: a plan that would silently discard a
+	// granted, reachable set is refused here rather than left to surface as a
+	// plausible-looking points table. See chipspendguard_test.go for why this
+	// is scoped to `.plan` rather than to every chip-installing arm.
+	if err := validateChipSpendArms(cfg, variants, pairs, starts); err != nil {
+		t.Fatal(err)
+	}
 
 	fmt.Printf("\n%-22s", "variant")
 	for _, st := range starts {
@@ -237,6 +257,15 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 					t.Fatalf("variant %q installs %s at %s@%d and %s at the probe: "+
 						"an arm's hindsight must not depend on the cell",
 						v.label, sc.Oracles.Stamp(), pair.Name, start, v.oracles.Stamp())
+				}
+				// Same rule for the declared chip lapse, and for the identical
+				// reason: an arm whose "this set is wasted on purpose" answer
+				// changed by cell would make validateChipSpendArms's pre-run
+				// check describe an arm this cell did not run.
+				if sc.ChipLapse != v.lapse {
+					t.Fatalf("variant %q installs chip-lapse %v at %s@%d and %v at "+
+						"the probe: an arm's declared lapse must not depend on the cell",
+						v.label, sc.ChipLapse, pair.Name, start, v.lapse)
 				}
 				// Identity is filled before the run, so a failure still has a
 				// row to report. BankUpTo is read off the applied config rather
@@ -360,6 +389,23 @@ func runPolicySweep(t *testing.T, variants []policyVariant, starts []int) {
 				row.HasChipWeeks = true
 				populateChipWeekColumns(t, fmt.Sprintf("%s@%d", pair.Name, start),
 					res.Weeks, &row)
+				// The post-run half of the chip-spend guard, for `.plan` arms
+				// only — see chipspendguard_test.go's file doc comment for why
+				// the scope stops there. Read off the row's own columns, which
+				// are what Simulate actually played, so this also catches a
+				// chip the plan placed in a legal week but that never actually
+				// got fielded.
+				if v.plan != nil {
+					sets := sc.ChipSets
+					if sets <= 0 {
+						sets = ChipSetsFor(pair.Name)
+					}
+					first, second := chipPlansFromRow(row, sets)
+					if err := ValidateChipSpendWith(pair.Name, sc.ChipSets, start,
+						v.lapse, first, second); err != nil {
+						t.Fatalf("%s@%d: %v", pair.Name, start, err)
+					}
+				}
 				// And the chip-week oracle's three readings of each chip, when the
 				// cell was granted one. A no-op otherwise — res.ChipOracle is nil
 				// unless AxisChipWeek is on — so this is unconditional for the same
