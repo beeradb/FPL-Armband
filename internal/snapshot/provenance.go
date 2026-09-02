@@ -3,8 +3,10 @@ package snapshot
 import (
 	"bytes"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"sort"
@@ -154,20 +156,29 @@ func writeProvenanceTo(w io.Writer, p Provenance, withHeader bool) error {
 // mode. Written before the first cell rather than after the last, so a killed
 // sweep still leaves its declaration behind — which is the entire point, since a
 // killed sweep is exactly when the declaration is needed.
+//
+// The header decision claims the file's creation with O_EXCL rather than
+// inferring it from Stat().Size(): two sweeps racing to open the SAME
+// not-yet-existing sidecar both O_CREATE it and can both observe size 0
+// before either has written a byte, and a size check has them both write a
+// header row. O_EXCL has exactly one winner; the loser gets fs.ErrExist and
+// reopens for plain append, the header already spoken for by the winner. See
+// ReadProvenance's duplicate-header skip for the reader-side defense this
+// used to depend on for files written before this fix.
 func WriteProvenance(path string, p Provenance) error {
 	if path == "" {
 		return nil
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	created := err == nil
+	if errors.Is(err, fs.ErrExist) {
+		f, err = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	}
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	return writeProvenanceTo(f, p, st.Size() == 0)
+	return writeProvenanceTo(f, p, created)
 }
 
 // ReadProvenance reads every sweep's provenance from a sidecar file, keyed by
@@ -205,10 +216,12 @@ func ReadProvenance(path string) (map[string]Provenance, error) {
 		if len(rec) < 4 {
 			continue
 		}
-		// Two concurrent sweeps can both see Size()==0 and both emit a header
-		// row. A duplicate parses fine on its own — key "sweep\x00run_id"
-		// matches no case below — but without this skip it still creates a
-		// phantom out["sweep\x00run_id"] entry.
+		// Before WriteProvenance claimed creation with O_EXCL, two concurrent
+		// sweeps could both see Size()==0 and both emit a header row. A
+		// duplicate parses fine on its own — key "sweep\x00run_id" matches no
+		// case below — but without this skip it still creates a phantom
+		// out["sweep\x00run_id"] entry. Kept as a reader-side defense for
+		// sidecars written before that fix; a fresh write cannot produce one.
 		if rec[0] == "sweep" && rec[2] == "key" {
 			continue
 		}

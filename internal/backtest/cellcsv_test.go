@@ -62,8 +62,11 @@ package backtest
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
+	"io/fs"
 	"os"
 	"sort"
 	"strconv"
@@ -968,7 +971,31 @@ type csvFile struct {
 	w *csv.Writer
 }
 
-// newCSVFile opens path for append, writing the header only if the file is new.
+// openAppendCSV opens path for append, claiming the file's creation with
+// O_EXCL rather than inferring it from Stat().Size(). Two processes racing to
+// open the SAME not-yet-existing path (two sweeps sharing one FPL_CELLS
+// target, say) both O_CREATE it and can both observe size 0 before either has
+// written a byte — a size check has them both write a header, and the
+// loser's lands mid-file as a bogus data row. O_EXCL has exactly one winner:
+// the loser gets fs.ErrExist and reopens for plain append, the header already
+// spoken for by the creator.
+func openAppendCSV(path string) (f *os.File, created bool, err error) {
+	f, err = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err == nil {
+		return f, true, nil
+	}
+	if !errors.Is(err, fs.ErrExist) {
+		return nil, false, err
+	}
+	f, err = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, false, err
+	}
+	return f, false, nil
+}
+
+// newCSVFile opens path for append, writing the header only if this call
+// claimed the file's creation.
 //
 // It refuses a file whose existing header is not this build's, which is the
 // "a cache version is not a schema check" lesson applied here: appending 23-column
@@ -980,17 +1007,12 @@ type csvFile struct {
 func newCSVFile(path string, header []string) (*csvFile, error) {
 	// Append, never truncate. Several sweeps run in one session and an earlier
 	// block's cells are not recoverable once overwritten.
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, created, err := openAppendCSV(path)
 	if err != nil {
-		return nil, err
-	}
-	st, err := f.Stat()
-	if err != nil {
-		f.Close()
 		return nil, err
 	}
 	c := &csvFile{f: f, w: csv.NewWriter(f)}
-	if st.Size() == 0 {
+	if created {
 		if err := c.w.Write(header); err != nil {
 			f.Close()
 			return nil, err
@@ -1014,6 +1036,18 @@ func checkHeader(path string, want []string) error {
 	}
 	defer r.Close()
 	got, err := csv.NewReader(r).Read()
+	if err == io.EOF {
+		// We lost the O_EXCL race in openAppendCSV: the file exists because
+		// another process just created it, but that process has not flushed
+		// its header yet, so reading it here finds nothing at all. That is a
+		// timing gap, not evidence of a schema mismatch — an empty file
+		// cannot fail this check honestly either way — so skip it rather
+		// than erroring. It never causes a second header to be written; the
+		// worst case is a genuinely mismatched schema going undetected for
+		// the one process unlucky enough to open mid-flush, which the next
+		// process to open this path will still catch.
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("%s exists but its header is unreadable: %w", path, err)
 	}

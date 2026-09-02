@@ -74,17 +74,12 @@ func openPredictionSink(path string) (*predictionSink, error) {
 	if path == "" {
 		return nil, nil
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, created, err := openAppendCSV(path)
 	if err != nil {
-		return nil, err
-	}
-	st, err := f.Stat()
-	if err != nil {
-		f.Close()
 		return nil, err
 	}
 	s := &predictionSink{f: f, w: csv.NewWriter(f), runID: runIDForProcess()}
-	if st.Size() == 0 {
+	if created {
 		if err := s.w.Write(predictionHeader); err != nil {
 			f.Close()
 			return nil, err
