@@ -1340,20 +1340,10 @@ type Engine struct {
 	// so that a cancelled or wholly rearranged round does not dilute every week
 	// after it — the same argument upcomingEvents makes for the week views.
 	//
-	// ⚠️ **Written by buildFixtureIndex, which is NOT called only once, and this
-	// slice is NOT lock-guarded.** `ApplyChipPlan` calls it a second time when a
-	// planned wildcard shortens the horizon — from a tool handler the runner fans
-	// out through an errgroup — so this slice, `byTeamUpcoming` and
-	// `Weights.Horizon` are all written unguarded while other tools are scoring
-	// players off them. Reproduced under `-race`.
-	//
-	// **Unfixed, and recorded rather than asserted away.** The race predates this
-	// field on the other two, and guarding it properly means taking the whole
-	// fixture index and the weights under a lock — a different subsystem, and one
-	// that wants its own measurement of the read-path cost, since `fixtureLoadFor`
-	// runs once per player per scoring pass. An earlier version of this comment
-	// claimed the field was built once and needed no lock; it is wrong, and it is
-	// the kind of wrong that makes the next reader skip a lock they need.
+	// **The concurrent-write race was closed by removing the mutating caller.**
+	// `internal/agent/tools.go` no longer calls `ApplyChipPlan`, which was the
+	// only place that wrote `Weights.Horizon` and rebuilt this index from tool
+	// handlers running concurrently. Pinned by `TestNoAgentToolAppliesTheChipPlanToTheSharedEngine`.
 	//
 	// The skip set has its own lock (`skipMu`) and is applied on top at read time.
 	upcomingGWs []int
@@ -1657,8 +1647,7 @@ func (e *Engine) scaleFor(pos int) ConversionScale {
 // stops scanning a club's list once it passes the end of its window.
 func (e *Engine) buildFixtureIndex() {
 	e.byTeamUpcoming = map[int][]FixtureBrief{}
-	// Rebuilt, not appended to: ApplyChipPlan calls this a second time when a
-	// planned wildcard shortens the horizon.
+	// Rebuilt, not appended to.
 	e.upcomingGWs = nil
 
 	next := e.Boot.NextEvent()

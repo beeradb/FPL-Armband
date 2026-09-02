@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -342,5 +343,47 @@ func TestSkipGameweeksExtendsTheWindow(t *testing.T) {
 	e.SetSkipGameweeks(nil)
 	if len(e.TeamFixtures(team, 5)) != len(before) {
 		t.Error("clearing the skip set did not restore the original window")
+	}
+}
+
+// TestApplyChipPlanDoesNotRebuildFixtureIndex confirms that ApplyChipPlan does
+// not call buildFixtureIndex a second time when shortening the horizon for a
+// planned wildcard. The fixture index must not be rebuilt.
+func TestApplyChipPlanDoesNotRebuildFixtureIndex(t *testing.T) {
+	e := chipEngine(t, one(ChipPlan{}))
+	up := upcomingGW(e)
+
+	// Plan a wildcard inside the horizon so EffectiveHorizon shortens it.
+	wc := up + 2
+	if wc > 38 || e.Weights.Horizon <= 2 {
+		t.Skip("no gameweek left at which a planned wildcard would shorten the horizon")
+	}
+	e.Chips = one(ChipPlan{Wildcard: wc})
+
+	// Verify the plan will actually shorten the horizon.
+	shortened, _ := e.EffectiveHorizon(e.Chips)
+	if shortened >= e.Weights.Horizon {
+		t.Skipf("wildcard at GW%d does not shorten horizon %d", wc, e.Weights.Horizon)
+	}
+
+	// Capture the current fixture index underlying pointers. If buildFixtureIndex
+	// is called a second time, these will be replaced.
+	oldByTeamUpcomingPtr := reflect.ValueOf(e.byTeamUpcoming).Pointer()
+	oldUpcomingGWsPtr := reflect.ValueOf(e.upcomingGWs).Pointer()
+
+	// Apply the chip plan, which shortens the horizon.
+	req := &OptimizeRequest{}
+	notes := e.ApplyChipPlan(req)
+	if len(notes) == 0 {
+		t.Error("ApplyChipPlan returned no notes, so the horizon change was not applied")
+	}
+
+	// Confirm the fixture index was NOT rebuilt. If buildFixtureIndex was called,
+	// the underlying map and slice would have been replaced with new allocations.
+	if newByTeamUpcomingPtr := reflect.ValueOf(e.byTeamUpcoming).Pointer(); newByTeamUpcomingPtr != oldByTeamUpcomingPtr {
+		t.Error("ApplyChipPlan called buildFixtureIndex, allocating a new byTeamUpcoming map")
+	}
+	if newUpcomingGWsPtr := reflect.ValueOf(e.upcomingGWs).Pointer(); newUpcomingGWsPtr != oldUpcomingGWsPtr {
+		t.Error("ApplyChipPlan called buildFixtureIndex, allocating a new upcomingGWs slice")
 	}
 }
