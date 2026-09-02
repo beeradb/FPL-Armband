@@ -644,10 +644,12 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 		pool = append(pool, m)
 	}
 
-	for _, id := range req.LockIDs {
-		if _, ok := byID[id]; !ok {
-			return nil, fmt.Errorf("locked player id %d not found", id)
-		}
+	// Reject a request no search can answer, before any seeding runs. This is
+	// the earliest point where both byID and the folded req.LockIDs are valid:
+	// StartIDs is folded into LockIDs at the top of this function, so the
+	// forced starters are covered by the existence half as well.
+	if err := checkLocksAndForcedStarts(req, mustStart, byID); err != nil {
+		return nil, err
 	}
 
 	// Seed: take locked players first, then fill each position greedily by
@@ -904,6 +906,81 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	}
 	sq.ExpectedPoints = sq.XIScore + sq.Captain.Score
 	return sq, nil
+}
+
+// checkLocksAndForcedStarts rejects a request no search can answer, before any
+// search runs. Two conditions, both about the request rather than the football:
+//
+//   - every locked id has to name a player the engine knows. StartIDs are
+//     folded into LockIDs before this is called, so forced starters are covered
+//     here too.
+//   - the forced starters have to fit one legal formation.
+//
+// The second is the one this function exists for. bestFormation skips any
+// formation that cannot seat `forced`, so a forced set no formation seats
+// rejects EVERY formation: it returns ok=false, materialise leaves the pick
+// empty, and the caller gets a squad with a zero-length eleven, all fifteen on
+// the bench, an empty formation string, a zero-value captain and an objective
+// quietly degenerated to benchValue over the whole squad. No error is raised
+// anywhere on that path, so forcing both of your keepers to start collapsed the
+// optimiser silently.
+//
+// ⚠️ FITTING IS A JOINT CONDITION, not a per-position one, and reading it as
+// per-position is how the first fix of this bug left the collapse reachable.
+// bestFormation needs ONE (d, m, f) with d+m+f == XISize-1, each inside its own
+// xiMin..xiMax band and each at least its forced count. The bands are
+// contiguous and xiMax sums to 13 outfield, above the ten places available, so
+// such a triple exists exactly when no position is over its own xiMax AND the
+// tightest eleven the forced set admits — max(xiMin, forced) summed over the
+// outfield — still fits in ten. Five forced defenders beside five forced
+// midfielders clears every position's own bound (both are exactly xiMax) and
+// needs eleven outfield places: the aggregate is the half that catches that,
+// and the per-position half is what catches two keepers, GKP being the one
+// place squadQuota (2) exceeds xiMax (1).
+//
+// Bounded by xiMin and xiMax, the same tables bestFormation bounds itself with,
+// so "how many can start here" has one implementation. Counted off mustStart —
+// the forced-eleven set Optimize has already resolved and threads into the
+// search — so a repeated id in StartIDs contributes once, exactly as it does in
+// xiScratch.split, which walks the squad. A position posIdx does not recognise
+// is skipped for that same reason: split skips those players, so they never
+// reach `forced` and counting them here would reject a request the search
+// handles perfectly well.
+//
+// Extracted from Optimize rather than left inline because the repository runs a
+// complexity ratchet that only turns down — see restateSquadScoreExTiebreak,
+// pulled out for the same reason. The existence loop comes with it: both halves
+// check the request against byID, neither reads anything the other does not,
+// and moving one branch out of Optimize is what pays for the new ones.
+func checkLocksAndForcedStarts(req OptimizeRequest, mustStart map[int]bool, byID map[int]PlayerMetrics) error {
+	for _, id := range req.LockIDs {
+		if _, ok := byID[id]; !ok {
+			return fmt.Errorf("locked player id %d not found", id)
+		}
+	}
+
+	var forced [4]int
+	for id := range mustStart {
+		if i := posIdx(byID[id].Position); i >= 0 {
+			forced[i]++
+		}
+	}
+
+	// posNames order rather than the map's, so a request that overflows two
+	// positions names the same one on every run.
+	for i, pos := range posNames {
+		if forced[i] > xiMax[pos] {
+			return fmt.Errorf("%d players are forced to start at %s, but only %d can start at %s: clear one from must_start",
+				forced[i], pos, xiMax[pos], pos)
+		}
+	}
+
+	outfield := max(xiMin["DEF"], forced[1]) + max(xiMin["MID"], forced[2]) + max(xiMin["FWD"], forced[3])
+	if outfield > XISize-1 {
+		return fmt.Errorf("forced starters cannot fit one legal formation: %d DEF, %d MID and %d FWD need %d outfield places once every position's minimum is filled, and an eleven has %d: clear one from must_start",
+			forced[1], forced[2], forced[3], outfield, XISize-1)
+	}
+	return nil
 }
 
 // restateSquadScoreExTiebreak puts SquadScore on the same basis as every other
