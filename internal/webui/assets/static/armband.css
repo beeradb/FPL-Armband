@@ -1295,9 +1295,34 @@ button{font-family:inherit;color:inherit;}
 
 /* The page stays readable while a save is in flight. Freezing it would hide the squad the
    reader is deciding about; dimming the controls says "not yet" without taking the page
-   away. Pointer events go, so a second click cannot apply a change twice. */
-body.saving .card,body.saving .btn,body.saving .iconbtn,body.saving .chipbtn{opacity:.55;pointer-events:none;}
+   away. Pointer events go, so a second click cannot apply a change twice.
+
+   .cmrow and .gw were missing from this list until 2026-09-02 -- the chip menu and the
+   gameweek rail stayed clickable mid-save, which is how a second chip click or a second
+   past-gameweek tap could queue on top of one already in flight. */
+body.saving .card,body.saving .btn,body.saving .iconbtn,body.saving .chipbtn,
+body.saving .cmrow,body.saving .gw{opacity:.55;pointer-events:none;}
 body.saving{cursor:progress;}
+
+/* .working marks the ONE control the reader just pressed, so it reads as busy rather than
+   merely unavailable like every other control the block above dims. Same specificity as
+   the dim rule above (one type selector, two classes) and placed after it, so the cascade
+   -- not a specificity fight -- is what makes a pressed control stay lit while its
+   siblings go dull. A bare `.working` rule covers the paths that never set body.saving at
+   all: #suggestBtn (a GET, no session write) and .gw (a past-gameweek result fetch, see
+   selectPastGameweek's own fix below). border comes from an inset box-shadow rather than a
+   border so nothing shifts by a pixel when the state toggles. */
+body.saving .working,.working{opacity:1;pointer-events:none;box-shadow:inset 0 0 0 1px var(--band);}
+
+/* Layer B: staleness. Added by app.js only once a save has been in flight for 250ms --
+   see sendSave's own comment for why that delay exists -- so a lock toggle that round
+   trips in under a quarter second never touches these figures at all. Colour only, no
+   reflow: the score bug and the model-delta pill are read at a glance while the reader is
+   mid-decision, and a dimension change here would jump the very numbers a decision hinges
+   on right as it's being read. */
+body.saving.slow #scorebug .sb-big,
+body.saving.slow #scorebug .sb-cell .v,
+body.saving.slow #vsmodel{color:var(--ink3);}
 
 /* The toast. Bottom centre on desktop, above the tab bar on mobile, and never over the
    thing it is talking about. */
