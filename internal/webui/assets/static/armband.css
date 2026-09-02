@@ -1308,10 +1308,17 @@ body.saving{cursor:progress;}
    merely unavailable like every other control the block above dims. Same specificity as
    the dim rule above (one type selector, two classes) and placed after it, so the cascade
    -- not a specificity fight -- is what makes a pressed control stay lit while its
-   siblings go dull. A bare `.working` rule covers the paths that never set body.saving at
-   all: #suggestBtn (a GET, no session write) and .gw (a past-gameweek result fetch, see
-   selectPastGameweek's own fix below). border comes from an inset box-shadow rather than a
-   border so nothing shifts by a pixel when the state toggles. */
+   siblings go dull. A bare `.working` rule covers the one path that never sets
+   body.saving at all: #suggestBtn (a GET, no session write; app.js's suggestTransfers()
+   marks it directly). border comes from an inset box-shadow rather than a border so
+   nothing shifts by a pixel when the state toggles.
+
+   ⚠️ .gw is NOT marked .working -- its past-gameweek result fetch (selectPastGameweek's
+   own fix, app.js) sets aria-busy directly, without the class, so a .gw tab loading a
+   result gets no visual ring here. It still gets the body.saving dim above like any other
+   control if an UNRELATED save happens to be running at the same time; that's an accepted
+   minor inconsistency, not a bug -- see renderPastResults's own comment for the loading
+   line that carries the real feedback for that path. */
 body.saving .working,.working{opacity:1;pointer-events:none;box-shadow:inset 0 0 0 1px var(--band);}
 
 /* Layer B: staleness. Added by app.js only once a save has been in flight for 250ms --

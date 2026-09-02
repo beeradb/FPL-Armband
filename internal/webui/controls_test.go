@@ -844,3 +844,146 @@ const probeOptimiseWorking = `(function(){
   }
   window.addEventListener('load', go);
 })();`
+
+// TestClearWorkingRespectsWhichRoundTripAMarkBelongsTo pins the cross-flow bug found in code
+// review while building the optimistic-feedback layer, 2026-09-02, and fixed by tagging
+// markWorking/clearWorking with WHICH round trip they belong to ('session' for
+// save()/sendSave, 'transfers' for suggestTransfers, 'import' for importTeam).
+//
+// # The defect
+//
+// clearWorking() originally swept the WHOLE document for any .working element, with no
+// notion of which network round trip a given mark belonged to. #optimise (a save(), via PUT
+// /api/session) and #suggestBtn (a GET /api/transfers) can be genuinely concurrent -- nothing
+// stops a reader pressing "Suggest transfers" and then "Optimise" before the GET returns. If
+// the save answered first, sendSave's own clearWorking() call -- meant only to clean up ITS
+// OWN control -- also found and cleared #suggestBtn, which was still genuinely waiting on the
+// server: silently removing its pointer-events:none guard and reverting its label while the
+// GET was still in flight, so a reader could click it again and fire a second, unguarded
+// request.
+//
+// # Why this drives markWorking/clearWorking directly rather than clicking two controls
+//
+// An earlier version of this test drove #suggestBtn and #optimise through real clicks, with
+// the mock /api/transfers handler holding its response open on a channel to create a genuine
+// window where one round trip had answered and the other had not. It reproducibly failed even
+// against the FIXED code: headless Chromium's --virtual-time-budget (see browsertest.go's own
+// package comment) freezes the page's JS timers while ANY real network request is genuinely
+// outstanding, and only resumes them once network activity settles. So every setTimeout-based
+// poll -- including the one meant to catch the "save answered, GET still pending" window --
+// was itself deferred until AFTER the held-open GET finally resolved, by which point
+// suggestTransfers's own .then had already cleared #suggestBtn on its own: the test observed
+// the CORRECT eventual state and mistook it for evidence the bug was still present. A real
+// pending fetch cannot be used to hold a browser-timer-based probe in an intermediate state in
+// this harness.
+//
+// Calling markWorking/clearWorking directly sidesteps that entirely: no fetch, no timer, no
+// virtual-time interaction -- just the same functions app.js's own call sites use, called in
+// the same synchronous order sendSave's and suggestTransfers's completion handlers use them,
+// against real DOM elements from the real rendered page.
+func TestClearWorkingRespectsWhichRoundTripAMarkBelongsTo(t *testing.T) {
+	browser := browsertest.Find(t)
+
+	// #suggestBtn only renders once an entry is imported AND the server has attached
+	// Transfers for it (renderSquadSourceBanner's own comment) -- gameweek-one.json, most
+	// other tests' fixture, has neither, so #suggestBtn would never exist to be marked.
+	body, err := os.ReadFile(filepath.Join("testdata", "state", "import-transfers-two.json"))
+	if err != nil {
+		t.Fatalf("reading the state fixture: %v", err)
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/assets/", webui.StaticHandler("/assets/"))
+	mux.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_, _ = w.Write(body)
+	})
+	mux.HandleFunc("/probe.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		_, _ = w.Write([]byte(probeClearWorkingScope))
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		page, err := webui.Page("app")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		page = append(page, []byte(`<script src="/probe.js"></script>`)...)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(page)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app")
+	report := between(dom, "PROBE:", ":END")
+	if report == "" {
+		t.Fatalf("the probe never reported, so nothing ran and this test asserts nothing. "+
+			"DOM was %d bytes", len(dom))
+	}
+	if !strings.HasPrefix(report, "ok ") {
+		t.Fatalf("the probe could not run: %s", report)
+	}
+
+	if !strings.Contains(report, "bothMarkedBefore=true") {
+		t.Fatalf("markWorking did not mark both controls to begin with -- the rest of this "+
+			"test cannot mean anything. Probe: %s", report)
+	}
+	if !strings.Contains(report, "aClearedBySessionSweep=true") {
+		t.Errorf("clearWorking('session') did not clear the control it was tagged for. "+
+			"Probe: %s", report)
+	}
+	if !strings.Contains(report, "bStillWorkingAfterSessionSweep=true") {
+		t.Errorf("clearWorking('session') cleared a control tagged 'transfers' -- this is "+
+			"the bug: a completing save() must not silently end an unrelated, still-pending "+
+			"GET /api/transfers's busy indicator. Probe: %s", report)
+	}
+	if !strings.Contains(report, "bBusyAfterSessionSweep=true") {
+		t.Errorf("clearWorking('session') removed aria-busy from a control it does not own. "+
+			"Probe: %s", report)
+	}
+	if !strings.Contains(report, "bClearedByTransfersSweep=true") {
+		t.Errorf("clearWorking('transfers') never cleared the control actually tagged "+
+			"'transfers' -- the fix must not leave it stuck working forever either. "+
+			"Probe: %s", report)
+	}
+}
+
+// probeClearWorkingScope marks #optimise 'session' and #suggestBtn 'transfers' directly
+// (no click, no fetch), then calls clearWorking('session') and checks that #suggestBtn is
+// UNAFFECTED, before calling clearWorking('transfers') and checking that it clears too.
+const probeClearWorkingScope = `(function(){
+  function report(msg){
+    var el=document.createElement('div');
+    el.id='probe';
+    el.textContent='PROBE:'+msg+':END';
+    document.body.appendChild(el);
+  }
+  var tries=0;
+  function go(){
+    var a=document.getElementById('optimise');
+    var b=document.getElementById('suggestBtn');
+    if(!a||!b){
+      if(++tries>100){ report('controls not found after '+tries+' tries'); return; }
+      setTimeout(go,50); return;
+    }
+    markWorking(a, 'A working…', 'session');
+    markWorking(b, 'B working…', 'transfers');
+    var bothMarkedBefore = a.classList.contains('working') && b.classList.contains('working');
+
+    clearWorking('session');
+    var aClearedBySessionSweep = !a.classList.contains('working');
+    var bStillWorkingAfterSessionSweep = b.classList.contains('working');
+    var bBusyAfterSessionSweep = b.getAttribute('aria-busy')==='true';
+
+    clearWorking('transfers');
+    var bClearedByTransfersSweep = !b.classList.contains('working');
+
+    report('ok bothMarkedBefore='+bothMarkedBefore+
+      ' aClearedBySessionSweep='+aClearedBySessionSweep+
+      ' bStillWorkingAfterSessionSweep='+bStillWorkingAfterSessionSweep+
+      ' bBusyAfterSessionSweep='+bBusyAfterSessionSweep+
+      ' bClearedByTransfersSweep='+bClearedByTransfersSweep);
+  }
+  window.addEventListener('load', go);
+})();`
