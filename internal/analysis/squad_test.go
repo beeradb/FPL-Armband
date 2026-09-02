@@ -488,3 +488,271 @@ func TestTheSeatingCheckAgreesWithTheFormationSearch(t *testing.T) {
 		}
 	}
 }
+
+// boundedRevisionBase builds a legal fifteen and returns its element ids, for
+// the bounded-revision guards below to hand back as CurrentSquad.
+//
+// Taken from Optimize itself rather than assembled by hand so the seed is a
+// squad this engine actually believes in: legal, inside the budget, and every
+// member in the pool the same request builds. A bounded call on it therefore
+// reaches the seed check with nothing else able to turn it back, which is what
+// makes the liveness case below mean anything.
+func boundedRevisionBase(t *testing.T, e *Engine) []int {
+	t.Helper()
+	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500})
+	if err != nil {
+		t.Fatalf("Optimize: %v", err)
+	}
+	if len(sq.Players) != SquadSize {
+		t.Fatalf("base squad size = %d, want %d", len(sq.Players), SquadSize)
+	}
+	ids := make([]int, 0, SquadSize)
+	for _, p := range sq.Players {
+		ids = append(ids, p.ID)
+	}
+	return ids
+}
+
+// idOutsideSquad returns an id the engine knows and `ids` does not hold.
+//
+// Screened on price and minutes the way cheapIDsAt screens on price and club,
+// and for the same reason: a lock is added to the pool unconditionally and paid
+// for out of the same budget, so a £14m striker risks the request being refused
+// by the budget rather than by the check under test, and the test would then
+// report a pass it had not earned.
+func idOutsideSquad(t *testing.T, e *Engine, ids []int) int {
+	t.Helper()
+	held := map[int]bool{}
+	for _, id := range ids {
+		held[id] = true
+	}
+	for _, m := range e.AllMetrics() {
+		if !held[m.ID] && m.Price <= 5.0 && m.Minutes > 500 {
+			return m.ID
+		}
+	}
+	t.Skip("no cheap settled player outside the base fifteen")
+	return 0
+}
+
+// heldDistance counts how many of `ids` the returned squad no longer holds —
+// the number of transfers the answer actually costs, which is the quantity
+// MaxChanges bounds.
+func heldDistance(ids []int, players []PlayerMetrics) int {
+	have := map[int]bool{}
+	for _, p := range players {
+		have[p.ID] = true
+	}
+	gone := 0
+	for _, id := range ids {
+		if !have[id] {
+			gone++
+		}
+	}
+	return gone
+}
+
+// TestABoundedRevisionRefusesAnUnresolvableHeldPlayer pins the first half of the
+// silent bounded-path fallback.
+//
+// A bounded request is "improve the squad I own by at most k moves". Resolving
+// CurrentSquad against the scored pool is what makes that squad the search's
+// seed, and one id the engine cannot price used to abandon the whole idea: the
+// seed silently reverted to the GREEDY build, which is a different fifteen
+// chosen with no regard for MaxChanges at all. So the caller was answered with
+// an unbounded rebuild, scored and returned as though it were a k-change
+// revision — a fallback in the expensive direction, since acting on it costs
+// transfers the caller was told it would not.
+//
+// ON THE PRE-FIX CODE THIS REQUEST RETURNS err == nil, which is why the failure
+// message reports the returned squad's distance from CurrentSquad against the
+// bound it was given: a regression then reads as the bound being ignored rather
+// than as a missing error.
+func TestABoundedRevisionRefusesAnUnresolvableHeldPlayer(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)
+	// An id no bootstrap issues. Kept well clear of the real range rather than
+	// "one past the largest", which a fresh capture could turn into a real
+	// player and quietly make this test pass for the wrong reason.
+	const ghost = 999999
+	for _, m := range e.AllMetrics() {
+		if m.ID == ghost {
+			t.Skipf("id %d names a real player in this capture", ghost)
+		}
+	}
+	ids[len(ids)-1] = ghost
+
+	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500, CurrentSquad: ids, MaxChanges: 2})
+	if err == nil {
+		if sq == nil {
+			t.Fatal("an unpriceable held player was accepted, returning no squad and no error")
+		}
+		t.Fatalf("an unpriceable held player was accepted: the answer is %d changes from the squad handed in, against a bound of 2",
+			heldDistance(ids, sq.Players))
+	}
+	if !strings.Contains(err.Error(), "999999") {
+		t.Errorf("error does not name the id it could not resolve: %v", err)
+	}
+	if sq != nil {
+		t.Errorf("an error came back with a squad attached: %+v", sq)
+	}
+}
+
+// TestABoundedRevisionRefusesASquadOfTheWrongSize is the arity half of the same
+// fallback. Fourteen ids is not a squad to revise, and it used to be answered
+// with the unbounded greedy rebuild for the same reason an unpriceable id was:
+// one `if` stood between three distinct malformed requests and a silent change
+// of question.
+func TestABoundedRevisionRefusesASquadOfTheWrongSize(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)[:SquadSize-1]
+
+	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500, CurrentSquad: ids, MaxChanges: 2})
+	if err == nil {
+		if sq == nil {
+			t.Fatal("a short current squad was accepted, returning no squad and no error")
+		}
+		t.Fatalf("a %d-player current squad was accepted as a bounded revision, %d changes from what was handed in",
+			len(ids), heldDistance(ids, sq.Players))
+	}
+	if !strings.Contains(err.Error(), "want 15") {
+		t.Errorf("error does not state the size it wanted: %v", err)
+	}
+	if sq != nil {
+		t.Errorf("an error came back with a squad attached: %+v", sq)
+	}
+}
+
+// TestABoundedRevisionRefusesALockItCannotSeed pins the second half: a lock the
+// seed does not already hold.
+//
+// polish only refuses to REMOVE a locked player, and nothing on the bounded path
+// puts one IN — the DP seeds do pre-place locks, and they are skipped under a
+// bound precisely because every one of them is a fresh fifteen. So a lock the
+// current squad does not own was never bought, and the caller got a squad
+// without him and err == nil: the request said "keep this player" and the answer
+// silently did not have him.
+//
+// ON THE PRE-FIX CODE err == nil AND THE LOCK IS ABSENT from sq.Players, and the
+// failure message reports both so a regression names the drop rather than a
+// missing error.
+func TestABoundedRevisionRefusesALockItCannotSeed(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)
+	outsider := idOutsideSquad(t, e, ids)
+
+	sq, err := e.Optimize(OptimizeRequest{
+		MinMinutes: 500, CurrentSquad: ids, MaxChanges: 1, LockIDs: []int{outsider},
+	})
+	if err == nil {
+		if sq == nil {
+			t.Fatal("an unseedable lock was accepted, returning no squad and no error")
+		}
+		held := false
+		for _, p := range sq.Players {
+			if p.ID == outsider {
+				held = true
+			}
+		}
+		t.Fatalf("an unseedable lock was accepted; locked player %d in the returned fifteen: %v, and the answer is %d changes from the squad handed in against a bound of 1",
+			outsider, held, heldDistance(ids, sq.Players))
+	}
+	if !strings.Contains(err.Error(), "not in the current squad") {
+		t.Errorf("rejected, but not by the seed's lock check: %v", err)
+	}
+	if sq != nil {
+		t.Errorf("an error came back with a squad attached: %+v", sq)
+	}
+}
+
+// TestABoundedRevisionRefusesAForcedStarterItCannotSeed is the must_start
+// spelling of the test above, and a separate test rather than a subtest because
+// the two arrive through different request fields.
+//
+// A forced starter is a stricter lock — in the squad AND in the eleven — and
+// StartIDs is folded into LockIDs at the top of Optimize so that exactly one
+// piece of code has to know about it. This test is what makes that fold
+// load-bearing rather than incidental: on the pre-fix code a forced starter the
+// current squad did not own was dropped from the FIFTEEN entirely, with
+// err == nil, which is worse than not forcing him at all. Unpick the fold and
+// this test fails while the LockIDs one above still passes.
+func TestABoundedRevisionRefusesAForcedStarterItCannotSeed(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)
+	outsider := idOutsideSquad(t, e, ids)
+
+	sq, err := e.Optimize(OptimizeRequest{
+		MinMinutes: 500, CurrentSquad: ids, MaxChanges: 1, StartIDs: []int{outsider},
+	})
+	if err == nil {
+		if sq == nil {
+			t.Fatal("an unseedable forced starter was accepted, returning no squad and no error")
+		}
+		inSquad, inXI := false, false
+		for _, p := range sq.Players {
+			if p.ID == outsider {
+				inSquad = true
+			}
+		}
+		for _, p := range sq.StartingXI {
+			if p.ID == outsider {
+				inXI = true
+			}
+		}
+		t.Fatalf("an unseedable forced starter was accepted; player %d in the fifteen: %v, in the XI: %v",
+			outsider, inSquad, inXI)
+	}
+	if !strings.Contains(err.Error(), "not in the current squad") {
+		t.Errorf("rejected, but not by the seed's lock check: %v", err)
+	}
+	if sq != nil {
+		t.Errorf("an error came back with a squad attached: %+v", sq)
+	}
+}
+
+// TestABoundedRevisionStillHoldsALockItAlreadyOwns is the liveness half, and it
+// is the whole reason the refusals above can be trusted: a guard that rejected
+// every bounded request would satisfy every one of them.
+//
+// So this asserts the passing direction end to end — the call succeeds, the
+// answer is a legal fifteen, it still holds the lock, and it stays inside
+// MaxChanges. That last clause is what says the seed really was CurrentSquad
+// rather than the greedy build the old code fell back to, so it checks the fix
+// as well as the guard.
+func TestABoundedRevisionStillHoldsALockItAlreadyOwns(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)
+	lockID := ids[0]
+
+	sq, err := e.Optimize(OptimizeRequest{
+		MinMinutes: 500, CurrentSquad: ids, MaxChanges: 1, LockIDs: []int{lockID},
+	})
+	if err != nil {
+		t.Fatalf("a bounded revision holding its own lock was rejected: %v", err)
+	}
+	if len(sq.Players) != SquadSize {
+		t.Fatalf("squad size = %d, want %d", len(sq.Players), SquadSize)
+	}
+	held := false
+	for _, p := range sq.Players {
+		if p.ID == lockID {
+			held = true
+		}
+	}
+	if !held {
+		t.Errorf("locked player %d is missing from the revised squad", lockID)
+	}
+	if d := heldDistance(ids, sq.Players); d > 1 {
+		t.Errorf("the revision made %d changes, against a bound of 1", d)
+	}
+}

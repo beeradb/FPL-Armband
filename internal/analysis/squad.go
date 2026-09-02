@@ -781,11 +781,17 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	// wrong starting point when only a couple of players may move: it is a
 	// different fifteen, so almost every step back toward yours is spent on the
 	// budget rather than on improving anything.
+	//
+	// A request boundedRevisionSeed refuses is an ERROR here, never a fall back
+	// to the greedy build — see that function for why the fallback was the whole
+	// bug.
 	seedSquad := squadSlice(selected)
 	if !changes.unlimited() {
-		if owned := ownedSquad(req.CurrentSquad, byID); len(owned) == SquadSize {
-			seedSquad = owned
+		seed, err := boundedRevisionSeed(req, byID, locked)
+		if err != nil {
+			return nil, err
 		}
+		seedSquad = seed
 	}
 
 	// The inner half of the stage timings buildSquadPage prints: that one says
@@ -981,6 +987,72 @@ func checkLocksAndForcedStarts(req OptimizeRequest, mustStart map[int]bool, byID
 			forced[1], forced[2], forced[3], outfield, XISize-1)
 	}
 	return nil
+}
+
+// boundedRevisionSeed resolves CurrentSquad into the fifteen a bounded revision
+// searches from, or says why the request cannot be answered at all.
+//
+// EVERY failure here is an error rather than a fall back to the greedy build,
+// and that is the whole point of the function. The greedy fifteen is unbounded —
+// it ignores MaxChanges entirely — so falling back to it answers "revise my
+// squad by at most k" with "here is a different squad", scored and returned as
+// though it were a k-change revision. That is a fallback in the expensive
+// direction: the caller acts on a plan it cannot afford in transfers. Three
+// distinct malformed requests used to share one silent `if` at the call site.
+//
+//   - A CurrentSquad that is not fifteen players.
+//   - An id the engine cannot price. ownedSquad names the first miss in slice
+//     order rather than the map's, so one bad request names one id every run.
+//   - A lock the seed cannot hold, which is the subtle one.
+//
+// On that last: checkLocksAndForcedStarts has already confirmed every locked id
+// names a player the engine knows, and this is the stricter bounded-path
+// question of whether he is one of the fifteen the revision starts from. polish
+// only refuses to REMOVE a lock (dpseed.go's `if locked[out.ID]`) and nothing
+// inserts one, and the DP seeds — the one stage that does pre-place locked
+// players — are skipped under a bound, because every seed is a fresh fifteen
+// further from CurrentSquad than the budget allows. So a lock outside
+// CurrentSquad was simply never bought, and the caller got a squad without him
+// and a nil error.
+//
+// Forced starters arrive folded into locked and req.LockIDs, so must_start is
+// covered by the same check — and it had the worse spelling of the two, since a
+// forced starter the current squad does not own was dropped from the FIFTEEN
+// entirely, which is worse than not forcing him at all.
+//
+// Deliberately NOT taken: forcing the lock in by evicting a held player and
+// charging the change budget for it. Choosing the eviction is a search decision
+// with its own legality and budget reasoning — a feature that belongs behind its
+// own measurement, not inside a guard.
+//
+// A free function rather than inline, for the reason given on
+// checkLocksAndForcedStarts: the repository runs a complexity ratchet that only
+// turns down, so Optimize pays for a new branch by giving one up.
+func boundedRevisionSeed(req OptimizeRequest, byID map[int]PlayerMetrics, locked map[int]bool) ([]PlayerMetrics, error) {
+	if len(req.CurrentSquad) != SquadSize {
+		return nil, fmt.Errorf("current squad has %d players, want %d", len(req.CurrentSquad), SquadSize)
+	}
+	seed, err := ownedSquad(req.CurrentSquad, byID)
+	if err != nil {
+		return nil, err
+	}
+
+	// holdsLocks stays the gate, so "are all locks held" keeps one
+	// implementation; the loop below only names the id, and walks req.LockIDs
+	// rather than the map so a request missing two locks names the same one on
+	// every run.
+	if !holdsLocks(seed, locked) {
+		held := make(map[int]bool, len(seed))
+		for _, p := range seed {
+			held[p.ID] = true
+		}
+		for _, id := range req.LockIDs {
+			if !held[id] {
+				return nil, fmt.Errorf("locked player id %d is not in the current squad, and a bounded revision cannot transfer him in — raise max_changes or clear him from lock_players/must_start", id)
+			}
+		}
+	}
+	return seed, nil
 }
 
 // restateSquadScoreExTiebreak puts SquadScore on the same basis as every other
@@ -2357,18 +2429,23 @@ func XIPoints(e *Engine, squad []int) float64 {
 }
 
 // ownedSquad resolves the caller's squad ids against the scored pool, in a
-// stable order. It returns nil if any player is missing, since a partial squad
-// is not a legal starting point.
-func ownedSquad(ids []int, byID map[int]PlayerMetrics) []PlayerMetrics {
+// stable order. A single unresolvable id is an error, not a shorter squad: a
+// partial squad is not a legal starting point, and the caller's only sensible
+// response is to say which id it could not price.
+//
+// It names the FIRST miss in `ids` order rather than collecting them, so the
+// message is deterministic — ranging a map here would name a different id on
+// different runs of the same request.
+func ownedSquad(ids []int, byID map[int]PlayerMetrics) ([]PlayerMetrics, error) {
 	out := make([]PlayerMetrics, 0, len(ids))
 	for _, id := range ids {
 		m, ok := byID[id]
 		if !ok || m.ID == 0 {
-			return nil
+			return nil, fmt.Errorf("current squad player id %d not found", id)
 		}
 		out = append(out, m)
 	}
-	return out
+	return out, nil
 }
 
 // clearsMinutesFloor reports whether a candidate has enough recorded football
