@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -213,5 +214,141 @@ func TestOptimizeRespectsExpectedMinutesFloor(t *testing.T) {
 			t.Errorf("XI contains %s at %.1f expected minutes, below the 60 floor",
 				p.Name, p.ExpectedMinutes)
 		}
+	}
+}
+
+// gkpIDs returns the element ids of the first n goalkeepers in the pool.
+func gkpIDs(t *testing.T, e *Engine, n int) []int {
+	t.Helper()
+	var out []int
+	for _, m := range e.AllMetrics() {
+		if m.Position == "GKP" {
+			out = append(out, m.ID)
+			if len(out) == n {
+				return out
+			}
+		}
+	}
+	t.Skipf("pool holds %d goalkeepers, need %d", len(out), n)
+	return nil
+}
+
+// TestTwoForcedStartingGoalkeepersAreRejected pins the collapse that forcing
+// both keepers to start used to produce.
+//
+// GKP is the only position where squadQuota (2) exceeds xiMax (1), so two
+// forced keepers cannot be seated by any formation. bestFormation skipped every
+// candidate on exactly that test, returned ok=false, and materialise left the
+// pick empty — so ON THE PRE-FIX CODE THIS REQUEST RETURNED err == nil AND A
+// SQUAD WITH A ZERO-LENGTH XI, all fifteen benched, Formation == "", a
+// zero-value captain, and an objective quietly degenerated to benchValue over
+// the whole squad. That is what the failure message below reports, so the test
+// fails on the old code by naming the collapse rather than by a bare
+// "wanted an error".
+//
+// No live-gap skip on purpose. The rejection is a statement about the squad
+// rules, not about any football, so it must hold in every data state.
+func TestTwoForcedStartingGoalkeepersAreRejected(t *testing.T) {
+	e := testEngine(t)
+	ids := gkpIDs(t, e, 2)
+
+	squad, err := e.Optimize(OptimizeRequest{MinMinutes: 500, StartIDs: ids})
+	if err == nil {
+		t.Fatalf("two forced keepers were accepted; XI %d, bench %d, formation %q",
+			len(squad.StartingXI), len(squad.Bench), squad.Formation)
+	}
+	if !strings.Contains(err.Error(), "can start at GKP") {
+		t.Errorf("error does not name the position that overflowed: %v", err)
+	}
+	if squad != nil {
+		t.Errorf("an error came back with a squad attached: %+v", squad)
+	}
+}
+
+// TestOneForcedStartingGoalkeeperStillBuilds is the liveness half: the check
+// above must reject the infeasible request without rejecting the legal one that
+// sits immediately below it. One forced keeper is exactly xiMax["GKP"].
+func TestOneForcedStartingGoalkeeperStillBuilds(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+	ids := gkpIDs(t, e, 1)
+
+	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500, StartIDs: ids})
+	if err != nil {
+		t.Fatalf("one forced keeper was rejected: %v", err)
+	}
+	if len(sq.Players) != SquadSize {
+		t.Errorf("squad size = %d, want %d", len(sq.Players), SquadSize)
+	}
+	started := false
+	for _, p := range sq.StartingXI {
+		if p.ID == ids[0] {
+			started = true
+		}
+	}
+	if !started {
+		t.Errorf("the forced keeper is not in the XI; formation %q", sq.Formation)
+	}
+	byPos := map[string]int{}
+	for _, p := range sq.StartingXI {
+		byPos[p.Position]++
+	}
+	if !LegalFormation(byPos) {
+		t.Errorf("illegal formation %q from %v", sq.Formation, byPos)
+	}
+}
+
+// TestForcedStartersUpToTheOutfieldMaximumAreAccepted guards the new check
+// against over-rejecting.
+//
+// It is written over an outfield position rather than GKP because the check is
+// general: five defenders is xiMax["DEF"] and also squadQuota["DEF"], so it is
+// the tightest legal outfield request there is, and an off-by-one in the bound
+// would refuse it.
+func TestForcedStartersUpToTheOutfieldMaximumAreAccepted(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	// Cheap defenders from distinct clubs: the club cap and the budget are not
+	// what this test is about, so neither should be allowed to decide it.
+	var ids []int
+	seenClub := map[string]bool{}
+	for _, m := range e.AllMetrics() {
+		if m.Position != "DEF" || m.Price > 4.5 || seenClub[m.Team] {
+			continue
+		}
+		seenClub[m.Team] = true
+		ids = append(ids, m.ID)
+		if len(ids) == xiMax["DEF"] {
+			break
+		}
+	}
+	if len(ids) < xiMax["DEF"] {
+		t.Skipf("only %d cheap defenders from distinct clubs, need %d", len(ids), xiMax["DEF"])
+	}
+
+	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500, StartIDs: ids})
+	if err != nil {
+		t.Fatalf("%d forced defenders is xiMax and was rejected: %v", len(ids), err)
+	}
+	forced := map[int]bool{}
+	for _, id := range ids {
+		forced[id] = true
+	}
+	seated := 0
+	for _, p := range sq.StartingXI {
+		if forced[p.ID] {
+			seated++
+		}
+	}
+	if seated != len(ids) {
+		t.Errorf("%d of %d forced defenders started, formation %q", seated, len(ids), sq.Formation)
+	}
+	byPos := map[string]int{}
+	for _, p := range sq.StartingXI {
+		byPos[p.Position]++
+	}
+	if !LegalFormation(byPos) {
+		t.Errorf("illegal formation %q from %v", sq.Formation, byPos)
 	}
 }

@@ -650,6 +650,45 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 		}
 	}
 
+	// More forced starters at a position than the eleven can seat is
+	// infeasible, and it has to be said here rather than discovered downstream.
+	//
+	// bestFormation rejects any formation that cannot seat `forced`, so an
+	// over-subscribed position rejects EVERY formation: it returns ok=false,
+	// materialise leaves the pick empty, and the caller gets a squad with a
+	// zero-length eleven, all fifteen on the bench, an empty formation string,
+	// a zero-value captain and an objective that has quietly degenerated to
+	// benchValue over the whole squad. No error is raised anywhere on that
+	// path. GKP is the only position where this is reachable through the squad
+	// rules alone — it is the one place squadQuota (2) exceeds xiMax (1) — so
+	// forcing both of your keepers to start collapsed the optimiser silently.
+	//
+	// Placed after the existence loop above and before any seeding, because
+	// this is the earliest point where both byID and the folded req.LockIDs
+	// are valid: StartIDs is folded into LockIDs at the top of this function,
+	// so existence is already guaranteed and the error surfaces before any
+	// search runs.
+	//
+	// Bounded by xiMax, the same table bestFormation bounds itself with, so
+	// "how many can start here" has one implementation. Counted over DISTINCT
+	// ids, matching what xiScratch.split counts — it walks the squad, so a
+	// repeated id in StartIDs contributes once there, and mustStartSet folds
+	// it to one entry as well. Counting the raw slice instead would reject a
+	// duplicated id that the search handles perfectly well.
+	startCount := map[string]int{}
+	seenStart := map[int]bool{}
+	for _, id := range req.StartIDs {
+		if seenStart[id] {
+			continue
+		}
+		seenStart[id] = true
+		pos := byID[id].Position
+		startCount[pos]++
+		if startCount[pos] > xiMax[pos] {
+			return nil, fmt.Errorf("forced starters exceed the %d that can start at %s", xiMax[pos], pos)
+		}
+	}
+
 	// Seed: take locked players first, then fill each position greedily by
 	// score-per-million so the budget stretches across all 15 slots.
 	selected := map[int]PlayerMetrics{}
