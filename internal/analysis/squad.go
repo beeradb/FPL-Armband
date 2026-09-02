@@ -788,8 +788,8 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	// "revise my squad by at most k" with "here is a different squad", scored and
 	// returned as though it were a k-change revision. That is a fallback in the
 	// expensive direction: the caller acts on a plan it cannot afford in
-	// transfers. A wrong length and an id the engine cannot price were both
-	// swallowed by one silent `if` here.
+	// transfers. A wrong length, an id the engine cannot price and a lock the
+	// seed cannot hold were all swallowed by one silent `if` here.
 	seedSquad := squadSlice(selected)
 	if !changes.unlimited() {
 		if len(req.CurrentSquad) != SquadSize {
@@ -800,6 +800,37 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 			return nil, err
 		}
 		seedSquad = owned
+
+		// A lock the seed cannot hold. checkLocksAndForcedStarts has already
+		// confirmed every locked id names a player the engine knows; this is the
+		// stricter bounded-path question of whether he is one of the fifteen the
+		// revision starts from. polish only refuses to REMOVE a lock (dpseed.go's
+		// `if locked[out.ID]`) and nothing inserts one, and the DP seeds — which
+		// do pre-place locked players — are skipped under a bound. So a lock
+		// outside CurrentSquad is simply never bought, and the caller gets a
+		// squad without him and a nil error.
+		//
+		// Forced starters arrive here folded into locked/req.LockIDs (see the
+		// fold near the top of this function), so must_start is covered by the
+		// same check — a forced starter the current squad does not own was
+		// dropped from the fifteen entirely, which is worse than not forcing him.
+		//
+		// Deliberately NOT taken: evicting a held player to make room and
+		// charging the change budget for it. That is a feature with its own
+		// legality and budget reasoning, not a bug fix.
+		if !holdsLocks(seedSquad, locked) {
+			held := make(map[int]bool, len(seedSquad))
+			for _, p := range seedSquad {
+				held[p.ID] = true
+			}
+			// req.LockIDs order, not the map's: a request missing two locks names
+			// the same one on every run.
+			for _, id := range req.LockIDs {
+				if !held[id] {
+					return nil, fmt.Errorf("locked player id %d is not in the current squad, and a bounded revision cannot transfer him in — raise max_changes or clear him from lock_players/must_start", id)
+				}
+			}
+		}
 	}
 
 	// The inner half of the stage timings buildSquadPage prints: that one says

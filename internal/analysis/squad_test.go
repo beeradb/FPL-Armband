@@ -513,6 +513,28 @@ func boundedRevisionBase(t *testing.T, e *Engine) []int {
 	return ids
 }
 
+// idOutsideSquad returns an id the engine knows and `ids` does not hold.
+//
+// Screened on price and minutes the way cheapIDsAt screens on price and club,
+// and for the same reason: a lock is added to the pool unconditionally and paid
+// for out of the same budget, so a £14m striker risks the request being refused
+// by the budget rather than by the check under test, and the test would then
+// report a pass it had not earned.
+func idOutsideSquad(t *testing.T, e *Engine, ids []int) int {
+	t.Helper()
+	held := map[int]bool{}
+	for _, id := range ids {
+		held[id] = true
+	}
+	for _, m := range e.AllMetrics() {
+		if !held[m.ID] && m.Price <= 5.0 && m.Minutes > 500 {
+			return m.ID
+		}
+	}
+	t.Skip("no cheap settled player outside the base fifteen")
+	return 0
+}
+
 // heldDistance counts how many of `ids` the returned squad no longer holds —
 // the number of transfers the answer actually costs, which is the quantity
 // MaxChanges bounds.
@@ -599,6 +621,97 @@ func TestABoundedRevisionRefusesASquadOfTheWrongSize(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "want 15") {
 		t.Errorf("error does not state the size it wanted: %v", err)
+	}
+	if sq != nil {
+		t.Errorf("an error came back with a squad attached: %+v", sq)
+	}
+}
+
+// TestABoundedRevisionRefusesALockItCannotSeed pins the second half: a lock the
+// seed does not already hold.
+//
+// polish only refuses to REMOVE a locked player, and nothing on the bounded path
+// puts one IN — the DP seeds do pre-place locks, and they are skipped under a
+// bound precisely because every one of them is a fresh fifteen. So a lock the
+// current squad does not own was never bought, and the caller got a squad
+// without him and err == nil: the request said "keep this player" and the answer
+// silently did not have him.
+//
+// ON THE PRE-FIX CODE err == nil AND THE LOCK IS ABSENT from sq.Players, and the
+// failure message reports both so a regression names the drop rather than a
+// missing error.
+func TestABoundedRevisionRefusesALockItCannotSeed(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)
+	outsider := idOutsideSquad(t, e, ids)
+
+	sq, err := e.Optimize(OptimizeRequest{
+		MinMinutes: 500, CurrentSquad: ids, MaxChanges: 1, LockIDs: []int{outsider},
+	})
+	if err == nil {
+		if sq == nil {
+			t.Fatal("an unseedable lock was accepted, returning no squad and no error")
+		}
+		held := false
+		for _, p := range sq.Players {
+			if p.ID == outsider {
+				held = true
+			}
+		}
+		t.Fatalf("an unseedable lock was accepted; locked player %d in the returned fifteen: %v, and the answer is %d changes from the squad handed in against a bound of 1",
+			outsider, held, heldDistance(ids, sq.Players))
+	}
+	if !strings.Contains(err.Error(), "not in the current squad") {
+		t.Errorf("rejected, but not by the seed's lock check: %v", err)
+	}
+	if sq != nil {
+		t.Errorf("an error came back with a squad attached: %+v", sq)
+	}
+}
+
+// TestABoundedRevisionRefusesAForcedStarterItCannotSeed is the must_start
+// spelling of the test above, and a separate test rather than a subtest because
+// the two arrive through different request fields.
+//
+// A forced starter is a stricter lock — in the squad AND in the eleven — and
+// StartIDs is folded into LockIDs at the top of Optimize so that exactly one
+// piece of code has to know about it. This test is what makes that fold
+// load-bearing rather than incidental: on the pre-fix code a forced starter the
+// current squad did not own was dropped from the FIFTEEN entirely, with
+// err == nil, which is worse than not forcing him at all. Unpick the fold and
+// this test fails while the LockIDs one above still passes.
+func TestABoundedRevisionRefusesAForcedStarterItCannotSeed(t *testing.T) {
+	e := testEngine(t)
+	skipDuringLiveGW1Gap(t, e)
+
+	ids := boundedRevisionBase(t, e)
+	outsider := idOutsideSquad(t, e, ids)
+
+	sq, err := e.Optimize(OptimizeRequest{
+		MinMinutes: 500, CurrentSquad: ids, MaxChanges: 1, StartIDs: []int{outsider},
+	})
+	if err == nil {
+		if sq == nil {
+			t.Fatal("an unseedable forced starter was accepted, returning no squad and no error")
+		}
+		inSquad, inXI := false, false
+		for _, p := range sq.Players {
+			if p.ID == outsider {
+				inSquad = true
+			}
+		}
+		for _, p := range sq.StartingXI {
+			if p.ID == outsider {
+				inXI = true
+			}
+		}
+		t.Fatalf("an unseedable forced starter was accepted; player %d in the fifteen: %v, in the XI: %v",
+			outsider, inSquad, inXI)
+	}
+	if !strings.Contains(err.Error(), "not in the current squad") {
+		t.Errorf("rejected, but not by the seed's lock check: %v", err)
 	}
 	if sq != nil {
 		t.Errorf("an error came back with a squad attached: %+v", sq)
