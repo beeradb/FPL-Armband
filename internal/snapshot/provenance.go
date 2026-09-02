@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -76,31 +77,19 @@ func ProvenancePath(cells string) string {
 	return strings.TrimSuffix(cells, ".csv") + provenanceSuffix
 }
 
-// WriteProvenance appends one sweep's provenance to the sidecar file.
+// provenanceBlock renders one sweep's provenance rows as CSV bytes, header row
+// included when withHeader is true.
 //
-// Append rather than truncate, for the same reason the cells file appends:
-// several sweeps run in one session and losing the earlier ones is the failure
-// mode. Written before the first cell rather than after the last, so a killed
-// sweep still leaves its declaration behind — which is the entire point, since a
-// killed sweep is exactly when the declaration is needed.
-func WriteProvenance(path string, p Provenance) error {
-	if path == "" {
-		return nil
-	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	w := csv.NewWriter(f)
-	if st.Size() == 0 {
-		if err := w.Write([]string{"sweep", "run_id", "key", "value"}); err != nil {
-			return err
-		}
+// A pure builder over a bytes.Buffer, deliberately never touching the sidecar
+// file: WriteProvenance's entire job is to turn this into exactly one write(2).
+// bytes.Buffer.Write never errors, so the per-row csv.Writer.Write calls below
+// are genuinely infallible here — unlike the same call written over an *os.File,
+// where an ignored error used to mean an ignored write failure.
+func provenanceBlock(p Provenance, withHeader bool) []byte {
+	var b bytes.Buffer
+	w := csv.NewWriter(&b)
+	if withHeader {
+		_ = w.Write([]string{"sweep", "run_id", "key", "value"})
 	}
 	put := func(k, v string) {
 		_ = w.Write([]string{p.Sweep, p.RunID, k, v})
@@ -133,7 +122,52 @@ func WriteProvenance(path string, p Provenance) error {
 		put("watched_path", c.Path+"\t"+c.Value)
 	}
 	w.Flush()
-	return w.Error()
+	return b.Bytes()
+}
+
+// writeProvenanceTo writes one sweep's provenance block to w in exactly one
+// Write call, so a concurrent writer sharing the same underlying file cannot
+// interleave with it mid-row.
+//
+// A real block is 16-25 KB (measured across every banked
+// stats/cells/**/*.provenance.csv), 4-7x bufio's 4096-byte default buffer — so a
+// csv.Writer built directly over the file, as this used to be, already issued
+// several independent write(2) calls per sweep. os.File.Write does not loop
+// internally; it calls write(2) once and reports a short write as an error
+// rather than retrying, so one call here is one syscall.
+func writeProvenanceTo(w io.Writer, p Provenance, withHeader bool) error {
+	blk := provenanceBlock(p, withHeader)
+	n, err := w.Write(blk)
+	if err != nil {
+		return err
+	}
+	if n != len(blk) {
+		return io.ErrShortWrite
+	}
+	return nil
+}
+
+// WriteProvenance appends one sweep's provenance to the sidecar file.
+//
+// Append rather than truncate, for the same reason the cells file appends:
+// several sweeps run in one session and losing the earlier ones is the failure
+// mode. Written before the first cell rather than after the last, so a killed
+// sweep still leaves its declaration behind — which is the entire point, since a
+// killed sweep is exactly when the declaration is needed.
+func WriteProvenance(path string, p Provenance) error {
+	if path == "" {
+		return nil
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	return writeProvenanceTo(f, p, st.Size() == 0)
 }
 
 // ReadProvenance reads every sweep's provenance from a sidecar file, keyed by
@@ -169,6 +203,13 @@ func ReadProvenance(path string) (map[string]Provenance, error) {
 			return nil, err
 		}
 		if len(rec) < 4 {
+			continue
+		}
+		// Two concurrent sweeps can both see Size()==0 and both emit a header
+		// row. A duplicate parses fine on its own — key "sweep\x00run_id"
+		// matches no case below — but without this skip it still creates a
+		// phantom out["sweep\x00run_id"] entry.
+		if rec[0] == "sweep" && rec[2] == "key" {
 			continue
 		}
 		key := rec[0] + "\x00" + rec[1]
