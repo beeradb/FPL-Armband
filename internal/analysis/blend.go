@@ -61,10 +61,19 @@ type blend struct {
 	// copies.
 	GateMinutesPerMatch float64
 	GateMinutesSet      bool
-	XG90                float64
-	XA90                float64
-	XGC90               float64
-	DefCon90            float64
+	// RestFactorApplied is the post-tournament rest factor blendForCode actually
+	// multiplied into the volume figures above (MinutesPerMatch, StartShare and,
+	// when set, GateMinutesPerMatch) — 0 means none was applied. Only
+	// blendForCode writes it; nothing else may set it or re-derive whether it
+	// ran, which is the whole fix: metrics.go used to answer "was it applied?"
+	// by calling restFactor a second time on its own, so the decision was made
+	// twice, in two files, with two different conditions, and could drift. See
+	// metrics.go's SettledMinutes comment.
+	RestFactorApplied float64
+	XG90              float64
+	XA90              float64
+	XGC90             float64
+	DefCon90          float64
 
 	// Counting stats, per 90. Raw, these are the most explosive terms in the
 	// model early in a season: they divide a whole number by a fraction of a
@@ -289,6 +298,15 @@ func (e *Engine) blendForCode(el *fpl.Element, m PlayerMetrics, ignoreCode int) 
 	if _, f := e.restFactor(el); f < 1 {
 		b.MinutesPerMatch *= f
 		b.StartShare = clamp(b.StartShare*f, 0, 1)
+		// GateMinutesPerMatch is a separate figure from MinutesPerMatch exactly
+		// when shrinkToLeague set one (see its own comment), and the rest
+		// factor is a fact about how much this player will play, which belongs
+		// on both — keep both in one space rather than letting the gate figure
+		// diverge from a discount the score side already carries.
+		if b.GateMinutesSet {
+			b.GateMinutesPerMatch *= f
+		}
+		b.RestFactorApplied = f
 	}
 	return b
 }

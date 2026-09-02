@@ -1936,7 +1936,14 @@ func (e *Engine) metricsIgnoring(el *fpl.Element, ignoreCode int) PlayerMetrics 
 	}
 	m.ExpectedMinutes = b.MinutesPerMatch
 	m.SettledMinutes = gateMinutes
-	if _, f := e.restFactor(el); f > 0 && f < 1 {
+	// Undo the SAME rest discount blendForCode actually applied to gateMinutes
+	// — b.RestFactorApplied, not a second call to restFactor. A second call
+	// re-derives "was it applied?" on its own condition, which can disagree
+	// with the one blendForCode used: an overridden player's gateMinutes never
+	// carried the factor at all (blendForCode returns before reaching the rest
+	// block whenever a minutes override is set), so dividing it by a freshly
+	// re-computed f inflated his SettledMinutes rather than restoring it.
+	if f := b.RestFactorApplied; f > 0 && f < 1 {
 		m.SettledMinutes = gateMinutes / f
 	}
 	m.StartShare = b.StartShare
