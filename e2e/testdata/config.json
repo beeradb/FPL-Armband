@@ -1,0 +1,9 @@
+{
+  "entry_id": 0,
+  "cache_dir": "e2e/.armband-cache",
+  "cache_minutes": 525600,
+  "player_cache_minutes": 525600,
+  "snapshot_dir": "",
+  "wildcard_enabled": true,
+  "report_dir": "e2e/test-results"
+}

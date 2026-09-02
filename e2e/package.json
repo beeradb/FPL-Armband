@@ -1,0 +1,14 @@
+{
+  "name": "armband-e2e",
+  "private": true,
+  "description": "Browser end-to-end tests driving `armband serve`. Not published; not part of the Go module.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

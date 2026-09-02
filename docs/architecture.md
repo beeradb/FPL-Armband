@@ -249,6 +249,52 @@ refusing to widen for any page but "landing". `/app` still resolves — a 302 to
 for bookmarks and shared links from before the application became the root, and not a 301
 because whether `/app` should exist at all is still an open, reversible question.
 
+### `e2e/`
+
+A Playwright suite, in Node rather than Go, driving a real `armband serve` in a real headless
+browser — the first Node/Playwright toolchain in this otherwise Go-only repository, added
+deliberately rather than extending `internal/browsertest` (the package `internal/webui`'s own
+layout goldens use), because the value here is real interaction — clicks, drags, keyboard
+dismissal, a session-cookie round trip — that a `--dump-dom`/`--screenshot` harness cannot drive
+at all.
+
+**It asserts geometry and behaviour, never pixels.** `internal/webui/visual_test.go`'s own
+`TestLayout` records the ruling this suite inherits rather than re-litigates: the committed
+layout goldens are machine-dependent (a worst channel delta of 2/255 between this machine and a
+CI runner) and are a **local-only** check by decision, not a pending fix. What must not regress
+silently is asserted over the rendered markup and its bounding boxes instead, which is exactly
+what this suite does with a live browser rather than `--dump-dom`'s captured tree — `toHaveScreenshot`
+and a committed PNG directory are forbidden here; a screenshot, trace and video are captured only
+as **failure artefacts**.
+
+**Determinism comes from a committed live capture, not a stub server.** `e2e/scripts/serve-fixture.mjs`
+primes `internal/fpl.Client`'s on-disk cache straight from `data/captures/<LIVE_CAPTURE>` — the
+same GW1 capture `internal/analysis`'s own deterministic test engines are built from (see
+`internal/capture.LiveCapture`'s doc comment for why GW1 specifically: no prior-season blend, no
+recency index, so the engine it builds is what production actually serves at this point in a
+season). `e2e/scripts/live-capture.js` names the same directory a second time, because a Node
+harness cannot import a Go constant; `internal/capture/analysisfixture_test.go`'s
+`TestEveryFixtureNamesTheLiveCapture` pins every spelling against `LiveCapture` itself, extended
+to this file rather than given a second, separate scan. The server then runs with its
+`HTTP_PROXY`/`HTTPS_PROXY` pointed at a closed loopback port, so a cache-priming gap fails loud
+(a live fetch dying against a dead proxy) instead of quietly serving live data under a suite whose
+whole premise is a frozen capture.
+
+**What is and is not reachable follows from that one capture.** Importing a team, the transfer
+planner, and any past-gameweek result are all unreachable at GW1 — `cmd/armband/importwindow.go`'s
+own gate requires the next gameweek's id to be at least 2, and this capture's `is_next` names
+gameweek 1. The suite asserts the *closed* state instead (the import card hidden) rather than
+skipping those areas silently; `e2e/README.md` names each gap and why.
+
+**Division of labour with `internal/webui`.** That package's suite (goldens, contrast, the type
+floor, inline-script and external-host bans — all pinned over markup/CSS, none needing a running
+server) is the one that runs in CI on every push and stays fast. This suite drives interaction
+sequences — Optimise/Reset round trips, the player sheet, the chip menu, the gameweek rail,
+client-side market filters — that are structurally out of that package's reach, and it runs as its
+own CI job (`.github/workflows/ci.yml`'s `e2e` job) so a browser download and a live server never
+sit ahead of the Go gate. Locally it is opt-in (`cd e2e && npm test`), never wired into
+`go test ./...`.
+
 ### The supporting packages
 
 Eight more packages sit outside the model. Seven fill gaps in what the FPL API publishes;

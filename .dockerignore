@@ -16,3 +16,8 @@ docs
 *.html
 *.md
 config.json
+
+# The Playwright end-to-end suite (e2e/) drives `cmd/armband`'s server from outside the
+# container entirely — see e2e/README.md. `COPY . .` would otherwise pull node_modules, ~400
+# MB of third-party JS the image build never reads, into the build context.
+e2e
