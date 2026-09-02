@@ -217,19 +217,55 @@ func TestOptimizeRespectsExpectedMinutesFloor(t *testing.T) {
 	}
 }
 
-// gkpIDs returns the element ids of the first n goalkeepers in the pool.
-func gkpIDs(t *testing.T, e *Engine, n int) []int {
+// firstIDsAt returns the element ids of the first n players at pos.
+//
+// No price or club screen, deliberately. A rejection on the squad rules is
+// decided before the budget or the three-per-club cap is consulted, so a test
+// of one must not hand over a request those would have refused anyway: it could
+// then pass without the check it is written for ever running, which is why each
+// rejection test asserts the error text as well. The one acceptance test that
+// reads from here forces a single keeper, which any budget seats.
+func firstIDsAt(t *testing.T, e *Engine, pos string, n int) []int {
 	t.Helper()
 	var out []int
 	for _, m := range e.AllMetrics() {
-		if m.Position == "GKP" {
+		if m.Position == pos {
 			out = append(out, m.ID)
 			if len(out) == n {
 				return out
 			}
 		}
 	}
-	t.Skipf("pool holds %d goalkeepers, need %d", len(out), n)
+	t.Skipf("pool holds %d players at %s, need %d", len(out), pos, n)
+	return nil
+}
+
+// cheapIDsAt returns n ids at pos, each from a different club and priced at the
+// bench-fodder end of the market.
+//
+// For the tests that must reach the optimiser rather than be turned back at the
+// door. Neither the three-per-club cap nor the budget is what a forced-start
+// test is about, and both are checked AFTER the seating check, so a request
+// either of them would refuse cannot demonstrate what the seating check does —
+// disabling the check under test would then produce a different error rather
+// than the silent collapse, and the test would report a pass it had not earned.
+// That is not hypothetical: ten forced starters taken in pool order are ten
+// Arsenal players.
+func cheapIDsAt(t *testing.T, e *Engine, pos string, n int) []int {
+	t.Helper()
+	var out []int
+	seenClub := map[string]bool{}
+	for _, m := range e.AllMetrics() {
+		if m.Position != pos || m.Price > 4.5 || seenClub[m.Team] {
+			continue
+		}
+		seenClub[m.Team] = true
+		out = append(out, m.ID)
+		if len(out) == n {
+			return out
+		}
+	}
+	t.Skipf("only %d cheap %s from distinct clubs, need %d", len(out), pos, n)
 	return nil
 }
 
@@ -250,15 +286,60 @@ func gkpIDs(t *testing.T, e *Engine, n int) []int {
 // rules, not about any football, so it must hold in every data state.
 func TestTwoForcedStartingGoalkeepersAreRejected(t *testing.T) {
 	e := testEngine(t)
-	ids := gkpIDs(t, e, 2)
+	ids := firstIDsAt(t, e, "GKP", 2)
 
 	squad, err := e.Optimize(OptimizeRequest{MinMinutes: 500, StartIDs: ids})
 	if err == nil {
+		// The nil check comes first: reporting the collapse means reading the
+		// squad, and a nil squad beside a nil error is the same defect one
+		// stage further along.
+		if squad == nil {
+			t.Fatal("two forced keepers were accepted, returning no squad and no error")
+		}
 		t.Fatalf("two forced keepers were accepted; XI %d, bench %d, formation %q",
 			len(squad.StartingXI), len(squad.Bench), squad.Formation)
 	}
 	if !strings.Contains(err.Error(), "can start at GKP") {
 		t.Errorf("error does not name the position that overflowed: %v", err)
+	}
+	if squad != nil {
+		t.Errorf("an error came back with a squad attached: %+v", squad)
+	}
+}
+
+// TestForcedStartersOverTheOutfieldBudgetAreRejected is the AGGREGATE half of
+// the seating check, and the case a per-position bound cannot see.
+//
+// Five defenders is exactly xiMax["DEF"] and five midfielders exactly
+// xiMax["MID"], so every position is individually within what an eleven can
+// seat. No formation seats them together: a legal eleven fields at least one
+// forward, so d>=5, m>=5, f>=1 is eleven outfield players for the ten places
+// beside the keeper. xiMax sums to 13 outfield, not 10, which is why bounding
+// each position on its own leaves this reachable — and on such a check this
+// request returned err == nil with a zero-length XI and formation "", the same
+// silent collapse two forced keepers produced, arrived at through counts each
+// of which is legal by itself.
+//
+// No live-gap skip, for the reason on TestTwoForcedStartingGoalkeepersAreRejected:
+// the rejection is a statement about the squad rules, not about any football.
+// The forced ten ARE screened on price and club, though — see cheapIDsAt — so
+// that the lock quota, the club cap and the budget, all of which are checked
+// after the seating check, cannot be what turns this request back.
+func TestForcedStartersOverTheOutfieldBudgetAreRejected(t *testing.T) {
+	e := testEngine(t)
+	ids := cheapIDsAt(t, e, "DEF", xiMax["DEF"])
+	ids = append(ids, cheapIDsAt(t, e, "MID", xiMax["MID"])...)
+
+	squad, err := e.Optimize(OptimizeRequest{MinMinutes: 500, StartIDs: ids})
+	if err == nil {
+		if squad == nil {
+			t.Fatal("eleven outfield forced starters were accepted, returning no squad and no error")
+		}
+		t.Fatalf("%d forced starters for %d outfield places were accepted; XI %d, bench %d, formation %q",
+			len(ids), XISize-1, len(squad.StartingXI), len(squad.Bench), squad.Formation)
+	}
+	if !strings.Contains(err.Error(), "cannot fit one legal formation") {
+		t.Errorf("rejected, but not by the seating check: %v", err)
 	}
 	if squad != nil {
 		t.Errorf("an error came back with a squad attached: %+v", squad)
@@ -271,7 +352,7 @@ func TestTwoForcedStartingGoalkeepersAreRejected(t *testing.T) {
 func TestOneForcedStartingGoalkeeperStillBuilds(t *testing.T) {
 	e := testEngine(t)
 	skipDuringLiveGW1Gap(t, e)
-	ids := gkpIDs(t, e, 1)
+	ids := firstIDsAt(t, e, "GKP", 1)
 
 	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500, StartIDs: ids})
 	if err != nil {
@@ -309,23 +390,7 @@ func TestForcedStartersUpToTheOutfieldMaximumAreAccepted(t *testing.T) {
 	e := testEngine(t)
 	skipDuringLiveGW1Gap(t, e)
 
-	// Cheap defenders from distinct clubs: the club cap and the budget are not
-	// what this test is about, so neither should be allowed to decide it.
-	var ids []int
-	seenClub := map[string]bool{}
-	for _, m := range e.AllMetrics() {
-		if m.Position != "DEF" || m.Price > 4.5 || seenClub[m.Team] {
-			continue
-		}
-		seenClub[m.Team] = true
-		ids = append(ids, m.ID)
-		if len(ids) == xiMax["DEF"] {
-			break
-		}
-	}
-	if len(ids) < xiMax["DEF"] {
-		t.Skipf("only %d cheap defenders from distinct clubs, need %d", len(ids), xiMax["DEF"])
-	}
+	ids := cheapIDsAt(t, e, "DEF", xiMax["DEF"])
 
 	sq, err := e.Optimize(OptimizeRequest{MinMinutes: 500, StartIDs: ids})
 	if err != nil {
@@ -350,5 +415,76 @@ func TestForcedStartersUpToTheOutfieldMaximumAreAccepted(t *testing.T) {
 	}
 	if !LegalFormation(byPos) {
 		t.Errorf("illegal formation %q from %v", sq.Formation, byPos)
+	}
+}
+
+// TestTheSeatingCheckAgreesWithTheFormationSearch is the differential test the
+// joint condition rests on: over every forced-start set a legal fifteen can
+// hold, the check's verdict has to be the SEARCH's verdict.
+//
+// checkLocksAndForcedStarts states the seating rule a second time, in closed
+// form, ahead of the search that really decides it. One quantity with two
+// implementations is the failure this repository knows best, and the closed
+// form got it wrong in exactly that way the first time it was written: bounding
+// each position by its own xiMax accepts five forced defenders beside five
+// forced midfielders, which no formation seats. So the check is not tested
+// against a restatement of the rule here — it is tested against the real
+// xiScratch.bestFormation, run over a full synthetic fifteen, on all 432 forced
+// sets the squad quotas permit (3 x 6 x 6 x 4).
+//
+// Needs neither the API nor an Engine: the squad is built by hand and the only
+// inputs are the formation tables.
+func TestTheSeatingCheckAgreesWithTheFormationSearch(t *testing.T) {
+	// A full legal fifteen, scores descending with the id. Every position is
+	// filled to its squadQuota, so nDEF, nMID and nFWD are each that position's
+	// xiMax and bestFormation's availability test can never be what rejects a
+	// formation — leaving `forced` as the only binding constraint.
+	var squad []PlayerMetrics
+	byID := map[int]PlayerMetrics{}
+	idsAt := map[string][]int{}
+	next := 1
+	for _, pos := range posNames {
+		for i := 0; i < squadQuota[pos]; i++ {
+			p := PlayerMetrics{ID: next, Position: pos, Price: 4.0, Score: float64(100 - next)}
+			squad = append(squad, p)
+			byID[p.ID] = p
+			idsAt[pos] = append(idsAt[pos], p.ID)
+			next++
+		}
+	}
+
+	for g := 0; g <= squadQuota["GKP"]; g++ {
+		for d := 0; d <= squadQuota["DEF"]; d++ {
+			for m := 0; m <= squadQuota["MID"]; m++ {
+				for f := 0; f <= squadQuota["FWD"]; f++ {
+					want := [4]int{g, d, m, f}
+					mustStart := map[int]bool{}
+					var req OptimizeRequest
+					for i, pos := range posNames {
+						for _, id := range idsAt[pos][:want[i]] {
+							mustStart[id] = true
+							req.StartIDs = append(req.StartIDs, id)
+							req.LockIDs = append(req.LockIDs, id)
+						}
+					}
+
+					// The counts come from split rather than from `want`
+					// because split is what sorts forced players to the front
+					// of each position, which is what makes bestFormation's
+					// `forced[i] > d` test the right one.
+					var sc xiScratch
+					_, _, _, _, seatable := sc.bestFormation(sc.split(squad, mustStart))
+
+					err := checkLocksAndForcedStarts(req, mustStart, byID)
+					if seatable && err != nil {
+						t.Errorf("%v is seated by a legal formation and the check refused it: %v", want, err)
+					}
+					if !seatable && err == nil {
+						t.Errorf("%v is seated by no formation and the check accepted it, "+
+							"which is the silent collapse", want)
+					}
+				}
+			}
+		}
 	}
 }
