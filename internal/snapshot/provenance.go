@@ -3,15 +3,14 @@ package snapshot
 import (
 	"bytes"
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // Provenance is what a sweep records about itself, written as a side effect of
@@ -157,28 +156,39 @@ func writeProvenanceTo(w io.Writer, p Provenance, withHeader bool) error {
 // sweep still leaves its declaration behind — which is the entire point, since a
 // killed sweep is exactly when the declaration is needed.
 //
-// The header decision claims the file's creation with O_EXCL rather than
-// inferring it from Stat().Size(): two sweeps racing to open the SAME
-// not-yet-existing sidecar both O_CREATE it and can both observe size 0
-// before either has written a byte, and a size check has them both write a
-// header row. O_EXCL has exactly one winner; the loser gets fs.ErrExist and
-// reopens for plain append, the header already spoken for by the winner. See
-// ReadProvenance's duplicate-header skip for the reader-side defense this
-// used to depend on for files written before this fix.
+// The header decision is made under an exclusive flock rather than inferred
+// from Stat().Size() alone: two sweeps racing to open the SAME
+// not-yet-existing sidecar can both observe size 0 before either has written
+// a byte, and an unguarded size check has them both write a header row. A
+// first attempt at this fix claimed creation with O_EXCL instead, which traded
+// that bug for a worse one — a sweep killed between winning O_EXCL and
+// flushing its header (this project's own sweeps get OOM-killed and run out
+// of disk under load, see AGENTS.md) leaves a sidecar every later writer sees
+// as "already created", so no header is ever written at all. The flock closes
+// both races: every writer, whether it created the file or found it already
+// there, takes the same lock before deciding, so "is this file still empty"
+// is answered fresh and one writer at a time — a sweep that dies before
+// writing its header leaves the file empty, and the very next writer heals
+// it. See ReadProvenance's duplicate-header skip for the reader-side defense
+// this used to depend on for sidecars written before this fix.
 func WriteProvenance(path string, p Provenance) error {
 	if path == "" {
 		return nil
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-	created := err == nil
-	if errors.Is(err, fs.ErrExist) {
-		f, err = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
-	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	return writeProvenanceTo(f, p, created)
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	st, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	return writeProvenanceTo(f, p, st.Size() == 0)
 }
 
 // ReadProvenance reads every sweep's provenance from a sidecar file, keyed by
@@ -216,12 +226,13 @@ func ReadProvenance(path string) (map[string]Provenance, error) {
 		if len(rec) < 4 {
 			continue
 		}
-		// Before WriteProvenance claimed creation with O_EXCL, two concurrent
-		// sweeps could both see Size()==0 and both emit a header row. A
-		// duplicate parses fine on its own — key "sweep\x00run_id" matches no
-		// case below — but without this skip it still creates a phantom
-		// out["sweep\x00run_id"] entry. Kept as a reader-side defense for
-		// sidecars written before that fix; a fresh write cannot produce one.
+		// Before WriteProvenance decided the header under a flock, two
+		// concurrent sweeps could both see Size()==0 outside any lock and
+		// both emit a header row. A duplicate parses fine on its own — key
+		// "sweep\x00run_id" matches no case below — but without this skip it
+		// still creates a phantom out["sweep\x00run_id"] entry. Kept as a
+		// reader-side defense for sidecars written before that fix; a fresh
+		// write cannot produce one.
 		if rec[0] == "sweep" && rec[2] == "key" {
 			continue
 		}

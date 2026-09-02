@@ -83,17 +83,12 @@ func openModelSink(path string) (*modelSink, error) {
 	if path == "" {
 		return nil, nil
 	}
-	f, created, err := openAppendCSV(path)
+	f, w, created, err := openAppendCSV(path, modelHeader)
 	if err != nil {
 		return nil, err
 	}
-	s := &modelSink{f: f, w: csv.NewWriter(f), runID: runIDForProcess()}
+	s := &modelSink{f: f, w: w, runID: runIDForProcess()}
 	if created {
-		if err := s.w.Write(modelHeader); err != nil {
-			f.Close()
-			return nil, err
-		}
-		s.w.Flush()
 		return s, nil
 	}
 	// Same schema check the cells file gets, for the same reason: appending under

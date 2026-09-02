@@ -62,16 +62,14 @@ package backtest
 
 import (
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"hash/fnv"
-	"io"
-	"io/fs"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -971,27 +969,54 @@ type csvFile struct {
 	w *csv.Writer
 }
 
-// openAppendCSV opens path for append, claiming the file's creation with
-// O_EXCL rather than inferring it from Stat().Size(). Two processes racing to
-// open the SAME not-yet-existing path (two sweeps sharing one FPL_CELLS
-// target, say) both O_CREATE it and can both observe size 0 before either has
-// written a byte — a size check has them both write a header, and the
-// loser's lands mid-file as a bogus data row. O_EXCL has exactly one winner:
-// the loser gets fs.ErrExist and reopens for plain append, the header already
-// spoken for by the creator.
-func openAppendCSV(path string) (f *os.File, created bool, err error) {
-	f, err = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-	if err == nil {
-		return f, true, nil
-	}
-	if !errors.Is(err, fs.ErrExist) {
-		return nil, false, err
-	}
-	f, err = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+// openAppendCSV opens path for append and decides, under an exclusive flock
+// held only for the decision, whether THIS call is the one that must write
+// the header.
+//
+// A plain O_CREATE plus a Stat().Size()==0 check is not enough: two processes
+// racing to open the SAME not-yet-existing path (two sweeps sharing one
+// FPL_CELLS target, say) can both observe size 0 before either has written a
+// byte, so both write a header and the loser's lands mid-file as a bogus data
+// row. Claiming creation with O_EXCL instead fixes that race but opens a
+// worse one — this project's own sweeps get OOM-killed and run out of disk
+// under load (see AGENTS.md), and a kill between an O_EXCL open succeeding
+// and the header flush leaves a file that exists but is still empty; every
+// later opener would see it as "already created" and the header would never
+// get written at all, which is silent and permanent where the duplicate-
+// header bug was at least visible as an extra row.
+//
+// The flock closes both races at once: every opener, whether it created the
+// file or found it already there, takes the same lock before deciding, so
+// "is this file still empty" is answered by at most one opener at a time and
+// is answered fresh rather than inferred from who allocated the inode. A
+// creator killed before writing its header leaves the file empty, and the
+// very next opener heals it under the same lock a concurrent duplicate would
+// have been serialised against.
+func openAppendCSV(path string, header []string) (f *os.File, w *csv.Writer, created bool, err error) {
+	f, err = os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
-	return f, false, nil
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		f.Close()
+		return nil, nil, false, err
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	st, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, nil, false, err
+	}
+	w = csv.NewWriter(f)
+	if st.Size() != 0 {
+		return f, w, false, nil
+	}
+	if err := w.Write(header); err != nil {
+		f.Close()
+		return nil, nil, false, err
+	}
+	w.Flush()
+	return f, w, true, nil
 }
 
 // newCSVFile opens path for append, writing the header only if this call
@@ -1007,17 +1032,12 @@ func openAppendCSV(path string) (f *os.File, created bool, err error) {
 func newCSVFile(path string, header []string) (*csvFile, error) {
 	// Append, never truncate. Several sweeps run in one session and an earlier
 	// block's cells are not recoverable once overwritten.
-	f, created, err := openAppendCSV(path)
+	f, w, created, err := openAppendCSV(path, header)
 	if err != nil {
 		return nil, err
 	}
-	c := &csvFile{f: f, w: csv.NewWriter(f)}
+	c := &csvFile{f: f, w: w}
 	if created {
-		if err := c.w.Write(header); err != nil {
-			f.Close()
-			return nil, err
-		}
-		c.w.Flush()
 		return c, nil
 	}
 	if err := checkHeader(path, header); err != nil {
@@ -1027,8 +1047,13 @@ func newCSVFile(path string, header []string) (*csvFile, error) {
 	return c, nil
 }
 
-// checkHeader compares an existing file's first record against the header this
-// build writes.
+// checkHeader compares an existing file's first record against the header
+// this build writes.
+//
+// Only ever called with created==false, which openAppendCSV only reports
+// once it has confirmed under its flock that the file already holds
+// something — so unlike an inference from Stat().Size() alone, there is no
+// window here where the "existing" header has not actually been written yet.
 func checkHeader(path string, want []string) error {
 	r, err := os.Open(path)
 	if err != nil {
@@ -1036,18 +1061,6 @@ func checkHeader(path string, want []string) error {
 	}
 	defer r.Close()
 	got, err := csv.NewReader(r).Read()
-	if err == io.EOF {
-		// We lost the O_EXCL race in openAppendCSV: the file exists because
-		// another process just created it, but that process has not flushed
-		// its header yet, so reading it here finds nothing at all. That is a
-		// timing gap, not evidence of a schema mismatch — an empty file
-		// cannot fail this check honestly either way — so skip it rather
-		// than erroring. It never causes a second header to be written; the
-		// worst case is a genuinely mismatched schema going undetected for
-		// the one process unlucky enough to open mid-flush, which the next
-		// process to open this path will still catch.
-		return nil
-	}
 	if err != nil {
 		return fmt.Errorf("%s exists but its header is unreadable: %w", path, err)
 	}
