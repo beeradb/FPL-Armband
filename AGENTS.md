@@ -417,11 +417,13 @@ in the vault; the lesson and the pinning test here — the test is the guard. �
   must not be added: tenths are both non-dyadic and coarse enough for two formations to tie
   exactly, which is the one region where the fold really does pick differently. →
   **optimiser-and-squad**
-- **A per-request mutation of a shared engine outlives the request.** `serve` holds one engine
-  for every reader, and `ApplyChipPlan` shortens `Weights.Horizon` for a planned wildcard —
-  correct for that build, permanent unless it is put back. Save and restore whatever a request
-  mutates. **A CLI that exits cannot find this class, and most of this code was written as
-  one.** Pinned by `TestAPlannedWildcardDoesNotShortenTheNextReadersHorizon`.
+- **A long-lived process holds one engine for every request, and mutations survive the request.**
+  `ApplyChipPlan` shortens `Weights.Horizon` for a planned wildcard — correct for that build,
+  permanent unless it is put back. Save and restore whatever a request mutates. The `serve` endpoint
+  was the shipped instance; pinned by `TestAPlannedWildcardDoesNotShortenTheNextReadersHorizon`.
+  A twin instance lived in `internal/agent/tools.go`, where the toolbox engine is shared by all
+  tools in a turn and the runner fans them through an errgroup; it was closed by removing the
+  mutating call entirely, pinned by `TestNoAgentToolAppliesTheChipPlanToTheSharedEngine`.
 - **`runPolicySweep` builds cells at `WeeklyXI: false`, and several diagnostics run at `true`.**
   Pin the setting in `apply` and stamp it.
 - **Never compare a replayed float for exact equality against a BANKED total: a banked total is

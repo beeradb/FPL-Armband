@@ -509,7 +509,6 @@ func (e *Engine) ApplyChipPlan(req *OptimizeRequest) []string {
 
 	if horizon, why := e.EffectiveHorizon(e.Chips); why != "" && horizon != e.Weights.Horizon {
 		e.Weights.Horizon = horizon
-		e.buildFixtureIndex()
 		notes = append(notes, why)
 	}
 	if bw, why := e.SuggestBenchWeight(e.Chips); why != "" {
