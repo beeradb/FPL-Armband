@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // Provenance is what a sweep records about itself, written as a side effect of
@@ -154,7 +155,23 @@ func writeProvenanceTo(w io.Writer, p Provenance, withHeader bool) error {
 // mode. Written before the first cell rather than after the last, so a killed
 // sweep still leaves its declaration behind — which is the entire point, since a
 // killed sweep is exactly when the declaration is needed.
-func WriteProvenance(path string, p Provenance) error {
+//
+// The header decision is made under an exclusive flock rather than inferred
+// from Stat().Size() alone: two sweeps racing to open the SAME
+// not-yet-existing sidecar can both observe size 0 before either has written
+// a byte, and an unguarded size check has them both write a header row. A
+// first attempt at this fix claimed creation with O_EXCL instead, which traded
+// that bug for a worse one — a sweep killed between winning O_EXCL and
+// flushing its header (this project's own sweeps get OOM-killed and run out
+// of disk under load, see AGENTS.md) leaves a sidecar every later writer sees
+// as "already created", so no header is ever written at all. The flock closes
+// both races: every writer, whether it created the file or found it already
+// there, takes the same lock before deciding, so "is this file still empty"
+// is answered fresh and one writer at a time — a sweep that dies before
+// writing its header leaves the file empty, and the very next writer heals
+// it. See ReadProvenance's duplicate-header skip for the reader-side defense
+// this used to depend on for sidecars written before this fix.
+func WriteProvenance(path string, p Provenance) (err error) {
 	if path == "" {
 		return nil
 	}
@@ -162,7 +179,20 @@ func WriteProvenance(path string, p Provenance) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	// A writable file's Close can itself fail — the OS surfaces a delayed
+	// write error there on some filesystems — and silently discarding that
+	// would report success on a provenance block that never actually landed.
+	// Only reported when nothing else already failed, so a real write error
+	// is not masked by a close error that is just its symptom.
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 	st, err := f.Stat()
 	if err != nil {
 		return err
@@ -205,10 +235,13 @@ func ReadProvenance(path string) (map[string]Provenance, error) {
 		if len(rec) < 4 {
 			continue
 		}
-		// Two concurrent sweeps can both see Size()==0 and both emit a header
-		// row. A duplicate parses fine on its own — key "sweep\x00run_id"
-		// matches no case below — but without this skip it still creates a
-		// phantom out["sweep\x00run_id"] entry.
+		// Before WriteProvenance decided the header under a flock, two
+		// concurrent sweeps could both see Size()==0 outside any lock and
+		// both emit a header row. A duplicate parses fine on its own — key
+		// "sweep\x00run_id" matches no case below — but without this skip it
+		// still creates a phantom out["sweep\x00run_id"] entry. Kept as a
+		// reader-side defense for sidecars written before that fix; a fresh
+		// write cannot produce one.
 		if rec[0] == "sweep" && rec[2] == "key" {
 			continue
 		}

@@ -74,22 +74,12 @@ func openPredictionSink(path string) (*predictionSink, error) {
 	if path == "" {
 		return nil, nil
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, w, created, err := openAppendCSV(path, predictionHeader)
 	if err != nil {
 		return nil, err
 	}
-	st, err := f.Stat()
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-	s := &predictionSink{f: f, w: csv.NewWriter(f), runID: runIDForProcess()}
-	if st.Size() == 0 {
-		if err := s.w.Write(predictionHeader); err != nil {
-			f.Close()
-			return nil, err
-		}
-		s.w.Flush()
+	s := &predictionSink{f: f, w: w, runID: runIDForProcess()}
+	if created {
 		return s, nil
 	}
 	// The same schema check the other two sinks get, for the same reason:
