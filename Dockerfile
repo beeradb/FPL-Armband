@@ -10,7 +10,7 @@
 # bundle refresh, so a tag would let the shipped runtime change without this
 # file recording that it had -- the same rule the workflow applies to actions,
 # and the base image is the larger surface of the two.
-FROM golang@sha256:28d89ee9cc0ff9fec75c82ca201e6bf7fdf9a679d4b7b24dfa04f2bb766bb468 AS build
+FROM golang@sha256:512690a5660563b57d37ecc31129e7f136e831db2aed24a1dbeb8ad7380dc0fa AS build
 
 # The module declares go 1.26.7. GOTOOLCHAIN=local turns a version mismatch into
 # a build error rather than a silent download of a different compiler. (The
