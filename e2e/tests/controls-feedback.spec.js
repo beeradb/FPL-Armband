@@ -51,16 +51,11 @@ test('the busy body class survives a slow response (negative control)', async ({
   await expect(page.locator('body')).not.toHaveClass(/\bsaving\b/, { timeout: 15_000 });
 });
 
-// ⚠️ Behind test.fixme(): the optimistic ".working" class this pair targets ships on branch
-// `optimistic-button-feedback-on-the-served-page` (local, uncommitted to origin, not merged
-// and no PR open as of this suite landing — see e2e/README.md and the vault note
-// optimistic-button-feedback-on-the-served-page for the acceptance-test pointer back). The
-// branch's own diff to app.js was read to confirm the class name and shape: `markWorking`
-// adds `.working` and `aria-busy` synchronously inside the click handler (before the fetch is
-// even sent), and a `sweep`/`.finally` on the first settling response clears every `.working`
-// element. Enable these for real once that branch lands, rather than leaving them as
-// aspirational forever — that is what test.fixme() is for and grep will find it.
-test.fixme(
+// The optimistic ".working" class landed on `optimistic-button-feedback-on-the-served-page`
+// (PR #184, merged the same session this suite itself landed) — markWorking (app.js) adds
+// `.working` and `aria-busy` synchronously inside #optimise's click handler, before the fetch
+// is even sent, and clearWorking('session') sweeps it once the save settles.
+test(
   '#optimise gets .working synchronously on click and loses it once the save settles',
   async ({ page }) => {
     await page.goto('/');
