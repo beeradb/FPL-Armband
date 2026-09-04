@@ -254,7 +254,7 @@ because whether `/app` should exist at all is still an open, reversible question
 A Playwright suite, in Node rather than Go, driving a real `armband serve` in a real headless
 browser — the first Node/Playwright toolchain in this otherwise Go-only repository, added
 deliberately rather than extending `internal/browsertest` (the package `internal/webui`'s own
-layout goldens use), because the value here is real interaction — clicks, drags, keyboard
+layout goldens use), because the value here is real interaction — clicks, keyboard
 dismissal, a session-cookie round trip — that a `--dump-dom`/`--screenshot` harness cannot drive
 at all.
 
