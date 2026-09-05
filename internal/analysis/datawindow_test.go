@@ -305,3 +305,79 @@ func TestTournamentAbsencesStopApplyingInSeason(t *testing.T) {
 		t.Errorf("%s has a denominator of %d after 5 gameweeks, want 5", listed.WebName, got)
 	}
 }
+
+// TestMinutesAndStartsFitInsideOneSeason pins the arithmetic bound that makes
+// matchesAvailable's flat GameweeksPerSeason denominator legitimate: on a real
+// pre-season capture, nobody's `minutes`/`starts` aggregate exceeds what a
+// single 38-match Premier League season can produce.
+//
+// This closes a vault claim that a summer signing's minutes denominator could
+// draw on his OLD club's — or a foreign league's — season, producing a
+// physically impossible total (its exemplar was a goalkeeper's Ligue 1 season
+// divided by 38). Verified against this package's committed live capture:
+// Donnarumma's own TeamJoinDate there is over a year before the capture, and
+// across all 592 elements the maximum minutes value is exactly 3420 (38 x 90)
+// and the maximum starts is exactly 38 — nobody carries a cross-season or
+// cross-league total. FPL's `minutes`/`starts` fields are already scoped to
+// the CURRENT club's Premier League season for every player, transferred in
+// or not, so there is nothing for a per-club denominator to fix. If FPL ever
+// shipped an aggregate that broke that scoping, this is the first thing that
+// would fail.
+func TestMinutesAndStartsFitInsideOneSeason(t *testing.T) {
+	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	if e.SeasonHasStarted() {
+		t.Skip("needs a pre-season capture: FPL still carries last season's " +
+			"totals as the aggregate this bound is about, and once GW1 " +
+			"completes those totals reset to the fresh, much smaller ones " +
+			"DataWindow already tracks")
+	}
+	for i := range e.Boot.Elements {
+		el := &e.Boot.Elements[i]
+		if el.Minutes > 90*GameweeksPerSeason {
+			t.Errorf("%s carries %d minutes, more than a single %d-match season "+
+				"could produce", el.WebName, el.Minutes, GameweeksPerSeason)
+		}
+		if el.Starts > GameweeksPerSeason {
+			t.Errorf("%s carries %d starts, more than a single %d-match season "+
+				"could produce", el.WebName, el.Starts, GameweeksPerSeason)
+		}
+		if got := e.expectedMinutes(el); got > 90.0001 {
+			t.Errorf("%s reads %.2f expected minutes, more than a single match "+
+				"contains — the flat-season denominator should never allow that",
+				el.WebName, got)
+		}
+	}
+}
+
+// TestTeamJoinDateDoesNotChangeTheMinutesDenominator pins the deliberate,
+// correct current behaviour the claim above got backwards: a recent signing's
+// prior-club minutes are legitimate evidence about the player, not a bug to
+// zero out. matchesAvailable and expectedMinutes must read identically for
+// two players who differ only in how recently they joined their (shared)
+// club — the join date legitimately feeds the NEW-SIGNING role-risk penalty
+// (see Engine.newSigning) and, in-season, minutesEvidence's own-club cap, but
+// it must never reach the minutes-per-match denominator itself. A future
+// well-intentioned "fix" scoping matchesAvailable to time-since-join has to
+// argue with this passing test, not silently regress it.
+func TestTeamJoinDateDoesNotChangeTheMinutesDenominator(t *testing.T) {
+	recent := fpl.Element{
+		ID: 1, ElementType: 3, Team: 1, Minutes: 3000, Starts: 33,
+		Status: "a", TeamJoinDate: "2026-08-01",
+	}
+	veteran := fpl.Element{
+		ID: 2, ElementType: 3, Team: 1, Minutes: 3000, Starts: 33,
+		Status: "a", TeamJoinDate: "2015-08-01",
+	}
+	e := scaleEngine(t, recent, veteran)
+	recentEl, veteranEl := &e.Boot.Elements[0], &e.Boot.Elements[1]
+
+	if got, want := e.matchesAvailable(recentEl), e.matchesAvailable(veteranEl); got != want {
+		t.Errorf("a signing who joined 2026-08-01 has a minutes denominator of "+
+			"%d, a decade-long incumbent's is %d — matchesAvailable must not "+
+			"read TeamJoinDate at all", got, want)
+	}
+	if got, want := e.expectedMinutes(recentEl), e.expectedMinutes(veteranEl); got != want {
+		t.Errorf("expected minutes differ (%.6f vs %.6f) between two players "+
+			"with identical Minutes/Starts/Team, purely on TeamJoinDate", got, want)
+	}
+}
