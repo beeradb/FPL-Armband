@@ -49,6 +49,12 @@ jobs:
       # holds packages:write, so a mutable tag here is a supply-chain hole.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - id: source_date_epoch
+        # The commit's own timestamp, not `date` -- a wall-clock value would
+        # make every rebuild of the same commit stamp a different `created`
+        # and defeat the point below before it starts.
+        run: echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -87,12 +93,17 @@ jobs:
 
       - id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        # SOURCE_DATE_EPOCH governs the OCI config's `created` and is the value
+        # `rewrite-timestamp` below normalises every layer's file mtimes to.
+        # Buildx propagates a client-side SOURCE_DATE_EPOCH into the build
+        # automatically -- neither needs a matching Dockerfile ARG.
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.source_date_epoch.outputs.epoch }}
         with:
           context: .
           # linux/amd64 only: that is what the server is, and building an arm64
           # image under emulation would treble the build time for nothing.
           platforms: linux/amd64
-          push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           # mode=min, not max: mode=max exports every intermediate layer into the
@@ -103,6 +114,17 @@ jobs:
           cache-to: type=gha,mode=min
           provenance: mode=max
           sbom: true
+          # `push: true` is the shorthand for `--output=type=registry`, which
+          # carries no room for exporter options. Ask for the image exporter
+          # explicitly instead, so `rewrite-timestamp=true` can ride along:
+          # without it, SOURCE_DATE_EPOCH above only fixes the OCI config's
+          # `created` field and two builds of one commit still differ in every
+          # layer's tar entry mtimes, which is a real, separate source of
+          # divergence from the config timestamp and not covered by it.
+          # BuildKit has carried `rewrite-timestamp` since v0.13; the
+          # docker-container builder buildx sets up here tracks recent
+          # BuildKit releases, well past that floor.
+          outputs: type=image,push=true,rewrite-timestamp=true
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
