@@ -339,6 +339,37 @@ func formationOf(xi []analysis.PlayerMetrics) string {
 	return fmt.Sprintf("%d-%d-%d", n["DEF"], n["MID"], n["FWD"])
 }
 
+// xiChanges is the exact integer set difference between two starting elevens drawn from the
+// SAME fifteen: how many players in actual are not also in model. No threshold, no fitted
+// constant -- an integer count, 0 to 11.
+//
+// Symmetric by construction here, though it does not read that way: model and actual are
+// both size 11 subsets of one fifteen, so the count of actual-not-in-model always equals the
+// count of model-not-in-actual. Written one-directional anyway because that is the reader's
+// own question -- "how many of MY picks does the model disagree with".
+func xiChanges(model, actual []analysis.PlayerMetrics) int {
+	in := make(map[int]bool, len(model))
+	for _, m := range model {
+		in[m.ID] = true
+	}
+	n := 0
+	for _, p := range actual {
+		if !in[p.ID] {
+			n++
+		}
+	}
+	return n
+}
+
+// xiScore is the plain sum of Score across one starting eleven.
+func xiScore(xi []analysis.PlayerMetrics) float64 {
+	var s float64
+	for _, p := range xi {
+		s += p.Score
+	}
+	return s
+}
+
 // totalCost is the price of a fifteen, in millions.
 func totalCost(squad []analysis.PlayerMetrics) float64 {
 	var t float64
