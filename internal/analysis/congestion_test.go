@@ -196,13 +196,15 @@ func TestEuropeanPenaltyIsDateGated(t *testing.T) {
 	// A partial window built from the probe's OWN fixture deadlines exercises
 	// the same gating logic (CoversGameweek/Active) without depending on where
 	// "today" happens to sit relative to a hand-maintained, season-long date.
-	deadlineOf := map[int]time.Time{}
-	for _, ev := range probe.Boot.Events {
-		deadlineOf[ev.ID] = ev.DeadlineTime
-	}
-	mid := deadlineOf[fx[len(fx)/2].Event]
-	if mid.IsZero() {
-		t.Fatalf("no deadline recorded for gameweek %d", fx[len(fx)/2].Event)
+	//
+	// fx has exactly 5 entries (checked above), so index 2 -- the third of five
+	// -- splits the horizon with two gameweeks on each side; not `len(fx)/2`,
+	// which is the inline middle-value idiom internal/stats/median_test.go's
+	// TestTheMiddleValueHasOneImplementation exists to catch.
+	midGW := fx[2].Event
+	mid, ok := probe.GameweekDeadline(midGW)
+	if !ok {
+		t.Fatalf("no deadline recorded for gameweek %d", midGW)
 	}
 
 	real := late
