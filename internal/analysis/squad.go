@@ -424,6 +424,32 @@ type Squad struct {
 	ExpectedPoints float64        `json:"expected_points_with_captain"`
 	SquadScore     float64        `json:"squad_score"`
 	ClubCounts     map[string]int `json:"club_counts"`
+
+	// XIChanges and XIGap compare StartingXI against BestXI's own answer for the SAME
+	// fifteen -- "your eleven vs. the best eleven from your own fifteen", never against a
+	// different fifteen. That narrower comparison is deliberate: the budget a rebuilt
+	// fifteen would draw on (Engine.AssemblyBudget) is read from the process-wide engine,
+	// set once from the house account's own entry, not the individual visitor's -- so
+	// comparing against a different model-optimal fifteen would silently price it against
+	// someone else's money. See cmd/armband/page.go's own comment on this split, where
+	// both fields are actually populated -- once, for whichever of the reload/Optimize/
+	// varied-build paths produced this Squad, so a fresh build (which already IS the
+	// model's own pick) reads as agreement rather than as an unattempted comparison.
+	//
+	// Both are pointers, on the same reasoning as ChipTeam.Gain and Transfers.NoBaseline:
+	// nil means the comparison was never run at all (every OTHER builder of a Squad --
+	// buildChipTeam's hypothetical rebuild, a market candidate, cmd/armband/transfers.go's
+	// funded-pair search -- leaves them nil, since none of those is "the reader's own
+	// pitch"), and a non-nil zero means it ran and the reader's eleven already IS the
+	// model's own pick for this fifteen. Collapsing the two into a bare zero would make an
+	// unattempted comparison indistinguishable from a genuine agreement.
+	//
+	// XIChanges is the exact integer set difference between the two elevens -- 0 to 11,
+	// no threshold, no fitted constant. XIGap is BestXI's own eleven's Score total minus
+	// StartingXI's; non-negative by construction, since BestXI maximises exactly that sum
+	// over legal formations of the same fifteen.
+	XIChanges *int     `json:"xi_changes,omitempty"`
+	XIGap     *float64 `json:"xi_gap,omitempty"`
 }
 
 // Optimize builds the highest-scoring legal 15-man squad it can find.

@@ -266,6 +266,8 @@ func buildSquad(p present.Page, sell map[int]int, trust analysis.BudgetTrust) Sq
 		ClubCounts:       p.Squad.ClubCounts,
 		SellPrices:       trust.SellPriceSource(len(sell) > 0),
 		SellPriceWarning: trust.Warning(),
+		XIChanges:        p.Squad.XIChanges,
+		XIGap:            p.Squad.XIGap,
 	}
 	for _, m := range p.Squad.Players {
 		sq.Players = append(sq.Players, buildPlayer(m, p.Codes, p.Overrides, sell))
