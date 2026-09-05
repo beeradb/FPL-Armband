@@ -97,7 +97,7 @@ export ANTHROPIC_API_KEY=sk-ant-...     # platform.claude.com/settings/keys
 ```
 
 First run writes a `config.json` you can edit, or copy `config.example.json` over it and set
-`entry_id` to your own team. Requires **Go 1.26.5 or newer** (see `go.mod`).
+`entry_id` to your own team. Requires **Go 1.26.7 or newer** (see `go.mod`).
 
 **Only `entry_id` is required.** Every other key has a shipped default, and a key you leave out
 of the file keeps that default — `config.example.json` is deliberately the short version rather
@@ -243,7 +243,7 @@ optimiser, the fixture model, the chip validator and the replay are all free.
 | `chips` | Chip windows, plan validation, blanks and doubles | — |
 | `congestion` | International breaks, turnarounds, European load | — |
 | `nations` | FPL nationality codes with example players | — |
-| `backtest <season> [gws]` | Replay a finished season — see [docs/replay.md](docs/replay.md) | — |
+| `backtest <season> [payoff-gws]` | Replay a finished season — see [docs/replay.md](docs/replay.md) | — |
 | `snapshot` | Model-and-harness accuracy record from a sweep's CSVs | — |
 | `capture` | Archive today's live payload, dated and immutable | — |
 | `backfill <season\|all>` | Recover point-in-time team news for a **finished** season from the Internet Archive, one snapshot per gameweek, always from strictly before the deadline — see [docs/backfill.md](docs/backfill.md) | — |
@@ -356,7 +356,7 @@ team news and press conferences rather than relying on FPL's terse `news` field.
 
 ```
 14 API calls · 952k prompt tokens (900k cached, 95% hit rate) · 25k output · 3 web searches
-estimated cost: $0.540 at introductory rates through 2026-08-31; $0.810 after
+estimated cost: $0.540 at the introductory rate active for this run; $0.810 at standard rates
 without prompt caching this run would have cost about $5.39
 ```
 
