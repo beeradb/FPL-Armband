@@ -318,8 +318,8 @@
     <span class="pill on" id="previewPill">Preview</span>
     <span class="spacer"></span>
     <div class="deadline">
-      <span class="k" id="ddlLabel">GW1 deadline</span>
-      <span class="t" id="ddl">1d 22h 41m</span>
+      <span class="k" id="ddlLabel">Deadline</span>
+      <span class="t" id="ddl">—</span>
     </div>
   </div>
 </div>
@@ -353,7 +353,7 @@
 <!-- swap-mode banner: the touch fallback for drag and drop -->
 <div class="swapbar" id="swapbar">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
-  <span id="swaptext">Tap a player to swap with <b>Kinsky</b></span>
+  <span id="swaptext">Tap a player to swap</span>
   <button class="btn sm ghost x" id="swapcancel" style="height:26px;border-color:rgba(255,255,255,.4)">Cancel</button>
 </div>
 
@@ -470,7 +470,7 @@
            turns red is a STATUS; the rule that formation actually obeys is a REFUSAL, so
            the error state lives on the readout itself and a bad drag flashes the rule in
            place -- borrowing the score bug's 1.4s rhythm, below. -->
-      <span class="form" id="formation">3-5-2</span>
+      <span class="form" id="formation">—</span>
       <span class="formerr" id="formErr" hidden></span>
       <span class="pill" id="clubcap" hidden>max 3/club ✓</span>
       <!-- The squad is where an over-budget state actually lives -- the same treatment
@@ -539,7 +539,7 @@
     <div class="bench">
       <div class="benchhead">
         <span class="k">Bench — substitution order</span>
-        <span class="pill" id="benchval">2.5 <span class="unit">pts</span></span>
+        <span class="pill" id="benchval">—</span>
         <span class="hint">Drag to reorder · 1 comes on first</span>
       </div>
       <div class="benchrow" id="benchrow"></div>
@@ -602,7 +602,7 @@
        class-based hide would catch both. renderInstructions() hides THIS element by id when
        there is nothing to show, rather than drawing the permanent empty-state block it used
        to. -->
-  <div class="why instr" id="instrpanel">
+  <div class="why instr" id="instrpanel" hidden>
     <h3>Your instructions <span class="dim" id="instrCount"></span></h3>
     <div id="instrbody"></div>
   </div>
