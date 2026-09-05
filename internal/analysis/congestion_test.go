@@ -129,9 +129,11 @@ func TestEuropeanCompetitionOrdersPenalties(t *testing.T) {
 func TestEuropeanPenaltyIsDateGated(t *testing.T) {
 	probe := congestionEngine(t, DefaultCongestion())
 	var club string
+	var fx []FixtureBrief
 	for i := range probe.Boot.Teams {
-		if len(probe.TeamFixtures(probe.Boot.Teams[i].ID, 5)) == 5 {
+		if f := probe.TeamFixtures(probe.Boot.Teams[i].ID, 5); len(f) == 5 {
 			club = probe.Boot.Teams[i].ShortName
+			fx = f
 			break
 		}
 	}
@@ -178,11 +180,34 @@ func TestEuropeanPenaltyIsDateGated(t *testing.T) {
 		t.Errorf("with a past start date the factor should be penalised, got %.3f", ungatedFactor)
 	}
 
-	// The real configured campaign should land strictly between the two,
-	// because only some horizon gameweeks fall after the European start.
+	// A partial window should land strictly between the two, because only some
+	// horizon gameweeks fall after the European start.
+	//
+	// This used to set the window to DefaultEuropeanCampaigns()["ARS"], the real
+	// shipped 2026/27 config. That is exactly what stopped holding once the
+	// real calendar moved past it: Arsenal's campaign carries a Start with no
+	// End, so once "today" passes that date every future gameweek deadline in
+	// any forward horizon is on or after it -- permanently, for the rest of the
+	// season. The "partial" case became indistinguishable from "fully gated" the
+	// day this test's own premise (some but not all of the horizon precedes the
+	// start) stopped being true of the real world, and it can never become true
+	// again until next season's campaign dates are set with a future start.
+	//
+	// A partial window built from the probe's OWN fixture deadlines exercises
+	// the same gating logic (CoversGameweek/Active) without depending on where
+	// "today" happens to sit relative to a hand-maintained, season-long date.
+	deadlineOf := map[int]time.Time{}
+	for _, ev := range probe.Boot.Events {
+		deadlineOf[ev.ID] = ev.DeadlineTime
+	}
+	mid := deadlineOf[fx[len(fx)/2].Event]
+	if mid.IsZero() {
+		t.Fatalf("no deadline recorded for gameweek %d", fx[len(fx)/2].Event)
+	}
+
 	real := late
 	real.European = map[string][]CompetitionWindow{
-		club: DefaultEuropeanCampaigns()["ARS"],
+		club: {{Competition: "UCL", Start: mid.Format("2006-01-02")}},
 	}
 	eReal := congestionEngine(t, real)
 	var realFactor float64
@@ -196,8 +221,8 @@ func TestEuropeanPenaltyIsDateGated(t *testing.T) {
 		t.Errorf("partially-gated factor %.3f should sit between ungated %.3f and gated %.3f",
 			realFactor, ungatedFactor, gatedFactor)
 	}
-	t.Logf("%s: ungated %.3f, real start %.3f, fully gated %.3f",
-		club, ungatedFactor, realFactor, gatedFactor)
+	t.Logf("%s: ungated %.3f, partial (from %s) %.3f, fully gated %.3f",
+		club, ungatedFactor, mid.Format("2006-01-02"), realFactor, gatedFactor)
 }
 
 // A club knocked out must stop carrying the penalty from its end date, and a
