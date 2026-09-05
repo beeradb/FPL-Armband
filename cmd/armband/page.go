@@ -216,24 +216,9 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 	}
 	mark("optimize")
 
-	// "Your eleven vs. the best eleven from your own fifteen" -- see analysis.Squad's own
-	// doc comment for why this stays narrower than comparing against a different, possibly
-	// better fifteen (AssemblyBudget is the house account's money, not this reader's).
-	//
 	// Computed here, once, for whichever of the three paths above actually built `sq` --
-	// not only the reload path that has a reader arrangement to disagree with. A fresh
-	// Optimize or varied build already IS the model's own pick, so it must read that way
-	// (XIChanges 0, "matches our pick") rather than leave the field nil and have the page
-	// render nothing: nil is reserved for a Squad this function never finishes, not for
-	// "no reader arrangement exists yet". BestXI reads sq.Players directly -- already
-	// resolved PlayerMetrics, no id lookup that could silently skip one.
-	if len(sq.StartingXI) == 11 {
-		model, _, _ := analysis.BestXI(sq.Players)
-		changes := xiChanges(model, sq.StartingXI)
-		gap := xiScore(model) - xiScore(sq.StartingXI)
-		sq.XIChanges = &changes
-		sq.XIGap = &gap
-	}
+	// not only the reload path that has a reader arrangement to disagree with.
+	attachXIComparison(sq)
 
 	// Say what it was allowed to spend, not merely what it spent. A £102.0m
 	// squad is a bug at the opening allowance and correct on a wildcard budget,
@@ -297,6 +282,29 @@ func buildSquadPage(ctx context.Context, cfg config.Config, client *fpl.Client,
 		Page: page, Squad: sq, BudgetLine: budgetLine, Source: source,
 		OverrideEffects: effects,
 	}, nil
+}
+
+// attachXIComparison fills sq.XIChanges/XIGap with "your eleven vs. the best eleven from
+// your own fifteen" -- see analysis.Squad's own doc comment for why this stays narrower
+// than comparing against a different, possibly better fifteen (AssemblyBudget is the
+// house account's money, not this reader's).
+//
+// Called for whichever of buildSquadPage's three paths actually built sq -- not only the
+// reload path that has a reader arrangement to disagree with. A fresh Optimize or varied
+// build already IS the model's own pick, so it must read that way (XIChanges 0, "matches
+// our pick") rather than leave the field nil and have the page render nothing: nil is
+// reserved for a Squad buildSquadPage never finishes, not for "no reader arrangement
+// exists yet". BestXI reads sq.Players directly -- already resolved PlayerMetrics, no id
+// lookup that could silently skip one.
+func attachXIComparison(sq *analysis.Squad) {
+	if len(sq.StartingXI) != 11 {
+		return
+	}
+	model, _, _ := analysis.BestXI(sq.Players)
+	changes := xiChanges(model, sq.StartingXI)
+	gap := xiScore(model) - xiScore(sq.StartingXI)
+	sq.XIChanges = &changes
+	sq.XIGap = &gap
 }
 
 // clubShortNames lists the clubs in the bootstrap, for the watchlist's team
