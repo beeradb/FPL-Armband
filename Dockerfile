@@ -40,7 +40,15 @@ COPY . .
 # -trimpath strips the build path and -buildid= drops the last non-deterministic
 # field, so two builds of one commit produce an identical BINARY. That is a
 # claim about the binary only: the image digest additionally depends on the
-# pinned bases above.
+# pinned bases above, AND on the layer and config timestamps this Dockerfile
+# has no say over -- COPY stamps a layer with the wall-clock of whichever build
+# ran it, so two builds of one commit produced different digests even with an
+# identical binary and identical pinned bases. .github/workflows/image.yml
+# closes that gap by setting SOURCE_DATE_EPOCH from the commit itself and
+# passing rewrite-timestamp=true to the image exporter, which together fix
+# both the OCI config's `created` field and every layer's file mtimes to that
+# one value. A local `docker build` without those two settings will still
+# produce a fresh digest per invocation; that is expected, not a defect here.
 RUN go build -trimpath -ldflags='-s -w -buildid=' -o /out/armband ./cmd/armband
 
 # static-debian12 carries the CA bundle the live FPL API needs and nothing else:
