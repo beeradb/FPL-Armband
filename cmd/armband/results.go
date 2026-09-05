@@ -123,7 +123,21 @@ func (s *squadServer) apiResults(w http.ResponseWriter, r *http.Request) {
 
 	defer s.lockRender("results")()
 
-	b, err := buildSquadPage(r.Context(), *s.cfg, s.client, s.engine, pageOpts{
+	// The visitor's OWN effective config, not the raw site-owner config — same as
+	// buildState (see effectiveCfgFrom's own comment). This route is reader-scoped:
+	// its own doc comment says it is "generalised to any reader who has imported a
+	// team", and *s.cfg carries the owner's Roster.Lock and chip_plan, neither of
+	// which has anything to do with the visitor being served here.
+	//
+	// Skipping this used to let the owner's own lock name a player outside the
+	// visitor's actual squad — violatesRoster then discarded his real fifteen and
+	// e.Optimize built a fabricated "optimal" one in its place, captioned as his own
+	// result — and separately handed the owner's chip plan to e.Chips, which
+	// ApplyChipPlan can use to truncate the shared engine's Weights.Horizon for a
+	// request that has nothing to do with the owner's wildcard.
+	cfg := s.effectiveCfgFrom(sess)
+
+	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, pageOpts{
 		Weeks:    s.weeks,
 		WantPage: true,
 		Now:      now,
@@ -139,9 +153,9 @@ func (s *squadServer) apiResults(w http.ResponseWriter, r *http.Request) {
 	st, err := viewmodel.Build(viewmodel.Input{
 		Page:         b.Page,
 		Boot:         s.engine.Boot,
-		Cfg:          *s.cfg,
+		Cfg:          cfg,
 		Now:          now,
-		Chips:        s.cfg.Chips,
+		Chips:        cfg.Chips,
 		Entry:        entry,
 		History:      history,
 		Live:         live,
