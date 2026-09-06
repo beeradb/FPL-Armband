@@ -329,7 +329,15 @@ function hydrate(st){
   S.bench=bench;
   S.cap=sq.captain||null;
   S.vc=sq.vice||null;
-  S.modelXi=(sq.xi||[]).slice();
+  /* xi_changes/xi_gap are the server's own comparison of THIS arrangement against the
+     model's best eleven from this same fifteen -- see analysis.Squad.XIChanges' doc
+     comment. cmd/armband/page.go computes both for every squad it serves, fresh build or
+     reload, so they are only undefined on a payload from before this field existed --
+     carried through as-is rather than defaulted to 0, so that case still reads as "no
+     answer" rather than a fabricated agreement. renderReadout's own undefined check is
+     what tells the two apart. */
+  S.xiChanges=sq.xi_changes;
+  S.xiGap=sq.xi_gap;
   S.gw=(GWS.find(g=>g.live)||GWS[0]||{gw:1}).gw;
 
   /* The team, by code, so a reload restores exactly this arrangement rather than the
@@ -461,7 +469,6 @@ let S={
      preference the model has an opinion about. */
   suggest:null, suggestArmed:null, suggestPick:0,
   posFilter:'ALL', q:'', affordOnly:false, showAll:false,
-  modelXi:[],
   /* Sort and filter are independent axes and sort survives a filter change -- one state
      field for both the desktop headers and the phone's sort pill. */
   sort:{col:'delta',dir:'desc'}
@@ -1216,9 +1223,6 @@ document.addEventListener('keydown',e=>{
 let lastTotal=null, deltaTimer=null;
 function renderReadout(){
   const chip=gwState().chip;
-  const model=S.modelXi.reduce((s,id)=>s+xpFor(byId(id)),0);
-  const mine=xiPts();
-  const vsm=+(mine-model).toFixed(2);
   const total=totalPts();
 
   // Captain is off the score bug now -- his arithmetic lives on the pitch HUD's armband
@@ -1255,10 +1259,23 @@ function renderReadout(){
   }
   lastTotal=total;
 
+  // xiChanges/xiGap compare THIS arrangement against the model's best eleven from this
+  // same fifteen -- never against a different fifteen (see analysis.Squad.XIChanges'
+  // doc comment for why). A real answer, 0 included, rides on every squad this page
+  // serves; undefined means no answer arrived at all (an old payload), and that must
+  // render as nothing, not as "matches our pick" -- the two are different facts, and
+  // this HUD used to conflate them by comparing S.xi against a copy of itself, which is
+  // the bug this field replaces. See #vsmodel's own history for exactly that collision.
   const vs=document.getElementById('vsmodel');
-  vs.innerHTML = vsm===0
-    ? `<span class="dim">matches our pick</span>`
-    : `<span class="${vsm>0?'acc':'badc'}">${vsm>0?'+':''}${vsm.toFixed(2)}</span> <span class="dim">vs our pick</span>`;
+  if(S.xiChanges===undefined||S.xiChanges===null){
+    vs.innerHTML='';
+  } else if(S.xiChanges===0){
+    vs.innerHTML=`<span class="dim">matches our pick</span>`;
+  } else {
+    const gap=S.xiGap||0;
+    vs.innerHTML=`<span class="badc">${S.xiChanges} of 11 differ</span> `+
+      `<span class="dim">· -${gap.toFixed(2)} vs our best from these 15</span>`;
+  }
 
   // the deadline follows the gameweek you are planning, and only shouts when it should
   const t=document.getElementById('ddl'), g=gwState()||{};

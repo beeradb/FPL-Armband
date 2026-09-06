@@ -932,6 +932,8 @@
     "bench_score": 9.10216684420584,
     "cost": 99.5,
     "bank": 0.5,
+    "xi_changes": 0,
+    "xi_gap": 0,
     "club_counts": {
       "BHA": 2,
       "BOU": 1,

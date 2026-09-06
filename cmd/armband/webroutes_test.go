@@ -149,11 +149,12 @@ func TestTheApplicationIsServedOnItsOwnRoutes(t *testing.T) {
 	}{
 		// Proof that the APP shell was served, now that "/" is the front door.
 		//
-		// "GW1 deadline" is app-only -- it appears nowhere in landing.html -- and it
-		// survived every redesign so far because it is a live label rather than an
-		// argument. See routeAbout's own case below for the landing document's
-		// sentinel, moved with it off "/".
-		{"/", "text/html", "GW1 deadline"},
+		// "Deadline" is app-only -- it appears nowhere in landing.html. It replaced
+		// the literal "GW1 deadline" placeholder (see the sentinel's own history in
+		// git blame) once that started flashing a fake gameweek number before
+		// hydration filled in the real one. See routeAbout's own case below for the
+		// landing document's sentinel, moved with it off "/".
+		{"/", "text/html", "Deadline"},
 		{"/about", "text/html", "Claim my armband"},
 		{"/assets/armband.css", "text/css", "--band"},
 		{"/assets/fonts.css", "text/css", "@font-face"},
