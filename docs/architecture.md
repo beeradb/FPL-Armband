@@ -254,7 +254,7 @@ because whether `/app` should exist at all is still an open, reversible question
 A Playwright suite, in Node rather than Go, driving a real `armband serve` in a real headless
 browser — the first Node/Playwright toolchain in this otherwise Go-only repository, added
 deliberately rather than extending `internal/browsertest` (the package `internal/webui`'s own
-layout goldens use), because the value here is real interaction — clicks, drags, keyboard
+layout goldens use), because the value here is real interaction — clicks, keyboard
 dismissal, a session-cookie round trip — that a `--dump-dom`/`--screenshot` harness cannot drive
 at all.
 
@@ -289,7 +289,7 @@ skipping those areas silently; `e2e/README.md` names each gap and why.
 **Division of labour with `internal/webui`.** That package's suite (goldens, contrast, the type
 floor, inline-script and external-host bans — all pinned over markup/CSS, none needing a running
 server) is the one that runs in CI on every push and stays fast. This suite drives interaction
-sequences — Optimise/Reset round trips, the player sheet, the chip menu, the gameweek rail,
+sequences — Optimise round trips, the player sheet, the chip menu, the gameweek rail,
 client-side market filters — that are structurally out of that package's reach, and it runs as its
 own CI job (`.github/workflows/ci.yml`'s `e2e` job) so a browser download and a live server never
 sit ahead of the Go gate. Locally it is opt-in (`cd e2e && npm test`), never wired into
