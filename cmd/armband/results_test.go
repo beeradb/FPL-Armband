@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"armband/internal/analysis"
+	"armband/internal/config"
 	"armband/internal/fpl"
 	"armband/internal/viewmodel"
 )
@@ -179,5 +181,144 @@ func TestResultsAnswers409WhenTheEntryFetchFails(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Errorf("GET /api/results with a failed entry fetch answered %d, want 409: %s",
 			w.Code, w.Body.String())
+	}
+}
+
+// TestResultsUsesTheVisitorsOwnEffectiveConfig pins the fix to apiResults' config leak:
+// GET /api/results used to build the page from the raw site-owner config (*s.cfg) rather
+// than the visiting reader's own effective config (s.effectiveCfgFrom(sess)) — the same
+// pattern buildState already follows, see effectiveCfgFrom's own comment in serve.go.
+//
+// Two channels leaked through the raw config, and this test exercises both against one
+// request:
+//
+//   - Roster.Lock. applyRoster/violatesRoster (squadchoice.go) bind the owner's own
+//     lock to every optimiser request built from cfg, including this one. A lock naming
+//     a player outside the visitor's actual fifteen made violatesRoster discard his real
+//     squad and fall through to e.Optimize — a fabricated "optimal" squad, built with
+//     the owner's lock forced into it, captioned as the visitor's own result.
+//     effectiveCfgFrom fixes this by running the owner's config through forPlanner
+//     first, which strips Roster.Lock entirely (see forPlanner's own Roster handling in
+//     session.go, and chipleak_test.go's TestTheSiteServesNoChipPlanOfItsOwn for the
+//     sibling fix to the chip-plan leak below).
+//
+//   - Chips. buildSquadPage assigns cfg.Chips onto the SHARED engine's e.Chips before
+//     calling ApplyChipPlan, which can shorten e.Weights.Horizon when a wildcard is
+//     planned. The owner's own wildcard has nothing to do with a visitor's result, and
+//     State.Horizon — the figure every projection on the page is "over what?" for —
+//     must reflect the visitor's own (empty) chip plan, not the owner's.
+func TestResultsUsesTheVisitorsOwnEffectiveConfig(t *testing.T) {
+	s := fixtureServer(t)
+	event := s.engine.Boot.Events[0] // GW1, deadline 2026-08-21 17:30 UTC
+	s.clock = func() time.Time { return event.DeadlineTime.Add(time.Hour) }
+
+	gk, def, mid, fwd := legalFifteenElements(t, s.engine.Boot)
+	picks := fakePicks(gk, def, mid, fwd)
+
+	inSquad := map[int]bool{}
+	for _, group := range [][]fpl.Element{gk, def, mid, fwd} {
+		for _, el := range group {
+			inSquad[el.Code] = true
+		}
+	}
+	var outsider fpl.Element
+	found := false
+	for _, el := range s.engine.Boot.Elements {
+		if !inSquad[el.Code] {
+			outsider = el
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("the fixture bootstrap has no element outside the visitor's own fifteen")
+	}
+
+	// Clear the fixture's own standing exclude (see fixtureServerNamed's own comment):
+	// it names boot.Elements[1], which legalFifteenElements' front-of-bootstrap picking
+	// can itself pick as part of the visitor's "own" fifteen, and that coincidence would
+	// trigger violatesRoster on its own — indistinguishable from the leak this test
+	// isolates. The lock below is this test's only standing correction.
+	s.cfg.Roster.Exclude = nil
+
+	// The OWNER's config: a lock naming a player who is not in the visitor's actual
+	// squad, and a wildcard planned two gameweeks out. Both live on *s.cfg, the config
+	// apiResults used to build the page from directly.
+	s.cfg.Roster.Lock = append(s.cfg.Roster.Lock, config.RosterOverride{
+		Code: outsider.Code, Name: outsider.WebName,
+		Reason: "the site owner's own lock — unrelated to any visitor",
+		SetOn:  fixtureNow.Format("2006-01-02"),
+	})
+	nextGW := 1
+	if next := s.engine.Boot.NextEvent(); next != nil {
+		nextGW = next.ID
+	}
+	wildcardGW := nextGW + 2
+	s.cfg.Chips = analysis.ChipSchedule{First: analysis.ChipPlan{Wildcard: wildcardGW}}
+
+	fullHorizon := s.engine.Weights.Horizon
+	shortened, why := s.engine.EffectiveHorizon(s.cfg.Chips)
+	if why == "" || shortened >= fullHorizon {
+		t.Skipf("the owner's wildcard at GW%d does not shorten the shared engine's "+
+			"horizon %d — nothing here would distinguish the fix from the bug",
+			wildcardGW, fullHorizon)
+	}
+
+	s.fetchEntry = func(ctx context.Context, id int) (*fpl.Entry, error) {
+		return &fpl.Entry{ID: id, Name: "Visitor Team", SummaryOverallPoints: 42}, nil
+	}
+	s.fetchPicks = func(ctx context.Context, entryID, gw int) (*fpl.EntryPicks, error) {
+		return picks, nil
+	}
+	cookie := resultsSessionCookie(t, 1234567)
+
+	w := getResults(t, s, "?gw=1", cookie)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/results?gw=1 answered %d, want 200: %s", w.Code, w.Body.String())
+	}
+
+	var st viewmodel.State
+	if err := json.Unmarshal(w.Body.Bytes(), &st); err != nil {
+		t.Fatalf("the response did not decode: %v", err)
+	}
+	if st.Results == nil {
+		t.Fatal("State.Results is nil, want a value — a fake entry and picks were given")
+	}
+
+	// The visitor's real squad, not a substituted optimum: the fifteen returned must be
+	// exactly the fifteen fakePicks handed the server, and the owner's locked outsider
+	// must not be among them.
+	wantIDs := map[int]bool{}
+	for _, p := range picks.Picks {
+		wantIDs[p.Element] = true
+	}
+	gotIDs := map[int]bool{}
+	for _, p := range st.Results.XI {
+		gotIDs[p.ID] = true
+	}
+	for _, p := range st.Results.Bench {
+		gotIDs[p.ID] = true
+	}
+	if len(gotIDs) != 15 {
+		t.Fatalf("the result carries %d distinct players, want 15", len(gotIDs))
+	}
+	for id := range wantIDs {
+		if !gotIDs[id] {
+			t.Errorf("the visitor's own player (element %d) is missing from the result "+
+				"— the owner's lock discarded his real squad", id)
+		}
+	}
+	if gotIDs[outsider.ID] {
+		t.Errorf("the owner's locked player (element %d, %s) leaked into the visitor's "+
+			"own result", outsider.ID, outsider.WebName)
+	}
+
+	// The visitor's own week-views, not the owner's: with no chip plan of his own, his
+	// horizon must be the full configured one, not the span the owner's wildcard
+	// truncates it to.
+	if st.Horizon != fullHorizon {
+		t.Errorf("State.Horizon = %d, want the visitor's own full horizon %d — the "+
+			"owner's wildcard at GW%d truncated it to %d (%q)",
+			st.Horizon, fullHorizon, wildcardGW, shortened, why)
 	}
 }

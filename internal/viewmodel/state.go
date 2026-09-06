@@ -769,6 +769,15 @@ type Squad struct {
 	// SellPrices needs no caveat, a plain sentence explaining why the figures are an
 	// assumption or an estimate otherwise.
 	SellPriceWarning string `json:"sell_price_warning,omitempty"`
+
+	// XIChanges and XIGap are analysis.Squad's own fields, copied verbatim -- see that
+	// type's doc comment for the exact comparison ("your eleven vs. the best eleven from
+	// your own fifteen", never against a different fifteen) and for why nil means the
+	// comparison was not run rather than that it resolved to zero. Both pointers, on the
+	// same reasoning as ChipTeam.Gain: an unpopulated week must not read as "no gain from
+	// this chip", and an unattempted comparison here must not read as "matches our pick".
+	XIChanges *int     `json:"xi_changes,omitempty"`
+	XIGap     *float64 `json:"xi_gap,omitempty"`
 }
 
 // Player is one footballer as every surface draws him: the pitch card, the bench strip,
