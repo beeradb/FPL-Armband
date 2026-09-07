@@ -95,6 +95,13 @@ func TestDiagXGCTransport(t *testing.T) {
 	requireDiag(t)
 	cfg := loadConfig(t)
 
+	// One sidecar for the whole directory rather than one per season: every
+	// season's file below comes from the same run, and per-season sidecars
+	// would say that four times over instead of once.
+	if dir := os.Getenv("FPL_XGC_TERCILE_CSV"); dir != "" {
+		writeDiagProvenance(t, filepath.Join(dir, "run.csv"), cfg)
+	}
+
 	t.Log("season   arm         n      ratio    corr    MAE%   ever-n  ever ratio  " +
 		"ever MAE%   spearman  n")
 	for _, name := range xgcSeasonsWithRealData() {

@@ -117,7 +117,13 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 		}
 		defer f.Close()
 		csv = f
-		// ⚠️ The provenance is COLUMNS, not a `#` header. A comment line needs a
+		// The commit/env stamp goes in a sidecar (writeDiagProvenance), never a
+		// comment line in this file — same reason as below: read_sidecar does not
+		// skip comments, and a `#` line would only ever describe whichever run
+		// wrote the file first.
+		writeDiagProvenance(t, path, cfg)
+		// ⚠️ The declared variable (price_tilt) is a COLUMN here, not a `#`
+		// header. A comment line needs a
 		// reader that skips it, and the sanctioned reader (`read_sidecar` in
 		// stats/cells_common.R) does not — a raw read.csv here trips the
 		// one-implementation guard. Columns are the better answer anyway: they
@@ -137,6 +143,7 @@ func TestDiagOwnershipPredictsMinutes(t *testing.T) {
 		}
 		defer f.Close()
 		csv2 = f
+		writeDiagProvenance(t, path, cfg)
 		fmt.Fprintln(csv2, "season,stratum,pos,n,pred_off,pred_on,actual,window,price_tilt")
 	}
 
