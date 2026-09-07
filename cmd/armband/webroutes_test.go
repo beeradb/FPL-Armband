@@ -755,6 +755,14 @@ func TestThePolicyPermitsTheGateItShips(t *testing.T) {
 		t.Errorf("the landing page's connect-src does not permit %s, so its signup "+
 			"form cannot post. Policy: %s", signupOrigin, csp)
 	}
+	// The same exception on form-action, for the same form's NATIVE fallback (see
+	// landing.html's <form action=...> and formActionFor's own doc comment): a script
+	// failure still has somewhere to submit to.
+	if !strings.Contains(csp, "form-action 'self' "+signupOrigin) {
+		t.Errorf("the landing page's form-action does not permit %s, so its signup "+
+			"form's native fallback cannot post if the script fails. Policy: %s",
+			signupOrigin, csp)
+	}
 	// The exception is one named host on one directive, not a loosening. A foreign
 	// origin on script-src would give an injected string somewhere to run from, which
 	// is what the whole out-of-line-script arrangement exists to prevent.
