@@ -523,6 +523,20 @@ func (s *squadServer) gate(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 		HttpOnly: true,
 	})
+	// ⚠️ KNOWN GAP, found on review, not fixed here: a 204 is right for gate.js's
+	// fetch (which reads it and drives data-gate-redirect itself), but a real,
+	// non-JS <form> POST -- the fallback this project's native action/method now
+	// exists to catch -- treats a 204 response as "stay here, do nothing visible".
+	// So the JS-failure case this fallback targets now records the address
+	// (the bug it was built to fix) but shows the reader no confirmation at all,
+	// which reads as a broken form.
+	//
+	// Not a one-line fix: gate.js's own comment explains why this can't simply
+	// redirect instead -- a fetch() would follow the redirect and hit CORS. The
+	// real fix needs the two paths told apart (e.g. the browser's own
+	// Sec-Fetch-Mode: navigate header, sent for a real top-level submission and
+	// never by fetch) AND a page for a native POST to land on that shows
+	// something happened -- a UX decision nothing here makes for you.
 	w.WriteHeader(http.StatusNoContent)
 }
 
