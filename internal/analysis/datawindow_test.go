@@ -306,6 +306,65 @@ func TestTournamentAbsencesStopApplyingInSeason(t *testing.T) {
 	}
 }
 
+// TestTournamentAbsenceStopsAtKickoffNotAtGameweekFinish is the regression
+// guard on tournamentAbsence's own gate, which read `e.GameweeksPlayed() > 0`
+// until 2026-09 — the exact "gameweeks FINISHED as a stand-in for season
+// STARTED" substitution this project has already shipped six times (see
+// SeasonHasStarted's own comment and AGENTS.md's "Things that have already
+// bitten"). FPL zeroes the whole league's aggregates the moment its FIRST
+// fixture kicks off, not once a gameweek finishes, so during the live gap
+// between the two the old guard stayed open and kept applying last summer's
+// tournament absence against a denominator built from fresh-season data it
+// was never measured against.
+//
+// Built synthetically, parked in the live gap on purpose — TestTournamentAbsencesStopApplyingInSeason
+// above only exercises the boundary a gameweek actually FINISHING moves,
+// which both the old and the fixed guard agree on, so it could not have
+// caught this.
+func TestTournamentAbsenceStopsAtKickoffNotAtGameweekFinish(t *testing.T) {
+	b := &fpl.Bootstrap{
+		Season: "2026-27",
+		Teams: []fpl.Team{
+			{ID: 1, ShortName: "FIN", Strength: 3},
+			{ID: 4, ShortName: "OPP", Strength: 3},
+		},
+		ElementTypes: []fpl.ElementType{
+			{ID: 1, SingularNameShort: "GKP"}, {ID: 2, SingularNameShort: "DEF"},
+			{ID: 3, SingularNameShort: "MID"}, {ID: 4, SingularNameShort: "FWD"},
+		},
+		Elements: []fpl.Element{
+			{ID: 501, Code: 501, Team: 1, ElementType: 3, WebName: "Tourist"},
+		},
+	}
+	for i := 1; i <= GameweeksPerSeason; i++ {
+		b.Events = append(b.Events, fpl.Event{ID: i, Name: "Gameweek"})
+	}
+	gw1 := 1
+	fx := []fpl.Fixture{
+		// Kicked off — FPL has already zeroed this club's season aggregates —
+		// but the gameweek has not FINISHED anywhere, so GameweeksPlayed stays 0.
+		{ID: 1, Event: &gw1, TeamH: 1, TeamA: 4, Started: true},
+	}
+	w := DefaultWeights()
+	w.TournamentAbsences = []TournamentAbsence{{
+		Name: "fictional tournament", Matches: 6, Players: []string{"501"},
+	}}
+	e := NewEngineFull(b, fx, w, Congestion{}, RoleRisk{})
+	if !e.SeasonHasStarted() || e.GameweeksPlayed() != 0 {
+		t.Fatalf("setup: SeasonHasStarted=%v GameweeksPlayed=%d, want true/0 — "+
+			"this engine is not in the live gap it exists to represent",
+			e.SeasonHasStarted(), e.GameweeksPlayed())
+	}
+
+	el := &e.Boot.Elements[0]
+	if a := e.tournamentAbsence(el); a.Matches != 0 {
+		t.Errorf("tournamentAbsence = %d matches during the live gap, want 0 — "+
+			"FPL already zeroed the season's aggregates the moment its first "+
+			"fixture kicked off, so last summer's tournament absence no longer "+
+			"describes data that is in hand", a.Matches)
+	}
+}
+
 // TestMinutesAndStartsFitInsideOneSeason pins the arithmetic bound that makes
 // matchesAvailable's flat GameweeksPerSeason denominator legitimate: on a real
 // pre-season capture, nobody's `minutes`/`starts` aggregate exceeds what a

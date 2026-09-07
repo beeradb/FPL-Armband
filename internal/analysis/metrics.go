@@ -2398,11 +2398,22 @@ func (e *Engine) tournamentAbsence(el *fpl.Element) playerAbsence {
 		e.absenceByID = byID
 	})
 
-	// The list describes the season the aggregates came from. Once gameweeks are
-	// played, FPL has overwritten those aggregates with this season's, and last
-	// summer's list describes data that is no longer in hand. A tournament
-	// inside the *current* season needs its own entries and this guard revisited.
-	if e.GameweeksPlayed() > 0 {
+	// The list describes the season the aggregates came from. FPL overwrites
+	// those aggregates with this season's the moment its FIRST fixture kicks
+	// off, not once a whole gameweek has FINISHED — see SeasonHasStarted's own
+	// comment — so last summer's list describes data that is no longer in hand
+	// from that instant, not from GameweeksPlayed()>0. A tournament inside the
+	// *current* season needs its own entries and this guard revisited.
+	//
+	// ⚠️ Was `e.GameweeksPlayed() > 0` until 2026-09, the exact stand-in for
+	// "has the season started" this project has already shipped six times (see
+	// AGENTS.md's "A minutes floor written as a season total..." entry and
+	// SeasonHasStarted's own comment). During the live gap between a
+	// gameweek's first kickoff and its last final whistle this returned false
+	// while FPL had already zeroed the affected clubs' aggregates, so a
+	// player's last-summer tournament absence kept shrinking his denominator
+	// against a fresh-season el.Starts it was never measured against.
+	if e.SeasonHasStarted() {
 		return playerAbsence{}
 	}
 
