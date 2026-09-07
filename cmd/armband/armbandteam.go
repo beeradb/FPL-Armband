@@ -52,7 +52,17 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 	}
 	fixed, arrange := houseRealPicks(r.Context(), s.client, s.engine.Boot, s.cfg.EntryID, event)
 
-	b, err := buildSquadPage(r.Context(), *s.cfg, s.client, s.engine, pageOpts{
+	// forPlanner, not *s.cfg -- this document is public and unauthenticated (see
+	// this file's own doc comment: "the same document for every requester"), so
+	// it must never carry a team.json setting into the build even when one is
+	// loaded into this process. "Our team" showing the house account's REAL
+	// squad (Fixed/Arrange above, fetched straight from FPL) is a deliberate
+	// exception; the account's undisclosed DECISIONS -- a roster lock, a chip
+	// plan -- are a different thing, and forPlanner's own allow-list is what
+	// keeps them off every other public route. See TestArmbandTeamDoesNotLeakTeamSettings.
+	cfg := forPlanner(*s.cfg)
+
+	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, pageOpts{
 		Weeks:    s.weeks,
 		WantPage: true,
 		Now:      now,
@@ -81,9 +91,9 @@ func (s *squadServer) armbandTeamState(w http.ResponseWriter, r *http.Request) {
 	st, err := viewmodel.Build(viewmodel.Input{
 		Page:         b.Page,
 		Boot:         s.engine.Boot,
-		Cfg:          *s.cfg,
+		Cfg:          cfg,
 		Now:          now,
-		Chips:        s.cfg.Chips,
+		Chips:        cfg.Chips,
 		Entry:        houseEntry,
 		History:      houseHistory,
 		Live:         houseLive,
