@@ -1189,7 +1189,16 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// still-live `Finished` staleness, or the correction reads as broader than it
 	// is. Compressing either clause is the qualifier-dropping this comment already
 	// forbids. About 700 bytes free.
-	const budget = 67 * 1024
+	//
+	// # 68 KB, 2026-09-08 — two default-off template-core knobs need named-list
+	// pointers that resolve
+	//
+	// The weekly overlay and the opening lock each have a vault finding in
+	// `memory/`, not `notes/`. A `→ **name**` that omits the directory looks in
+	// `notes/<name>.md` and can rebuild a measured default-off. Both pointers
+	// (and the `memory/` prefix the file's own rule requires) belong here; they
+	// are titles, not evidence.
+	const budget = 68 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.

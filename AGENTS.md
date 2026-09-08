@@ -754,6 +754,9 @@ from this list is weak evidence of absence — nothing checks it stays complete.
   **transfer-policy**
 - **The flat `free_transfer_value` ladder resolves nothing — 2.0 ships unchanged,
   measured-and-unresolved rather than untested.** → **transfer-policy**
+- **Weekly transfers toward the forming popular core do not clear POLICY** —
+  `template_core_transfer_k` stays 0. →
+  **memory/2026-09-08-weekly-transfers-toward-the-forming-core-do-not-clear-policy**
 
 ### Constants
 
@@ -841,6 +844,9 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 
 ### The optimiser, the squad, and the money
 
+- **Locking the popular core into the opening fifteen does not clear HOLD** —
+  `template_core_k` stays 0. →
+  **memory/2026-09-08-locking-the-popular-core-does-not-clear-hold**
 - **The optimiser was garbage-collection-bound, not compute-bound.** → **optimiser-and-squad**
 - **The optimiser's move set** needs N downgrades funding one upgrade; the ranking proxy may
   filter but must never decide. → **optimiser-and-squad**

@@ -381,6 +381,7 @@ func buildTransferBoard(ctx context.Context, cfg config.Config, client *fpl.Clie
 	// FPL pays what you paid plus half of any rise, never the market price. Nil
 	// means sell-at-market, which overstates the budget.
 	state.Sell = sell
+	state = e.ApplyTemplateCoreTransfer(state)
 
 	// Standing overrides bind here for the reason recorded in the research
 	// record: excluding a player from squad builds while the transfer search

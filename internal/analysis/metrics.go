@@ -426,6 +426,49 @@ type Weights struct {
 	// that is what the replay is for.
 	PriceMinutesPrior float64 `json:"price_minutes_prior"`
 
+	// TemplateCoreK locks the k highest-owned feasible players into Optimize's
+	// LockIDs before the Score search fills the rest. Zero is off and is what
+	// ships.
+	//
+	// ⚠️ This is a SEARCH CONSTRAINT, not a Score term. Ownership must not
+	// enter Score, xiValue, or the separable-band tiebreak — AGENTS.md closes
+	// "Do not break ties on ownership inside the separable band" (price shipped
+	// instead). The overlay appends to LockIDs inside Optimize; every caller
+	// (repairSquad, agent tools, cmd/armband) inherits it through that one path.
+	//
+	// Feasibility: selectTemplateCore walks ownership order and skips anyone
+	// who would breach squadQuota or MaxPerClub *given already-locked and
+	// excluded ids*, so the merged LockIDs stay a legal partial squad.
+	// Unavailable statuses are skipped. The overlay is opening-squad only
+	// (empty CurrentSquad, MaxChanges 0) — a bounded revision cannot transfer
+	// a locked player in. Ownership <= 0 is skipped so an all-zero table
+	// yields an empty core rather than an arbitrary id ranking.
+	//
+	// Zero needs no Load backfill: Default() leaves it 0, Unmarshal leaves an
+	// absent key alone, and 0 is the deliberate off — same shape as
+	// PriceMinutesPrior. A 36-cell HOLD comparison of k=4 against k=0 did not
+	// clear that comparison's own season-clustered threshold, so 0 stays.
+	TemplateCoreK int `json:"template_core_k"`
+
+	// TemplateCoreTransferK is the weekly transfer overlay: each week re-read
+	// the k most-owned feasible players, do not sell any already owned, and
+	// give the first look at swaps/pairs that buy a missing one. The shipped
+	// gain/hit gate still decides. Zero is off and is what ships.
+	//
+	// Opening TemplateCoreK is a different lever and stays 0 in the weekly
+	// arm. This is not a Score term and not the closed separable-band
+	// ownership tiebreak. Filter then fallback at two layers: RankSwaps /
+	// RankPairs give the first look at core-buys and, if none exist, return
+	// the shipped list with retention still on; if a core-buy exists but
+	// fails acceptTransfer, the replay retries the shipped search with
+	// SkipSell still set. The ranking proxy never decides.
+	//
+	// Zero needs no Load backfill: Default() leaves it 0, Unmarshal leaves an
+	// absent key alone, and 0 is the deliberate off — same shape as
+	// TemplateCoreK. A 36-cell POLICY comparison of k=4 against k=0 did not
+	// clear that comparison's own season-clustered threshold, so 0 stays.
+	TemplateCoreTransferK int `json:"template_core_transfer_k"`
+
 	// LeagueShrinkK is shrinkToLeague's own strength — how fast a player with no
 	// prior at all (a promoted club's starter, an arrival from abroad) is
 	// trusted on his own current-season sample rather than his position's
