@@ -998,12 +998,12 @@ function selectPastGameweek(gw){
 function applyWeekArmband(){
   const w=gwState();
   if(!w) return;
-  /* The week captain is the horizon-1 pick from WeekView's eleven. The pitch
-     eleven is the horizon eleven; only apply the week pair when both names are
-     actually fielded, otherwise a this-week captain who is benched on the
-     horizon view would wear the armband from the bench. */
-  if(w.captain && S.xi.includes(w.captain)) S.cap=w.captain;
-  if(w.vice && S.xi.includes(w.vice) && w.vice!==S.cap) S.vc=w.vice;
+  /* Server pair is CaptainAndVice of THIS pitch eleven at this week's scores.
+     Copy as a pair; never leave the horizon vice sitting on the new captain. */
+  if(w.captain && S.xi.includes(w.captain)){
+    S.cap=w.captain;
+    S.vc=(w.vice && S.xi.includes(w.vice) && w.vice!==S.cap) ? w.vice : 0;
+  }
 }
 
 function selectPlanningGameweek(gw){

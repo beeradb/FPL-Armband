@@ -426,6 +426,7 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 			playable = append(playable, ChipOption{Key: key, Label: analysis.ChipLabel(key)})
 		}
 		weekXP := weekScores(w)
+		cap, vice := weekArmband(p.Squad.StartingXI, weekXP)
 		out = append(out, Gameweek{
 			Number:     w.Event,
 			Deadline:   deadline[w.Event],
@@ -437,8 +438,8 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 			Rebuilt:    w.Rebuilt,
 			Playable:   playable,
 			ChipWindow: buildChipWindow(boot, chips, w.Event, deadline),
-			Captain:    w.Captain.ID,
-			Vice:       w.ViceCaptain.ID,
+			Captain:    cap,
+			Vice:       vice,
 			WeekXP:     weekXP,
 		})
 	}
@@ -461,10 +462,13 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 	return append(past, out...)
 }
 
-// weekScores copies one WeekView's already-scored players. Prefers Squad (the
-// whole fifteen) and falls back to XI; both carry this gameweek's Score.
+// weekScores copies the owned fifteen's this-week scores. Prefers Owned (the
+// pitch squad, even on a chip rebuild) then Squad then XI.
 func weekScores(w analysis.WeekView) []WeekScore {
-	src := w.Squad
+	src := w.Owned
+	if len(src) == 0 {
+		src = w.Squad
+	}
 	if len(src) == 0 {
 		src = w.XI
 	}
@@ -479,6 +483,28 @@ func weekScores(w analysis.WeekView) []WeekScore {
 		out = append(out, WeekScore{ID: p.ID, XP: p.Score})
 	}
 	return out
+}
+
+// weekArmband is CaptainAndVice on the PITCH eleven with this week's scores,
+// not on WeekView.XI — that eleven can be a chip rebuild, and hanging its
+// captain on the owned pitch is how captain and vice become the same name.
+func weekArmband(xi []analysis.PlayerMetrics, scores []WeekScore) (captain, vice int) {
+	xp := make(map[int]float64, len(scores))
+	for _, s := range scores {
+		xp[s.ID] = s.XP
+	}
+	ranked := make([]analysis.PlayerMetrics, 0, len(xi))
+	for _, p := range xi {
+		q := p
+		if v, ok := xp[p.ID]; ok {
+			q.Score = v
+		} else {
+			q.Score = 0
+		}
+		ranked = append(ranked, q)
+	}
+	c, v := analysis.CaptainAndVice(ranked)
+	return c.ID, v.ID
 }
 
 // buildResults arranges ONE entry's manager record into the results page's contract — the
