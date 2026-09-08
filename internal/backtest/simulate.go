@@ -2920,96 +2920,50 @@ func decide(e *analysis.Engine, s *Season, held []int, w *wallet, free, gw int, 
 		if cfg.MaxFundingSales > 0 && cfg.MaxFundingSales < maxDowns {
 			maxDowns = cfg.MaxFundingSales
 		}
-		if pair, ok := bestPair(e, held, bank, maxDowns, sell, credit); ok {
-			n := len(pair.moves)
-			// Every leg is judged on the single combined gain, since none of
-			// them stands up alone — that is the whole point of grouping them.
-			hitsNeeded := 0
-			if free < n {
-				hitsNeeded = n - free
-			}
-
-			// The alternative is never "do nothing": it is to spend the free
-			// transfer on the best single move and keep the four points. So the
-			// pair has to beat that, after paying for its own hits. Comparing
-			// the raw gains instead had the policy buying a premium every time
-			// one looked good, taking a -4 to do it, and the replay lost 43
-			// points a season to hits that a single swap would have beaten.
-			solo, _, _ := bestSwap(e, held, bank, sell, credit)
-			soloValue := 0.0
-			if solo.Gain*horizon >= freeCost && solo.Gain >= gainBar {
-				soloValue = solo.Gain*horizon - freeCost
-			}
-			// Every leg is priced, hits explicitly and free transfers at what
-			// they could have bought instead. Charging the week once rather
-			// than per move was tried, on the argument that a funded pair is a
-			// single decision: it scored 2110 against 2151, because two
-			// transfers really are twice the scarce resource and pricing them
-			// as one brought the churn back.
-			pairMoney := 0.0
-			for i := range pair.moves {
-				pairMoney += moneyPts(freedBy(pair.moves[i].OutID, pair.moves[i].InID))
-			}
-
-			// The structural half — one hit at most, and the package must fit in
-			// the week's allowance — is a legality question and stays here. Only
-			// the *value* judgement goes through the gate, which is what an oracle
-			// over the gate is entitled to overrule.
-			// ⚠️ `hitsNeeded <= 1` was a LITERAL here, and it is the second
-			// half of MoveLimit's clamp: lifting one without the other would
-			// widen the limit and leave the funded pair refusing anything that
-			// used the extra move. Both read cfg.HitCeiling now.
-			ok := hitsNeeded <= cfg.hitCeiling() && n <= limit && accept(transferProposal{
-				Moves: pair.moves, Gain: pair.gain, Money: pairMoney,
-				Hits: hitsNeeded, Alternative: soloValue, Strict: true,
-				GainBar: gainBar, Horizon: horizon, FreeCost: freeCost, GW: gw,
-			})
-			if ok {
-				for i, mv := range pair.moves {
-					mv.GW = gw
-					mv.Gain = 0
-					if i == 0 {
-						mv.Gain = pair.gain // reported once, on the pair
-					}
-					if i < hitsNeeded {
-						mv.Hit = true
-						hits++
-					}
-					held = applyMove(held, mv)
-					settle(mv)
-					moves = append(moves, mv)
-				}
-				free -= n - hitsNeeded
-				if free < 0 {
-					free = 0
-				}
-				limit -= n
+		// prefer=true is the first look (core-buy pairs, or the shipped list
+		// if none exist). A core-buy that fails the gate retries with
+		// retention only — ranking-proxy filter, gate decides, fallback.
+		var upID int
+		var accepted bool
+		held, free, hits, limit, moves, accepted, upID = takeFundedPair(
+			e, held, bank, maxDowns, sell, credit, free, hits, limit, gw,
+			horizon, freeCost, gainBar, cfg, moneyPts, freedBy, settle, accept, moves, true)
+		if !accepted && upID != 0 && e.Weights.TemplateCoreTransferK > 0 {
+			_, preferIn := analysis.TemplateCoreTransferOverlay(held, e.AllMetrics(), e.Weights.TemplateCoreTransferK)
+			if preferIn[upID] {
+				held, free, hits, limit, moves, _, _ = takeFundedPair(
+					e, held, bank, maxDowns, sell, credit, free, hits, limit, gw,
+					horizon, freeCost, gainBar, cfg, moneyPts, freedBy, settle, accept, moves, false)
 			}
 		}
 	}
 
 	for range make([]struct{}, limit) {
-		best, _, bestIn := bestSwap(e, held, bank, sell, credit)
-		if bestIn.ID == 0 {
-			break
+		best, _, bestIn := swapAt(e, held, bank, sell, credit, true)
+		ok := false
+		if bestIn.ID != 0 {
+			ok, free, hits = acceptOneSwap(&best, free, hits, horizon, freeCost, gainBar, gw, cfg, moneyPts, freedBy, accept)
 		}
-
-		money := moneyPts(freedBy(best.OutID, best.InID))
-		useHit := free == 0
-		// One move, so the package is the move. The alternative is doing nothing,
-		// worth zero — unlike the funded pair, whose alternative is spending the
-		// free transfer on the best single move.
-		one := transferProposal{
-			Moves: []Move{best}, Gain: best.Gain, Money: money,
-			Horizon: horizon, FreeCost: freeCost, GW: gw,
+		if !ok && bestIn.ID != 0 && e.Weights.TemplateCoreTransferK > 0 {
+			// Only retry when the refused arrival was a missing core
+			// member — otherwise ranking already fell back and this is
+			// the same proposal, which must not be gated twice.
+			_, preferIn := analysis.TemplateCoreTransferOverlay(held, e.AllMetrics(), e.Weights.TemplateCoreTransferK)
+			if preferIn[bestIn.ID] {
+				best2, _, in2 := swapAt(e, held, bank, sell, credit, false)
+				if in2.ID != 0 && in2.ID != bestIn.ID {
+					var ok2 bool
+					ok2, free, hits = acceptOneSwap(&best2, free, hits, horizon, freeCost, gainBar, gw, cfg, moneyPts, freedBy, accept)
+					if ok2 {
+						best, bestIn, ok = best2, in2, true
+					}
+				}
+			}
 		}
-		switch {
-		case !useHit && accept(one.withBar(gainBar)):
-			free--
-		case useHit && hits < cfg.MaxHits && accept(one.asHit()):
-			best.Hit = true
-			hits++
-		default:
+		if !ok {
+			if bestIn.ID == 0 {
+				break
+			}
 			// Nothing left worth doing this week.
 			return held, free, moves, wb, wh
 		}
@@ -3735,6 +3689,11 @@ type pairedMove struct {
 // premium is unreachable one swap at a time.
 func bestPair(e *analysis.Engine, held []int, bank, maxDowns int, sell map[int]int,
 	credit analysis.ChipCredit) (pairedMove, bool) {
+	return pairAt(e, held, bank, maxDowns, sell, credit, true)
+}
+
+func pairAt(e *analysis.Engine, held []int, bank, maxDowns int, sell map[int]int,
+	credit analysis.ChipCredit, prefer bool) (pairedMove, bool) {
 
 	squad := squadMetrics(e, held)
 	if len(squad) < 15 {
@@ -3743,6 +3702,7 @@ func bestPair(e *analysis.Engine, held []int, bank, maxDowns int, sell map[int]i
 	st := analysis.NewSquadState(squad)
 	st.Sell = sell
 	st.Chip = credit
+	st = stampTransferOverlay(e, st, prefer)
 	pairs := analysis.RankPairs(st, e.AllMetrics(), bank, maxDowns, 1)
 	if len(pairs) == 0 {
 		return pairedMove{}, false
@@ -3788,11 +3748,139 @@ func squadMetrics(e *analysis.Engine, held []int) []analysis.PlayerMetrics {
 // scored +0.60 and bought all +0.60 of it.
 func bestSwap(e *analysis.Engine, held []int, bank int, sell map[int]int,
 	credit analysis.ChipCredit) (Move, analysis.PlayerMetrics, analysis.PlayerMetrics) {
+	return swapAt(e, held, bank, sell, credit, true)
+}
+
+// stampTransferOverlay applies the weekly template-core overlay. prefer=false
+// is the gate-level fallback: keep retention (do not sell owned core) but
+// drop the acquisition filter so a core-buy that failed acceptTransfer does
+// not hide a shipped move that would pass. k=0 is a no-op either way.
+func stampTransferOverlay(e *analysis.Engine, st analysis.SquadState, prefer bool) analysis.SquadState {
+	st = e.ApplyTemplateCoreTransfer(st)
+	if !prefer {
+		st.PreferBuy = nil
+	}
+	return st
+}
+
+// takeFundedPair is the funded-pair half of decide, extracted so the weekly
+// overlay's retry does not grow decide's cyclomatic complexity. prefer=false
+// is the gate-level fallback: retention on, acquisition filter off.
+func takeFundedPair(
+	e *analysis.Engine, held []int, bank, maxDowns int, sell map[int]int,
+	credit analysis.ChipCredit, free, hits, limit, gw int,
+	horizon, freeCost, gainBar float64, cfg SimConfig,
+	moneyPts func(int) float64, freedBy func(int, int) int,
+	settle func(Move), accept func(transferProposal) bool,
+	moves []Move, prefer bool,
+) (outHeld []int, outFree, outHits, outLimit int, outMoves []Move, accepted bool, upgradeID int) {
+	pair, ok := pairAt(e, held, bank, maxDowns, sell, credit, prefer)
+	if !ok {
+		return held, free, hits, limit, moves, false, 0
+	}
+	upgradeID = pair.moves[0].InID
+	n := len(pair.moves)
+	// Every leg is judged on the single combined gain, since none of
+	// them stands up alone — that is the whole point of grouping them.
+	hitsNeeded := 0
+	if free < n {
+		hitsNeeded = n - free
+	}
+
+	// The alternative is never "do nothing": it is to spend the free
+	// transfer on the best single move and keep the four points. So the
+	// pair has to beat that, after paying for its own hits. Comparing
+	// the raw gains instead had the policy buying a premium every time
+	// one looked good, taking a -4 to do it, and the replay lost 43
+	// points a season to hits that a single swap would have beaten.
+	solo, _, _ := swapAt(e, held, bank, sell, credit, prefer)
+	soloValue := 0.0
+	if solo.Gain*horizon >= freeCost && solo.Gain >= gainBar {
+		soloValue = solo.Gain*horizon - freeCost
+	}
+	// Every leg is priced, hits explicitly and free transfers at what
+	// they could have bought instead. Charging the week once rather
+	// than per move was tried, on the argument that a funded pair is a
+	// single decision: it scored 2110 against 2151, because two
+	// transfers really are twice the scarce resource and pricing them
+	// as one brought the churn back.
+	pairMoney := 0.0
+	for i := range pair.moves {
+		pairMoney += moneyPts(freedBy(pair.moves[i].OutID, pair.moves[i].InID))
+	}
+
+	// The structural half — one hit at most, and the package must fit in
+	// the week's allowance — is a legality question and stays here. Only
+	// the *value* judgement goes through the gate, which is what an oracle
+	// over the gate is entitled to overrule.
+	// ⚠️ `hitsNeeded <= 1` was a LITERAL here, and it is the second
+	// half of MoveLimit's clamp: lifting one without the other would
+	// widen the limit and leave the funded pair refusing anything that
+	// used the extra move. Both read cfg.HitCeiling now.
+	ok = hitsNeeded <= cfg.hitCeiling() && n <= limit && accept(transferProposal{
+		Moves: pair.moves, Gain: pair.gain, Money: pairMoney,
+		Hits: hitsNeeded, Alternative: soloValue, Strict: true,
+		GainBar: gainBar, Horizon: horizon, FreeCost: freeCost, GW: gw,
+	})
+	if !ok {
+		return held, free, hits, limit, moves, false, upgradeID
+	}
+	for i, mv := range pair.moves {
+		mv.GW = gw
+		mv.Gain = 0
+		if i == 0 {
+			mv.Gain = pair.gain // reported once, on the pair
+		}
+		if i < hitsNeeded {
+			mv.Hit = true
+			hits++
+		}
+		held = applyMove(held, mv)
+		settle(mv)
+		moves = append(moves, mv)
+	}
+	free -= n - hitsNeeded
+	if free < 0 {
+		free = 0
+	}
+	limit -= n
+	return held, free, hits, limit, moves, true, upgradeID
+}
+
+func acceptOneSwap(
+	best *Move, free, hits int,
+	horizon, freeCost, gainBar float64, gw int, cfg SimConfig,
+	moneyPts func(int) float64, freedBy func(int, int) int,
+	accept func(transferProposal) bool,
+) (ok bool, newFree, newHits int) {
+	money := moneyPts(freedBy(best.OutID, best.InID))
+	useHit := free == 0
+	// One move, so the package is the move. The alternative is doing nothing,
+	// worth zero — unlike the funded pair, whose alternative is spending the
+	// free transfer on the best single move.
+	one := transferProposal{
+		Moves: []Move{*best}, Gain: best.Gain, Money: money,
+		Horizon: horizon, FreeCost: freeCost, GW: gw,
+	}
+	switch {
+	case !useHit && accept(one.withBar(gainBar)):
+		return true, free - 1, hits
+	case useHit && hits < cfg.MaxHits && accept(one.asHit()):
+		best.Hit = true
+		return true, free, hits + 1
+	default:
+		return false, free, hits
+	}
+}
+
+func swapAt(e *analysis.Engine, held []int, bank int, sell map[int]int,
+	credit analysis.ChipCredit, prefer bool) (Move, analysis.PlayerMetrics, analysis.PlayerMetrics) {
 
 	squad := squadMetrics(e, held)
 	st := analysis.NewSquadState(squad)
 	st.Sell = sell
 	st.Chip = credit
+	st = stampTransferOverlay(e, st, prefer)
 	swaps := analysis.RankSwaps(st, e.AllMetrics(), bank)
 	if len(swaps) == 0 {
 		return Move{}, analysis.PlayerMetrics{}, analysis.PlayerMetrics{}

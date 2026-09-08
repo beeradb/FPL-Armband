@@ -308,13 +308,13 @@ func TestTheHitCeilingIsReadByTheFundedPairBranch(t *testing.T) {
 	body := ""
 	for _, decl := range file.Decls {
 		fd, ok := decl.(*ast.FuncDecl)
-		if !ok || fd.Name.Name != "decide" || fd.Body == nil {
+		if !ok || fd.Name.Name != "takeFundedPair" || fd.Body == nil {
 			continue
 		}
 		body = string(src[fset.Position(fd.Body.Pos()).Offset:fset.Position(fd.Body.End()).Offset])
 	}
 	if body == "" {
-		t.Fatal("no decide in simulate.go — this guard is following a seam that " +
+		t.Fatal("no takeFundedPair in simulate.go — this guard is following a seam that " +
 			"has been renamed, so update it deliberately rather than letting it " +
 			"pass vacuously")
 	}

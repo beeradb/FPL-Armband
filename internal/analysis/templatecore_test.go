@@ -18,6 +18,12 @@ func TestTemplateCoreKShipsOff(t *testing.T) {
 	}
 }
 
+func TestTemplateCoreTransferKShipsOff(t *testing.T) {
+	if got := DefaultWeights().TemplateCoreTransferK; got != 0 {
+		t.Errorf("TemplateCoreTransferK ships at %d; 0 is off and must stay the default until a POLICY comparison resolves", got)
+	}
+}
+
 func TestTemplateCoreIDsEmptyWhenKNonPositive(t *testing.T) {
 	players := []PlayerMetrics{
 		{ID: 1, Position: "MID", Team: "A", Ownership: 50},
@@ -528,6 +534,199 @@ func TestTemplateCoreDoesNotMutateCallerLockIDs(t *testing.T) {
 	if len(caller) != len(orig) {
 		t.Fatalf("caller LockIDs mutated: len %d -> %d", len(orig), len(caller))
 	}
+}
+
+func TestTemplateCoreTransferOverlaySplitsOwnedAndMissing(t *testing.T) {
+	players := []PlayerMetrics{
+		{ID: 1, Position: "MID", Team: "A", Ownership: 90, Status: "available"},
+		{ID: 3, Position: "FWD", Team: "B", Ownership: 80, Status: "available"},
+		{ID: 2, Position: "DEF", Team: "C", Ownership: 10, Status: "available"},
+	}
+	skip, pref := TemplateCoreTransferOverlay([]int{1, 2}, players, 2)
+	if !skip[1] || skip[3] || skip[2] {
+		t.Errorf("skip=%v; want {1} (owned core only)", skip)
+	}
+	if !pref[3] || pref[1] || pref[2] {
+		t.Errorf("prefer=%v; want {3} (missing core only)", pref)
+	}
+}
+
+func TestTemplateCoreTransferOverlayEmptyWhenKNonPositive(t *testing.T) {
+	players := []PlayerMetrics{{ID: 1, Position: "MID", Team: "A", Ownership: 90}}
+	for _, k := range []int{0, -1} {
+		skip, pref := TemplateCoreTransferOverlay([]int{1}, players, k)
+		if skip != nil || pref != nil {
+			t.Errorf("k=%d: skip=%v prefer=%v; want nil, nil", k, skip, pref)
+		}
+	}
+}
+
+func TestTemplateCoreTransferOverlayEmptyWhenOwnershipZero(t *testing.T) {
+	players := []PlayerMetrics{
+		{ID: 1, Position: "MID", Team: "A", Ownership: 0},
+		{ID: 2, Position: "FWD", Team: "B", Ownership: 0},
+	}
+	skip, pref := TemplateCoreTransferOverlay([]int{1}, players, 4)
+	if skip != nil || pref != nil {
+		t.Errorf("zero ownership: skip=%v prefer=%v; want nil (void trap)", skip, pref)
+	}
+}
+
+func TestPreferIncomingKeepsCoreBuysThenFallsBack(t *testing.T) {
+	swaps := []Swap{
+		{In: PlayerMetrics{ID: 10}, Gain: 2},
+		{In: PlayerMetrics{ID: 11}, Gain: 1},
+	}
+	got := preferIncoming(swaps, nil)
+	if len(got) != 2 {
+		t.Fatalf("nil prefer: got %d, want 2", len(got))
+	}
+	got = preferIncoming(swaps, map[int]bool{99: true})
+	if len(got) != 2 {
+		t.Fatalf("unreachable prefer: got %d, want full list", len(got))
+	}
+	got = preferIncoming(swaps, map[int]bool{11: true})
+	if len(got) != 1 || got[0].In.ID != 11 {
+		t.Fatalf("core-buy filter: got %v, want id 11 only", got)
+	}
+}
+
+func TestPreferPairUpBeforeLimitWouldKeepTheCoreUpgrade(t *testing.T) {
+	pairs := []Pair{
+		{Up: Swap{In: PlayerMetrics{ID: 10}}, Gain: 3},
+		{Up: Swap{In: PlayerMetrics{ID: 11}}, Gain: 1},
+	}
+	got := preferPairUp(pairs, map[int]bool{11: true})
+	if len(got) != 1 || got[0].Up.In.ID != 11 {
+		t.Fatalf("got %v, want the lower-gain core upgrade", got)
+	}
+	if len(got) > 0 && got[0].Gain >= pairs[0].Gain {
+		t.Fatal("fixture is wrong: the kept pair must not be the gain leader")
+	}
+}
+
+func TestRankSwapsSkipsOwnedCore(t *testing.T) {
+	sq := squadOf([4]float64{1, 1, 1, 1})
+	s := NewSquadState(sq)
+	s.SkipSell = map[int]bool{6: true} // starting MID
+	cand := []PlayerMetrics{
+		{ID: 900, Position: "MID", Score: 9, Price: 5, StartShare: 0.9, Team: "CX"},
+	}
+	got := RankSwaps(s, cand, 10)
+	if len(got) == 0 {
+		t.Fatal("expected swaps of non-core MIDs; SkipSell must not empty the search")
+	}
+	for _, sw := range got {
+		if sw.Out.ID == 6 {
+			t.Fatalf("sold skipped core id 6")
+		}
+	}
+}
+
+func TestRankSwapsPrefersMissingCoreThenFallsBack(t *testing.T) {
+	sq := squadOf([4]float64{1, 1, 1, 1})
+	s := NewSquadState(sq)
+	s.PreferBuy = map[int]bool{901: true}
+	cands := []PlayerMetrics{
+		{ID: 900, Position: "MID", Score: 9, Price: 5, StartShare: 0.9, Team: "CX"},
+		{ID: 901, Position: "MID", Score: 6, Price: 5, StartShare: 0.9, Team: "CY"},
+	}
+	got := RankSwaps(s, cands, 10)
+	if len(got) == 0 {
+		t.Fatal("no swaps")
+	}
+	for _, sw := range got {
+		if sw.In.ID != 901 {
+			t.Errorf("non-core swap returned with a reachable core-buy: in=%d", sw.In.ID)
+		}
+	}
+	s.PreferBuy = map[int]bool{999: true}
+	got = RankSwaps(s, cands, 10)
+	if len(got) == 0 {
+		t.Fatal("unreachable PreferBuy must fall back to the shipped list")
+	}
+}
+
+func TestApplyTemplateCoreTransferOffIsNoop(t *testing.T) {
+	e := coreOptimizeEngine(t, 130)
+	sq, err := e.Optimize(OptimizeRequest{Budget: DefaultBudget, MinMinutes: 0, MinExpectedMinutes: 0})
+	if err != nil {
+		t.Fatalf("Optimize: %v", err)
+	}
+	st := NewSquadState(sq.Players)
+	got := e.ApplyTemplateCoreTransfer(st)
+	if got.SkipSell != nil || got.PreferBuy != nil {
+		t.Errorf("k=0 stamped SkipSell=%v PreferBuy=%v; want nil", got.SkipSell, got.PreferBuy)
+	}
+}
+
+func TestApplyTemplateCoreTransferReReadsOwnership(t *testing.T) {
+	e := coreOptimizeEngine(t, 130)
+	sq, err := e.Optimize(OptimizeRequest{Budget: DefaultBudget, MinMinutes: 0, MinExpectedMinutes: 0})
+	if err != nil {
+		t.Fatalf("Optimize: %v", err)
+	}
+	held := map[int]bool{}
+	for _, p := range sq.Players {
+		held[p.ID] = true
+	}
+	var missing PlayerMetrics
+	for _, m := range e.AllMetrics() {
+		if held[m.ID] || templateCoreUnavailable(m.Status) {
+			continue
+		}
+		missing = m
+		break
+	}
+	if missing.ID == 0 {
+		t.Fatal("need a player outside the opening fifteen")
+	}
+	setOwnership(e, map[int]float64{missing.ID: 99})
+	w := e.Weights
+	w.TemplateCoreTransferK = 4
+	e.Weights = w
+	st := e.ApplyTemplateCoreTransfer(NewSquadState(sq.Players))
+	if !st.PreferBuy[missing.ID] {
+		t.Errorf("missing high-owned id %d not in PreferBuy %v", missing.ID, keysOf(st.PreferBuy))
+	}
+	if st.SkipSell[missing.ID] {
+		t.Errorf("unowned id %d in SkipSell", missing.ID)
+	}
+}
+
+func TestTemplateCoreTransferKDoesNotLockOptimize(t *testing.T) {
+	e := coreOptimizeEngine(t, 130)
+	off := e.Weights
+	off.TemplateCoreK = 0
+	off.TemplateCoreTransferK = 0
+	e.Weights = off
+	sq0, err := e.Optimize(OptimizeRequest{Budget: DefaultBudget, MinMinutes: 0, MinExpectedMinutes: 0})
+	if err != nil {
+		t.Fatalf("k=0: %v", err)
+	}
+	on := e.Weights
+	on.TemplateCoreK = 0
+	on.TemplateCoreTransferK = 4
+	e.Weights = on
+	sq4, err := e.Optimize(OptimizeRequest{Budget: DefaultBudget, MinMinutes: 0, MinExpectedMinutes: 0})
+	if err != nil {
+		t.Fatalf("transfer k=4: %v", err)
+	}
+	a, b := squadIDsSorted(sq0), squadIDsSorted(sq4)
+	for i := range a {
+		if a[i] != b[i] {
+			t.Fatalf("TemplateCoreTransferK changed Optimize: %v vs %v", a, b)
+		}
+	}
+}
+
+func keysOf(m map[int]bool) []int {
+	var out []int
+	for id := range m {
+		out = append(out, id)
+	}
+	sort.Ints(out)
+	return out
 }
 
 func containsInt(xs []int, id int) bool {

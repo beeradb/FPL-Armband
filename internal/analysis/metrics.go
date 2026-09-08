@@ -450,6 +450,26 @@ type Weights struct {
 	// clear that comparison's own season-clustered threshold, so 0 stays.
 	TemplateCoreK int `json:"template_core_k"`
 
+	// TemplateCoreTransferK is the weekly transfer overlay: each week re-read
+	// the k most-owned feasible players, do not sell any already owned, and
+	// give the first look at swaps/pairs that buy a missing one. The shipped
+	// gain/hit gate still decides. Zero is off and is what ships.
+	//
+	// Opening TemplateCoreK is a different lever and stays 0 in the weekly
+	// arm. This is not a Score term and not the closed separable-band
+	// ownership tiebreak. Filter then fallback at two layers: RankSwaps /
+	// RankPairs give the first look at core-buys and, if none exist, return
+	// the shipped list with retention still on; if a core-buy exists but
+	// fails acceptTransfer, the replay retries the shipped search with
+	// SkipSell still set. The ranking proxy never decides.
+	//
+	// Zero needs no Load backfill: Default() leaves it 0, Unmarshal leaves an
+	// absent key alone, and 0 is the deliberate off — same shape as
+	// TemplateCoreK. Do not ship a non-zero default until a POLICY comparison
+	// of k=4 against k=0 clears that comparison's own season-clustered
+	// threshold.
+	TemplateCoreTransferK int `json:"template_core_transfer_k"`
+
 	// LeagueShrinkK is shrinkToLeague's own strength — how fast a player with no
 	// prior at all (a promoted club's starter, an arrival from abroad) is
 	// trusted on his own current-season sample rather than his position's

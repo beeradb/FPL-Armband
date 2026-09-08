@@ -2,11 +2,11 @@
 # ⚠️ A FLOOR, NOT A TARGET. Do not add to this by hand — the ratchet
 # exists so this list only ever shrinks.
 18 (*Agent).Ask
-17 (*Client).SquadPrices
+16 (*Client).SquadPrices
 21 (*Client).get
 21 (*Engine).ChipWeekView
 20 (*Engine).CongestionFactor
-63 (*Engine).Optimize
+71 (*Engine).Optimize
 27 (*Engine).ResearchTargets
 21 (*Engine).ValidateChipPlan
 16 (*Engine).blendRatesCode
@@ -30,10 +30,10 @@
 16 (*xiScratch).bestFormation
 23 (Options).resolve
 26 (Oracles).Validate
-38 FullAnchoredPlan
+33 FullAnchoredPlan
 28 HTMLReplay
 57 Load
-36 RankPairs
+34 RankPairs
 24 ReadProvenance
 23 Render
 26 Run
@@ -51,7 +51,7 @@
 28 cmdChips
 16 cmdTransfers
 20 corrections
-45 decide
+41 decide
 20 externalClubXGC
 16 flatten
 40 fundingCombos

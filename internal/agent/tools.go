@@ -1031,6 +1031,7 @@ func (t *Toolbox) suggestTransfersFor(ctx context.Context, in suggestTransfersIn
 	// FPL pays you what you paid plus half of any rise, never the market price.
 	// Nil when no session is configured, which means sell-at-market.
 	state.Sell = t.Engine.SellPrices
+	state = t.Engine.ApplyTemplateCoreTransfer(state)
 
 	minMins := in.MinMinutes
 	if minMins == 0 {

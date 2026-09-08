@@ -87,3 +87,51 @@ func selectTemplateCore(players []PlayerMetrics, k int, skip map[int]bool, posCo
 	}
 	return out
 }
+
+// TemplateCoreTransferOverlay splits the current popular core into owned
+// (do not sell) and missing (prefer to buy). k<=0 or an empty core yields
+// nil maps, which is shipped RankSwaps/RankPairs.
+func TemplateCoreTransferOverlay(held []int, players []PlayerMetrics, k int) (skipOut, preferIn map[int]bool) {
+	if k <= 0 {
+		return nil, nil
+	}
+	core := TemplateCoreIDs(players, k)
+	if len(core) == 0 {
+		return nil, nil
+	}
+	owned := map[int]bool{}
+	for _, id := range held {
+		owned[id] = true
+	}
+	skipOut = map[int]bool{}
+	preferIn = map[int]bool{}
+	for _, id := range core {
+		if owned[id] {
+			skipOut[id] = true
+		} else {
+			preferIn[id] = true
+		}
+	}
+	if len(skipOut) == 0 {
+		skipOut = nil
+	}
+	if len(preferIn) == 0 {
+		preferIn = nil
+	}
+	return skipOut, preferIn
+}
+
+// ApplyTemplateCoreTransfer stamps SkipSell / PreferBuy on a squad state.
+// Callers that never set TemplateCoreTransferK are unchanged (nil maps).
+func (e *Engine) ApplyTemplateCoreTransfer(st SquadState) SquadState {
+	k := e.Weights.TemplateCoreTransferK
+	if k <= 0 {
+		return st
+	}
+	held := make([]int, 0, len(st.Players))
+	for _, p := range st.Players {
+		held = append(held, p.ID)
+	}
+	st.SkipSell, st.PreferBuy = TemplateCoreTransferOverlay(held, e.AllMetrics(), k)
+	return st
+}
