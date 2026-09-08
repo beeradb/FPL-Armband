@@ -42,6 +42,13 @@ type captainJSCell struct {
 }
 
 func TestDiagCaptainJamesStein(t *testing.T) {
+	// ⚠️ AMENDED 2026-09-08, before any cell was scored. Common-mean shrink
+	// Score' = (1−λ)Score + λμ is strictly order-preserving for λ ∈ [0,1):
+	// Score'_i − Score'_j = (1−λ)(Score_i − Score_j). The 36-cell overlay would
+	// be byte-identical to A0 — VOID by algebra, not a null. Do not spend the
+	// grid. Heteroscedastic B (a different shrink per player) is a different
+	// experiment and needs its own prereg. Pin: TestCaptainOverlayHalfShrinkPreservesArgmax.
+	t.Skip("VOID by algebra: common-mean shrink cannot change CaptainAndVice for λ∈[0,1)")
 	requireDiag(t)
 	cfg := loadConfig(t)
 	starts := sweepStarts()
