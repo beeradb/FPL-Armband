@@ -362,14 +362,7 @@ func (e *Engine) ChipWeekView(squad []PlayerMetrics, gw int, chip string,
 	case rebuildFailed:
 		v.Caveat = rebuildFailedCaveat(chip)
 	}
-	ranked := append([]PlayerMetrics(nil), xi...)
-	sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].Score > ranked[j].Score })
-	if len(ranked) > 0 {
-		v.Captain = ranked[0]
-	}
-	if len(ranked) > 1 {
-		v.ViceCaptain = ranked[1]
-	}
+	v.Captain, v.ViceCaptain = CaptainAndVice(xi)
 	for _, p := range xi {
 		v.XIScore += p.Score
 	}

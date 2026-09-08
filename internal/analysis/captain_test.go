@@ -114,6 +114,97 @@ func TestCaptainIsTheHighestScorerInTheXI(t *testing.T) {
 	}
 }
 
+func TestCaptainAndVicePicksTheUniqueMaxAndADistinctSecond(t *testing.T) {
+	xi := []PlayerMetrics{
+		{ID: 1, Score: 4},
+		{ID: 2, Score: 9},
+		{ID: 3, Score: 7},
+		{ID: 4, Score: 1},
+	}
+	c, v := CaptainAndVice(xi)
+	if c.ID != 2 {
+		t.Errorf("captain = %d, want 2 (unique max)", c.ID)
+	}
+	if v.ID != 3 {
+		t.Errorf("vice = %d, want 3 (distinct second)", v.ID)
+	}
+	if c.ID == v.ID {
+		t.Error("captain and vice are the same player")
+	}
+}
+
+func TestCaptainAndViceEmptyAndOnePlayerDoNotPanicOrSelfVice(t *testing.T) {
+	c, v := CaptainAndVice(nil)
+	if c.ID != 0 || v.ID != 0 {
+		t.Errorf("empty XI: captain %d vice %d, want 0 0", c.ID, v.ID)
+	}
+	c, v = CaptainAndVice([]PlayerMetrics{{ID: 7, Score: 5}})
+	if c.ID != 7 {
+		t.Errorf("one-player captain = %d, want 7", c.ID)
+	}
+	if v.ID != 0 {
+		t.Errorf("one-player vice = %d, want 0 (not self)", v.ID)
+	}
+	if v.ID == c.ID {
+		t.Error("the captain is his own vice")
+	}
+}
+
+func TestCaptainAndViceTiesKeepEarlierSliceOrder(t *testing.T) {
+	// Strict greater-than: the first 8.0 keeps the armband, the second 8.0 is vice.
+	xi := []PlayerMetrics{
+		{ID: 10, Score: 8},
+		{ID: 11, Score: 8},
+		{ID: 12, Score: 3},
+	}
+	c, v := CaptainAndVice(xi)
+	if c.ID != 10 {
+		t.Errorf("tied captain = %d, want 10 (earlier in the slice)", c.ID)
+	}
+	if v.ID != 11 {
+		t.Errorf("tied vice = %d, want 11", v.ID)
+	}
+	reversed := []PlayerMetrics{xi[1], xi[0], xi[2]}
+	c, v = CaptainAndVice(reversed)
+	if c.ID != 11 {
+		t.Errorf("reversed tied captain = %d, want 11", c.ID)
+	}
+	if v.ID != 10 {
+		t.Errorf("reversed tied vice = %d, want 10", v.ID)
+	}
+}
+
+func TestFieldedXICaptainMatchesCaptainAndVice(t *testing.T) {
+	squad := mkSquad(
+		[]float64{3, 0.5},
+		[]float64{4, 3.9, 3.8, 0.5, 0.4},
+		[]float64{5, 4.9, 4.8, 4.7, 0.3},
+		[]float64{5.5, 5.4, 5.3},
+	)
+	xi, _, _, captain := fieldedXI(squad, nil)
+	want, _ := CaptainAndVice(xi)
+	if captain.ID != want.ID {
+		t.Errorf("fieldedXI captain %d, CaptainAndVice %d", captain.ID, want.ID)
+	}
+}
+
+func TestCaptainAndViceAgreesWithOptimizeOnTheSameEleven(t *testing.T) {
+	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
+	sq, err := e.Optimize(OptimizeRequest{Budget: DefaultBudget})
+	if err != nil {
+		t.Fatalf("optimize: %v", err)
+	}
+	c, v := CaptainAndVice(sq.StartingXI)
+	if c.ID != sq.Captain.ID {
+		t.Errorf("Optimize captain %d, CaptainAndVice %d — the copies disagree",
+			sq.Captain.ID, c.ID)
+	}
+	if v.ID != sq.ViceCaptain.ID {
+		t.Errorf("Optimize vice %d, CaptainAndVice %d — the copies disagree",
+			sq.ViceCaptain.ID, v.ID)
+	}
+}
+
 func TestExpectedPointsCountsTheCaptainTwice(t *testing.T) {
 	e := roleEngine(t, DefaultWeights(), DefaultRoleRisk())
 	sq, err := e.Optimize(OptimizeRequest{Budget: DefaultBudget})

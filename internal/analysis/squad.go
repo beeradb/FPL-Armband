@@ -929,12 +929,11 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 	}
 	restateSquadScoreExTiebreak(sq, tieNudges)
 	if len(xi) > 0 {
-		// bestXI returns the eleven sorted by score, so the armband goes to the
-		// front of it by construction.
-		sq.Captain = xi[0]
-		if len(xi) > 1 {
-			sq.ViceCaptain = xi[1]
-		}
+		// One walk, the same HOLD scores. bestXI still sorts by score so the
+		// captain is first, but naming the pair from that order beside this
+		// walk is how the two copies drifted — WeekViews re-sorted, fieldedXI
+		// walked, squad rebuild ranked again.
+		sq.Captain, sq.ViceCaptain = CaptainAndVice(xi)
 	}
 	sq.ExpectedPoints = sq.XIScore + sq.Captain.Score
 	return sq, nil
