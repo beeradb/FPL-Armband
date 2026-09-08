@@ -2229,6 +2229,11 @@ function openArmbandPicker(which){
   const rows=[...S.xi].map(id=>byId(id))
     .sort((a,b)=>xpFor(b)-xpFor(a));
   const best=xpFor(rows[0]), floor=xpFor(rows[rows.length-1]), span=Math.max(.01,best-floor);
+  const second=rows.length>1?xpFor(rows[1]):floor;
+  const gap=best-second;
+  /* ~0.5 is the resolution the manager brief already treats as a tie (MAE on
+     the points scale). The ranking itself is still strict argmax — HOLD identity
+     — so a close race is a note, not a different pick. */
   document.getElementById('sheet').innerHTML=`
    <header><div style="flex:1">
      <div class="nm">${which==='cap'?'Pick your captain':'Pick your vice-captain'}</div>
@@ -2251,7 +2256,9 @@ function openArmbandPicker(which){
          <span class="mb"><span class="mbar"><span style="width:${Math.max(3,Math.round((x-floor)/span*100))}%"></span></span></span>
        </button>`;}).join('')}
      <div class="storenote" style="margin-top:12px">
-       Ranked by projected points per gameweek, not by name recognition. Bars span your XI only — from ${floor.toFixed(2)} to ${best.toFixed(2)} — so a short bar is a small real gap, not a bad player.
+       Ranked by this week's projected points — the number a triple captain triples — not by price or name. Bars span your XI only — from ${floor.toFixed(2)} to ${best.toFixed(2)} — so a short bar is a small real gap, not a bad player.${gap<0.5 && which==='cap' && rows.length>1
+         ? ` The top two are ${gap.toFixed(2)} apart, inside the model's noise: a judgement, not a gap.`
+         : ''}
      </div>
    </div>`;
   document.getElementById('scrim').classList.add('open');

@@ -36,4 +36,13 @@ func TestXpForReadsThisWeekScores(t *testing.T) {
 	if !strings.Contains(js, ".sort((a,b)=>xpFor(b)-xpFor(a))") {
 		t.Error("openArmbandPicker is not sorting on xpFor")
 	}
+	if !strings.Contains(js, "this week's projected points") {
+		t.Error("picker footnote no longer says this week — the chip-plan lesson is that the armband is a one-week decision")
+	}
+	if !strings.Contains(js, "triple captain triples") {
+		t.Error("picker footnote dropped the chip-plan link: the ranking key is what a 3xc multiplies")
+	}
+	if !strings.Contains(js, "gap<0.5") {
+		t.Error("picker no longer flags a sub-0.5 race as inside the model's noise")
+	}
 }
