@@ -517,8 +517,9 @@ because `HoldCaptaincyWeekly` produces all three in the one weekly pass HOLD
 already pays for:
 
 - **`hold`** — HOLD as every figure in AGENTS.md is measured. Eleven and captain
-  both re-picked weekly, vice-captain takes over when the captain records no
-  minutes, autosubs applied. This is what FPL pays.
+  both re-picked weekly from this week's Score (horizon 1), vice-captain takes
+  over when the captain records no minutes, autosubs applied. This is what FPL
+  pays. Historical HOLD used horizon-5 fielding.
 - **`hold_fixedcap`** — the same, with the armband pinned to whoever the model
   would have captained in the week the squad was bought. Removes the weekly churn
   in *who* is captained; keeps the doubling.

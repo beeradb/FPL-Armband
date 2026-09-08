@@ -10,9 +10,10 @@ package backtest
 //	  scripts/replay -run TestDiagThisWeekXIOnHold -v -timeout 2h
 //
 // HOLD only. Does not flip WeeklyXI and call Hold() — that path never reads the
-// flag. A0 is shipped HoldCaptaincyWeekly. A1 isolates this-GW FDR (skip other
-// gameweeks, load off, Score=0 on blanks, both double legs averaged). A2 is
-// horizon 1 with load on (WeekEngine / WeeklyXI fielding).
+// flag. After the 2026-09-08 ship, HoldCaptaincyWeekly is horizon 1 (A2). A0 is
+// the legacy horizon-5 pick (HoldFielding{Horizon: 5}). A1 isolates this-GW FDR
+// at that same horizon 5 (skip other gameweeks, Score=0 on blanks, both double
+// legs averaged). A2 is shipped HOLD: horizon 1 with load on.
 //
 // Go prints no t, SE, or verdict word. Inference is stats/sweep_inference.R.
 
@@ -47,17 +48,21 @@ func TestDiagThisWeekXIOnHold(t *testing.T) {
 	type armDef struct {
 		label string
 		field HoldFielding
-		ship  bool // A0: call HoldCaptaincyWeekly, not the override
+		ship  bool // A2: call HoldCaptaincyWeekly, not the override
 	}
 	arms := []armDef{
-		{label: "A0_horizon5_shipped", ship: true},
-		// Load is already out of Score at shipped horizon 5
-		// (FixtureLoadInScore is false unless Horizon==1). DisableLoad would
-		// be a no-op here; Isolate + ZeroBlank are the live treatments.
+		// Labels match stats/cells/2026-09-08-thisweekxi/. After the ship,
+		// HoldCaptaincyWeekly is A2; A0 is the legacy horizon-5 pick and
+		// must set Horizon or it would silently become A2.
+		{label: "A0_horizon5_shipped", field: HoldFielding{Horizon: 5}},
+		// Load is already out of Score at horizon 5 (FixtureLoadInScore is
+		// false unless Horizon==1). DisableLoad would be a no-op here;
+		// Isolate + ZeroBlank are the live treatments. Horizon 5 is required
+		// so this arm stays the measured A1, not horizon-1 plus isolation.
 		{label: "A1_thisgw_difficulty", field: HoldFielding{
-			Isolate: true, ZeroBlank: true,
+			Horizon: 5, Isolate: true, ZeroBlank: true,
 		}},
-		{label: "A2_horizon1_load", field: HoldFielding{Horizon: 1}},
+		{label: "A2_horizon1_load", ship: true},
 	}
 	variants := make([]policyVariant, len(arms))
 	for i, a := range arms {
@@ -68,9 +73,9 @@ func TestDiagThisWeekXIOnHold(t *testing.T) {
 
 	fmt.Printf("\nTHIS-WEEK XI ON HOLD — %s, chips off, no transfers\n",
 		gridLabel(len(pairs), len(starts)))
-	fmt.Printf("A0 = shipped HoldCaptaincyWeekly (horizon %d). A1 = this-GW FDR, load off, blanks zeroed.\n",
+	fmt.Printf("A0 = legacy horizon-%d fielding. A1 = this-GW FDR at that horizon, blanks zeroed.\n",
 		cfg.Weights.Horizon)
-	fmt.Printf("A2 = horizon 1, load on. Mediator: XI-diff weeks, captain-diff weeks, blank-club XI player-GWs.\n\n")
+	fmt.Printf("A2 = shipped HoldCaptaincyWeekly (horizon 1, load on). Mediator vs A2: XI-diff weeks, captain-diff weeks, blank-club XI player-GWs.\n\n")
 
 	type med struct{ xi, cap, blank, weeks int }
 	medians := map[string]med{}
@@ -92,10 +97,10 @@ func TestDiagThisWeekXIOnHold(t *testing.T) {
 					hc = HoldCaptaincyWithFielding(pr.Cur, pr.Prior, sc, held, a.field)
 				}
 				if a.ship {
-					// Copy-check: the A0 path is shipped HOLD, not a second loop.
+					// Copy-check: shipped HOLD is the zero HoldFielding, not a second loop.
 					alt := HoldCaptaincyWithFielding(pr.Cur, pr.Prior, sc, held, HoldFielding{})
 					if sumInts(alt.Full) != sumInts(ship.Full) {
-						t.Fatalf("%s@%d A0 WithFielding(zero)=%d shipped=%d — the override default drifted",
+						t.Fatalf("%s@%d A2 WithFielding(zero)=%d shipped=%d — the override default drifted",
 							pr.Name, start, sumInts(alt.Full), sumInts(ship.Full))
 					}
 				}

@@ -99,7 +99,7 @@ Every run produces two totals from the same opening squad.
 
 | metric | what it scores | use it for |
 |---|---|---|
-| **`HOLD`** | buy the opening fifteen and **never transfer**, but re-pick the eleven and the captain every week, with autosubs and the vice-captain fallback applied | anything about **scoring** or squad selection |
+| **`HOLD`** | buy the opening fifteen and **never transfer**, but re-pick the eleven and the captain every week from this week's Score (horizon 1), with autosubs and the vice-captain fallback applied. Opening fifteen stays at horizon 5; historical HOLD used horizon-5 fielding | anything about **scoring** or squad selection |
 | **`POLICY`** | the same, plus the weekly transfer decision | only constants that are themselves **about transfers** |
 
 `HOLD` is the default for a scoring constant because it carries **one** squad decision where
@@ -585,11 +585,11 @@ since `HOLD` is *defined* as "with autosubs and the vice-captain fallback applie
 with it (or with `FPL_NO_VICE_CAPTAIN`) set is not the same metric as one without.
 
 `FPL_NO_FIXTURE_LOAD` reaches `Score` only through a horizon-1 engine
-(`Engine.FixtureLoadInScore`), which the replay builds only for the fielded eleven when a
-cell sets `SimConfig.WeeklyXI`, or for a free-hit squad. `HoldCaptaincyWeekly` builds every
-weekly engine at the configured horizon, so `HOLD` is byte-identical to this switch at
-shipped config, and an arm leaving `WeeklyXI` false is byte-identical on both metrics. Check
-the mediator before reading the null.
+(`Engine.FixtureLoadInScore`). `HoldCaptaincyWeekly` now builds that weekly engine, so the
+switch **moves `HOLD`**. `POLICY` still only builds it for the fielded eleven when a cell
+sets `SimConfig.WeeklyXI`, or for a free-hit squad: an arm leaving `WeeklyXI` false is
+byte-identical on `POLICY` and not on `HOLD`. Check the mediator before reading the null.
+Historical `HOLD` figures used horizon-5 fielding, where this switch was inert.
 
 `FPL_NO_STARTS_REPAIR` is byte-identical to shipped on every populated outcome column at
 shipped config — a null there says the harvest is unread on the scoring path, not that it

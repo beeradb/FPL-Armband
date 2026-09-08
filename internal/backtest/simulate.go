@@ -4442,9 +4442,12 @@ func HoldWeekly(cur, prior *Season, cfg SimConfig, held []int) []int {
 // # What the three rungs are, and why they exist
 //
 // `Full` is HOLD exactly as every figure in AGENTS.md is measured: the eleven and
-// the captain are both re-picked each week from what the model knows, and the
-// vice-captain takes over when the captain records no minutes. That is what FPL
-// pays and it is the metric a scoring constant is judged on.
+// the captain are both re-picked each week from this week's Score (horizon 1,
+// fixture load in — the same view analysis.Engine.WeekEngine produces), and the
+// vice-captain takes over when the captain records no minutes. Opening fifteen
+// and transfers stay at cfg.Weights (horizon 5). Historical HOLD figures used
+// horizon-5 fielding. That is what FPL pays and it is the metric a scoring
+// constant is judged on.
 //
 // The other two exist because the armband **doubles a player's realised return,
 // so it doubles his contribution to the metric's variance and not only to its
@@ -4511,15 +4514,18 @@ type HoldCaptaincy struct {
 }
 
 // HoldFielding overrides how HOLD picks each week's eleven. The zero value is
-// shipped HOLD: cfg.Weights.Horizon, no skip isolation, fixture load as
-// FixtureLoadInScore already does (off at horizon 5).
+// shipped HOLD: weekly engine at horizon 1 (same as WeekEngine), no skip
+// isolation, fixture load in Score because FixtureLoadInScore is true there.
 //
 // It is not WeeklyXI. HoldCaptaincyWeekly never read that flag; wiring it
 // here would silently move every diagnostic that sets WeeklyXI and then
-// calls Hold(). A diagnostic that wants a different fielding passes this
-// struct. See TestDiagThisWeekXIOnHold.
+// calls Hold(). A diagnostic that wants a different fielding — including the
+// pre-ship horizon-5 pick — passes this struct. See TestDiagThisWeekXIOnHold.
 type HoldFielding struct {
-	// Horizon is the weekly engine's fixture window. Zero keeps cfg.Weights.Horizon.
+	// Horizon is the weekly engine's fixture window. Zero is the shipped weekly
+	// pick (1). Pass 5 for the legacy HOLD fielding the 2026-09-08 cells
+	// measured as A0. The frozen captain and the opening fifteen still use
+	// cfg.Weights, even when this is 1.
 	Horizon int
 	// Isolate skips every gameweek except the one being scored, so TeamFixtures
 	// cannot slide onto next week's opponent when the club blanks.
@@ -4590,6 +4596,7 @@ func holdCaptaincy(cur, prior *Season, cfg SimConfig, held []int, field HoldFiel
 	fe.Priors = idx
 	fe.Recent = cfg.recentIndex(cur, start-1)
 	fe.TeamForm = newTeamFormIndex(cur, start-1)
+	fe.Tiebreak = cfg.Tiebreak
 	// Deliberately NOT oracled, even when AxisArmband is on. This rung's whole
 	// definition is "the armband pinned to the day-one pick", and a hindsight
 	// day-one pick would be neither pinned nor an instrument. Leaving it alone also
@@ -4603,13 +4610,20 @@ func holdCaptaincy(cur, prior *Season, cfg SimConfig, held []int, field HoldFiel
 	for gw := start; gw <= 38; gw++ {
 		b, fx := PointInTimeWith(cur, prior, gw-1, cfg.Oracles)
 		w := cfg.Weights
+		// Shipped weekly pick is horizon 1, built directly rather than via
+		// WeekEngine so HOLD does not pay for a discarded horizon-5 calibration
+		// every week. Zero means that default, not cfg.Weights — the opening
+		// fifteen and the frozen captain already use cfg.Weights above.
+		horizon := 1
 		if field.Horizon > 0 {
-			w.Horizon = field.Horizon
+			horizon = field.Horizon
 		}
+		w.Horizon = horizon
 		e := analysis.NewEngineFull(b, fx, w, analysis.Congestion{}, analysis.RoleRisk{})
 		e.Priors = idx
 		e.Recent = cfg.recentIndex(cur, gw-1)
 		e.TeamForm = newTeamFormIndex(cur, gw-1)
+		e.Tiebreak = cfg.Tiebreak
 		if field.Isolate {
 			e.SetSkipGameweeks(skipExceptGW(gw))
 		}

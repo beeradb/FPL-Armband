@@ -17,9 +17,9 @@ totals so the required CSV contract is met.
 
 | arm | fielding |
 |---|---|
-| A0 | shipped `HoldCaptaincyWeekly` (horizon 5) |
-| A1 | this-GW FDR only: skip other gameweeks, load off, blanks Score=0, both double legs averaged |
-| A2 | horizon 1, load on (`WeekEngine` / `WeeklyXI` fielding) |
+| A0 | then-shipped `HoldCaptaincyWeekly` (horizon 5). After the ship this is `HoldFielding{Horizon: 5}` |
+| A1 | this-GW FDR only: skip other gameweeks, load off, blanks Score=0, both double legs averaged (horizon 5) |
+| A2 | horizon 1, load on — now shipped `HoldCaptaincyWeekly` / `WeekEngine` fielding |
 
 ## Result — HOLD, per gameweek × 38, t_crit(5)=2.571
 
