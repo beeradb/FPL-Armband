@@ -89,6 +89,49 @@ test('placing a chip issues a save and marks the row pressed', async ({ page }) 
   await expect(page.locator('#chipctl .chippill')).not.toContainText('Bench Boost');
 });
 
+test('the chip menu header shows a real count and window state, and survives a placement', async ({ page }) => {
+  // Regression: hydrate() used to read st.chips.window_ends_gw / st.chips.remaining_in_window,
+  // a document field that has never existed — the chip window rides on EACH gameweek row
+  // (Gameweek.ChipWindow, json chip_window), not on a top-level "chips" key. So CHIPWIN stayed
+  // {endsGw:null, remaining:null} forever and the header read its two null-state fallbacks —
+  // "— of 4 left" and "The chip window has not loaded yet." — in EVERY state, including after
+  // a chip was actually placed and the rest of the HUD (the pill, the projection, the
+  // per-chip "running this week ✓" row) updated correctly around it. Caught in a hands-on QA
+  // pass, not by this suite, which is why this test exists now.
+  await page.goto('/');
+  await page.locator('#chipctl .chippill').click();
+  const menu = page.locator('#chipctl .chipmenu');
+  await expect(menu).toBeVisible();
+
+  const count = menu.locator('.cmhead .t-meta').first();
+  const windowLine = menu.locator('.cmhead .cmwindow');
+
+  await expect(count).not.toContainText('—');
+  await expect(count).toContainText(/^\d+ of \d+ left$/);
+  await expect(windowLine).not.toContainText('has not loaded');
+  await expect(windowLine).toContainText(/^This window ends after GW\d+\./);
+
+  const before = await count.textContent();
+
+  const row = menu.locator('.cmrow[data-chip="bboost"]');
+  await row.click();
+  await expect(row).toHaveAttribute('aria-pressed', 'true');
+  // A chip planned for the CURRENT gameweek is not yet "spent" — analysis.ChipWindowStatusFor
+  // only drops a chip from Remaining once its planned gameweek is BEHIND the one being asked
+  // about (`planned >= gw` still counts), because the week has not been played yet. So the
+  // count here is expected to stay put; what this pins is that it stays put at a REAL value,
+  // not that the save reverts the header to the old null-state fallback the bug shipped.
+  await expect(count).toHaveText(before);
+  await expect(count).not.toContainText('—');
+  await expect(windowLine).not.toContainText('has not loaded');
+
+  // Leave the fixture's session as this suite found it for whatever test runs after this one
+  // in the same worker.
+  await row.click();
+  await expect(count).toHaveText(before);
+  await expect(page.locator('#chipctl .chippill')).not.toContainText('Bench Boost');
+});
+
 test('the open chip menu does not overflow the phone viewport', async ({ page }) => {
   test.skip(test.info().project.name !== 'phone', 'phone-only geometry check');
   await page.goto('/');
