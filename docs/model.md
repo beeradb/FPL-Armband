@@ -458,8 +458,10 @@ its players doubled in all five projected weeks.
 `TestFixtureLoadWindowEndsWithTheSeason` pin the three properties.
 
 **Where the term is applied decides everything, and it is not applied everywhere.** It scales
-the score used to pick the eleven you actually field this week, and the score used to judge a
-transfer. It does *not* scale the score used to build a permanent fifteen from scratch.
+the score used to pick the eleven you actually field this week — `WeekEngine` on the live
+path, and `HoldCaptaincyWeekly` on `HOLD` — and the score used to judge a transfer. It does
+*not* scale the score used to build a permanent fifteen from scratch. Historical `HOLD`
+figures picked that eleven on the horizon-5 average, where load is out of `Score`.
 
 The **free hit** is the one exception, and it is not an oversight. That fifteen is fielded for a
 single round and handed back, so one gameweek *is* its whole horizon: it is built on the horizon-1

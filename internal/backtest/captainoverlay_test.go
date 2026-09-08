@@ -51,17 +51,22 @@ func xiMetricsFromIDs(e *analysis.Engine, xiIDs []int) []analysis.PlayerMetrics 
 	return out
 }
 
-// holdWeekEngine rebuilds the point-in-time engine HoldCaptaincyWeekly uses at
-// gw — same priors, recent index and team form. The overlay recomputes only the
-// armband on that week's XI; this is the duplicated construction the identity
-// check guards.
+// holdWeekEngine rebuilds the weekly engine HoldCaptaincyWeekly uses at gw.
+// Shipped HOLD (#205) sets Horizon 1 on a copy of cfg.Weights; the opening
+// fifteen and the frozen captain still use cfg.Weights. Tiebreak travels with
+// the engine. The overlay recomputes only the armband; the identity check
+// guards this copy. Banked 2026-09-08 A0/C/F cells predate #205 (horizon-5
+// fielding at 4f5aa59c).
 func holdWeekEngine(cur, prior *Season, sc SimConfig, gw int) *analysis.Engine {
 	idx := sc.priors(cur, prior)
 	b, fx := PointInTimeWith(cur, prior, gw-1, sc.Oracles)
-	e := analysis.NewEngineFull(b, fx, sc.Weights, analysis.Congestion{}, analysis.RoleRisk{})
+	w := sc.Weights
+	w.Horizon = 1
+	e := analysis.NewEngineFull(b, fx, w, analysis.Congestion{}, analysis.RoleRisk{})
 	e.Priors = idx
 	e.Recent = sc.recentIndex(cur, gw-1)
 	e.TeamForm = newTeamFormIndex(cur, gw-1)
+	e.Tiebreak = sc.Tiebreak
 	return e
 }
 

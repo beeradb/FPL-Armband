@@ -173,8 +173,8 @@ Six terms account for most of this file.
 
 | term | what it means here |
 |---|---|
-| **`HOLD`** | buy the opening fifteen and never transfer, but re-pick the eleven and the captain every week, with substitutions applied. **Use this for anything about scoring**, because it excludes the noisy transfer decisions |
-| **`POLICY`** | the same, plus the weekly transfer decision. **Only for settings that are themselves about transfers** |
+| **`HOLD`** | buy the opening fifteen and never transfer, but re-pick the eleven and the captain every week from this week's Score (horizon 1). Opening fifteen and transfers stay at 5; historical HOLD used horizon-5 fielding. **Use this for scoring** |
+| **`POLICY`** | HOLD plus the weekly transfer. Still fields at horizon 5 unless WeeklyXI. **Only for transfer settings** |
 | **cell** | one replayed season entered at one deadline. Six seasons × six entry gameweeks = **36 cells** per setting. Older figures may say **24 cells** (four seasons) or **12 cells** (three by four). Take the cell count from the figure, never from this row |
 | **paired difference** | one setting minus the shipped one *within the same cell* — same football, same opening conditions, one thing changed. Always **per gameweek played** |
 | **pts/gw** | points per gameweek. **Multiply by 38** for the season-scale figures quoted here |
@@ -700,7 +700,9 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 ### Fixtures
 
 - **Fixture *count* is a different term from fixture *difficulty*, and it is the one thing in
-  the fixture family that pays.** → **fixtures-and-difficulty**
+  the fixture family that pays.** HOLD's weekly pick ships at horizon 1 so count is in Score;
+  this-week difficulty on the same fifteen did not clear. Ladders/`fixture_weight`/`BandStrength`
+  stay. Historical HOLD used horizon-5 fielding. → **fixtures-and-difficulty**
 - **Fixtures matter hugely per match and barely per horizon.** → **fixtures-and-difficulty**
 - **The model is already position-dependent by construction.** → **fixtures-and-difficulty**
 - **Neither fixture ladder has a shape** — 3 cells, absolute totals, pre-defcon-visibility,

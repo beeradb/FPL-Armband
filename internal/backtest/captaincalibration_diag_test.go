@@ -13,6 +13,10 @@ package backtest
 // with bestArmband on that week's XI. Go prints per-season totals and the six
 // season means of (F−A0) and (C−A0) only — no SE, t, threshold or verdict word.
 // Inference is stats/captain_rule.R (per_path estimand).
+//
+// Banked cells at stats/snapshots/2026-09-08-captain-cal/legacy/ were measured
+// at 4f5aa59c, before #205 shipped HOLD's weekly pick at horizon 1. Re-running
+// this diagnostic now measures shipped HOLD, not those cells.
 
 import (
 	"encoding/csv"
@@ -69,9 +73,9 @@ func TestDiagCaptainCalibration(t *testing.T) {
 			var cPts, oracleDiffers int
 			for i, gw := range hc.GW {
 				e := holdWeekEngine(pair.Cur, pair.Prior, sc, gw)
-				_, _, shipCap, _ := pickXI(e, held)
+				_, _, shipCap, _ := pickXIAt(e, held, gw, false)
 				if shipCap != hc.Captain[i] {
-					t.Fatalf("%s@%d GW%d: pickXI captain %d != HoldCaptaincyWeekly's %d "+
+					t.Fatalf("%s@%d GW%d: pickXIAt captain %d != HoldCaptaincyWeekly's %d "+
 						"— the duplicated loop has drifted from the reference",
 						pair.Name, start, gw, shipCap, hc.Captain[i])
 				}

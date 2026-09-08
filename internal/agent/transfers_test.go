@@ -153,7 +153,8 @@ func TestSuggestTransfersPricesAFreeTransfer(t *testing.T) {
 		// Keep the assertion whenever both sides appear. When live data still
 		// cannot manufacture a separating set — even after gently/degrade scale
 		// their minutes floor — skip rather than fail a charge pin that did not
-		// get to run.
+		// get to run. Fail-closed would red CI on a week the charge is not
+		// being tested.
 		t.Skipf("every candidate fell the same side of the charge (%d of %d); the test is "+
 			"not exercising the threshold", charged, len(cands))
 	}

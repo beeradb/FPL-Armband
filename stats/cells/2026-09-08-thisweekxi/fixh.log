@@ -1,0 +1,134 @@
+replay: slot 1/3, MemoryHigh=2G MemoryMax=4G, started 14:38:26
+=== RUN   TestDiagThisWeekXIOnHold
+
+--- run stamp: TestDiagThisWeekXIOnHold
+  commit:  d3c81e931b83a97953acb9bc30858a43116388fd
+  env:     digest 87da2777ce84  (2 set)
+             FPL_XGC_EXTERNAL_DIR=data:f17aa0d93383
+             FPL_SWEEP_SEASONS=extended
+  compare: two tables may be differenced only if commit and env digest both match,
+           or the difference between them IS the declared variable.
+
+THIS-WEEK XI ON HOLD — 36 cells (6 seasons x 6 starts), chips off, no transfers
+A0 = shipped HoldCaptaincyWeekly (horizon 5). A1 = this-GW FDR, load off, blanks zeroed.
+A2 = horizon 1, load on. Mediator: XI-diff weeks, captain-diff weeks, blank-club XI player-GWs.
+
+2020-21@1 A0_horizon5_shipped    hold= 1745 weeks=38 xi_diff= 0 cap_diff= 0 blank_xi=33
+2020-21@1 A1_thisgw_difficulty   hold= 1749 weeks=38 xi_diff=10 cap_diff= 3 blank_xi=21
+2020-21@1 A2_horizon1_load       hold= 1767 weeks=38 xi_diff=11 cap_diff= 6 blank_xi=21
+2020-21@6 A0_horizon5_shipped    hold= 1568 weeks=33 xi_diff= 0 cap_diff= 0 blank_xi=25
+2020-21@6 A1_thisgw_difficulty   hold= 1575 weeks=33 xi_diff= 8 cap_diff= 4 blank_xi=11
+2020-21@6 A2_horizon1_load       hold= 1577 weeks=33 xi_diff= 9 cap_diff= 7 blank_xi=11
+2020-21@11 A0_horizon5_shipped    hold= 1285 weeks=28 xi_diff= 0 cap_diff= 0 blank_xi=32
+2020-21@11 A1_thisgw_difficulty   hold= 1273 weeks=28 xi_diff= 7 cap_diff= 5 blank_xi=16
+2020-21@11 A2_horizon1_load       hold= 1282 weeks=28 xi_diff= 9 cap_diff= 8 blank_xi=16
+2020-21@16 A0_horizon5_shipped    hold= 1153 weeks=23 xi_diff= 0 cap_diff= 0 blank_xi=25
+2020-21@16 A1_thisgw_difficulty   hold= 1168 weeks=23 xi_diff=12 cap_diff= 5 blank_xi=14
+2020-21@16 A2_horizon1_load       hold= 1175 weeks=23 xi_diff=12 cap_diff= 8 blank_xi=14
+2020-21@21 A0_horizon5_shipped    hold=  865 weeks=18 xi_diff= 0 cap_diff= 0 blank_xi=14
+2020-21@21 A1_thisgw_difficulty   hold=  897 weeks=18 xi_diff= 6 cap_diff= 6 blank_xi= 5
+2020-21@21 A2_horizon1_load       hold=  907 weeks=18 xi_diff= 9 cap_diff= 8 blank_xi= 5
+2020-21@26 A0_horizon5_shipped    hold=  634 weeks=13 xi_diff= 0 cap_diff= 0 blank_xi=15
+2020-21@26 A1_thisgw_difficulty   hold=  660 weeks=13 xi_diff= 4 cap_diff= 5 blank_xi= 6
+2020-21@26 A2_horizon1_load       hold=  689 weeks=13 xi_diff= 6 cap_diff= 6 blank_xi= 6
+2021-22@1 A0_horizon5_shipped    hold= 1909 weeks=38 xi_diff= 0 cap_diff= 0 blank_xi=33
+2021-22@1 A1_thisgw_difficulty   hold= 1912 weeks=38 xi_diff=14 cap_diff= 4 blank_xi=15
+2021-22@1 A2_horizon1_load       hold= 1908 weeks=38 xi_diff=15 cap_diff=11 blank_xi=15
+2021-22@6 A0_horizon5_shipped    hold= 1593 weeks=33 xi_diff= 0 cap_diff= 0 blank_xi=26
+2021-22@6 A1_thisgw_difficulty   hold= 1594 weeks=33 xi_diff=12 cap_diff= 4 blank_xi=13
+2021-22@6 A2_horizon1_load       hold= 1579 weeks=33 xi_diff=11 cap_diff=10 blank_xi=13
+2021-22@11 A0_horizon5_shipped    hold= 1584 weeks=28 xi_diff= 0 cap_diff= 0 blank_xi=22
+2021-22@11 A1_thisgw_difficulty   hold= 1632 weeks=28 xi_diff=13 cap_diff= 4 blank_xi= 6
+2021-22@11 A2_horizon1_load       hold= 1620 weeks=28 xi_diff=14 cap_diff= 7 blank_xi= 6
+2021-22@16 A0_horizon5_shipped    hold= 1236 weeks=23 xi_diff= 0 cap_diff= 0 blank_xi=21
+2021-22@16 A1_thisgw_difficulty   hold= 1249 weeks=23 xi_diff= 8 cap_diff= 3 blank_xi=13
+2021-22@16 A2_horizon1_load       hold= 1254 weeks=23 xi_diff=12 cap_diff= 8 blank_xi=13
+2021-22@21 A0_horizon5_shipped    hold=  918 weeks=18 xi_diff= 0 cap_diff= 0 blank_xi=19
+2021-22@21 A1_thisgw_difficulty   hold=  927 weeks=18 xi_diff= 7 cap_diff= 2 blank_xi=11
+2021-22@21 A2_horizon1_load       hold=  905 weeks=18 xi_diff= 9 cap_diff= 7 blank_xi=11
+2021-22@26 A0_horizon5_shipped    hold=  635 weeks=13 xi_diff= 0 cap_diff= 0 blank_xi=13
+2021-22@26 A1_thisgw_difficulty   hold=  658 weeks=13 xi_diff= 3 cap_diff= 2 blank_xi=10
+2021-22@26 A2_horizon1_load       hold=  664 weeks=13 xi_diff= 6 cap_diff= 6 blank_xi=10
+2022-23@1 A0_horizon5_shipped    hold= 1640 weeks=38 xi_diff= 0 cap_diff= 0 blank_xi=31
+2022-23@1 A1_thisgw_difficulty   hold= 1649 weeks=38 xi_diff= 8 cap_diff= 3 blank_xi=20
+2022-23@1 A2_horizon1_load       hold= 1665 weeks=38 xi_diff= 8 cap_diff= 8 blank_xi=20
+2022-23@6 A0_horizon5_shipped    hold= 1512 weeks=33 xi_diff= 0 cap_diff= 0 blank_xi=28
+2022-23@6 A1_thisgw_difficulty   hold= 1510 weeks=33 xi_diff= 6 cap_diff= 4 blank_xi=15
+2022-23@6 A2_horizon1_load       hold= 1513 weeks=33 xi_diff= 7 cap_diff= 8 blank_xi=15
+2022-23@11 A0_horizon5_shipped    hold= 1543 weeks=28 xi_diff= 0 cap_diff= 0 blank_xi=10
+2022-23@11 A1_thisgw_difficulty   hold= 1551 weeks=28 xi_diff= 6 cap_diff= 3 blank_xi= 2
+2022-23@11 A2_horizon1_load       hold= 1570 weeks=28 xi_diff= 8 cap_diff= 6 blank_xi= 2
+2022-23@16 A0_horizon5_shipped    hold= 1104 weeks=23 xi_diff= 0 cap_diff= 0 blank_xi= 5
+2022-23@16 A1_thisgw_difficulty   hold= 1102 weeks=23 xi_diff= 3 cap_diff= 3 blank_xi= 2
+2022-23@16 A2_horizon1_load       hold= 1093 weeks=23 xi_diff= 5 cap_diff= 7 blank_xi= 2
+2022-23@21 A0_horizon5_shipped    hold= 1112 weeks=18 xi_diff= 0 cap_diff= 0 blank_xi=10
+2022-23@21 A1_thisgw_difficulty   hold= 1110 weeks=18 xi_diff= 3 cap_diff= 3 blank_xi= 5
+2022-23@21 A2_horizon1_load       hold= 1122 weeks=18 xi_diff= 4 cap_diff= 6 blank_xi= 5
+2022-23@26 A0_horizon5_shipped    hold=  838 weeks=13 xi_diff= 0 cap_diff= 0 blank_xi= 4
+2022-23@26 A1_thisgw_difficulty   hold=  834 weeks=13 xi_diff= 6 cap_diff= 3 blank_xi= 0
+2022-23@26 A2_horizon1_load       hold=  855 weeks=13 xi_diff= 7 cap_diff= 4 blank_xi= 0
+2023-24@1 A0_horizon5_shipped    hold= 1589 weeks=38 xi_diff= 0 cap_diff= 0 blank_xi=15
+2023-24@1 A1_thisgw_difficulty   hold= 1593 weeks=38 xi_diff= 6 cap_diff= 6 blank_xi= 9
+2023-24@1 A2_horizon1_load       hold= 1593 weeks=38 xi_diff= 7 cap_diff= 8 blank_xi= 9
+2023-24@6 A0_horizon5_shipped    hold= 1736 weeks=33 xi_diff= 0 cap_diff= 0 blank_xi=16
+2023-24@6 A1_thisgw_difficulty   hold= 1742 weeks=33 xi_diff= 6 cap_diff= 6 blank_xi= 9
+2023-24@6 A2_horizon1_load       hold= 1751 weeks=33 xi_diff= 7 cap_diff= 8 blank_xi= 9
+2023-24@11 A0_horizon5_shipped    hold= 1428 weeks=28 xi_diff= 0 cap_diff= 0 blank_xi=10
+2023-24@11 A1_thisgw_difficulty   hold= 1417 weeks=28 xi_diff= 4 cap_diff= 7 blank_xi= 6
+2023-24@11 A2_horizon1_load       hold= 1428 weeks=28 xi_diff= 5 cap_diff= 9 blank_xi= 6
+2023-24@16 A0_horizon5_shipped    hold= 1084 weeks=23 xi_diff= 0 cap_diff= 0 blank_xi=10
+2023-24@16 A1_thisgw_difficulty   hold= 1084 weeks=23 xi_diff= 7 cap_diff= 7 blank_xi= 3
+2023-24@16 A2_horizon1_load       hold= 1096 weeks=23 xi_diff= 8 cap_diff= 9 blank_xi= 3
+2023-24@21 A0_horizon5_shipped    hold=  914 weeks=18 xi_diff= 0 cap_diff= 0 blank_xi=12
+2023-24@21 A1_thisgw_difficulty   hold=  901 weeks=18 xi_diff= 7 cap_diff= 4 blank_xi= 7
+2023-24@21 A2_horizon1_load       hold=  903 weeks=18 xi_diff= 7 cap_diff= 6 blank_xi= 7
+2023-24@26 A0_horizon5_shipped    hold=  620 weeks=13 xi_diff= 0 cap_diff= 0 blank_xi= 8
+2023-24@26 A1_thisgw_difficulty   hold=  620 weeks=13 xi_diff= 3 cap_diff= 3 blank_xi= 7
+2023-24@26 A2_horizon1_load       hold=  639 weeks=13 xi_diff= 4 cap_diff= 6 blank_xi= 7
+2024-25@1 A0_horizon5_shipped    hold= 2108 weeks=38 xi_diff= 0 cap_diff= 0 blank_xi= 8
+2024-25@1 A1_thisgw_difficulty   hold= 2113 weeks=38 xi_diff= 3 cap_diff= 2 blank_xi= 4
+2024-25@1 A2_horizon1_load       hold= 2118 weeks=38 xi_diff= 3 cap_diff= 3 blank_xi= 4
+2024-25@6 A0_horizon5_shipped    hold= 1746 weeks=33 xi_diff= 0 cap_diff= 0 blank_xi= 9
+2024-25@6 A1_thisgw_difficulty   hold= 1757 weeks=33 xi_diff= 5 cap_diff= 3 blank_xi= 1
+2024-25@6 A2_horizon1_load       hold= 1757 weeks=33 xi_diff= 6 cap_diff= 3 blank_xi= 1
+2024-25@11 A0_horizon5_shipped    hold= 1663 weeks=28 xi_diff= 0 cap_diff= 0 blank_xi= 6
+2024-25@11 A1_thisgw_difficulty   hold= 1669 weeks=28 xi_diff= 3 cap_diff= 2 blank_xi= 0
+2024-25@11 A2_horizon1_load       hold= 1669 weeks=28 xi_diff= 3 cap_diff= 2 blank_xi= 0
+2024-25@16 A0_horizon5_shipped    hold= 1374 weeks=23 xi_diff= 0 cap_diff= 0 blank_xi= 6
+2024-25@16 A1_thisgw_difficulty   hold= 1373 weeks=23 xi_diff= 4 cap_diff= 1 blank_xi= 1
+2024-25@16 A2_horizon1_load       hold= 1378 weeks=23 xi_diff= 4 cap_diff= 2 blank_xi= 1
+2024-25@21 A0_horizon5_shipped    hold=  961 weeks=18 xi_diff= 0 cap_diff= 0 blank_xi= 3
+2024-25@21 A1_thisgw_difficulty   hold=  967 weeks=18 xi_diff= 3 cap_diff= 1 blank_xi= 1
+2024-25@21 A2_horizon1_load       hold=  972 weeks=18 xi_diff= 3 cap_diff= 2 blank_xi= 1
+2024-25@26 A0_horizon5_shipped    hold=  707 weeks=13 xi_diff= 0 cap_diff= 0 blank_xi= 6
+2024-25@26 A1_thisgw_difficulty   hold=  723 weeks=13 xi_diff= 5 cap_diff= 1 blank_xi= 1
+2024-25@26 A2_horizon1_load       hold=  728 weeks=13 xi_diff= 5 cap_diff= 2 blank_xi= 1
+2025-26@1 A0_horizon5_shipped    hold= 1490 weeks=38 xi_diff= 0 cap_diff= 0 blank_xi= 9
+2025-26@1 A1_thisgw_difficulty   hold= 1491 weeks=38 xi_diff= 3 cap_diff= 5 blank_xi= 5
+2025-26@1 A2_horizon1_load       hold= 1495 weeks=38 xi_diff= 4 cap_diff= 7 blank_xi= 5
+2025-26@6 A0_horizon5_shipped    hold= 1743 weeks=33 xi_diff= 0 cap_diff= 0 blank_xi= 8
+2025-26@6 A1_thisgw_difficulty   hold= 1727 weeks=33 xi_diff= 8 cap_diff= 4 blank_xi= 3
+2025-26@6 A2_horizon1_load       hold= 1743 weeks=33 xi_diff= 8 cap_diff= 7 blank_xi= 3
+2025-26@11 A0_horizon5_shipped    hold= 1499 weeks=28 xi_diff= 0 cap_diff= 0 blank_xi=11
+2025-26@11 A1_thisgw_difficulty   hold= 1495 weeks=28 xi_diff= 5 cap_diff= 0 blank_xi= 6
+2025-26@11 A2_horizon1_load       hold= 1508 weeks=28 xi_diff= 6 cap_diff= 3 blank_xi= 6
+2025-26@16 A0_horizon5_shipped    hold= 1307 weeks=23 xi_diff= 0 cap_diff= 0 blank_xi=11
+2025-26@16 A1_thisgw_difficulty   hold= 1299 weeks=23 xi_diff= 7 cap_diff= 0 blank_xi= 6
+2025-26@16 A2_horizon1_load       hold= 1317 weeks=23 xi_diff= 9 cap_diff= 3 blank_xi= 6
+2025-26@21 A0_horizon5_shipped    hold=  950 weeks=18 xi_diff= 0 cap_diff= 0 blank_xi=10
+2025-26@21 A1_thisgw_difficulty   hold=  962 weeks=18 xi_diff= 3 cap_diff= 3 blank_xi= 4
+2025-26@21 A2_horizon1_load       hold=  980 weeks=18 xi_diff= 6 cap_diff= 4 blank_xi= 4
+2025-26@26 A0_horizon5_shipped    hold=  755 weeks=13 xi_diff= 0 cap_diff= 0 blank_xi=11
+2025-26@26 A1_thisgw_difficulty   hold=  760 weeks=13 xi_diff= 4 cap_diff= 0 blank_xi= 5
+2025-26@26 A2_horizon1_load       hold=  773 weeks=13 xi_diff= 4 cap_diff= 3 blank_xi= 5
+
+MEDIATOR TOTALS (void an arm with xi_diff=0 AND cap_diff=0)
+  A0_horizon5_shipped    xi_diff_weeks=0 cap_diff_weeks=0 blank_xi_pgw=535 over 918 scored weeks
+  A1_thisgw_difficulty   xi_diff_weeks=222 cap_diff_weeks=121 blank_xi_pgw=263 over 918 scored weeks
+  A2_horizon1_load       xi_diff_weeks=261 cap_diff_weeks=218 blank_xi_pgw=263 over 918 scored weeks
+
+Re-run inference:
+  Rscript stats/sweep_inference.R /tmp/grok-goal-d06d0c16d27a/implementer/fixh.csv
+--- PASS: TestDiagThisWeekXIOnHold (115.22s)
+PASS
+replay: exit=0 peak_rss=100 MB elapsed=1:54.51
