@@ -426,6 +426,29 @@ type Weights struct {
 	// that is what the replay is for.
 	PriceMinutesPrior float64 `json:"price_minutes_prior"`
 
+	// TemplateCoreK locks the k highest-owned feasible players into Optimize's
+	// LockIDs before the Score search fills the rest. Zero is off and is what
+	// ships.
+	//
+	// ⚠️ This is a SEARCH CONSTRAINT, not a Score term. Ownership must not
+	// enter Score, xiValue, or the separable-band tiebreak — AGENTS.md closes
+	// "Do not break ties on ownership inside the separable band" (price shipped
+	// instead). The overlay appends to LockIDs inside Optimize; every caller
+	// (repairSquad, agent tools, cmd/armband) inherits it through that one path.
+	//
+	// Feasibility: selectTemplateCore walks ownership order and skips anyone
+	// who would breach squadQuota or MaxPerClub *given already-locked and
+	// excluded ids*, so the merged LockIDs stay a legal partial squad.
+	// Unavailable statuses are skipped. The overlay is opening-squad only
+	// (empty CurrentSquad, MaxChanges 0) — a bounded revision cannot transfer
+	// a locked player in. Ownership <= 0 is skipped so an all-zero table
+	// yields an empty core rather than an arbitrary id ranking.
+	//
+	// Zero needs no Load backfill: Default() leaves it 0, Unmarshal leaves an
+	// absent key alone, and 0 is the deliberate off — same shape as
+	// PriceMinutesPrior.
+	TemplateCoreK int `json:"template_core_k"`
+
 	// LeagueShrinkK is shrinkToLeague's own strength — how fast a player with no
 	// prior at all (a promoted club's starter, an arrival from abroad) is
 	// trusted on his own current-season sample rather than his position's
