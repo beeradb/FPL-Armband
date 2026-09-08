@@ -28,5 +28,6 @@ totals so the required CSV contract is met.
 | A1 difficulty | 0.289 | +11.0 | 0.161 | 1.80 | 15.7 | 0.132 | 0.163 | 4/6 |
 | A2 load+week | 0.653 | +24.8 | 0.151 | 4.31 | 14.7 | 0.015 | 0.014 | 6/6 |
 
-A1 does not clear. A2 clears CR2 and Holm; wild does not withdraw. No change to
+A1 does not clear. A2 clears CR2 and Holm; wild does not withdraw. The A2−A1
+wedge is the double half of load (blanks match on A1 and A2). No change to
 `fixture_weight`, ladders, or `BandStrength`.

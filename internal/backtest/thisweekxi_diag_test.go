@@ -51,8 +51,11 @@ func TestDiagThisWeekXIOnHold(t *testing.T) {
 	}
 	arms := []armDef{
 		{label: "A0_horizon5_shipped", ship: true},
+		// Load is already out of Score at shipped horizon 5
+		// (FixtureLoadInScore is false unless Horizon==1). DisableLoad would
+		// be a no-op here; Isolate + ZeroBlank are the live treatments.
 		{label: "A1_thisgw_difficulty", field: HoldFielding{
-			Isolate: true, DisableLoad: true, ZeroBlank: true,
+			Isolate: true, ZeroBlank: true,
 		}},
 		{label: "A2_horizon1_load", field: HoldFielding{Horizon: 1}},
 	}

@@ -117,6 +117,7 @@ func TestSetFixtureLoadTurnsOffHorizon1ScoreMultiplier(t *testing.T) {
 	}
 	was := FixtureLoadEnabled()
 	SetFixtureLoad(false)
+	defer SetFixtureLoad(was)
 	if e.FixtureLoadInScore() {
 		t.Fatal("SetFixtureLoad(false) left FixtureLoadInScore true at horizon 1")
 	}
