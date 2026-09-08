@@ -1,0 +1,32 @@
+# This-week XI on HOLD — difficulty isolated from load
+
+Banked 2026-09-08. Commit `d3c81e93`, dirty=false. Six seasons × six entry
+gameweeks = 36 cells an arm, HOLD. `FPL_XGC_EXTERNAL_DIR` was set (measured xGC).
+
+Reproduce:
+
+    DIAG=1 EXP=FIXH FPL_SWEEP_SEASONS=extended FPL_CELLS=/tmp/fixh.csv \
+      scripts/replay -run TestDiagThisWeekXIOnHold -v -timeout 2h
+    Rscript stats/sweep_inference.R /tmp/fixh.csv
+
+Inference is `stats/sweep_inference.R` (CR2, Holm over A1 and A2 vs A0, wild
+cluster bootstrap). Do not quote the POLICY columns: they were filled with HOLD
+totals so the required CSV contract is met.
+
+## Arms
+
+| arm | fielding |
+|---|---|
+| A0 | shipped `HoldCaptaincyWeekly` (horizon 5) |
+| A1 | this-GW FDR only: skip other gameweeks, load off, blanks Score=0, both double legs averaged |
+| A2 | horizon 1, load on (`WeekEngine` / `WeeklyXI` fielding) |
+
+## Result — HOLD, per gameweek × 38, t_crit(5)=2.571
+
+| arm | pts/gw | a season | SE CR2 | t | threshold | Holm p | wild p | seasons |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| A1 difficulty | 0.289 | +11.0 | 0.161 | 1.80 | 15.7 | 0.132 | 0.163 | 4/6 |
+| A2 load+week | 0.653 | +24.8 | 0.151 | 4.31 | 14.7 | 0.015 | 0.014 | 6/6 |
+
+A1 does not clear. A2 clears CR2 and Holm; wild does not withdraw. No change to
+`fixture_weight`, ladders, or `BandStrength`.
