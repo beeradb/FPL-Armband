@@ -446,7 +446,8 @@ type Weights struct {
 	//
 	// Zero needs no Load backfill: Default() leaves it 0, Unmarshal leaves an
 	// absent key alone, and 0 is the deliberate off — same shape as
-	// PriceMinutesPrior.
+	// PriceMinutesPrior. A 36-cell HOLD comparison of k=4 against k=0 did not
+	// clear that comparison's own season-clustered threshold, so 0 stays.
 	TemplateCoreK int `json:"template_core_k"`
 
 	// LeagueShrinkK is shrinkToLeague's own strength — how fast a player with no
