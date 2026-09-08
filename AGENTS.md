@@ -731,6 +731,10 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 
 ### The harness
 
+- **The armband overlay sees hindsight (+142.53 a season-path vs threshold 23.26) and does not
+  resolve entry-pinned vs weekly (−10.14 vs 20.52).** Season means of the pin range +24 to −31;
+  start=6 carries the pooled negative. Does not retract 255-vs-228. → **harness-and-inference**
+
 - **The replay's noise is sensitivity, not randomness.** → **harness-and-inference**
 - **The noise splits differently on the two metrics.** → **harness-and-inference**
 - **Captaincy is 45% of `HOLD`'s residual variance, and removing it is still worse.** →
