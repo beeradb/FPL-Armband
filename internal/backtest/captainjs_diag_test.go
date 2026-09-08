@@ -1,24 +1,13 @@
 package backtest
 
-// TestDiagCaptainJamesStein — shrink-then-argmax HOLD overlay of the 2026-09-08
-// prereg
-// memory/2026-09-08-prereg-does-shrinking-the-xi-score-vector-then-argmax-beat-raw-argmax.md
-// (committed before any number).
+// TestDiagCaptainJamesStein — DO NOT RUN. VOID by algebra, not a live diagnostic.
 //
-//	DIAG=1 EXP=JS FPL_CELLS=/tmp/captain-js/cells.csv FPL_SWEEP_SEASONS=extended \
-//	  scripts/replay -run '^TestDiagCaptainJamesStein$' -v -timeout 3h
-//	Rscript stats/captain_js.R /tmp/captain-js/cells.csv
-//
-// One HoldCaptaincyWeekly per cell, then for each week rebuild the engine, take
-// the fielded XI's PlayerMetrics, replace Score with (1−λ)·Score + λ·mean, and
-// call analysis.CaptainAndVice — no second walk. Arms λ ∈ {0, 0.25, 0.50, 0.75}.
-// λ=0 must reproduce hc.Captain every week (t.Fatal otherwise). Go prints
-// per-season summed deltas only — no SE, t, threshold or verdict word.
-// Inference is stats/captain_js.R (per_path estimand; Holm family of 3).
-//
-// ⚠️ A common-mean convex combination is order-preserving for λ ∈ [0,1), so
-// weeks_captain_differs is expected to be 0 for λ>0; that is VOID, not a null.
-// The unit test in captainoverlay_test.go pins the algebra.
+// Common-mean shrink Score' = (1−λ)Score + λμ is strictly order-preserving for
+// λ ∈ [0,1), so CaptainAndVice cannot move. The 2026-09-08 prereg was amended
+// before any cell; this test Skips even with DIAG=1. The pin is
+// TestCaptainOverlayHalfShrinkPreservesArgmax. Heteroscedastic B is a different
+// experiment. Do not delete the Skip to "get numbers" — that mints a
+// byte-identical CSV.
 
 import (
 	"encoding/csv"

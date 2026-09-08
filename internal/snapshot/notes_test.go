@@ -1189,7 +1189,13 @@ func TestTheResidentIndexStaysSmall(t *testing.T) {
 	// still-live `Finished` staleness, or the correction reads as broader than it
 	// is. Compressing either clause is the qualifier-dropping this comment already
 	// forbids. About 700 bytes free.
-	const budget = 67 * 1024
+	// # 68 KB, 2026-09-08 — shrink-to-mean then argmax is VOID by algebra
+	//
+	// Closed-line one-liner: common-mean shrink of the XI Score vector cannot change
+	// CaptainAndVice (order-preserving for λ ∈ [0,1)). Mechanism close, no cell, not a
+	// HOLD null, distinct from captainShrink. ~250 bytes free at 67 KB was not enough
+	// for the qualifier that stops a reader writing "James–Stein was measured and lost".
+	const budget = 68 * 1024
 	// The figure is emitted by the thing that owns it. It was quotable only from a
 	// failure before this line, which is how the paragraphs above came to reason from
 	// differences between sizes nobody had recorded.
