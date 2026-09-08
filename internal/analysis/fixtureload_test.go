@@ -106,6 +106,49 @@ func loadEngineOver(t *testing.T, weeks int, doubles, blanks map[int][]int) *Eng
 // callers in the tree were that test's own assertions — one quantity with two
 // implementations, where the measured one was not the one that ran, and the two
 // disagreed on precisely the leading blank below.
+// TestSetFixtureLoadTurnsOffHorizon1ScoreMultiplier pins the load-split the
+// this-week HOLD diagnostic uses: SetFixtureLoad(false) makes FixtureLoadInScore
+// false at horizon 1, and restoring the previous value puts it back.
+func TestSetFixtureLoadTurnsOffHorizon1ScoreMultiplier(t *testing.T) {
+	e := loadEngine(t, nil, nil)
+	e.Weights.Horizon = 1
+	if !e.FixtureLoadInScore() {
+		t.Fatal("horizon 1 with load on must put FixtureLoad in Score")
+	}
+	was := FixtureLoadEnabled()
+	SetFixtureLoad(false)
+	if e.FixtureLoadInScore() {
+		t.Fatal("SetFixtureLoad(false) left FixtureLoadInScore true at horizon 1")
+	}
+	SetFixtureLoad(was)
+	if was && !e.FixtureLoadInScore() {
+		t.Fatal("SetFixtureLoad did not restore the previous switch")
+	}
+}
+
+// TestThisGWIsolationReturnsBothDoubleLegs — skip every gameweek except 1, keep
+// the shipped horizon so TeamFixtures can return both legs. Horizon 1 would
+// keep only the first.
+func TestThisGWIsolationReturnsBothDoubleLegs(t *testing.T) {
+	e := loadEngine(t, map[int][]int{3: {1}}, nil)
+	skip := make([]int, 0, 46)
+	for i := 1; i <= 47; i++ {
+		if i != 1 {
+			skip = append(skip, i)
+		}
+	}
+	e.SetSkipGameweeks(skip)
+	fx := e.TeamFixtures(3, e.Weights.Horizon)
+	if len(fx) != 2 {
+		t.Fatalf("isolated GW1 double: TeamFixtures returned %d legs, want 2 (both this-GW fixtures, no ×2)", len(fx))
+	}
+	e.Weights.Horizon = 1
+	one := e.TeamFixtures(3, 1)
+	if len(one) != 1 {
+		t.Fatalf("horizon 1 on the same skip set returned %d, want 1 — first-leg-only is the defect A1 must not use", len(one))
+	}
+}
+
 func TestFixtureLoadCountsDoublesAndBlanks(t *testing.T) {
 	// Club 2 blanks the imminent gameweek. This is the case the pre-fix anchor
 	// could not express AT ALL: it started the window at the club's next

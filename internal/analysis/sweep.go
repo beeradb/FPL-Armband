@@ -527,6 +527,11 @@ func SetFixtureLoadWeeklyOnly(v bool) { fixtureLoadWeeklyOnly = v }
 // concurrently with scoring — sweeps run their variants sequentially.
 func SetFixtureLoad(on bool) { fixtureLoadScaling = on }
 
+// FixtureLoadEnabled is the process-wide Score multiplier switch SetFixtureLoad
+// writes. Diagnostics that disable load for one arm restore with this, rather
+// than assuming the shipped true — FPL_NO_FIXTURE_LOAD may already have it off.
+func FixtureLoadEnabled() bool { return fixtureLoadScaling }
+
 // buyDiscount is the measured buy-side over-rating, charged against a player
 // being acquired. See discountIncoming. Zero disables it.
 var buyDiscount = envDefaultAbove("FPL_BUY_DISCOUNT", 0)
