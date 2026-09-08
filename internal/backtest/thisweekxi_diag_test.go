@@ -124,7 +124,7 @@ func TestDiagThisWeekXIOnHold(t *testing.T) {
 					HoldPoints:   hold,
 					Moves:        0,
 					Hits:         0,
-				}
+				}.under(sc.Oracles)
 				sink.cell(row)
 				fmt.Printf("%s@%d %-22s hold=%5d weeks=%2d xi_diff=%2d cap_diff=%2d blank_xi=%2d\n",
 					pr.Name, start, a.label, hold, weeks, xiDiff, capDiff, blank)
