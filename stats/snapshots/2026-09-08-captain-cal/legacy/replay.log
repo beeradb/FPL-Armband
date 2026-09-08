@@ -1,0 +1,68 @@
+replay: slot 1/3, MemoryHigh=2G MemoryMax=4G, started 16:56:59
+=== RUN   TestDiagCaptainCalibration
+
+--- run stamp: TestDiagCaptainCalibration
+  commit:  4f5aa59cc709df16b63321baee46d73e59b0e359
+  env:     digest 07a68a383474  (1 set)
+             FPL_SWEEP_SEASONS=extended
+  compare: two tables may be differenced only if commit and env digest both match,
+           or the difference between them IS the declared variable.
+
+=== captain calibration A0/C/F (HOLD overlay, chips off)
+A0 = HoldCaptaincyWeekly.Full; F = FixedCaptain (same pass);
+C = bestArmband on that week's XI. Identity: pickXI captain == hc.Captain.
+36 cells: 6 seasons × 6 starts. Go prints totals only; R owns inference.
+
+2020-21   start=01  A0=1745  F=1751  C=1948  (F-A0=   +6 C-A0= +203)  oracle_differs=31/38
+2020-21   start=06  A0=1545  F=1548  C=1711  (F-A0=   +3 C-A0= +166)  oracle_differs=25/33
+2020-21   start=11  A0=1285  F=1280  C=1410  (F-A0=   -5 C-A0= +125)  oracle_differs=18/28
+2020-21   start=16  A0=1143  F=1109  C=1261  (F-A0=  -34 C-A0= +118)  oracle_differs=18/23
+2020-21   start=21  A0= 865  F= 886  C= 980  (F-A0=  +21 C-A0= +115)  oracle_differs=16/18
+2020-21   start=26  A0= 634  F= 642  C= 720  (F-A0=   +8 C-A0=  +86)  oracle_differs=11/13
+2021-22   start=01  A0=1882  F=1927  C=2102  (F-A0=  +45 C-A0= +220)  oracle_differs=33/38
+2021-22   start=06  A0=1574  F=1610  C=1761  (F-A0=  +36 C-A0= +187)  oracle_differs=26/33
+2021-22   start=11  A0=1611  F=1639  C=1851  (F-A0=  +28 C-A0= +240)  oracle_differs=24/28
+2021-22   start=16  A0=1195  F=1213  C=1378  (F-A0=  +18 C-A0= +183)  oracle_differs=22/23
+2021-22   start=21  A0= 918  F= 936  C=1072  (F-A0=  +18 C-A0= +154)  oracle_differs=16/18
+2021-22   start=26  A0= 616  F= 614  C= 737  (F-A0=   -2 C-A0= +121)  oracle_differs=11/13
+2022-23   start=01  A0=1791  F=1794  C=1988  (F-A0=   +3 C-A0= +197)  oracle_differs=31/38
+2022-23   start=06  A0=1617  F=1556  C=1825  (F-A0=  -61 C-A0= +208)  oracle_differs=26/33
+2022-23   start=11  A0=1440  F=1379  C=1609  (F-A0=  -61 C-A0= +169)  oracle_differs=21/28
+2022-23   start=16  A0=1143  F=1082  C=1246  (F-A0=  -61 C-A0= +103)  oracle_differs=14/23
+2022-23   start=21  A0=1087  F=1083  C=1184  (F-A0=   -4 C-A0=  +97)  oracle_differs=12/18
+2022-23   start=26  A0= 842  F= 838  C= 910  (F-A0=   -4 C-A0=  +68)  oracle_differs=8/13
+2023-24   start=01  A0=1589  F=1565  C=1780  (F-A0=  -24 C-A0= +191)  oracle_differs=30/38
+2023-24   start=06  A0=1736  F=1714  C=1922  (F-A0=  -22 C-A0= +186)  oracle_differs=23/33
+2023-24   start=11  A0=1428  F=1405  C=1576  (F-A0=  -23 C-A0= +148)  oracle_differs=23/28
+2023-24   start=16  A0=1084  F=1084  C=1212  (F-A0=   +0 C-A0= +128)  oracle_differs=19/23
+2023-24   start=21  A0= 914  F= 904  C=1006  (F-A0=  -10 C-A0=  +92)  oracle_differs=14/18
+2023-24   start=26  A0= 620  F= 622  C= 706  (F-A0=   +2 C-A0=  +86)  oracle_differs=10/13
+2024-25   start=01  A0=2108  F=2092  C=2259  (F-A0=  -16 C-A0= +151)  oracle_differs=27/38
+2024-25   start=06  A0=1746  F=1643  C=1906  (F-A0= -103 C-A0= +160)  oracle_differs=23/33
+2024-25   start=11  A0=1663  F=1663  C=1763  (F-A0=   +0 C-A0= +100)  oracle_differs=17/28
+2024-25   start=16  A0=1374  F=1374  C=1492  (F-A0=   +0 C-A0= +118)  oracle_differs=16/23
+2024-25   start=21  A0= 961  F= 961  C=1064  (F-A0=   +0 C-A0= +103)  oracle_differs=14/18
+2024-25   start=26  A0= 707  F= 707  C= 778  (F-A0=   +0 C-A0=  +71)  oracle_differs=10/13
+2025-26   start=01  A0=1490  F=1496  C=1718  (F-A0=   +6 C-A0= +228)  oracle_differs=36/38
+2025-26   start=06  A0=1743  F=1663  C=1941  (F-A0=  -80 C-A0= +198)  oracle_differs=26/33
+2025-26   start=11  A0=1499  F=1471  C=1639  (F-A0=  -28 C-A0= +140)  oracle_differs=21/28
+2025-26   start=16  A0=1307  F=1308  C=1432  (F-A0=   +1 C-A0= +125)  oracle_differs=18/23
+2025-26   start=21  A0= 950  F= 927  C=1034  (F-A0=  -23 C-A0=  +84)  oracle_differs=16/18
+2025-26   start=26  A0= 755  F= 756  C= 817  (F-A0=   +1 C-A0=  +62)  oracle_differs=11/13
+
+--- per-season summed totals (across that season's entry points) ---
+season        n     A0      F      C  mean(F-A0) mean(C-A0)
+2020-21       6   7217   7216   8030       -0.17    +135.50
+2021-22       6   7796   7939   8901      +23.83    +184.17
+2022-23       6   7920   7732   8762      -31.33    +140.33
+2023-24       6   7371   7294   8202      -12.83    +138.50
+2024-25       6   8559   8440   9262      -19.83    +117.17
+2025-26       6   7744   7621   8581      -20.50    +139.50
+
+Six season means of (F−A0): -0.17 +23.83 -31.33 -12.83 -19.83 -20.50
+Six season means of (C−A0): +135.50 +184.17 +140.33 +138.50 +117.17 +139.50
+(No SE/t/threshold/verdict from Go — see stats/captain_rule.R)
+wrote 36 cells to /tmp/captain-cal/legacy/cells.csv
+--- PASS: TestDiagCaptainCalibration (63.33s)
+PASS
+replay: exit=0 peak_rss=127 MB elapsed=1:03.34
