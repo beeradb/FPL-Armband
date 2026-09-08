@@ -670,6 +670,23 @@ type Gameweek struct {
 	// these fields is EndsGW − this gameweek's Number + 1, a subtraction of two
 	// integers the server sent, not a rule about the competition.
 	ChipWindow *ChipWindow `json:"chip_window,omitempty"`
+
+	// Captain and Vice are element ids of analysis.CaptainAndVice run on this
+	// week's eleven — horizon 1, the imminent fixture. Squad.Captain is the
+	// same rule on the horizon-average Score. The live picker labelled "this
+	// week" ranks on WeekXP, not on Player.XP.
+	Captain int `json:"captain,omitempty"`
+	Vice    int `json:"vice,omitempty"`
+	// WeekXP is this gameweek's expected points for the scored fifteen, copied
+	// off WeekView. The field is named XP so roundSkipField leaves the full
+	// precision — app.js sorts the armband picker on it.
+	WeekXP []WeekScore `json:"week_xp,omitempty"`
+}
+
+// WeekScore is one player's expected points in one gameweek of the rail.
+type WeekScore struct {
+	ID int     `json:"id"`
+	XP float64 `json:"xp"`
 }
 
 // ChipWindow is one season chip window's state, attached to the gameweek that

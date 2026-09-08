@@ -32,8 +32,9 @@ import (
 // It is the sharpest test in this package, because it has no tolerance to argue about:
 // the two numbers are printed to one decimal place and they must be equal.
 //
-// ⚠️ It covers the totals and the cards. The formations rail and the armband picker still
-// compute client-side and nothing checks either against the model.
+// ⚠️ It covers the totals and the cards. The armband picker still sorts client-side, but
+// the sort key is week_xp from the server (horizon 1); TestXpForReadsThisWeekScores
+// pins that, and TestGameweekArmbandRanksThisWeekScores pins the server half.
 func TestThePageHeadlineIsTheModelsNumber(t *testing.T) {
 	browser := browsertest.Find(t)
 
@@ -57,30 +58,23 @@ func TestThePageHeadlineIsTheModelsNumber(t *testing.T) {
 	projected := oneFigure(t, dom, `id="sbTotal"[^>]*>([0-9]+\.[0-9])<`)
 	xi := oneFigure(t, dom, `XI ([0-9]+\.[0-9]) \+ armband`)
 
-	if !closeTo(projected, st.Squad.Expected) {
-		t.Errorf("the page projects %.1f and the model says %.1f (squad.expected).\n"+
+	wantXI, wantTotal, capXP := thisWeekHeadline(st)
+	if !closeTo(projected, wantTotal) {
+		t.Errorf("the page projects %.1f and the model says %.1f (this-week XI + armband).\n"+
 			"The page is not drawing the model's number — check whether something in "+
-			"app.js has started scoring players again.", projected, st.Squad.Expected)
+			"app.js has started scoring players again.", projected, wantTotal)
 	}
-	if !closeTo(xi, st.Squad.XIScore) {
-		t.Errorf("the page's eleven totals %.1f and the model says %.1f (squad.xi_score)",
-			xi, st.Squad.XIScore)
+	if !closeTo(xi, wantXI) {
+		t.Errorf("the page's eleven totals %.1f and the model says %.1f (this-week xi)",
+			xi, wantXI)
 	}
-	// And the two must be consistent with each other: the armband doubles one player, so
-	// the difference is exactly the captain's own projection.
-	var captain float64
-	for _, p := range st.Squad.Players {
-		if p.ID == st.Squad.Captain {
-			captain = p.XP
-		}
-	}
-	if captain == 0 {
+	if capXP == 0 {
 		t.Fatal("no captain found in the squad; the arithmetic below cannot be checked")
 	}
-	if diff := math.Abs((st.Squad.Expected - st.Squad.XIScore) - captain); diff > 0.05 {
-		t.Errorf("expected − xi_score is %.2f but the captain projects %.2f. The armband "+
+	if diff := math.Abs((wantTotal - wantXI) - capXP); diff > 0.05 {
+		t.Errorf("headline − xi is %.2f but the captain projects %.2f. The armband "+
 			"is meant to add exactly one more copy of him.",
-			st.Squad.Expected-st.Squad.XIScore, captain)
+			wantTotal-wantXI, capXP)
 	}
 }
 
@@ -106,7 +100,7 @@ func TestEveryCardShowsTheModelsProjection(t *testing.T) {
 	}
 	want := map[int]float64{}
 	for _, p := range st.Squad.Players {
-		want[p.ID] = p.XP
+		want[p.ID] = weekXP(st, p.ID)
 	}
 
 	dom := browsertest.DumpDOM(t, browser, srv.URL+"/app#pitch")
@@ -152,6 +146,50 @@ func TestEveryCardShowsTheModelsProjection(t *testing.T) {
 		t.Fatalf("only matched %d cards to a player, so this test is not covering the "+
 			"pitch. The card markup has probably changed.", found)
 	}
+}
+
+// weekXP is the live picker's sort key: this gameweek at horizon 1 when the
+// rail sent it, otherwise the horizon-average Player.XP.
+func weekXP(st viewmodel.State, id int) float64 {
+	for _, gw := range st.Gameweeks {
+		if !gw.Current {
+			continue
+		}
+		for _, row := range gw.WeekXP {
+			if row.ID == id {
+				return row.XP
+			}
+		}
+	}
+	for _, p := range st.Squad.Players {
+		if p.ID == id {
+			return p.XP
+		}
+	}
+	return 0
+}
+
+func thisWeekHeadline(st viewmodel.State) (xi, total, captain float64) {
+	capID := st.Squad.Captain
+	for _, gw := range st.Gameweeks {
+		if gw.Current && gw.Captain != 0 {
+			inXI := false
+			for _, id := range st.Squad.XI {
+				if id == gw.Captain {
+					inXI = true
+					break
+				}
+			}
+			if inXI {
+				capID = gw.Captain
+			}
+		}
+	}
+	for _, id := range st.Squad.XI {
+		xi += weekXP(st, id)
+	}
+	captain = weekXP(st, capID)
+	return xi, xi + captain, captain
 }
 
 func oneFigure(t *testing.T, dom, pattern string) float64 {

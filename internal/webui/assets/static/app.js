@@ -251,7 +251,10 @@ function hydrate(st){
   WEAKEST={};
   for(const b of BENCHMARKS) WEAKEST[b.pos]=b.score;
 
-  GWS=(st.gameweeks||[]).map(g=>({
+  GWS=(st.gameweeks||[]).map(g=>{
+    const week_xp={};
+    for(const row of (g.week_xp||[])) week_xp[row.id]=row.xp;
+    return {
     gw:g.gw, deadline:g.deadline ? new Date(g.deadline) : null,
     d:g.deadline ? fmtDeadline(new Date(g.deadline)) : '',
     /* Closed only ever arrives true for an imported reader -- buildGameweeks
@@ -260,6 +263,7 @@ function hydrate(st){
        already played and scored. See that function's own comment. */
     closed:!!g.closed,
     chip:CHIPKEY[g.chip]||null, live:!!g.current, projected:g.projected,
+    captain:g.captain||0, vice:g.vice||0, week_xp,
     /* Which chips the competition allows THIS week, decided by the model. Gameweek one
        offers only the bench boost and the triple captain -- a wildcard buys nothing when
        transfers are already unlimited, and the free hit is not offered either. The page
@@ -272,7 +276,7 @@ function hydrate(st){
       const known=CHIPS.find(x=>x.k===c.key);
       return {k:c.key, n:c.label, ic:known?known.ic:''};
     })
-  }));
+  };});
 
   /* The session, as the server holds it. Rebuilt from the document rather than kept
      across renders: the server is the one that knows what is stored. */
@@ -339,6 +343,7 @@ function hydrate(st){
   S.xiChanges=sq.xi_changes;
   S.xiGap=sq.xi_gap;
   S.gw=(GWS.find(g=>g.live)||GWS[0]||{gw:1}).gw;
+  applyWeekArmband();
 
   /* The team, by code, so a reload restores exactly this arrangement rather than the
      model's answer to the same fifteen. */
@@ -868,11 +873,16 @@ function legal(){
  * comparison and the armband picker -- every headline figure on the pitch -- while
  * squad.xi_score and squad.expected arrived from the model and were never read.
  *
- * There is no per-player, per-gameweek projection in the contract today; Score is an
- * average over the horizon. The honest answer is to show that number and to add a
- * per-week one to internal/viewmodel if the rail needs to move, NOT to invent one here.
+ * Per-gameweek expected points live on the rail as gameweeks[].week_xp, scored at
+ * horizon 1 — the same engine Plan.Captain already uses. Player.xp is the horizon
+ * average, which is the right number for a fifteen you keep and the wrong one for
+ * the picker labelled "this week".
  */
-function xpFor(p){ return p.xp; }
+function xpFor(p){
+  const w=gwState();
+  if(w && w.week_xp && w.week_xp[p.id]!=null) return w.week_xp[p.id];
+  return p.xp;
+}
 const xiPts=()=>S.xi.reduce((s,id)=>s+xpFor(byId(id)),0);
 const benchPts=()=>[...S.bench,S.benchGk].reduce((s,id)=>s+xpFor(byId(id)),0);
 function totalPts(){
@@ -985,9 +995,21 @@ function selectPastGameweek(gw){
   renderPastResults(gw);
 }
 
+function applyWeekArmband(){
+  const w=gwState();
+  if(!w) return;
+  /* The week captain is the horizon-1 pick from WeekView's eleven. The pitch
+     eleven is the horizon eleven; only apply the week pair when both names are
+     actually fielded, otherwise a this-week captain who is benched on the
+     horizon view would wear the armband from the bench. */
+  if(w.captain && S.xi.includes(w.captain)) S.cap=w.captain;
+  if(w.vice && S.xi.includes(w.vice) && w.vice!==S.cap) S.vc=w.vice;
+}
+
 function selectPlanningGameweek(gw){
   S.gw=+gw;
   S.resultsGw=null;
+  applyWeekArmband();
   showPlanningSurface(true);
   const rv=document.getElementById('resultsview');
   if(rv) rv.hidden=true;

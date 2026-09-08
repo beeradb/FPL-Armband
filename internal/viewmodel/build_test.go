@@ -109,6 +109,49 @@ func build(t *testing.T, p present.Page) *State {
 
 // TestTheStateRoundTripsThroughJSON is the contract's shallowest guarantee and the one
 // that breaks first: every client reads this over the wire.
+// TestGameweekArmbandRanksThisWeekScores is the separating case: a player who
+// leads the horizon-average Score is not this week's captain. The rail must
+// name the horizon-1 pick, because the live picker labelled "this week" ranks
+// on Gameweek.WeekXP.
+func TestGameweekArmbandRanksThisWeekScores(t *testing.T) {
+	p := samplePage()
+	horizonCap := p.Squad.Captain.ID
+	weekBest := analysis.PlayerMetrics{ID: 2, Name: "Kadıoğlu", Position: "DEF", Score: 6.2}
+	weekSecond := analysis.PlayerMetrics{ID: 3, Name: "Haaland", Position: "FWD", Score: 4.0}
+	weekThird := analysis.PlayerMetrics{ID: 1, Name: "Kinsky", Position: "GKP", Score: 3.0}
+	xi := []analysis.PlayerMetrics{weekBest, weekSecond, weekThird}
+	p.Weeks[0].XI = xi
+	p.Weeks[0].Squad = xi
+	p.Weeks[0].Captain, p.Weeks[0].ViceCaptain = analysis.CaptainAndVice(xi)
+
+	s := build(t, p)
+	if len(s.Gameweeks) == 0 {
+		t.Fatal("no gameweeks")
+	}
+	gw := s.Gameweeks[0]
+	if gw.Captain == horizonCap && weekBest.ID != horizonCap {
+		t.Fatalf("gameweek captain is the horizon captain %d; want this-week %d",
+			horizonCap, weekBest.ID)
+	}
+	if gw.Captain != weekBest.ID {
+		t.Errorf("gameweek captain %d, want %d", gw.Captain, weekBest.ID)
+	}
+	if gw.Vice != weekSecond.ID {
+		t.Errorf("gameweek vice %d, want %d", gw.Vice, weekSecond.ID)
+	}
+	got := map[int]float64{}
+	for _, row := range gw.WeekXP {
+		got[row.ID] = row.XP
+	}
+	if got[weekBest.ID] != 6.2 {
+		t.Errorf("week_xp[%d] = %v, want 6.2", weekBest.ID, got[weekBest.ID])
+	}
+	if s.Squad.Captain != horizonCap {
+		t.Errorf("squad captain moved to %d; horizon assignment is a different question",
+			s.Squad.Captain)
+	}
+}
+
 func TestTheStateRoundTripsThroughJSON(t *testing.T) {
 	s := build(t, samplePage())
 	raw, err := json.Marshal(s)
