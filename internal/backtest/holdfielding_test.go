@@ -147,10 +147,11 @@ func TestHoldDoesNotShortenOpeningOrTransferHorizon(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := string(src)
-	// pb, pf, cfg.Weights are the transfer engine's NewEngineFull arguments.
-	// Written this way so this file does not contain a second NewEngineFull
+	// Concatenated so this file does not contain a contiguous NewEngineFull
 	// call-shape that TestEveryScoringEngineGetsRecency would count as unwired.
-	if !strings.Contains(body, "pb, pf, cfg.Weights") {
+	// The prefix pe := is what separates the transfer engine from oneWeekEngine,
+	// which also takes (pb, pf, cfg.Weights) and then forces horizon 1.
+	if !strings.Contains(body, "pe := analysis."+"NewEngineFull(pb, pf, cfg.Weights") {
 		t.Error("the transfer engine is no longer built at cfg.Weights — a horizon-1 rebuild there is the wildcard trap")
 	}
 	if !strings.Contains(body, "if cfg.WeeklyXI {\n\t\t\tvw.Horizon = 1") {

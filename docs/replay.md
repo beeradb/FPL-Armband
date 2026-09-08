@@ -100,7 +100,7 @@ Every run produces two totals from the same opening squad.
 | metric | what it scores | use it for |
 |---|---|---|
 | **`HOLD`** | buy the opening fifteen and **never transfer**, but re-pick the eleven and the captain every week from this week's Score (horizon 1), with autosubs and the vice-captain fallback applied. Opening fifteen stays at horizon 5; historical HOLD used horizon-5 fielding | anything about **scoring** or squad selection |
-| **`POLICY`** | the same, plus the weekly transfer decision | only constants that are themselves **about transfers** |
+| **`POLICY`** | HOLD plus the weekly transfer decision. Still fields at horizon 5 unless `WeeklyXI` | only constants that are themselves **about transfers** |
 
 `HOLD` is the default for a scoring constant because it carries **one** squad decision where
 `POLICY` carries a season of compounding ones. The replay is deterministic — same inputs,
@@ -163,7 +163,7 @@ Falsification is the bargain here; take it whenever a change offers one.
 
 Two further scorings ride along for free, because `HoldCaptaincyWeekly` computes all three in
 the one weekly pass `HOLD` already pays for: `hold_fixedcap` pins the armband to the day-one
-pick, and `hold_nocap` doubles nobody. **Neither may replace `HOLD`** — FPL doubles a captain
+pick (still the horizon-5 engine), and `hold_nocap` doubles nobody. **Neither may replace `HOLD`** — FPL doubles a captain
 every week, so a metric that does not is further from the game rather than closer to it. They
 exist to answer whether a quieter instrument is available, and the answer so far is no.
 

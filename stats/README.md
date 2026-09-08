@@ -521,8 +521,10 @@ already pays for:
   over when the captain records no minutes, autosubs applied. This is what FPL
   pays. Historical HOLD used horizon-5 fielding.
 - **`hold_fixedcap`** — the same, with the armband pinned to whoever the model
-  would have captained in the week the squad was bought. Removes the weekly churn
-  in *who* is captained; keeps the doubling.
+  would have captained in the week the squad was bought. That day-one pick is
+  still the horizon-5 engine (`cfg.Weights`), not `WeekEngine`. The weekly eleven
+  on this rung is the shipped horizon-1 pick. Removes the weekly churn in *who*
+  is captained; keeps the doubling.
 - **`hold_nocap`** — the same, with nobody doubled at all. Removes the armband's
   variance contribution entirely.
 
