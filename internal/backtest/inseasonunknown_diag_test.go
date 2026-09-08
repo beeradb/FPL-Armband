@@ -120,6 +120,7 @@ func TestDiagInSeasonUnknownLevel(t *testing.T) {
 		}
 		defer f.Close()
 		csv = f
+		writeDiagProvenance(t, path, cfg)
 		fmt.Fprintln(csv, "season,stratum,pos,n,pred_off,pred_on,actual,window,price_tilt,entry_gw")
 	}
 

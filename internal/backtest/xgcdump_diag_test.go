@@ -81,6 +81,7 @@ func TestDiagXGCDump(t *testing.T) {
 		t.Fatalf("creating %s: %v", out, err)
 	}
 	defer f.Close()
+	writeDiagProvenance(t, out, cfg)
 	w := csv.NewWriter(f)
 	defer w.Flush()
 	if err := w.Write([]string{"season", "club_id", "club_short", "gameweek",

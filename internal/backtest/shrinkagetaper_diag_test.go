@@ -88,6 +88,7 @@ func TestDiagShrinkageTaper(t *testing.T) {
 		}
 		defer f.Close()
 		csv = f
+		writeDiagProvenance(t, path, cfg)
 		fmt.Fprintln(csv, "season,entry_gw,k,n,pred,actual,window")
 	}
 
