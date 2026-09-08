@@ -465,9 +465,8 @@ type Weights struct {
 	//
 	// Zero needs no Load backfill: Default() leaves it 0, Unmarshal leaves an
 	// absent key alone, and 0 is the deliberate off — same shape as
-	// TemplateCoreK. Do not ship a non-zero default until a POLICY comparison
-	// of k=4 against k=0 clears that comparison's own season-clustered
-	// threshold.
+	// TemplateCoreK. A 36-cell POLICY comparison of k=4 against k=0 did not
+	// clear that comparison's own season-clustered threshold, so 0 stays.
 	TemplateCoreTransferK int `json:"template_core_transfer_k"`
 
 	// LeagueShrinkK is shrinkToLeague's own strength — how fast a player with no

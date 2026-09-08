@@ -754,6 +754,9 @@ from this list is weak evidence of absence — nothing checks it stays complete.
   **transfer-policy**
 - **The flat `free_transfer_value` ladder resolves nothing — 2.0 ships unchanged,
   measured-and-unresolved rather than untested.** → **transfer-policy**
+- **Weekly transfers toward the forming popular core do not clear POLICY** —
+  `template_core_transfer_k` stays 0. →
+  **weekly-transfers-toward-the-forming-core-do-not-clear-policy**
 
 ### Constants
 
