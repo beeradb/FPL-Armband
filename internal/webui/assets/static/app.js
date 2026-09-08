@@ -2754,9 +2754,16 @@ function newsAskFootHtml(){
       <span class="askcopy">
         <span class="t-label">Want the heads-up?</span>
         <span class="t-meta">No card, no FPL login, and the app stays open either way.</span>
+        <a class="t-meta" href="/privacy">Privacy</a>
       </span>
-      <form class="gatecard" data-gate="/gate">
-        <input type="email" placeholder="you@email.com" aria-label="Email address" required>
+      <!-- name="email" and autocomplete are set here rather than left to gate.js's wireOne
+           (which used to be the only place that set the name) -- a form injected by
+           innerHTML, like this one, only gets its submit listener once gate.js has run,
+           and a name-less field submits nothing even on the native action/method fallback
+           below if that script never loads at all. action/method match data-gate exactly,
+           for the same JS-failure fallback reason as landing.html's forms. -->
+      <form class="gatecard" data-gate="/gate" action="/gate" method="post">
+        <input type="email" name="email" autocomplete="email" placeholder="you@email.com" aria-label="Email address" required>
         <button class="btn primary sm" type="submit">Tell me when it lands</button>
         <button class="btn sm ghost notnow" type="button" id="newsAskNotNow">Not now</button>
         <div class="done t-body" hidden></div>
@@ -3036,12 +3043,15 @@ function renderNewsNudge(){
       <button class="btn primary sm seenews" type="button" id="nudgeSeeNews">${esc(seeLabel)} <span class="arw" aria-hidden="true">→</span></button>
       <button class="btn sm dismiss" type="button" id="nudgeDismiss">Dismiss</button>`;
   } else if(NEEDS_SIGNUP && nudgeExpanded){
+    // action/method/name/autocomplete match the News panel's own gate form above, and for
+    // the same reasons -- see newsAskFootHtml's comment.
     actionsHtml=`<div class="nyask">
-        <form class="gatecard" data-gate="/gate">
-          <input type="email" placeholder="you@email.com" aria-label="Email address" required>
+        <form class="gatecard" data-gate="/gate" action="/gate" method="post">
+          <input type="email" name="email" autocomplete="email" placeholder="you@email.com" aria-label="Email address" required>
           <button class="btn primary sm" type="submit">Notify me</button>
           <div class="done t-body" hidden></div>
         </form>
+        <a class="t-meta" href="/privacy">Privacy</a>
       </div>
       <button class="btn sm seenews" type="button" id="nudgeSeeNews">${esc(seeLabel)} <span class="arw" aria-hidden="true">→</span></button>
       <span class="spacer"></span>

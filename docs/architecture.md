@@ -239,15 +239,20 @@ application's stricter directives, not the landing page's. See `connectSrcFor`'s
 `cmd/armband/webroutes.go` for how that split stays a two-way switch as pages are added, rather
 than a table keyed on how many there are.
 
-They carry two different Content-Security-Policy directives, on purpose:
+They carry several different Content-Security-Policy directives on purpose, one per
+enforcement function so a fourth never needs another edit here:
 the application (served at `/`, the front door) renders FPL's prose and player names by
 innerHTML, so its `connect-src` stays `'self'` under any configuration, while the landing
 page (`/about`) may widen. `ARMBAND_GA4_ID`, if set, widens the landing page's policy
 alone — never the application's — to load GA4 from `analytics.js`;
-`cmd/armband/webroutes.go`'s `connectSrcFor`/`scriptSrcFor` enforce the split, each
-refusing to widen for any page but "landing". `/app` still resolves — a 302 to `/`, kept
-for bookmarks and shared links from before the application became the root, and not a 301
-because whether `/app` should exist at all is still an open, reversible question.
+`cmd/armband/webroutes.go`'s `connectSrcFor`/`scriptSrcFor`/`formActionFor` enforce the
+split, each refusing to widen for any page but "landing". `formActionFor` widens
+`form-action` the same way `connectSrcFor` widens `connect-src`: the landing page's gate
+form submits by `fetch`, but carries a native `action`/`method="post"` fallback for when
+that script fails to run at all, and the fallback needs the same permission the fetch
+already has. `/app` still resolves — a 302 to `/`, kept for bookmarks and shared links from
+before the application became the root, and not a 301 because whether `/app` should exist
+at all is still an open, reversible question.
 
 ### `e2e/`
 

@@ -672,10 +672,18 @@ footer a{color:var(--ink3);}
              The reason still travels with it -- the two footnote lines below carry it in
              two lines instead of a whole section -- and the closing CTA still repeats the
              ask for a reader who went the distance. -->
-        <form class="gatecard" data-gate="https://fplarmband.com/gate" data-gate-redirect="/">
+        <!-- action/method are the NATIVE fallback -- gate.js intercepts every submit and
+             preventDefault()s it, so these never fire while the script is working. They
+             exist for when it isn't: a blocked or failed script load leaves this a plain
+             HTML form, and without them the browser's default (GET, to this same URL)
+             would silently drop whatever the reader typed. Absolute and POST, matching
+             data-gate exactly -- see formActionFor in cmd/armband/webroutes.go for the
+             matching Content-Security-Policy exception this needs on this page alone. -->
+        <form class="gatecard" data-gate="https://fplarmband.com/gate" data-gate-redirect="/"
+              action="https://fplarmband.com/gate" method="post">
           <span class="t-label lbl" data-copy="gate.label">Get preview access</span>
           <div class="gateform">
-            <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
+            <input type="email" name="email" autocomplete="email" placeholder="you@email.com" required aria-label="Email address">
             <button class="btn primary" type="submit" data-copy="gate.cta">Claim my armband</button>
           </div>
           <div class="gatefoot">
@@ -1007,9 +1015,11 @@ footer a{color:var(--ink3);}
          beat 1 on purpose: beat 1 is the reader's own Saturday and never ages. -->
     <p class="t-body" data-copy="cta.body">Be the one in your mini-league who already knew — and first to hear when
       notifications land.</p>
-    <form class="gatecard" data-gate="https://fplarmband.com/gate" data-gate-redirect="/">
+    <!-- Same native fallback as the hero form above, and for the same reason. -->
+    <form class="gatecard" data-gate="https://fplarmband.com/gate" data-gate-redirect="/"
+          action="https://fplarmband.com/gate" method="post">
       <div class="gateform">
-        <input type="email" name="email" placeholder="you@email.com" required aria-label="Email address">
+        <input type="email" name="email" autocomplete="email" placeholder="you@email.com" required aria-label="Email address">
         <button class="btn primary" type="submit" data-copy="cta.gate.cta">Claim my armband</button>
       </div>
       <div class="gatefoot ctareason">

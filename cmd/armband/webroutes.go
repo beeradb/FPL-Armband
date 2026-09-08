@@ -109,7 +109,9 @@ const (
 // whose own policy blocks its only control.
 const signupOrigin = "https://fplarmband.com"
 
-// connectSrcFor is the one directive that differs between landing and every other page.
+// connectSrcFor is one of the directives that differs between landing and every other
+// page — see formActionFor below for the others, and for why none of them widen 'self'
+// on any page but "landing".
 //
 // The landing page needs to reach signupOrigin, because its gate posts there from wherever
 // the page is served. The APPLICATION does not, and must not: /app is the page that renders
@@ -158,6 +160,24 @@ func connectSrcFor(page string, ga4 bool) string {
 		src += " https://*.google-analytics.com https://*.googletagmanager.com"
 	}
 	return src
+}
+
+// formActionFor is the third directive that splits on "landing", alongside connectSrcFor
+// and scriptSrcFor -- and for the same reason connectSrcFor widens: the gate form's own
+// fetch is guarded against failing (a blocked script, a network error before it loads) by
+// a native <form action> fallback on the same markup, and that fallback has to reach the
+// same place the fetch does or a broken script silently discards what the reader typed
+// instead of degrading to a plain form post. landing.html's two forms carry
+// action="https://fplarmband.com/gate" precisely so a JS failure there still submits.
+//
+// /app's forms carry a relative data-gate ("/gate"), always same-origin, so 'self' already
+// reaches them -- no widening, ever, for the same reason connectSrcFor never widens there:
+// that page renders FPL's prose and player names by innerHTML.
+func formActionFor(page string) string {
+	if page != "landing" {
+		return "form-action 'self'"
+	}
+	return "form-action 'self' " + signupOrigin
 }
 
 // scriptSrcFor gains exactly one host, and only on the landing page with GA4 configured:
@@ -283,7 +303,7 @@ func (s *squadServer) servePage(w http.ResponseWriter, r *http.Request, name str
 		connectSrcFor(name, ga4),
 		"frame-ancestors 'none'",
 		"base-uri 'none'",
-		"form-action 'self'",
+		formActionFor(name),
 	}, "; "))
 	// The pages are HTML and the assets are typed by extension; nothing here should ever
 	// be re-interpreted as another type on a sniffing browser.
@@ -503,6 +523,20 @@ func (s *squadServer) gate(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 		HttpOnly: true,
 	})
+	// ⚠️ KNOWN GAP, found on review, not fixed here: a 204 is right for gate.js's
+	// fetch (which reads it and drives data-gate-redirect itself), but a real,
+	// non-JS <form> POST -- the fallback this project's native action/method now
+	// exists to catch -- treats a 204 response as "stay here, do nothing visible".
+	// So the JS-failure case this fallback targets now records the address
+	// (the bug it was built to fix) but shows the reader no confirmation at all,
+	// which reads as a broken form.
+	//
+	// Not a one-line fix: gate.js's own comment explains why this can't simply
+	// redirect instead -- a fetch() would follow the redirect and hit CORS. The
+	// real fix needs the two paths told apart (e.g. the browser's own
+	// Sec-Fetch-Mode: navigate header, sent for a real top-level submission and
+	// never by fetch) AND a page for a native POST to land on that shows
+	// something happened -- a UX decision nothing here makes for you.
 	w.WriteHeader(http.StatusNoContent)
 }
 
