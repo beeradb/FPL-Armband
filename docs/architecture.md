@@ -126,6 +126,12 @@ State built once at construction: the per-team upcoming fixture index, and `cong
 
 See [model.md](model.md) for what the numbers mean.
 
+`CaptainAndVice` is the only captain/vice picker. It ranks a fielded eleven by `Score` (highest
+captain, distinct second vice; ties keep the earlier slice element). Callers that used to walk
+or re-sort the eleven themselves — `Optimize`, `WeekViews`, the transfer plan, squad rebuild,
+the replay — all go through it. The live armband picker ranks on each gameweek's horizon-1
+expected points (`Gameweek.WeekXP`), not on the horizon-average `Player.XP`.
+
 ### `internal/agent`
 
 Wraps the Anthropic Go SDK's `BetaToolRunner`. **Fourteen** local tools plus server-side web
