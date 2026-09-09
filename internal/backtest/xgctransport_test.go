@@ -95,13 +95,6 @@ func TestDiagXGCTransport(t *testing.T) {
 	requireDiag(t)
 	cfg := loadConfig(t)
 
-	// One sidecar for the whole directory rather than one per season: every
-	// season's file below comes from the same run, and per-season sidecars
-	// would say that four times over instead of once.
-	if dir := os.Getenv("FPL_XGC_TERCILE_CSV"); dir != "" {
-		writeDiagProvenance(t, filepath.Join(dir, "run.csv"), cfg)
-	}
-
 	t.Log("season   arm         n      ratio    corr    MAE%   ever-n  ever ratio  " +
 		"ever MAE%   spearman  n")
 	for _, name := range xgcSeasonsWithRealData() {
@@ -237,7 +230,15 @@ func TestDiagXGCTransport(t *testing.T) {
 				name, 100*frac, liveTot)
 		}
 
-		writeXGCTercileRows(t, name, scored[0], scored[1])
+		path := writeXGCTercileRows(t, name, scored[0], scored[1])
+		// Stamp the file R actually opens (`xgc-tercile-<season>.csv`), not a
+		// fictional run.csv. check_shared_code_state derives the sidecar from
+		// the CSV it was handed; a run.csv sidecar is invisible there. After
+		// MkdirAll inside writeXGCTercileRows, so a missing directory is a
+		// write failure rather than a silent no-sidecar.
+		if path != "" {
+			writeDiagProvenance(t, path, cfg)
+		}
 	}
 }
 
@@ -291,11 +292,11 @@ func xgcTercileLiveness(t *testing.T, season string, a, b xgcArmResult) (moved, 
 // Values are written at 9 decimals rather than 6. At XGC90 ~ 1.3, 6 dp quantises at
 // ~8e-7 relative, three orders above the 1e-9 liveness threshold R applies — so the file
 // itself was setting the sensitivity of a guard that is supposed to be about the data.
-func writeXGCTercileRows(t *testing.T, season string, fpl, ust xgcArmResult) {
+func writeXGCTercileRows(t *testing.T, season string, fpl, ust xgcArmResult) string {
 	t.Helper()
 	dir := os.Getenv("FPL_XGC_TERCILE_CSV")
 	if dir == "" {
-		return
+		return ""
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("creating %s: %v", dir, err)
@@ -365,6 +366,7 @@ func writeXGCTercileRows(t *testing.T, season string, fpl, ust xgcArmResult) {
 	}
 	writeCSV(fmt.Sprintf("xgc-tercile-%s-buckets.csv", season), buckets)
 	t.Logf("%-8s wrote %s and its buckets sidecar", season, path)
+	return path
 }
 
 // TestTheProrationExposureCutIsNotTheEverPresentCut pins the distinction the tercile
