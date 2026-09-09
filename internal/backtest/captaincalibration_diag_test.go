@@ -54,8 +54,8 @@ func TestDiagCaptainCalibration(t *testing.T) {
 	fmt.Printf("\n=== captain calibration A0/C/F (HOLD overlay, chips off)\n")
 	fmt.Printf("A0 = HoldCaptaincyWeekly.Full; F = FixedCaptain (same pass);\n")
 	fmt.Printf("C = bestArmband on that week's XI. Identity: pickXI captain == hc.Captain.\n")
-	fmt.Printf("36 cells: %d seasons × %d starts. Go prints totals only; R owns inference.\n\n",
-		len(pairs), len(starts))
+	fmt.Printf("%s. Go prints totals only; R owns inference.\n\n",
+		gridLabel(len(pairs), len(starts)))
 
 	for _, pair := range pairs {
 		for _, start := range starts {
@@ -133,11 +133,11 @@ func TestDiagCaptainCalibration(t *testing.T) {
 		fmt.Printf("%-9s %5d %6d %6d %6d  %+10.2f %+10.2f\n",
 			name, agg.n, agg.a0, agg.f, agg.c, fMean, cMean)
 	}
-	fmt.Printf("\nSix season means of (F−A0):")
+	fmt.Printf("\n%s means of (F−A0):", seasonsLabel(len(fMeans)))
 	for _, m := range fMeans {
 		fmt.Printf(" %+.2f", m)
 	}
-	fmt.Printf("\nSix season means of (C−A0):")
+	fmt.Printf("\n%s means of (C−A0):", seasonsLabel(len(cMeans)))
 	for _, m := range cMeans {
 		fmt.Printf(" %+.2f", m)
 	}

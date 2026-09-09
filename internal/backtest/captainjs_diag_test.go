@@ -57,7 +57,8 @@ func TestDiagCaptainJamesStein(t *testing.T) {
 	fmt.Printf("\n=== captain James–Stein linear shrink (HOLD overlay)\n")
 	fmt.Printf("Score' = (1−λ)·Score + λ·mean(XI); captain/vice = CaptainAndVice(Score').\n")
 	fmt.Printf("λ=0 identity against HoldCaptaincyWeekly.Captain is a Fatal, not a warning.\n")
-	fmt.Printf("36 cells × 4 λ. Go prints season deltas only; R owns inference.\n\n")
+	fmt.Printf("%s × 4 λ. Go prints season deltas only; R owns inference.\n\n",
+		gridLabel(len(pairs), len(starts)))
 
 	for _, pair := range pairs {
 		for _, start := range starts {

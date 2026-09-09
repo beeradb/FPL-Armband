@@ -574,6 +574,37 @@ func (e *Engine) Optimize(req OptimizeRequest) (*Squad, error) {
 
 	// Build the candidate pool.
 	all := e.AllMetrics()
+	// Template-core lock: append the k highest-owned feasible players to
+	// LockIDs. Opening-squad only — a bounded revision (CurrentSquad set)
+	// cannot transfer a locked player in, and applying the overlay there
+	// would fail closed rather than "inherit" a softer constraint. Ownership
+	// stays out of Score — see Weights.TemplateCoreK. k<=0 is a no-op.
+	if k := e.Weights.TemplateCoreK; k > 0 && len(req.CurrentSquad) == 0 && req.MaxChanges == 0 {
+		// Copy LockIDs before append so a spare-capacity caller slice is not
+		// aliased (the same hazard as the StartIDs fold above).
+		req.LockIDs = append([]int(nil), req.LockIDs...)
+		skip := map[int]bool{}
+		for id := range excluded {
+			skip[id] = true
+		}
+		posUsed := map[string]int{}
+		clubUsed := map[string]int{}
+		byAll := map[int]PlayerMetrics{}
+		for _, m := range all {
+			byAll[m.ID] = m
+		}
+		for _, id := range req.LockIDs {
+			skip[id] = true
+			if m, ok := byAll[id]; ok {
+				posUsed[m.Position]++
+				clubUsed[m.Team]++
+			}
+		}
+		for _, id := range selectTemplateCore(all, k, skip, posUsed, clubUsed) {
+			locked[id] = true
+			req.LockIDs = append(req.LockIDs, id)
+		}
+	}
 	// Selection inside the model's own noise band, before anything reads a Score.
 	// Applied here rather than at any of the individual sorts so the ordering and
 	// the objective can never disagree: every consumer below — the greedy fill,

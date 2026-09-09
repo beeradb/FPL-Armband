@@ -109,13 +109,23 @@ let STATE=null;    /* the raw document, for anything not mapped below */
    at", because there is no scheduler behind it yet (NOTES.md §3). */
 let NEWS={checked:'', readChecked:''};
 
-/* CHIPWIN is the two chip-window facts the client is not allowed to invent: the last
-   gameweek of the current window, and how many chips are genuinely unspent IN it --
-   counting ones already played, which GWS (current + upcoming only) cannot see. The one
-   arithmetic the client performs on these is a subtraction of two gameweek integers, in
-   chipWeeksLeft() below -- a calendar fact, not a competition rule. See app.js:625's old
-   defect, fixed by this pair. */
-let CHIPWIN={endsGw:null, remaining:null};
+/* CHIPWIN is the three chip-window facts the client is not allowed to invent: the last
+   gameweek of the current window, how big it is, and how many chips are genuinely
+   unspent IN it -- counting ones already played, which GWS (current + upcoming only)
+   cannot see. The one arithmetic the client performs on these is a subtraction of two
+   gameweek integers, in chipWeeksLeft() below -- a calendar fact, not a competition
+   rule. See app.js:625's old defect, fixed by this pair.
+
+   ⚠️ There is no top-level "chips" field on the document. Gameweek.ChipWindow (json
+   chip_window) rides on EACH gameweek row instead, because a window's own end and
+   remaining count differ either side of the GW19/38 reset -- so hydrate() below reads
+   it off the live week, not off a document-level field that does not exist. Reading
+   st.chips.window_ends_gw here read undefined forever, live: the chip menu's header
+   showed "— of 4 left" and "The chip window has not loaded yet." in EVERY state,
+   including with a chip actually placed and the rest of the HUD (the pill, the
+   projection, the per-chip "running this week ✓" row) updating correctly around it.
+   Caught in QA 2026-09. */
+let CHIPWIN={endsGw:null, remaining:null, size:null};
 
 /* The chip spellings the engine uses, mapped to the keys this file already had.
    One direction only: the engine's spelling is authoritative and the client must
@@ -242,9 +252,17 @@ function hydrate(st){
   BLIND=st.blind||[];
 
   NEWS={checked:(st.news&&st.news.checked)||'', readChecked:(st.news&&st.news.read_checked)||''};
+  /* The live gameweek's own chip_window -- see CHIPWIN's doc comment above for why
+     this is not a document-level field. Falls back to the first gameweek row when
+     none is marked current (a payload with no live week at all, e.g. a fully closed
+     season), and to nulls when that row itself carries no window (past the last one
+     a season grants -- viewmodel.buildChipWindow's own nil case). */
+  const chipWk=(st.gameweeks||[]).find(g=>g.current)||(st.gameweeks||[])[0];
+  const cw=chipWk&&chipWk.chip_window;
   CHIPWIN={
-    endsGw:(st.chips&&st.chips.window_ends_gw!=null)?st.chips.window_ends_gw:null,
-    remaining:(st.chips&&st.chips.remaining_in_window!=null)?st.chips.remaining_in_window:null
+    endsGw:cw?cw.window_ends_gw:null,
+    remaining:(cw&&cw.remaining_in_window!=null)?cw.remaining_in_window:null,
+    size:(cw&&cw.window_size)?cw.window_size:null
   };
 
   BENCHMARKS=st.market.benchmarks||[];
@@ -1149,7 +1167,10 @@ function cmRowHtml(c,week){
 function chipMenuHtml(week){
   const list=chipListFor(week), cur=week.chip;
   const u=chipUrgency(), w=chipWeeksLeft();
-  const left=CHIPWIN.remaining, size=4;
+  /* size falls back to 4 -- today's window grant -- only for a payload from before
+     window_size shipped; ChipWindow.Size's own comment is explicit that the client
+     must read this rather than hard-code the day the competition changes it. */
+  const left=CHIPWIN.remaining, size=CHIPWIN.size||4;
   return `<div class="chipmenu"${S.chipOpen?'':' hidden'} role="menu">
     <div class="cmhead">
       <span class="t-label">Play a chip in GW${S.gw}</span>
@@ -2762,9 +2783,16 @@ function newsAskFootHtml(){
       <span class="askcopy">
         <span class="t-label">Want the heads-up?</span>
         <span class="t-meta">No card, no FPL login, and the app stays open either way.</span>
+        <a class="t-meta" href="/privacy">Privacy</a>
       </span>
-      <form class="gatecard" data-gate="/gate">
-        <input type="email" placeholder="you@email.com" aria-label="Email address" required>
+      <!-- name="email" and autocomplete are set here rather than left to gate.js's wireOne
+           (which used to be the only place that set the name) -- a form injected by
+           innerHTML, like this one, only gets its submit listener once gate.js has run,
+           and a name-less field submits nothing even on the native action/method fallback
+           below if that script never loads at all. action/method match data-gate exactly,
+           for the same JS-failure fallback reason as landing.html's forms. -->
+      <form class="gatecard" data-gate="/gate" action="/gate" method="post">
+        <input type="email" name="email" autocomplete="email" placeholder="you@email.com" aria-label="Email address" required>
         <button class="btn primary sm" type="submit">Tell me when it lands</button>
         <button class="btn sm ghost notnow" type="button" id="newsAskNotNow">Not now</button>
         <div class="done t-body" hidden></div>
@@ -3044,12 +3072,15 @@ function renderNewsNudge(){
       <button class="btn primary sm seenews" type="button" id="nudgeSeeNews">${esc(seeLabel)} <span class="arw" aria-hidden="true">→</span></button>
       <button class="btn sm dismiss" type="button" id="nudgeDismiss">Dismiss</button>`;
   } else if(NEEDS_SIGNUP && nudgeExpanded){
+    // action/method/name/autocomplete match the News panel's own gate form above, and for
+    // the same reasons -- see newsAskFootHtml's comment.
     actionsHtml=`<div class="nyask">
-        <form class="gatecard" data-gate="/gate">
-          <input type="email" placeholder="you@email.com" aria-label="Email address" required>
+        <form class="gatecard" data-gate="/gate" action="/gate" method="post">
+          <input type="email" name="email" autocomplete="email" placeholder="you@email.com" aria-label="Email address" required>
           <button class="btn primary sm" type="submit">Notify me</button>
           <div class="done t-body" hidden></div>
         </form>
+        <a class="t-meta" href="/privacy">Privacy</a>
       </div>
       <button class="btn sm seenews" type="button" id="nudgeSeeNews">${esc(seeLabel)} <span class="arw" aria-hidden="true">→</span></button>
       <span class="spacer"></span>

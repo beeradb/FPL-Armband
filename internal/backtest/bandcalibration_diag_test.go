@@ -164,6 +164,7 @@ func TestDiagBandCalibration(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer f.Close()
+		writeDiagProvenance(t, path, cfg)
 		w := csv.NewWriter(f)
 		if err := w.Write([]string{"season", "band", "n", "sum_minutes", "played60", "played0"}); err != nil {
 			t.Fatal(err)

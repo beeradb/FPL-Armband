@@ -273,6 +273,15 @@ type SquadState struct {
 	// See ChipCredit for what the numbers mean and why the other two chips need
 	// nothing here.
 	Chip ChipCredit
+
+	// SkipSell is the weekly template-core retention overlay: these ids are not
+	// offered as the out-side of a swap or as a funding sale. Nil (the zero
+	// value) is shipped RankSwaps/RankPairs. See TemplateCoreTransferK.
+	SkipSell map[int]bool
+	// PreferBuy is the acquisition overlay: if any swap/pair buys one of these
+	// ids, only those are returned; if none do, the full list is returned
+	// (filter-then-fallback). Nil is shipped behaviour.
+	PreferBuy map[int]bool
 }
 
 // value is what this decision judges a fifteen by: the eleven, plus whatever a
@@ -315,6 +324,17 @@ func NewSquadState(squad []PlayerMetrics) SquadState {
 		s.Clubs[p.Team]++
 	}
 	return s
+}
+
+// walkSellable calls fn for each squad slot the weekly overlay has not frozen.
+// Nil SkipSell visits every slot — shipped RankSwaps/RankPairs.
+func (s SquadState) walkSellable(fn func(i int, cur PlayerMetrics)) {
+	for i, cur := range s.Players {
+		if s.SkipSell[cur.ID] {
+			continue
+		}
+		fn(i, cur)
+	}
 }
 
 // allows reports whether replacing the players at the given squad indices with
@@ -443,7 +463,7 @@ func RankSwaps(s SquadState, candidates []PlayerMetrics, bank int) []Swap {
 	trial := make([]PlayerMetrics, len(s.Players))
 
 	var out []Swap
-	for i, cur := range s.Players {
+	s.walkSellable(func(i int, cur PlayerMetrics) {
 		for _, cand := range candidates {
 			if s.Owned[cand.ID] || cand.Position != cur.Position {
 				continue
@@ -492,9 +512,27 @@ func RankSwaps(s SquadState, candidates []PlayerMetrics, bank int) []Swap {
 			}
 			out = append(out, Swap{Out: cur, In: cand, Gain: gain})
 		}
-	}
+	})
 	sort.SliceStable(out, func(a, b int) bool { return out[a].Gain > out[b].Gain })
-	return out
+	return preferIncoming(out, s.PreferBuy)
+}
+
+// preferIncoming keeps swaps that buy a PreferBuy id when any exist, otherwise
+// the whole list. The gate still decides; this is the ranking-proxy filter.
+func preferIncoming(swaps []Swap, preferIn map[int]bool) []Swap {
+	if len(preferIn) == 0 || len(swaps) == 0 {
+		return swaps
+	}
+	var hit []Swap
+	for _, sw := range swaps {
+		if preferIn[sw.In.ID] {
+			hit = append(hit, sw)
+		}
+	}
+	if len(hit) == 0 {
+		return swaps
+	}
+	return hit
 }
 
 // Pair is a set of downgrades and the upgrade they pay for, taken as one
@@ -553,7 +591,7 @@ func RankPairs(s SquadState, candidates []PlayerMetrics, bank, maxDowns, limit i
 		loss  float64
 	}
 	var downs []downOpt
-	for j, cur := range s.Players {
+	s.walkSellable(func(j int, cur PlayerMetrics) {
 		for _, d := range frontier[cur.Position] {
 			// What a downgrade frees is the selling price of the man leaving
 			// minus the market price of the man arriving, not the difference
@@ -563,7 +601,7 @@ func RankPairs(s SquadState, candidates []PlayerMetrics, bank, maxDowns, limit i
 					loss: cur.Score - d.Score})
 			}
 		}
-	}
+	})
 	// Ordered by money freed per point given up, used only to build the
 	// multi-sale combinations below.
 	byEfficiency := append([]downOpt(nil), downs...)
@@ -584,7 +622,7 @@ func RankPairs(s SquadState, candidates []PlayerMetrics, bank, maxDowns, limit i
 		spend int
 	}
 	var cands []cand
-	for i, cur := range s.Players {
+	s.walkSellable(func(i int, cur PlayerMetrics) {
 		for _, up := range frontier[cur.Position] {
 			if up.Score <= cur.Score {
 				continue
@@ -640,7 +678,7 @@ func RankPairs(s SquadState, candidates []PlayerMetrics, bank, maxDowns, limit i
 				add(set)
 			}
 		}
-	}
+	})
 	if len(cands) == 0 {
 		return nil
 	}
@@ -687,10 +725,27 @@ func RankPairs(s SquadState, candidates []PlayerMetrics, bank, maxDowns, limit i
 		// Same eleven for fewer transfers is strictly better.
 		return out[a].Moves() < out[b].Moves()
 	})
+	out = preferPairUp(out, s.PreferBuy)
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
 	}
 	return out
+}
+
+func preferPairUp(pairs []Pair, preferIn map[int]bool) []Pair {
+	if len(preferIn) == 0 || len(pairs) == 0 {
+		return pairs
+	}
+	var hit []Pair
+	for _, p := range pairs {
+		if preferIn[p.Up.In.ID] {
+			hit = append(hit, p)
+		}
+	}
+	if len(hit) == 0 {
+		return pairs
+	}
+	return hit
 }
 
 // PriceFrontier is, per position, the best-scoring available player at each

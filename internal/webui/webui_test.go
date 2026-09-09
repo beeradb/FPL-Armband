@@ -92,20 +92,31 @@ var externalOrigins = []string{
 	"https://github.com/beeradb/FPL-Armband",
 }
 
-// anchorHref, metaContent and dataGate find the three places an allowlisted origin may
-// appear. They are deliberately narrow: an <a> element's href, a <meta> element's content,
-// and a gate form's data-gate. dataGate is the odd one in with the other two rather than
-// with a plain subresource: gate.js reads it and does exactly one explicit, script-driven
-// fetch to it (see gate.js's own doc comment) — a NAVIGATION the page's own code chooses to
-// make, not something the embedded webview loads on parse the way <img src> or <link
-// href> would. The old landing.js carried this same origin as a JS string constant, which
-// this scan never saw at all; moving it onto the form's markup (so one attribute serves
-// three configurations rather than three copies of a fetch — see the design record) made
-// it visible here for the first time, and it belongs on the allowlist path, not blocked.
+// anchorHref, metaContent, dataGate and actionAttr find the four places an allowlisted
+// origin may appear. They are deliberately narrow: an <a> element's href, a <meta>
+// element's content, a gate form's data-gate, and a form's native action. dataGate and
+// actionAttr are the odd ones in with the other two rather than with a plain subresource:
+// gate.js reads data-gate and does exactly one explicit, script-driven fetch to it (see
+// gate.js's own doc comment); action is the SAME destination, fired natively by the
+// browser only when that fetch never happens at all (a blocked or failed script) — see
+// cmd/armband/webroutes.go's formActionFor for the matching CSP exception. Both are
+// NAVIGATIONS the page's own markup chooses to make, not something the embedded webview
+// loads on parse the way <img src> or <link href> would. The old landing.js carried this
+// same origin as a JS string constant, which this scan never saw at all; moving it onto
+// the form's markup (so one attribute serves three configurations rather than three
+// copies of a fetch — see the design record) made it visible here for the first time, and
+// it belongs on the allowlist path, not blocked.
 var (
 	anchorHref  = regexp.MustCompile(`(?i)<a\b[^>]*?\shref="([^"]*)"`)
 	metaContent = regexp.MustCompile(`(?i)<meta\b[^>]*?\scontent="([^"]*)"`)
 	dataGate    = regexp.MustCompile(`(?i)\sdata-gate="([^"]*)"`)
+	// A bare attribute match, like dataGate, rather than anchored on `<form\b...` --
+	// the elision loop below replaces each matched span with the literal "<elided>",
+	// which itself contains a ">" and would break a `[^>]*` prefix reaching past it on
+	// the next pass. There is exactly one action= attribute in this tree, on the gate
+	// forms these two lines exist for; a second one arriving elsewhere would need its
+	// own decision anyway, same as a second external origin would.
+	actionAttr = regexp.MustCompile(`(?i)\saction="([^"]*)"`)
 )
 
 func scannable(body []byte) string {
@@ -143,7 +154,7 @@ func scanExternal(raw []byte) (badOrigins, loads []string) {
 	// then REMOVED, so that whatever survives to externalRef below is a genuine
 	// subresource. Removing them is what keeps the remaining scan absolute rather than
 	// advisory.
-	for _, re := range []*regexp.Regexp{anchorHref, metaContent, dataGate} {
+	for _, re := range []*regexp.Regexp{anchorHref, metaContent, dataGate, actionAttr} {
 		for _, m := range re.FindAllStringSubmatch(body, -1) {
 			if externalRef.MatchString(m[1]) && !originAllowed(m[1]) {
 				badOrigins = append(badOrigins, m[1])
@@ -213,6 +224,13 @@ func TestTheExternalHostGuardStillFiresOnASubresource(t *testing.T) {
 	}, {
 		name: "the real gate form's data-gate passes",
 		doc:  `<form class="gatecard" data-gate="https://fplarmband.com/gate">`,
+	}, {
+		name:       "a form action naming an unlisted origin is caught",
+		doc:        `<form class="gatecard" data-gate="/gate" action="https://evil.example.com/gate" method="post">`,
+		wantOrigin: true,
+	}, {
+		name: "the real gate form's native action fallback passes",
+		doc:  `<form class="gatecard" data-gate="https://fplarmband.com/gate" action="https://fplarmband.com/gate" method="post">`,
 	}, {
 		name: "a comment mentioning an origin is not a reference",
 		doc:  `<!-- see https://ogp.me/ for why these are absolute -->`,

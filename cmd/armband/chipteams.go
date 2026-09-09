@@ -91,13 +91,19 @@ func (s *squadServer) apiChipTeams(w http.ResponseWriter, r *http.Request) {
 
 	defer s.lockRender("chip-teams")()
 
+	// forPlanner, not *s.cfg -- see armbandTeamState's identical comment. This
+	// route is public and unauthenticated too, so a team.json setting loaded
+	// into this process must never reach the rebuild. See
+	// TestChipTeamsDoesNotLeakTeamSettings.
+	cfg := forPlanner(*s.cfg)
+
 	// The house fifteen, through the same roster-corrected pipeline every
 	// other surface uses. WantPage: false is load-bearing -- it returns before
 	// WeekViews, the transfer plan, the watchlist and the overrides, and with
 	// Fixed resolving it runs no optimiser search at all: this call exists to
 	// get the house fifteen, not to build a page. See buildSquadPage's own
 	// pageOpts comment.
-	b, err := buildSquadPage(r.Context(), *s.cfg, s.client, s.engine, pageOpts{
+	b, err := buildSquadPage(r.Context(), cfg, s.client, s.engine, pageOpts{
 		WantPage: false,
 		Now:      now,
 		Fixed:    housePicks,
@@ -132,7 +138,7 @@ func (s *squadServer) apiChipTeams(w http.ResponseWriter, r *http.Request) {
 	// blocked (see internal/analysis's ChipWeekView doc comment, FINDING 1).
 	// The notes applyRoster prints are for a terminal and mean nothing here.
 	var req analysis.OptimizeRequest
-	_ = applyRoster(*s.cfg, s.engine, &req)
+	_ = applyRoster(cfg, s.engine, &req)
 
 	// ⚠️ Do not assign s.engine.Chips here. buildSquadPage does and restores it;
 	// this handler passes the chip by name to ChipWeekView and must not touch
@@ -196,8 +202,8 @@ func (s *squadServer) apiChipTeams(w http.ResponseWriter, r *http.Request) {
 	st, err := viewmodel.Build(viewmodel.Input{
 		Now:       now,
 		Boot:      s.engine.Boot,
-		Cfg:       *s.cfg,
-		Chips:     s.cfg.Chips,
+		Cfg:       cfg,
+		Chips:     cfg.Chips,
 		ChipTeams: ci,
 	})
 	if err != nil {

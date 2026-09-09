@@ -190,13 +190,14 @@ func gently(t *testing.T, tb *Toolbox, squad []analysis.PlayerMetrics, rank int)
 	var best *analysis.PlayerMetrics
 	pool := tb.Engine.AllMetrics()
 	for i, c := range pool {
-		if owned[c.ID] || c.Position != cur.Position {
-			continue
-		}
-		// 600 is a season total; scale it the same way suggest_transfers does,
-		// or early-season aggregates (max ~270 at GW3) make every replacement
-		// look ineligible and this helper returns nil.
-		if c.Minutes < tb.Engine.ScaledMinMinutesFor(c.TeamID, 600) {
+		// ⚠️ The floor is a season total and must be scaled. A bare `c.Minutes < 600`
+		// is the same defect ScaledMinMinutesFor exists for: against a fresh-season
+		// minutes count nobody clears 600, so this helper finds no replacement and
+		// the caller is left with the intact squad. Observed 2026-09-08 at four
+		// gameweeks: degrade returned the opening fifteen, RankSwaps offered one
+		// candidate, and the mixed-sides guard failed for a fixture that never ran.
+		if owned[c.ID] || c.Position != cur.Position ||
+			c.Minutes < tb.Engine.ScaledMinMinutesFor(c.TeamID, 600) {
 			continue
 		}
 		// Worse, and not dearer, so the squad stays legal on money.
@@ -241,12 +242,8 @@ func degrade(t *testing.T, tb *Toolbox, squad []analysis.PlayerMetrics, n int) (
 	for _, cur := range byScore[:n] {
 		var best *analysis.PlayerMetrics
 		for i, c := range pool {
-			if owned[c.ID] || c.Position != cur.Position {
-				continue
-			}
-			// Same scaled floor as gently / suggest_transfers — bare 600 leaves
-			// the "degraded" squad byte-identical early season (bank 0, no swaps).
-			if c.Minutes < tb.Engine.ScaledMinMinutesFor(c.TeamID, 600) {
+			if owned[c.ID] || c.Position != cur.Position ||
+				c.Minutes < tb.Engine.ScaledMinMinutesFor(c.TeamID, 600) {
 				continue
 			}
 			if c.Team != cur.Team && clubs[c.Team] >= analysis.MaxPerClub {

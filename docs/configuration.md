@@ -71,8 +71,8 @@ all four `role_risk` numbers and six of `review_policy`. So writing `"minutes_ha
 **not** select the flat season average — it silently becomes 4.
 
 Zero *is* honoured for `bonus_weight`, `fixture_weight`, `set_piece_weight`, `band_strength`,
-`rate_half_life`, `prior_half_life` and `defcon_clean_coupling`, because for those it is a real
-setting meaning "turn this term off".
+`rate_half_life`, `prior_half_life`, `defcon_clean_coupling`, `template_core_k` and
+`template_core_transfer_k`, because for those it is a real setting meaning "turn this term off".
 
 **`blank_run_penalty` looks like it belongs to that second group and does not.** It has no
 backfill in `config.Load`; instead `blankRunFactor` resolves "unset" at the *read* site, and a
@@ -121,7 +121,7 @@ flowchart TB
     numgroup{"which numeric field?"}
     most["most numeric fields:<br/>max_iterations, minutes_half_life,<br/>the congestion penalties, ..."]
     trap1["any value at or below 0 is treated<br/>as an omission and backfilled —<br/>minutes_half_life: 0<br/>silently becomes 4"]
-    zerook["bonus_weight · fixture_weight ·<br/>set_piece_weight · band_strength ·<br/>rate_half_life · prior_half_life ·<br/>defcon_clean_coupling"]
+    zerook["bonus_weight · fixture_weight ·<br/>set_piece_weight · band_strength ·<br/>rate_half_life · prior_half_life ·<br/>defcon_clean_coupling · template_core_k ·<br/>template_core_transfer_k"]
     honoured["0 is honoured — it is a real<br/>setting meaning 'turn this term off'"]
     brp["blank_run_penalty"]
     trap2["0 is rewritten to 0.75 at the read<br/>site — the term stays fully on.<br/>The off switch is 1.0"]
@@ -270,6 +270,8 @@ ship at zero because the honest measurement said "off" — the table notes each 
 | `rate_half_life` | `0` | Off. Recency weighting on per-90 *rates* rather than minutes. Measured as a better predictor and a worse policy, so it ships disabled. |
 | `prior_half_life` | `0` | Off. Blends seasons *before* last one into it, for players whose last season was an injury artefact. The mechanism is unit-tested; the benefit is not measurable on the replay archive, so it is off by default. |
 | `band_strength` | `0` | Off. Re-rates the three best and three worst attacks and defences separately, on top of FPL's blended difficulty, and scales how hard the model leans on that. It reaches the weekly transfer decision as well as the scoring, so it is the setting to change to make the squad chase fixture runs. Nothing has separated it from `0` on points; turn it on to experiment, not on a measured case. See [model.md](model.md). |
+| `template_core_k` | `0` | Off. Locks the k highest-owned feasible players into the **opening** fifteen. Not a Score term. A HOLD comparison of k=4 did not clear its threshold, so 0 stays. |
+| `template_core_transfer_k` | `0` | Off. Weekly transfer overlay: each deadline re-reads the k most-owned feasible players, will not sell any already owned, and gives the first look at buying a missing one. The shipped transfer gate still decides. Opening `template_core_k` is a different lever. A POLICY comparison of k=4 did not clear its threshold, so 0 stays. |
 
 **`set_piece_weight` ships at 0, and putting it back to 1.0 re-introduces a measured bug.**
 FPL's expected-goals figure already contains penalties, and its expected-assists figure already

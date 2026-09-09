@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"time"
@@ -261,4 +262,189 @@ func TestArmbandTeamStillRenders(t *testing.T) {
 		t.Errorf("the house team's pitch is %d + %d, want 11 + 4",
 			len(st.Squad.XI), len(st.Squad.Bench))
 	}
+}
+
+// leakedTeamStrings names the owner-only content ownerConfig fills in, that must
+// never appear verbatim in a document served to every visitor. A raw substring
+// search rather than a field-by-field decode on purpose: the point of this pair
+// of tests is to catch a FUTURE leak through either route without having to
+// predict which field of the response would carry it.
+func leakedTeamStrings(t *testing.T, cfg config.Config) []string {
+	t.Helper()
+	if len(cfg.Roster.Lock) == 0 || cfg.Roster.Lock[0].Reason == "" {
+		t.Fatal("ownerConfig's fixture has no lock reason to search for")
+	}
+	if len(cfg.Criteria) == 0 || cfg.Criteria[0] == "" {
+		t.Fatal("ownerConfig's fixture has no criteria to search for")
+	}
+	return []string{cfg.Roster.Lock[0].Reason, cfg.Criteria[0]}
+}
+
+// TestArmbandTeamDoesNotLeakTeamSettings pins the second of the two routes
+// PR #163's own commit message flagged as bypassing forPlanner entirely --
+// armbandTeamState used to build the page from *s.cfg directly. Unlike
+// TestArmbandTeamStillRenders above, this asserts on the DOCUMENT rather than
+// on the fact that one still comes back: the owner's roster lock and chip
+// plan must not reach this public, unauthenticated, same-for-everyone route,
+// even when a team.json happens to be loaded into this process.
+func TestArmbandTeamDoesNotLeakTeamSettings(t *testing.T) {
+	s := fixtureServer(t)
+	cfg := ownerConfig(t, s)
+	cfg.EntryID = 2785902
+	s.cfg = &cfg
+	s.client = fpl.New(t.TempDir(), time.Hour, time.Hour)
+
+	req := httptest.NewRequest("GET", routeArmbandTeamState, nil)
+	req.Host = "127.0.0.1:8080"
+	w := httptest.NewRecorder()
+	s.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET %s answered %d, want 200:\n%s", routeArmbandTeamState, w.Code, w.Body.String())
+	}
+
+	body := w.Body.String()
+	for _, leak := range leakedTeamStrings(t, cfg) {
+		if strings.Contains(body, leak) {
+			t.Errorf("the owner's team.json setting reached the public armband-team "+
+				"document: %q\nbody: %.2000s", leak, body)
+		}
+	}
+
+	var st struct {
+		Overrides struct {
+			Live []struct {
+				Kind string `json:"kind"`
+			} `json:"live"`
+		} `json:"overrides"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &st); err != nil {
+		t.Fatalf("the response did not decode: %v", err)
+	}
+	for _, ov := range st.Overrides.Live {
+		if ov.Kind == "lock" || ov.Kind == "lockXI" {
+			t.Errorf("the owner's roster lock reached the public armband-team "+
+				"document as an override: %+v", ov)
+		}
+	}
+}
+
+// TestChipTeamsDoesNotLeakTeamSettings is TestChipTeamsDoesNotPublishOurOwnChipPlan's
+// sibling, run against the whole document rather than two named fields:
+// apiChipTeams used to build from *s.cfg directly, and this pins that no
+// content sourced from ownerConfig's five owner-only settings reaches the
+// public wildcard/free-hit document, however future code gets there.
+//
+// This does NOT cover every channel a raw cfg opens on this route. With
+// WantPage: false, buildSquadPage returns before pageOverrides ever runs
+// (see its own "if not wantPage" branch), so b.Page.Overrides is always nil
+// here and a lock's reason text can never reach a player's card through it,
+// unlike on /api/armband-team, where WantPage is true. What a raw cfg does
+// still change here is which players applyRoster forces into the rebuild
+// (LockIDs/StartIDs, see below): a real but silent effect on selection, not
+// a text leak. TestChipTeamsNeverForcesInTheOwnersLockedPlayer pins
+// that one directly, rather than through an HTTP round trip that cannot
+// tell "the model chose them" from "the lock forced them" apart.
+func TestChipTeamsDoesNotLeakTeamSettings(t *testing.T) {
+	s := fixtureServer(t)
+	s.wildcardEnabled = true
+	cfg := ownerConfig(t, s)
+	s.cfg = &cfg
+	// Past GW1's own deadline, so nextOpenEvent lands on GW2 -- the fixture's
+	// bootstrap opens the wildcard and free hit there (see
+	// TestChipTeamsGoodRequestAnswersTheExpectedShape's own comment). At GW1
+	// neither chip is allowed, wc/fh stay nil, and no squad is ever rebuilt --
+	// which would make this test pass for a reason that has nothing to do
+	// with the leak it exists to catch.
+	s.clock = func() time.Time { return s.engine.Boot.Events[0].DeadlineTime.Add(time.Hour) }
+
+	w := getChipTeams(t, s, nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET %s answered %d, want 200:\n%s", routeWildcardState, w.Code, w.Body.String())
+	}
+
+	body := w.Body.String()
+	for _, leak := range leakedTeamStrings(t, cfg) {
+		if strings.Contains(body, leak) {
+			t.Errorf("the owner's team.json setting reached the public wildcard "+
+				"document: %q\nbody: %.2000s", leak, body)
+		}
+	}
+}
+
+// chipTeamsPlayerIDs walks GET /api/wildcard's decoded document generically
+// (map[string]any, not a struct), collecting chip_teams.wildcard/free_hit.xi/bench[].id.
+func chipTeamsPlayerIDs(t *testing.T, w *httptest.ResponseRecorder) map[int]bool {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &doc); err != nil {
+		t.Fatalf("the response did not decode: %v", err)
+	}
+	ct, _ := doc["chip_teams"].(map[string]any)
+	if ct == nil {
+		t.Fatal("chip_teams is missing from the response")
+	}
+	ids := map[int]bool{}
+	for _, key := range []string{"wildcard", "free_hit"} {
+		team, _ := ct[key].(map[string]any)
+		if team == nil {
+			t.Fatalf("chip_teams.%s did not rebuild, and both must for this test to say anything", key)
+		}
+		for _, side := range []string{"xi", "bench"} {
+			players, _ := team[side].([]any)
+			for _, raw := range players {
+				p, _ := raw.(map[string]any)
+				id, _ := p["id"].(float64)
+				ids[int(id)] = true
+			}
+		}
+	}
+	return ids
+}
+
+// TestChipTeamsNeverForcesInTheOwnersLockedPlayer is the deterministic pin
+// TestChipTeamsDoesNotLeakTeamSettings's own comment promises: a string
+// search cannot tell the model choosing a player apart from the owner's
+// lock forcing him in, because neither the lock's reason nor its existence
+// is rendered as text on this route. What CAN be told apart is squad
+// membership: before apiChipTeams built from forPlanner(*s.cfg), an
+// owner's lock silently added a player to every visitor's public
+// wildcard/free-hit rebuild who the model would not otherwise have picked.
+//
+// A baseline (unlocked) build names a candidate the model left out on its
+// own, so a pass here cannot be explained by the model wanting him anyway.
+func TestChipTeamsNeverForcesInTheOwnersLockedPlayer(t *testing.T) {
+	s := fixtureServer(t)
+	s.wildcardEnabled = true
+	s.clock = func() time.Time { return s.engine.Boot.Events[0].DeadlineTime.Add(time.Hour) }
+
+	baseline := chipTeamsPlayerIDs(t, getChipTeams(t, s, nil))
+
+	var lockID, lockCode int
+	for _, m := range s.engine.AllMetrics() {
+		if baseline[m.ID] {
+			continue
+		}
+		if m.Position != "MID" || m.Minutes < 1500 || m.Price >= 7.0 {
+			continue
+		}
+		if el := s.engine.Boot.ElementByID(m.ID); el != nil {
+			lockID, lockCode = m.ID, el.Code
+			break
+		}
+	}
+	if lockID == 0 {
+		t.Skip("no suitable not-picked lock candidate in this fixture")
+	}
+
+	locked := *s.cfg
+	locked.Roster.Lock = []config.RosterOverride{{Code: lockCode, Name: "lock-candidate", Reason: "test"}}
+	s.cfg = &locked
+	s.chips = nil
+
+	got := chipTeamsPlayerIDs(t, getChipTeams(t, s, nil))
+	if !got[lockID] {
+		return
+	}
+	t.Errorf("locking element %d (code %d) forced him into the public wildcard/free-hit "+
+		"rebuild, though the unlocked baseline never picked him", lockID, lockCode)
 }

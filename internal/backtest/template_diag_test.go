@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"testing"
@@ -361,6 +362,9 @@ func TestDiagTemplateCore(t *testing.T) {
 	// One file per table, so either can be differenced without parsing the other.
 	// Written only when asked, so an ordinary run stays read-only.
 	if dir := os.Getenv("FPL_CELLS_DIR"); dir != "" {
+		// One sidecar for the directory: both tables below come from the same
+		// run, so one stamp covers both rather than one per table.
+		writeDiagProvenance(t, filepath.Join(dir, "run.csv"), cfg)
 		write := func(name string, head []string, rows [][]string) {
 			f, err := os.Create(dir + "/" + name)
 			if err != nil {
