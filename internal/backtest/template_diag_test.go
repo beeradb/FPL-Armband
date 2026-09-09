@@ -362,9 +362,6 @@ func TestDiagTemplateCore(t *testing.T) {
 	// One file per table, so either can be differenced without parsing the other.
 	// Written only when asked, so an ordinary run stays read-only.
 	if dir := os.Getenv("FPL_CELLS_DIR"); dir != "" {
-		// One sidecar for the directory: both tables below come from the same
-		// run, so one stamp covers both rather than one per table.
-		writeDiagProvenance(t, filepath.Join(dir, "run.csv"), cfg)
 		write := func(name string, head []string, rows [][]string) {
 			f, err := os.Create(dir + "/" + name)
 			if err != nil {
@@ -390,6 +387,10 @@ func TestDiagTemplateCore(t *testing.T) {
 		// held and seen rather than a percentage: a ratio cannot be re-aggregated
 		// across seasons and the counts can.
 		write("turnover.csv", []string{"season", "rank", "held", "seen"}, turn)
+		// Stamp the files a reader actually opens, not a fictional run.csv.
+		// check_shared_code_state derives the sidecar from the CSV it was handed.
+		writeDiagProvenance(t, filepath.Join(dir, "concentration.csv"), cfg)
+		writeDiagProvenance(t, filepath.Join(dir, "turnover.csv"), cfg)
 		fmt.Printf("\n  cells written to %s\n", dir)
 	}
 }

@@ -118,8 +118,10 @@ let NEWS={checked:'', readChecked:''};
 
    ⚠️ There is no top-level "chips" field on the document. Gameweek.ChipWindow (json
    chip_window) rides on EACH gameweek row instead, because a window's own end and
-   remaining count differ either side of the GW19/38 reset -- so hydrate() below reads
-   it off the live week, not off a document-level field that does not exist. Reading
+   remaining count differ either side of the GW19/38 reset. CHIPWIN is the live
+   week's window (the hydrate fallback). The menu and pill read the VIEWED week's
+   window off GWS, copied in hydrate() below -- otherwise GW20 still showed the
+   live week's "ends after GW19" and remaining count. Reading
    st.chips.window_ends_gw here read undefined forever, live: the chip menu's header
    showed "— of 4 left" and "The chip window has not loaded yet." in EVERY state,
    including with a chip actually placed and the rest of the HUD (the pill, the
@@ -289,7 +291,15 @@ function hydrate(st){
     playable:(g.playable||[]).map(c=>{
       const known=CHIPS.find(x=>x.k===c.key);
       return {k:c.key, n:c.label, ic:known?known.ic:''};
-    })
+    }),
+    /* Per-week window, not CHIPWIN. EndsGW and Remaining flip at the GW19/38
+       reset, and Remaining drops a chip planned for a week BEFORE this one.
+       The live CHIPWIN cannot answer those for a week the reader has selected. */
+    chipWin:g.chip_window?{
+      endsGw:g.chip_window.window_ends_gw,
+      remaining:g.chip_window.remaining_in_window!=null?g.chip_window.remaining_in_window:null,
+      size:g.chip_window.window_size||null
+    }:null
   }));
 
   /* The session, as the server holds it. Rebuilt from the document rather than kept
@@ -931,11 +941,16 @@ function clubCounts(){const m={};P.forEach(p=>m[p.club]=(m[p.club]||0)+1);return
 /* weeksLeft/urgency are the chip control's clock: pressure = weeks left in the window
    divided by chips still unspent in it. A fixed gameweek cannot do this job -- "week 10"
    is early for a reader who has spent three chips and late for one who has spent none.
-   Both inputs are CHIPWIN, server-sent (see hydrate()); the only arithmetic here is a
+   Inputs are the VIEWED week's chip_window (copied onto GWS in hydrate), falling back
+   to CHIPWIN (the live week) when a row carries none. The only arithmetic is a
    subtraction of two gameweek integers, a calendar fact and not a competition rule. */
-function chipWeeksLeft(){ return CHIPWIN.endsGw!=null ? CHIPWIN.endsGw-S.gw+1 : null; }
-function chipUrgency(){
-  const left=CHIPWIN.remaining, w=chipWeeksLeft();
+function chipWinOf(week){ return (week&&week.chipWin)||CHIPWIN; }
+function chipWeeksLeft(week){
+  const win=chipWinOf(week);
+  return win.endsGw!=null ? win.endsGw-S.gw+1 : null;
+}
+function chipUrgency(week){
+  const left=chipWinOf(week).remaining, w=chipWeeksLeft(week);
   if(!left || w===null) return '';                 /* nothing to lose, or no window yet known: stay silent */
   const p=w/left;
   if(p>=3) return '';                               /* quiet */
@@ -944,9 +959,10 @@ function chipUrgency(){
 }
 function renderRail(){
   const el=document.getElementById('gwrail');
-  const due=!!chipUrgency();
   el.innerHTML=GWS.map(g=>{
     const c=CHIPS.find(c=>c.k===g.chip);
+    const due=!!chipUrgency(g);
+    const end=chipWinOf(g).endsGw;
     /* The window boundary is a fact about the calendar, so it lives on the calendar: the
        19px .chipslot already reserves per week, on the window's last week, quiet ink while
        the pill is quiet and amber when the pill is amber. The rail shows the current week
@@ -954,9 +970,10 @@ function renderRail(){
        (buildGameweeks) -- so GW{endsGw} no longer always walks into view five weeks out on
        its own; an imported reader can find it much sooner, already on screen. 2026-08-22:
        corrected after the closed-week guard below made the old five-week claim false for
-       that reader. */
+       that reader. Marked from THIS week's chip_window, not the live CHIPWIN, so a second
+       window's last week (GW38) still shows "Chips end" while the live week is in the first. */
     const slot=c?`<span class="pill on">${c.ic} ${c.n}</span>`
-      :(g.gw===CHIPWIN.endsGw?`<span class="wend${due?' due':''}">Chips end</span>`:'');
+      :(g.gw===end?`<span class="wend${due?' due':''}">Chips end</span>`:'');
     /* A closed week (g.closed) only reaches this rail at all for an imported reader --
        buildGameweeks drops it for everyone else, see viewmodel.Gameweek.Closed's own
        comment. Every control that edits a hypothetical eleven -- Optimise, Reset,
@@ -1144,18 +1161,19 @@ function cmRowHtml(c,week){
 }
 function chipMenuHtml(week){
   const list=chipListFor(week), cur=week.chip;
-  const u=chipUrgency(), w=chipWeeksLeft();
+  const win=chipWinOf(week);
+  const u=chipUrgency(week), w=chipWeeksLeft(week);
   /* size falls back to 4 -- today's window grant -- only for a payload from before
      window_size shipped; ChipWindow.Size's own comment is explicit that the client
      must read this rather than hard-code the day the competition changes it. */
-  const left=CHIPWIN.remaining, size=CHIPWIN.size||4;
+  const left=win.remaining, size=win.size||4;
   return `<div class="chipmenu"${S.chipOpen?'':' hidden'} role="menu">
     <div class="cmhead">
       <span class="t-label">Play a chip in GW${S.gw}</span>
       <span class="sp"></span>
       <span class="t-meta">${left==null?'—':left} of ${size} left</span>
-      <span class="t-meta cmwindow">${CHIPWIN.endsGw==null?'The chip window has not loaded yet.'
-        :`This window ends after GW${CHIPWIN.endsGw}. Unused chips do not carry over.`}</span>
+      <span class="t-meta cmwindow">${win.endsGw==null?'The chip window has not loaded yet.'
+        :`This window ends after GW${win.endsGw}. Unused chips do not carry over.`}</span>
     </div>
     ${u&&left!=null&&w!=null?`<div class="cmwarn"><span class="g" aria-hidden="true">!</span>
       <span class="t-body">${left} unspent, ${w} gameweek${w===1?'':'s'} left in this window.</span></div>`:''}
@@ -1166,12 +1184,13 @@ function chipMenuHtml(week){
 }
 function chipPillHtml(week){
   const cur=week.chip, c=CHIPS.find(x=>x.k===cur);
-  const u=chipUrgency(), left=CHIPWIN.remaining, w=chipWeeksLeft();
+  const win=chipWinOf(week);
+  const u=chipUrgency(week), left=win.remaining, w=chipWeeksLeft(week);
   return `<button class="chippill${c?' set':u?' '+u:''}" type="button"
       aria-expanded="${S.chipOpen}" aria-haspopup="menu">
       <span>Chip</span>
       ${c?`<b>${esc(c.n)}</b>`
-        :u&&left!=null?`<span class="lft">${left} left</span><span class="by">· by GW${CHIPWIN.endsGw}</span>`
+        :u&&left!=null?`<span class="lft">${left} left</span><span class="by">· by GW${win.endsGw}</span>`
         :`<span class="dash">none</span>`}
       <span class="car" aria-hidden="true"></span>
     </button>`;

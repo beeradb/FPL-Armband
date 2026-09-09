@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"armband/internal/config"
@@ -312,5 +313,29 @@ func TestWriteDiagProvenanceRecordsAStandaloneCSVsSidecar(t *testing.T) {
 	if p.WatchedDigest != want {
 		t.Errorf("recorded watched digest %s does not match WatchedDigest(HEAD) %s",
 			p.WatchedDigest, want)
+	}
+}
+
+// TestWriteDiagProvenanceIsNotAimedAtAFictionalRunCSV — R's
+// provenance_path_for derives the sidecar from the CSV it was handed. A stamp
+// on run.csv is invisible next to concentration.csv or xgc-tercile-<season>.csv,
+// which is how two of the seven DIAG CSV writers shipped a sidecar nothing
+// reads. The path argument must be the file a later reader opens.
+func TestWriteDiagProvenanceIsNotAimedAtAFictionalRunCSV(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		body, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		needle := "writeDiagProvenance(t, filepath.Join(dir, " + `"run.csv"`
+		if strings.Contains(string(body), needle) {
+			t.Errorf("%s stamps writeDiagProvenance on run.csv, which R never opens; "+
+				"stamp the CSV the reader is given (concentration.csv, xgc-tercile-<season>.csv, …)",
+				f)
+		}
 	}
 }
