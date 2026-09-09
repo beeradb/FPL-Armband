@@ -150,13 +150,13 @@ func TestSuggestTransfersPricesAFreeTransfer(t *testing.T) {
 	}
 	t.Logf("%d candidates in total, %d of them not worth a free transfer", len(cands), charged)
 	if charged == 0 || charged == len(cands) {
-		// Live pool: the degraded source can return no candidates (thin minutes
-		// floor, empty transfer board) and the optimal squad a single sub-threshold
-		// move. That is the same "not exercising the threshold" case the
-		// matchesNeeded skip already names; fail-closed would red CI on a week
-		// the charge is not being tested.
-		t.Skipf("every candidate fell the same side of the charge (%d of %d); the live pool is not exercising the threshold",
-			charged, len(cands))
+		// Keep the assertion whenever both sides appear. When live data still
+		// cannot manufacture a separating set — even after gently/degrade scale
+		// their minutes floor — skip rather than fail a charge pin that did not
+		// get to run. Fail-closed would red CI on a week the charge is not
+		// being tested.
+		t.Skipf("every candidate fell the same side of the charge (%d of %d); the test is "+
+			"not exercising the threshold", charged, len(cands))
 	}
 }
 

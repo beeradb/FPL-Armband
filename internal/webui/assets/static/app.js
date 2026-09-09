@@ -271,7 +271,10 @@ function hydrate(st){
   WEAKEST={};
   for(const b of BENCHMARKS) WEAKEST[b.pos]=b.score;
 
-  GWS=(st.gameweeks||[]).map(g=>({
+  GWS=(st.gameweeks||[]).map(g=>{
+    const week_xp={};
+    for(const row of (g.week_xp||[])) week_xp[row.id]=row.xp;
+    return {
     gw:g.gw, deadline:g.deadline ? new Date(g.deadline) : null,
     d:g.deadline ? fmtDeadline(new Date(g.deadline)) : '',
     /* Closed only ever arrives true for an imported reader -- buildGameweeks
@@ -280,6 +283,7 @@ function hydrate(st){
        already played and scored. See that function's own comment. */
     closed:!!g.closed,
     chip:CHIPKEY[g.chip]||null, live:!!g.current, projected:g.projected,
+    captain:g.captain||0, vice:g.vice||0, week_xp,
     /* Which chips the competition allows THIS week, decided by the model. Gameweek one
        offers only the bench boost and the triple captain -- a wildcard buys nothing when
        transfers are already unlimited, and the free hit is not offered either. The page
@@ -300,7 +304,8 @@ function hydrate(st){
       remaining:g.chip_window.remaining_in_window!=null?g.chip_window.remaining_in_window:null,
       size:g.chip_window.window_size||null
     }:null
-  }));
+  };
+  });
 
   /* The session, as the server holds it. Rebuilt from the document rather than kept
      across renders: the server is the one that knows what is stored. */
@@ -367,6 +372,7 @@ function hydrate(st){
   S.xiChanges=sq.xi_changes;
   S.xiGap=sq.xi_gap;
   S.gw=(GWS.find(g=>g.live)||GWS[0]||{gw:1}).gw;
+  applyWeekArmband();
 
   /* The team, by code, so a reload restores exactly this arrangement rather than the
      model's answer to the same fifteen. */
@@ -896,11 +902,16 @@ function legal(){
  * comparison and the armband picker -- every headline figure on the pitch -- while
  * squad.xi_score and squad.expected arrived from the model and were never read.
  *
- * There is no per-player, per-gameweek projection in the contract today; Score is an
- * average over the horizon. The honest answer is to show that number and to add a
- * per-week one to internal/viewmodel if the rail needs to move, NOT to invent one here.
+ * Per-gameweek expected points live on the rail as gameweeks[].week_xp, scored at
+ * horizon 1 — the same engine Plan.Captain already uses. Player.xp is the horizon
+ * average, which is the right number for a fifteen you keep and the wrong one for
+ * the picker labelled "this week".
  */
-function xpFor(p){ return p.xp; }
+function xpFor(p){
+  const w=gwState();
+  if(w && w.week_xp && w.week_xp[p.id]!=null) return w.week_xp[p.id];
+  return p.xp;
+}
 const xiPts=()=>S.xi.reduce((s,id)=>s+xpFor(byId(id)),0);
 const benchPts=()=>[...S.bench,S.benchGk].reduce((s,id)=>s+xpFor(byId(id)),0);
 function totalPts(){
@@ -1020,9 +1031,21 @@ function selectPastGameweek(gw){
   renderPastResults(gw);
 }
 
+function applyWeekArmband(){
+  const w=gwState();
+  if(!w) return;
+  /* Server pair is CaptainAndVice of THIS pitch eleven at this week's scores.
+     Copy as a pair; never leave the horizon vice sitting on the new captain. */
+  if(w.captain && S.xi.includes(w.captain)){
+    S.cap=w.captain;
+    S.vc=(w.vice && S.xi.includes(w.vice) && w.vice!==S.cap) ? w.vice : 0;
+  }
+}
+
 function selectPlanningGameweek(gw){
   S.gw=+gw;
   S.resultsGw=null;
+  applyWeekArmband();
   showPlanningSurface(true);
   const rv=document.getElementById('resultsview');
   if(rv) rv.hidden=true;
@@ -2247,6 +2270,11 @@ function openArmbandPicker(which){
   const rows=[...S.xi].map(id=>byId(id))
     .sort((a,b)=>xpFor(b)-xpFor(a));
   const best=xpFor(rows[0]), floor=xpFor(rows[rows.length-1]), span=Math.max(.01,best-floor);
+  const second=rows.length>1?xpFor(rows[1]):floor;
+  const gap=best-second;
+  /* ~0.5 is the resolution the manager brief already treats as a tie (MAE on
+     the points scale). The ranking itself is still strict argmax — HOLD identity
+     — so a close race is a note, not a different pick. */
   document.getElementById('sheet').innerHTML=`
    <header><div style="flex:1">
      <div class="nm">${which==='cap'?'Pick your captain':'Pick your vice-captain'}</div>
@@ -2269,7 +2297,9 @@ function openArmbandPicker(which){
          <span class="mb"><span class="mbar"><span style="width:${Math.max(3,Math.round((x-floor)/span*100))}%"></span></span></span>
        </button>`;}).join('')}
      <div class="storenote" style="margin-top:12px">
-       Ranked by projected points per gameweek, not by name recognition. Bars span your XI only — from ${floor.toFixed(2)} to ${best.toFixed(2)} — so a short bar is a small real gap, not a bad player.
+       Ranked by this week's projected points — the number a triple captain triples — not by price or name. Bars span your XI only — from ${floor.toFixed(2)} to ${best.toFixed(2)} — so a short bar is a small real gap, not a bad player.${gap<0.5 && which==='cap' && rows.length>1
+         ? ` The top two are ${gap.toFixed(2)} apart, inside the model's noise: a judgement, not a gap.`
+         : ''}
      </div>
    </div>`;
   document.getElementById('scrim').classList.add('open');

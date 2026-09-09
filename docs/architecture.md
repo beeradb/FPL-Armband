@@ -126,6 +126,11 @@ State built once at construction: the per-team upcoming fixture index, and `cong
 
 See [model.md](model.md) for what the numbers mean.
 
+`CaptainAndVice` is the only captain/vice picker. It ranks a fielded eleven by `Score` (highest
+captain, distinct second vice; ties keep the earlier slice element). Callers that used to walk
+or re-sort the eleven themselves — `Optimize`, `WeekViews`, the transfer plan, squad rebuild,
+the replay — all go through it.
+
 ### `internal/agent`
 
 Wraps the Anthropic Go SDK's `BetaToolRunner`. **Fourteen** local tools plus server-side web
@@ -209,6 +214,10 @@ It computes nothing. Every figure is copied off `analysis.Squad`, `analysis.Play
 `present.Watchlist` or config — the same rule `internal/present` states for itself, and what
 lets the client stay dumb: a number the client needs and does not have gets added here
 rather than worked out there.
+
+`Gameweek.WeekXP` is this gameweek's horizon-1 `Score`, copied off `WeekView`. `Squad.Captain`
+is the same rule on the horizon-average `Player.XP`. The live armband picker ranks on `WeekXP`,
+not on `Player.XP`.
 
 `Build` returns an error on one condition only, a non-finite float. That is not defensive:
 `encoding/json` refuses `NaN` and `+Inf` outright, so one bad value fails the whole document

@@ -41,11 +41,13 @@ func TestTheTransferPoolScalesItsMinutesFloor(t *testing.T) {
 	// The first version of this guard read transfers.go alone, and a THIRD live copy of
 	// the same defect sat in internal/agent/tools.go the whole time it was green: the
 	// agent's suggest_transfers built its own pool with a bare `c.Minutes < minMins` and
-	// went on returning nothing while the CLI was fixed and shipped. A guard scoped to
-	// the file whose bug prompted it certifies that one file and nothing else, which on
-	// a defect that exists in three places is worse than no guard, because it reads as
-	// coverage.
-	for _, f := range []string{"transfers.go", "../../internal/agent/tools.go"} {
+	// went on returning nothing while the CLI was fixed and shipped. A FOURTH copy sat
+	// in transfers_test.go's gently/degrade helpers: at GW3 nobody has 600 minutes, so
+	// the helpers manufactured no sub-threshold candidate and CI failed on "every
+	// candidate fell the same side of the charge". A guard scoped to the file whose
+	// bug prompted it certifies that one file and nothing else, which on a defect that
+	// exists in four places is worse than no guard, because it reads as coverage.
+	for _, f := range []string{"transfers.go", "../../internal/agent/tools.go", "../../internal/agent/transfers_test.go"} {
 		src, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("reading %s: %v", f, err)

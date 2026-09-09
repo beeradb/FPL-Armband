@@ -747,10 +747,8 @@ func planSquad(p analysis.Plan) analysis.Squad {
 		Formation:  p.Formation,
 		Captain:    p.Captain,
 	}
+	_, sq.ViceCaptain = analysis.CaptainAndVice(p.XI)
 	for _, x := range p.XI {
-		if x.ID != p.Captain.ID && x.Score > sq.ViceCaptain.Score {
-			sq.ViceCaptain = x
-		}
 		sq.XIScore += x.Score
 		sq.TotalCost += x.Price
 	}

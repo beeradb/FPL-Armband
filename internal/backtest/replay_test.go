@@ -209,6 +209,20 @@ func TestContribSumsToGross(t *testing.T) {
 	}
 }
 
+func TestCaptainAndViceDelegatesToAnalysis(t *testing.T) {
+	pick := []analysis.PlayerMetrics{
+		{ID: 1, Score: 4},
+		{ID: 2, Score: 9},
+		{ID: 3, Score: 9},
+		{ID: 4, Score: 1},
+	}
+	gotC, gotV := captainAndVice(pick)
+	wantC, wantV := analysis.CaptainAndVice(pick)
+	if gotC != wantC.ID || gotV != wantV.ID {
+		t.Errorf("replay (%d, %d), analysis (%d, %d)", gotC, gotV, wantC.ID, wantV.ID)
+	}
+}
+
 // TestCaptaincyRungsRemoveOnlyTheArmband pins the two diagnostic rungs
 // HoldCaptaincyWeekly builds on top of HOLD.
 //

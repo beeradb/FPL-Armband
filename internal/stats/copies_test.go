@@ -246,18 +246,13 @@ func isSaturatingRatio(line string) bool {
 // having anyway is that the shapes below are what somebody *reaching for the
 // obvious* writes.
 //
-// ⚠️ **Two live near-misses, named so nobody reads the paragraph above as "the
-// blind spot is empty".** `backtest.captainAndVice` is the same running top-two
-// over the same `Score`, and its own doc says so — it escapes row 1 because its
-// tuple targets are PAIRED (`viceScore, vice = capScore, captain`), which the
-// first-equals-last test declines. `cmd/armband`'s `priorSeasonName` is the same
-// year decrement as row 2, escaping it by emitting the four-digit form. Both are
-// out of each row's stated `quantity` — one returns ids rather than a value, the
-// other derives a season from a clock rather than from a season name — so neither
-// is an offender, and neither is folded in here: `captainAndVice` sits on the
-// replay's scoring path where tie order is load-bearing, and moving it is a
-// behaviour change rather than a deduplication. They are recorded because they are
-// the templates the NEXT copy gets written from.
+// ⚠️ **A live near-miss, named so nobody reads the paragraph above as "the
+// blind spot is empty".** `cmd/armband`'s `priorSeasonName` is the same year
+// decrement as row 2, escaping it by emitting the four-digit form. It is out of
+// that row's stated `quantity` — it derives a season from a clock rather than
+// from a season name — so it is not an offender. The captain walk that used to
+// sit beside this list as a second near-miss is now `analysis.CaptainAndVice`;
+// the replay unwraps ids from it and does not walk Score itself.
 //
 // ⚠️ **Sanctions are counted per FILE, not pinned to an occurrence**, which is
 // weaker than the median guard's key-on-the-expression. It has to be: the two

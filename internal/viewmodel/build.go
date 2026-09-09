@@ -425,6 +425,8 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 		for _, key := range analysis.PlayableChips(boot, w.Event) {
 			playable = append(playable, ChipOption{Key: key, Label: analysis.ChipLabel(key)})
 		}
+		weekXP := weekScores(w)
+		cap, vice := weekArmband(p.Squad.StartingXI, weekXP)
 		out = append(out, Gameweek{
 			Number:     w.Event,
 			Deadline:   deadline[w.Event],
@@ -436,6 +438,9 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 			Rebuilt:    w.Rebuilt,
 			Playable:   playable,
 			ChipWindow: buildChipWindow(boot, chips, w.Event, deadline),
+			Captain:    cap,
+			Vice:       vice,
+			WeekXP:     weekXP,
 		})
 	}
 
@@ -455,6 +460,51 @@ func buildGameweeks(p present.Page, boot *fpl.Bootstrap, chips analysis.ChipSche
 		sort.Slice(past, func(i, j int) bool { return past[i].Number < past[j].Number })
 	}
 	return append(past, out...)
+}
+
+// weekScores copies the owned fifteen's this-week scores. Prefers Owned (the
+// pitch squad, even on a chip rebuild) then Squad then XI.
+func weekScores(w analysis.WeekView) []WeekScore {
+	src := w.Owned
+	if len(src) == 0 {
+		src = w.Squad
+	}
+	if len(src) == 0 {
+		src = w.XI
+	}
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]WeekScore, 0, len(src))
+	for _, p := range src {
+		if p.ID == 0 {
+			continue
+		}
+		out = append(out, WeekScore{ID: p.ID, XP: p.Score})
+	}
+	return out
+}
+
+// weekArmband is CaptainAndVice on the PITCH eleven with this week's scores,
+// not on WeekView.XI — that eleven can be a chip rebuild, and hanging its
+// captain on the owned pitch is how captain and vice become the same name.
+func weekArmband(xi []analysis.PlayerMetrics, scores []WeekScore) (captain, vice int) {
+	xp := make(map[int]float64, len(scores))
+	for _, s := range scores {
+		xp[s.ID] = s.XP
+	}
+	ranked := make([]analysis.PlayerMetrics, 0, len(xi))
+	for _, p := range xi {
+		q := p
+		if v, ok := xp[p.ID]; ok {
+			q.Score = v
+		} else {
+			q.Score = 0
+		}
+		ranked = append(ranked, q)
+	}
+	c, v := analysis.CaptainAndVice(ranked)
+	return c.ID, v.ID
 }
 
 // buildResults arranges ONE entry's manager record into the results page's contract — the
@@ -968,7 +1018,7 @@ func walkFinite(v reflect.Value, path string) error {
 // it against other rounded values (a sort key, a table column) where a client-stable-sort
 // tie between two players who are genuinely within 0.001 of each other is not a wrong
 // answer -- see the package comment on roundState.
-var roundSkipField = map[string]bool{"XP": true, "Gate": true}
+var roundSkipField = map[string]bool{"XP": true, "Gate": true} // Player.XP, WeekScore.XP, Market.Gate
 
 // roundState rounds every float64 in State to 3 decimal places, except roundSkipField's
 // two entries. 3dp, not 2dp: app.js formats to 2dp at roughly 90 call sites, and rounding

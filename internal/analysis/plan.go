@@ -131,11 +131,7 @@ func fieldedXI(squad []PlayerMetrics, week *Engine) (xi, bench []PlayerMetrics, 
 		}
 	}
 	xi, bench, formation = bestXI(pick)
-	for _, p := range xi {
-		if p.Score > captain.Score {
-			captain = p
-		}
-	}
+	captain, _ = CaptainAndVice(xi)
 	// Substitution order: the reserve keeper is not interchangeable with an
 	// outfielder, and the first outfield sub is the one that actually comes on.
 	sort.SliceStable(bench, func(i, j int) bool {

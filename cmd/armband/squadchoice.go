@@ -103,17 +103,10 @@ func squadFromCodes(e *analysis.Engine, pool []analysis.PlayerMetrics, codes []i
 	for _, m := range xi {
 		sq.XIScore += m.Score
 	}
-	// The armband goes to the two highest scorers in the eleven, which is the rule the
-	// replay scores, so the page and the objective never disagree about who wears it.
-	ranked := append([]analysis.PlayerMetrics(nil), xi...)
-	sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].Score > ranked[j].Score })
-	if len(ranked) > 0 {
-		sq.Captain = ranked[0]
-		sq.ExpectedPoints = sq.XIScore + ranked[0].Score
-	}
-	if len(ranked) > 1 {
-		sq.ViceCaptain = ranked[1]
-	}
+	// The armband goes to the two highest scorers in the eleven, the same walk
+	// HOLD scores, so the page and the objective never disagree about who wears it.
+	sq.Captain, sq.ViceCaptain = analysis.CaptainAndVice(xi)
+	sq.ExpectedPoints = sq.XIScore + sq.Captain.Score
 	return sq
 }
 

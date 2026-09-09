@@ -58,6 +58,12 @@ type WeekView struct {
 	// following week; a wildcard's is kept, and that difference is the whole
 	// reason the two chips are planned differently.
 	Rebuilt bool
+	// Owned is the squad PASSED IN, scored for this gameweek, even when Squad
+	// is a chip rebuild. The live picker ranks the pitch eleven on these
+	// scores; hanging a rebuilt captain on the owned pitch is how captain and
+	// vice become the same name.
+	Owned []PlayerMetrics
+
 	// RebuildFailed is true when a wildcard or free hit WAS eligible to rebuild
 	// this gameweek -- Chip named one of them and the gameweek was still open --
 	// but the rebuild could not be completed: AssemblyBudget errored, or
@@ -322,39 +328,14 @@ func (e *Engine) ChipWeekView(squad []PlayerMetrics, gw int, chip string,
 		}
 	}
 
-	scored := make([]PlayerMetrics, 0, len(weekSquad))
-	opponents := map[int][]FixtureBrief{}
-	for _, p := range weekSquad {
-		el := e.Boot.ElementByID(p.ID)
-		if el == nil {
-			scored = append(scored, p)
-			continue
-		}
-		m := wk.Metrics(el)
-
-		// Everything a club plays IN this gameweek, which is two fixtures in
-		// a double and none in a blank.
-		var fixtures []FixtureBrief
-		for _, f := range wk.TeamFixtures(el.Team, 2) {
-			if f.Event == gw {
-				fixtures = append(fixtures, f)
-			}
-		}
-		if len(fixtures) == 0 {
-			// He cannot score, so he must not be picked. Zeroing the score
-			// is what makes BestXI field the eleven a manager actually
-			// would, rather than one containing a player with no match.
-			m.Score = 0
-		}
-		opponents[m.ID] = fixtures
-		scored = append(scored, m)
-	}
+	owned, _ := e.scoreAtWeek(wk, gw, squad)
+	scored, opponents := e.scoreAtWeek(wk, gw, weekSquad)
 
 	xi, bench, formation := BestXI(scored)
 	v := WeekView{
 		Event: gw, XI: xi, Bench: bench, Formation: formation,
 		Opponents: opponents, Chip: chip, Rebuilt: rebuilt,
-		RebuildFailed: rebuildFailed, Squad: scored,
+		RebuildFailed: rebuildFailed, Squad: scored, Owned: owned,
 	}
 	switch {
 	case rebuilt:
@@ -362,14 +343,7 @@ func (e *Engine) ChipWeekView(squad []PlayerMetrics, gw int, chip string,
 	case rebuildFailed:
 		v.Caveat = rebuildFailedCaveat(chip)
 	}
-	ranked := append([]PlayerMetrics(nil), xi...)
-	sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].Score > ranked[j].Score })
-	if len(ranked) > 0 {
-		v.Captain = ranked[0]
-	}
-	if len(ranked) > 1 {
-		v.ViceCaptain = ranked[1]
-	}
+	v.Captain, v.ViceCaptain = CaptainAndVice(xi)
 	for _, p := range xi {
 		v.XIScore += p.Score
 	}
@@ -428,6 +402,35 @@ func (e *Engine) gameweekClosed(gw int) bool {
 		}
 	}
 	return found
+}
+
+// scoreAtWeek re-scores a fifteen against one gameweek: this week's fixtures,
+// a blank zeros Score. Used twice in ChipWeekView — the owned squad the pitch
+// still draws, and the (possibly rebuilt) squad the week actually fields —
+// so those two cannot silently share one slice.
+func (e *Engine) scoreAtWeek(wk *Engine, gw int, squad []PlayerMetrics) ([]PlayerMetrics, map[int][]FixtureBrief) {
+	scored := make([]PlayerMetrics, 0, len(squad))
+	opponents := make(map[int][]FixtureBrief, len(squad))
+	for _, p := range squad {
+		el := e.Boot.ElementByID(p.ID)
+		if el == nil {
+			scored = append(scored, p)
+			continue
+		}
+		m := wk.Metrics(el)
+		var fixtures []FixtureBrief
+		for _, f := range wk.TeamFixtures(el.Team, 2) {
+			if f.Event == gw {
+				fixtures = append(fixtures, f)
+			}
+		}
+		if len(fixtures) == 0 {
+			m.Score = 0
+		}
+		opponents[m.ID] = fixtures
+		scored = append(scored, m)
+	}
+	return scored, opponents
 }
 
 // engineAt builds a horizon-1 engine anchored on one gameweek. It is a fresh

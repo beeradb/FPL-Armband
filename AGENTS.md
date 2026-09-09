@@ -590,6 +590,10 @@ by deleting the list, and do not re-derive a verdict from a title alone.
   "talisman" rule.** → **scoring-model**
 - **Do not port a correction across positions on the strength of an analogy.** →
   **scoring-model**
+- **Do not shrink the XI's Score vector toward a common mean and re-argmax — the map is
+  strictly order-preserving for λ ∈ [0,1), so the captain cannot move.** Closed on mechanism
+  with no cell (VOID, not a HOLD null). Distinct from `captainShrink`. Heteroscedastic B is a
+  different experiment. → **scoring-model**
 - **Stop sweeping the transfer gate: nothing swept in this family is recorded as having
   resolved.** → **transfer-policy**
 - **`min_gain` ships at 0.4 and is inert at or below it.** → **transfer-policy**,
@@ -728,6 +732,10 @@ from this list is weak evidence of absence — nothing checks it stays complete.
 - **The weekly capture yields nothing this season.** → **archive-and-data**
 
 ### The harness
+
+- **The armband overlay sees hindsight (+142.53 a season-path vs threshold 23.26) and does not
+  resolve entry-pinned vs weekly (−10.14 vs 20.52).** Season means of the pin range +24 to −31;
+  start=6 carries the pooled negative. Does not retract 255-vs-228. → **harness-and-inference**
 
 - **The replay's noise is sensitivity, not randomness.** → **harness-and-inference**
 - **The noise splits differently on the two metrics.** → **harness-and-inference**

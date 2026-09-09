@@ -1,0 +1,33 @@
+Registered S3 method overwritten by 'clubSandwich':
+  method    from    
+  bread.mlm sandwich
+
+------------------------------------------------------------------------------
+captain calibration A0/C/F — HOLD points per season-path
+cells: 36   seasons: 6   entry points: 6
+C−A0 and F−A0 are SIZING (descriptive). Not in a Holm family.
+UNITS: points per season-path. Do not divide by weeks; do not multiply by 38.
+------------------------------------------------------------------------------
+weeks_oracle_differs share (C vs A0 captain): 0.781  (717 / 918)
+
+--- F − A0  (GW1-pinned minus shipped; the known ~28-point span)
+  mean -10.14 a season-path  (n=36 cells)
+  season means: 2020-21=-0.17  2021-22=+23.83  2022-23=-31.33  2023-24=-12.83  2024-25=-19.83  2025-26=-20.50
+  CR2    SE   7.98  df  5.0  t_crit 2.571  threshold  20.52  |mean|>thr no
+  MDE80   27.86
+  start  SE   6.34  df  5.0  (robustness rival, not the primary)
+  resolves_vs_threshold: no  (sizing only — no Holm, no ship word)
+
+--- C − A0  (perfect armband minus shipped; the ceiling)
+  mean +142.53 a season-path  (n=36 cells)
+  season means: 2020-21=+135.50  2021-22=+184.17  2022-23=+140.33  2023-24=+138.50  2024-25=+117.17  2025-26=+139.50
+  CR2    SE   9.05  df  5.0  t_crit 2.571  threshold  23.26  |mean|>thr yes
+  MDE80   31.58
+  start  SE  18.26  df  5.0  (robustness rival, not the primary)
+  resolves_vs_threshold: yes  (sizing only — no Holm, no ship word)
+
+------------------------------------------------------------------------------
+Decision context (from the prereg, mechanical):
+  If F−A0 does not clear its own threshold, every JS null is uninformative.
+  If C never moves, the instrument cannot see armband effects at all.
+------------------------------------------------------------------------------

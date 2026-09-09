@@ -4098,21 +4098,11 @@ func clubPlaysGW(s *Season, teamID, gw int) bool {
 	return false
 }
 
-// captainAndVice ranks a picked XI by Score and returns the top two, the same
-// ranking xiValueShrunk uses — so the replay's captain choice and the
-// objective that scored the squad never disagree about who wears the armband.
+// captainAndVice is the replay's spelling of analysis.CaptainAndVice: ids, because
+// weekPoints looks players up by id. One walk; this just unwraps it.
 func captainAndVice(pick []analysis.PlayerMetrics) (captain, vice int) {
-	var capScore, viceScore float64
-	for _, p := range pick {
-		switch {
-		case p.Score > capScore:
-			viceScore, vice = capScore, captain
-			capScore, captain = p.Score, p.ID
-		case p.Score > viceScore:
-			viceScore, vice = p.Score, p.ID
-		}
-	}
-	return captain, vice
+	c, v := analysis.CaptainAndVice(pick)
+	return c.ID, v.ID
 }
 
 func idsToPlayers(s *Season, ids []int) []*Player {

@@ -1302,6 +1302,19 @@ passes the armband to the vice-captain whenever the captain records no minutes. 
 guess at how often a nailed captain blanks; replaying the model's own captain choices puts the real
 rate at 9.6%, which is close enough to count as independent confirmation.
 
+Who wears it is one function, `CaptainAndVice`: the highest `Score` in the fielded eleven is
+captain, the distinct second-highest is vice, and a later equal score never steals the armband.
+Every Go surface that names a captain calls it — the replay, the optimiser, the transfer plan,
+the weekly view, squad rebuild. The live picker labelled "this week" does not: it ranks the
+pitch eleven on `Gameweek.WeekXP` so the reader can pick; the default pair on that week is the
+server result of the same function. The `Score` vector is the question being asked — the horizon
+average for a fifteen you keep (`Optimize`, HOLD, squad rebuild); this gameweek at horizon 1 for
+`WeekViews`, the transfer plan's fielded eleven, and that picker's ranking key. Same rule,
+different input. A planned triple captain uses that same this-week number, times three — it is
+the owned premium's projection for *that* fixture, including a double, not a five-week average
+and not the league's top scorer. The vice is never the captain: if only one player is in the
+eleven, there is no vice, rather than a blank forfeiting the double.
+
 Two consequences of counting the captain worth knowing. It makes the armband the second-largest
 source of a season's points after transfers — worth about 182 a season on a squad you simply hold —
 and it **doubles any error in the top player's score**, which is exactly where the model is least
