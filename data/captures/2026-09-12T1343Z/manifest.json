@@ -1,0 +1,22 @@
+{
+  "captured_at": "2026-09-12T13:43:05.4263014Z",
+  "files": [
+    {
+      "endpoint": "/bootstrap-static/",
+      "name": "bootstrap-static.json.gz",
+      "bytes": 1735553,
+      "stored_bytes": 150753,
+      "sha256": "b0dbc4bec165ae488d0ea3c2309980229f306a409323c4fa6c3f5d49274d17be"
+    },
+    {
+      "endpoint": "/fixtures/",
+      "name": "fixtures.json.gz",
+      "bytes": 186365,
+      "stored_bytes": 14217,
+      "sha256": "78a6eb9299b4c6b832d5dc3c37b8a106873c2af92508d37c3df8a6f0c4d31a45"
+    }
+  ],
+  "event": 5,
+  "event_deadline": "2026-09-18T17:30:00Z",
+  "hours_to_deadline": 147.7818260273889
+}
